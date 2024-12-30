@@ -1,0 +1,48 @@
+body {
+    word-break: keep-all;
+    font-family: "Noto Sans KR";
+    font-weight: 500;
+    box-sizing: border-box;
+}
+
+a {
+    text-decoration: none;
+    color: black;
+}
+
+#header {
+    border-bottom: 1px solid #000;
+    font-size: 20px;
+}
+
+#upperHeader {
+    max-width: 1050px;
+    width: 90%;
+}
+
+#menuBar {
+    max-width: 1050px;
+    width: 90%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.logoimg {
+    width: 200px;
+    object-fit: cover;
+}
+
+@media screen and (max-width: 1050px) {
+    #upperHeader {
+        justify-content: center;
+    }
+}
+
+#content {
+    max-width: 1050px;
+}
+
+#footer {
+    border-top: 1px solid #000;
+    text-align: center;
+}

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load static %}
+{% load card_tags %}
+{% block title %}
+{{ card.name }}
+{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "card/detail.css" %}">
+{% endblock style %}
+{% block content %}
+<div>
+    <div class="d-flex mainBox">
+        <div class="cardimg p-2">
+            <img class="w-100" src="{{ card.img }}" alt="">
+        </div>
+        <div class="cardinfo p-2 border d-flex flex-column">
+            <div class="mb-2"><b>카드명 |</b> {{ card.name }}</div>
+            <div class="mb-2"><b>사용자명 |</b> {{ card.character.name }}</div>
+            <div class="d-flex flex-row mb-2">
+                {% if card.type == "공격" %}
+                <div class="d-flex flex-column justify-content-around 판정1">
+                    <div class="d-flex flex-row">
+                        <div class="w-50"><b>판정 |</b> {{ card.pos }}</div>
+                        <div class="w-50"><b>부위 |</b> {{ card.body|default_if_none:"" }}</div>
+                    </div>
+                    <div><b>특수 |</b> {{ card.special|default_if_none:"X" }}</div>
+                </div>
+                {% endif %}
+                <table class="table-sm border table-striped inline 판정2" style="table-layout: fixed;">
+                    <thead>
+                        {% if card.type == "공격" %}
+                        <th scope="col" class="border-right">히트</th>
+                        <th scope="col" class="border-right">가드</th>
+                        <th scope="col" class="">카운터</th>
+                        {% endif %}
+                        {% if card.type == "수비" %}
+                            <th scope="col">상단</th>
+                            <th scope="col">중단</th>
+                            <th scope="col">하단</th>
+                        {% endif %}
+                    </thead>
+                    <tbody>
+                        <tr>
+                            {% if card.type == "공격" %}
+                                <td scope="row">{{ card.hit|default_if_none:"X" }}</td>
+                                <td scope="col">{{ card.guard|default_if_none:"X" }}</td>
+                                <td scope="col">{{ card.counter|default_if_none:"X" }}</td>
+                            {% endif %}
+                            {% if card.type == "수비" %}
+                                <td scope="row">{{ card.g_top|default_if_none:"X" }}</td>
+                                <td scope="col">{{ card.g_mid|default_if_none:"X" }}</td>
+                                <td scope="col">{{ card.g_bot|default_if_none:"X" }}</td>
+                            {% endif %}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            {% if card.type == "공격" %}
+                <div class="d-flex flex-row mb-2">
+                    <div class="w-50"><b>속도 |</b> {{ card.frame }}</div>
+                    <div class="w-50"><b>대미지 |</b> {{ card.damage }}</div>
+                </div>
+            {% endif %}
+            <div class="mb-2"><b>효과</b><br>{{ card.text|linebreaks }}</div>
+            <div class="mb-auto"><b>최초 수록 |</b> {{ card.code }}</div>
+            <div class="mt-auto"><b>태그 | </b> {{ card.keyword|keywords }}</div>
+        </div>
+    </div>
+    <div class="relation mt-2 mb-3">
+        <div class="d-flex flex-row justify-content-center mb-2">
+            <select class="btn btn-sm border relationText" name="kw" id="kwSelect">
+                {% for kw in relation.keys %}
+                <option value="{{ kw|cut:" " }}">{{kw}}</option>
+                {% endfor %}
+            </select>
+            <p class="mt-auto mb-auto ms-2 relationText">관련 카드</p>
+        </div>
+        {% for kw, vs in relation.items %}
+        
+        <div id="{{ kw|cut:" " }}" class="relationBox">
+            <div class="d-flex flex-wrap justify-content-center">
+            {% for v in vs %}
+            <div class="relationCards">
+                <a href="{% url 'card:detail' v.id %}">
+                    <div class="w-100 d-flex flex-column justify-content-center hoverBig">
+                        <img class="w-100" src="{{ v.img }}" alt="{{ v.name }}">
+                        <div>{{ v.name }}</div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<script src="{% static "card/detail.js" %}"></script>
+{% endblock content %}

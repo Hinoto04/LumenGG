@@ -1,0 +1,73 @@
+#charbox { grid-area: char; }
+#typebox { grid-area: type; }
+#posbox { grid-area: posi; }
+#bodybox { grid-area: body; }
+#packbox { grid-area: pack; }
+#sortbox { grid-area: sort; }
+#id_keyword { grid-area: keyword; }
+#posField { grid-area: posf; }
+#frameField { grid-area: fraf; }
+
+#id_pack, #id_sort {
+    width: 100%;
+}
+
+.searchLabel {
+    font-weight: 900;
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+.searchField {
+    display: grid;
+    row-gap: 0.5em;
+    column-gap: 0.5em;
+    grid-template-areas: 
+    "char char char char char char"
+    "type type type posi posi posi"
+    "posf posf body body pack pack"
+    "posf posf fraf fraf sort sort";
+}
+
+.searchField > div > .searchCheckbox {
+    margin-top: auto;
+    margin-bottom: auto;
+    display: flex;
+    flex-grow: 1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-around;
+}
+
+.searchField > div {
+    border: 1px solid #000;
+}
+
+
+.cardinfo > p {
+    text-align: center;
+}
+.cards {
+    width: 25%;
+    padding: 0.25em;
+}
+
+@media screen and (max-width: 645px) {
+    .cards {
+        width: 33.3%;
+    }
+
+    .searchField {
+        display: grid;
+        row-gap: 0.5em;
+        column-gap: 0.5em;
+        grid-template-areas: 
+        "char char"
+        "type type"
+        "posi posi"
+        "body body"
+        "fraf fraf"
+        "posf pack"
+        "posf sort";
+    }
+}

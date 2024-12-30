@@ -1,0 +1,72 @@
+.mainBox {
+    flex-direction: row;
+}
+.cardimg {
+    width: 40%;
+}
+.cardinfo {
+    width: 60%;
+}
+table {
+    text-align: center;
+}
+
+
+@media screen and (max-width: 645px) {
+    .mainBox {
+        flex-direction: column;
+    }
+    .cardimg {
+        width: 100%;
+    }
+    .cardinfo {
+        width: 100%;
+    }
+    table {
+        text-align: center;
+    }
+}
+
+.판정1 {
+    width: 45%;
+}
+.판정2 {
+    width: 55%;
+}
+
+.relationCards {
+    width: 16.6%;
+}
+
+.hoverBig {
+    z-index: 999;
+}
+
+.hoverBig > img {
+    z-index: 1;
+}
+
+.hoverBig:hover > img {
+    transform: scale(2.5);
+    z-index: 2;
+    pointer-events: none;
+}
+
+@media screen and (max-width: 645px) {
+    .relationCards {
+        width: 33.3%;
+    }
+
+    .hoverBig:hover > img {
+        transform: scale(1);
+    }
+}
+
+.relationBox {
+    display: none;
+    text-align: center;
+}
+
+.relationText {
+    font-size: 20px;
+}

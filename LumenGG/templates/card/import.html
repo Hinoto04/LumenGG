@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import</title>
+</head>
+<body>
+    <table>
+        <thead>
+            <th scope="col">#</th>
+            <th scope="col">카드명</th>
+            <th scope="col">캐릭터</th>
+            <th scope="col">타입</th>
+            <th scope="col">속도</th>
+            <th scope="col">판정</th>
+            <th scope="col">대미지</th>
+            <th scope="col">부위</th>
+            <th scope="col">특수</th>
+            <th scope="col">1</th>
+            <th scope="col">2</th>
+            <th scope="col">3</th>
+            <th scope="col">효과</th>
+            <th scope="col">코드</th>
+            <th scope="col">이미지</th>
+        </thead>
+        <tbody>
+            {% for card in cards %}
+            <tr>
+                <th scope="row">{{ card.id }}</th>
+                <td>{{ card.name }}</td>
+                <td>{{ card.character.name }}</td>
+                <td>{{ card.type }}</td>
+                <td>{{ card.frame }}</td>
+                <td>{{ card.pos }}</td>
+                <td>{{ card.damage }}</td>
+                <td>{{ card.body }}</td>
+                <td>{{ card.special }}</td>
+                {% if card.type == "공격" %}
+                <td>{{ card.hit }}</td>
+                <td>{{ card.guard }}</td>
+                <td>{{ card.counter }}</td>
+                {% else %}
+                <td>{{ card.g_top }}</td>
+                <td>{{ card.g_mid }}</td>
+                <td>{{ card.g_bot }}</td>
+                {% endif %}
+                <td>{{ card.text|linebreaks }}</td>
+                <td>{{ card.code }}</td>
+                <td><img src="{{ card.img }}" alt="{{ card.img }}"></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

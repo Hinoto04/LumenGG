@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}카드 리스트{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "card/list.css" %}">
+{% endblock style %}
+{% block content %}
+<div>
+    <form class="form-control mt-2" action="" method="get">
+        <h3>검색</h3>
+        <div class="searchField mb-2">
+            <div id="charbox" class="d-flex flex-row">
+                <label class="ms-2 searchLabel" for="char">캐릭터</label>
+                {{ form.char }}
+            </div>
+            <div id="typebox" class="d-flex flex-row">
+                <label class="ms-2 searchLabel" for="type">분류</label>
+                {{ form.type }}
+            </div>
+            <div id="posbox" class="d-flex flex-row">
+                <label class="ms-2 searchLabel" for="pos">판정</label>
+                {{ form.pos }}
+            </div>
+            <div id="bodybox" class="d-flex flex-row">
+                <label class="ms-2 searchLabel" for="body">부위</label>
+                {{ form.body }}
+            </div>
+            <div id="posField" class="d-flex flex-row justify-content-center">
+                <label class="ms-2 searchLabel" for="special">특수<br>판정</label>
+                <div class="d-flex flex-grow-1 flex-row justify-content-center mt-auto mb-auto">
+                    {{ form.specialpos }}
+                    {{ form.specialtype }}
+                </div>
+            </div>
+            <div id="packbox" class="d-flex flex-row">
+                {{ form.pack }}
+            </div>
+            <div id="frameField" class="d-flex flex-row">
+                <label class="ms-2 searchLabel" for="frame">속도</label>
+                <div class="d-flex flex-row mt-auto mb-auto justify-content-center flex-grow-1">
+                    {{ form.framenum }}
+                    {{ form.frametype }}
+                </div>
+            </div>
+            <div id="sortbox" class="d-flex flex-row">
+                {{ form.sort }}
+            </div>
+        </div>
+        <div class="d-flex input-group-sm">
+            {{ form.keyword }}
+        </div>
+        <div class="d-flex justify-content-end">
+            <button class="btn btn-sm btn-primary" type="submit">검색</button>
+        </div>
+    </form>
+    <div class="d-flex flex-wrap">
+        {% for card in cards %}
+        <div class="cards">
+            <a href="{% url "card:detail" card.id %}">
+                <div class="w-100 upper">
+                    <img class="w-100" src="{{ card.img }}" alt="{{ card.img }}">
+                </div>
+                <div class="cardinfo ms-auto me-auto">
+                    <p class="mb-1">{{ card.name }}</p>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="paginator d-flex justify-content-center">
+        <ul class="pagination">
+            {% for page_number in cards.paginator.page_range %}
+            {% if page_number >= cards.number|add:-5 and page_number <= cards.number|add:5 and page_number != cards.number %}
+                <li class="page_item">
+                    <a class="page-link dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% elif page_number == cards.number %}
+                <li class="page-item active" aria-current="page">
+                    <a class="page-link dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+<script src="{% static "card/list.js" %}"></script>
+{% endblock content %}
