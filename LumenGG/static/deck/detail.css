@@ -4,8 +4,51 @@
     "list list list list side"
     "list list list list side"
     "hand hand hand hand side";
-    aspect-ratio: 16 / 12;
+    grid-template-columns: repeat(5, 1fr);
     gap: 0.25em;
+}
+
+#Side > div > .imgBox {
+    height: 10%;
+    width: 100%;
+}
+
+@media screen and (min-width: 768px) {
+    #ImageDeck {
+        aspect-ratio: 16 / 12;
+    }
+
+    #Side {
+        height: 100%;
+        overflow-y: scroll;
+    }
+
+    .sideBox {
+        position: relative;
+    }
+
+    .sideImg {
+        position: absolute;
+        width: 100%;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    #ImageDeck {
+        grid-template-areas:
+        "list"
+        "hand"
+        "side";
+        grid-template-columns: auto;
+    }
+
+    #Side > div > .imgBox {
+        width: 16.6%;
+    }
+
+    #Side {
+        overflow-y: none;
+    }
 }
 
 #List { grid-area: list; }
@@ -14,15 +57,6 @@
 
 #List > div > .imgBox, #Hand > div > .imgBox {
     width: 20%;
-}
-
-#Side {
-    gap: 10px;
-    overflow: hidden;
-}
-
-#Side > .imgBox {
-    height: 5%
 }
 
 .cardImg {
@@ -37,15 +71,5 @@
 }
 
 .hoverOn {
-    z-index: 999;
-}
-
-.hoverOn > img {
-    z-index: 1;
-}
-
-.hoverOn:hover > img {
-    transform: scale(1);
-    z-index: 2;
-    pointer-events: none;
+    transition: height 0.3s ease;
 }

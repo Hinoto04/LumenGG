@@ -19,20 +19,6 @@
         {{deck.description|safe}}
     </div>
     <div id="ImageDeck" class="w-100">
-        <div id="Hand" class="d-flex flex-column p-1 border">
-            <p class="mb-0">손패</p>
-            <div class="d-flex flex-row">
-                {% for card in hands %}
-                {% for _ in card.hand|times %}
-                <div class="imgBox">
-                    <a href="{% url "card:detail" card.card.id %}">
-                        <img class="cardImg" src="{{card.card.img}}" alt="{{card.card.name}}">
-                    </a>
-                </div>
-                {% endfor %}
-                {% endfor %}
-            </div>
-        </div>
         <div id="List" class="p-1 border">
             <p class="mb-0">리스트</p>
             <div id="listtop" class="d-flex flex-row justify-content-center"></div>
@@ -49,19 +35,35 @@
                 {% endfor %}
             </div>
         </div>
+        <div id="Hand" class="d-flex flex-column p-1 border">
+            <p class="mb-0">손패</p>
+            <div class="d-flex flex-row">
+                {% for card in hands %}
+                {% for _ in card.hand|times %}
+                <div class="imgBox">
+                    <a href="{% url "card:detail" card.card.id %}">
+                        <img class="cardImg" src="{{card.card.img}}" alt="{{card.card.name}}">
+                    </a>
+                </div>
+                {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
         <div id="Side" class="d-flex flex-column p-1 border">
             <p class="mb-0">사이드</p>
-            {% for card in sides %}
-            {% for _ in card.side|times %}
-            <div class="imgBox">
-                <a class="w-100" href="{% url "card:detail" card.card.id %}">
-                    <div class="hoverOn">
-                        <img class="w-100" src="{{card.card.img}}" alt="{{card.card.name}}">
-                    </div>
-                </a>
+            <div class="d-flex flex-md-column flex-wrap flex-md-nowrap flex-grow-1 sideBox">
+                {% for card in sides %}
+                {% for _ in card.side|times %}
+                <div class="hoverOn imgBox">
+                    <a class="" href="{% url "card:detail" card.card.id %}">
+                        <div class="w-100" style="">
+                            <img class="w-100 sideImg" src="{{card.card.img}}" alt="{{card.card.name}}">
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+                {% endfor %}
             </div>
-            {% endfor %}
-            {% endfor %}
         </div>
     </div>
     <div class="d-flex">
@@ -81,7 +83,7 @@
         </div>
         <div class="p-2 w-50 d-flex flex-column">
             <div class="">
-                <h3>권장 손패</h3>
+                <h3>손패</h3>
                 <table class="table table-striped table-sm">
                     <tbody>
                         {% for card in hands %}
@@ -95,7 +97,7 @@
                 </table>
             </div>
             <div class="">
-                <h3>권장 사이드덱</h3>
+                <h3>사이드</h3>
                 <table class="table table-striped table-sm">
                     <tbody>
                         {% for card in sides %}
