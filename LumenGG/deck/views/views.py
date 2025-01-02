@@ -1,10 +1,10 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.db.models import Q
 from django.core.paginator import Paginator
 from django.http import Http404
 
 from ..models import Deck, CardInDeck
-from ..forms import DeckSearchForm
+from ..forms import DeckSearchForm, DeckMakeForm
 
 # Create your views here.
 def index(req):
@@ -50,3 +50,17 @@ def detail(req, id=0):
         'sides': sides,
     }
     return render(req, 'deck/detail.html', context=context)
+
+def create(req):
+    if req.method == "GET":
+        form = DeckMakeForm()
+        return render(req, 'deck/create.html', context={'form': form})
+    else:
+        form = DeckMakeForm(req.POST)
+        if form.is_valid():
+            return redirect('deck:index')
+        else:
+            return render(req, 'deck/create.html', context={'form':form})
+
+def createSearch(req):
+    return 0

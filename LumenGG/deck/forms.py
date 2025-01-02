@@ -42,5 +42,5 @@ class DeckMakeForm(forms.ModelForm):
         model = Deck
         fields = ['name', 'description', 'char', 'keyword']
         widgets = {
-            'content': SummernoteWidget()
+            'description': SummernoteWidget()
         }

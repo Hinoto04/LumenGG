@@ -9,5 +9,7 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('detail', views.detail, name='detailEmpty'),
     path('detail/<int:id>', views.detail, name='detail'),
+    path('create', views.create, name='create'),
+    path('createSearch', views.createSearch, name='createSearch'),
     path('deckImport', util_views.deckMake, name='deckMakeUtil'),
 ]

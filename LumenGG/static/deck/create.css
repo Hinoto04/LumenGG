@@ -1,0 +1,56 @@
+#CardList { 
+    grid-area: card; 
+    width: 70%;
+    margin-right: 0.5em;
+}
+#DeckList { 
+    grid-area: deck; 
+    width: 30%;
+    text-align: center;
+}
+
+@media screen and (max-width: 768px) {
+    #CardList {
+        width: 100%;
+    }
+    #DeckList {
+        width: 100%;
+    }
+}
+
+.searchLabel {
+    font-weight: 900;
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+.createField {
+    display: flex;
+    flex-direction: column;
+}
+
+div.searchCheckbox {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    flex-grow: 1;
+}
+#id_name {
+    margin-left: 1em;
+    flex-grow: 1;
+}
+
+#charbox {
+    border: 1px solid #000;
+    display: flex;
+    margin-bottom: 0.5em;
+}
+
+.cardSearch > div {
+    border: 1px solid #000;
+    margin-bottom: 0.5em;
+}
+input.searchCheckbox {
+    display: inline;
+}
