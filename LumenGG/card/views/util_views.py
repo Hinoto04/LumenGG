@@ -77,14 +77,17 @@ def searchAdd(data, keyword):
 def keywordSet(req):
     cards = []
     
-    keyword = "콤보"
-    datas = Card.objects.filter(keyword__contains=keyword)
+    keyword = "「암야」"
+    datas = Card.objects.filter(text__contains=keyword)
     for data in datas:
-        ls = data.keyword.split('/')[:-1]
-        if (keyword in ls):
-            ls[ls.index(keyword)] = "콤보 시동"
-        s = '/'.join(ls) + '/'
-        data.keyword = s
+        # 키워드 전환용
+        # ls = data.search.split('/')[:-1]
+        # if (keyword in ls):
+        #     ls[ls.index(keyword)] = '라이'
+        # s = '/'.join(ls) + '/'
+        # data.search = s
+        
+        keywordAdd(data, '암야')
         cards.append(data)
         #data.save()
     

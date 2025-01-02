@@ -14,25 +14,29 @@ def index(req):
     form = CardForm(req.GET)
     
     if not form.is_valid():
-        paginator = Paginator(data, 12)
-        page_data = paginator.get_page(page)
-        context = {
-            'form': form,
-            'cards': page_data
-        }
-        return render(req, 'card/list.html', context=context)
-    
-    char = form.cleaned_data['char']
-    stype = form.cleaned_data['type']
-    pos = form.cleaned_data['pos']
-    body = form.cleaned_data['body']
-    specialpos = form.cleaned_data['specialpos']
-    specialtype = form.cleaned_data['specialtype']
-    keyword = form.cleaned_data['keyword']
-    pack = form.cleaned_data['pack']
-    framenum = form.cleaned_data['framenum']
-    frametype = form.cleaned_data['frametype']
-    sort = form.cleaned_data['sort']
+        char = None
+        stype = None
+        pos = None
+        body = None
+        specialpos = None
+        specialtype = None
+        keyword = None
+        pack = None
+        framenum = None
+        frametype = None
+        sort = None
+    else:
+        char = form.cleaned_data['char']
+        stype = form.cleaned_data['type']
+        pos = form.cleaned_data['pos']
+        body = form.cleaned_data['body']
+        specialpos = form.cleaned_data['specialpos']
+        specialtype = form.cleaned_data['specialtype']
+        keyword = form.cleaned_data['keyword']
+        pack = form.cleaned_data['pack']
+        framenum = form.cleaned_data['framenum']
+        frametype = form.cleaned_data['frametype']
+        sort = form.cleaned_data['sort']
     
     q = Q()
     
@@ -73,6 +77,8 @@ def index(req):
             data = data.order_by('-damage')
         elif sort == '+데미지':
             data = data.order_by('damage')
+    else:
+        data = data.order_by('id')
     
     paginator = Paginator(data, 12)
     page_data = paginator.get_page(page)

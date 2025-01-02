@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}덱 목록{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "deck/list.css" %}">
+{% endblock style %}
+{% block content %}
+<div>
+    <form class="form-control mt-2" action="" method="get">
+        <h3>검색</h3>
+        <div class="searchField mb-2">
+            <div id="charbox" class="d-flex flex-row">
+                <label class="ms-2 searchLabel" for="char">캐릭터</label>
+                {{ form.char }}
+            </div>
+        </div>
+        <div class="d-flex input-group-sm">
+            {{ form.keyword }}
+        </div>
+        <div class="d-flex justify-content-end">
+            <button class="btn btn-sm btn-primary" type="submit">검색</button>
+        </div>
+    </form>
+    <div class="d-flex">
+        <table class="table table-striped table-sm">
+            <thead>
+                <tr>
+                    <th scope="col" class="d-none d-lg-table-cell">#</th>
+                    <th scope="col">이름</th>
+                    <th scope="col">캐릭터</th>
+                    <th scope="col" class="d-none d-lg-table-cell">작성자</th>
+                    <th scope="col" class="d-none d-lg-table-cell">버전</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for deck in decks %}
+                <tr>
+                    <th class="d-none d-lg-table-cell">{{ deck.id }}</th>
+                    <th><a href="{% url "deck:detail" deck.id %}" class="w-100">{{ deck.name }}</a></th>
+                    <th>{{ deck.character.name }}</th>
+                    <th class="d-none d-lg-table-cell">{{ deck.author.username }}</th>
+                    <th class="d-none d-lg-table-cell">{{ deck.version }}</th>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="paginator d-flex justify-content-center">
+        <ul class="pagination">
+            {% for page_number in decks.paginator.page_range %}
+            {% if page_number >= decks.number|add:-5 and page_number <= decks.number|add:5 and page_number != decks.number %}
+                <li class="page_item">
+                    <a class="page-link dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% elif page_number == decks.number %}
+                <li class="page-item active" aria-current="page">
+                    <a class="page-link dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+<script src="{% static "card/list.js" %}"></script>
+{% endblock content %}

@@ -1,0 +1,26 @@
+
+.searchLabel {
+    font-weight: 900;
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+.searchField {
+    display: grid;
+    row-gap: 0.5em;
+    column-gap: 0.5em;
+}
+
+.searchField > div > .searchCheckbox {
+    margin-top: auto;
+    margin-bottom: auto;
+    display: flex;
+    flex-grow: 1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-around;
+}
+
+.searchField > div {
+    border: 1px solid #000;
+}
