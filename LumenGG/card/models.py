@@ -22,7 +22,7 @@ class Card(models.Model):
     hit = models.CharField(default=0, max_length=4, null=True) #히트 시 프레임
     guard = models.CharField(default=0, max_length=4, null=True) #가드 시
     counter = models.CharField(default=0, max_length=4, null=True) #카운터 시
-    special = models.CharField(null=True, max_length=20) #특수판정
+    special = models.CharField(null=True, blank=True, max_length=20) #특수판정
     g_top = models.CharField(null=True, blank=True, max_length=5) #상단방어
     g_mid = models.CharField(null=True, blank=True, max_length=5) #중단방어
     g_bot = models.CharField(null=True, blank=True, max_length=5) #하단방어
