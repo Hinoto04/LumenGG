@@ -23,9 +23,9 @@ class Card(models.Model):
     guard = models.CharField(default=0, max_length=4, null=True) #가드 시
     counter = models.CharField(default=0, max_length=4, null=True) #카운터 시
     special = models.CharField(null=True, max_length=20) #특수판정
-    g_top = models.CharField(null=True, max_length=5) #상단방어
-    g_mid = models.CharField(null=True, max_length=5) #중단방어
-    g_bot = models.CharField(null=True, max_length=5) #하단방어
+    g_top = models.CharField(null=True, blank=True, max_length=5) #상단방어
+    g_mid = models.CharField(null=True, blank=True, max_length=5) #중단방어
+    g_bot = models.CharField(null=True, blank=True, max_length=5) #하단방어
     type = models.CharField(default="공격", max_length=10) #카드 종류 (공격, 수비, 특수 기술, 패시브)
     code = models.CharField(max_length=20) #카드 일련번호 (UNC-AT-000)
     character = models.ForeignKey(Character, on_delete=models.PROTECT, related_name='cards') #캐릭터
