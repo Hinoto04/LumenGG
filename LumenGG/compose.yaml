@@ -22,7 +22,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: gunicorn LumenGG.wsgi:application --bind 0.0.0.0:8000
+    command: gunicorn LumenGG.wsgi:application --bind unix:/tmp/lumengg.sock
     volumes:
       - ./static:/usr/src/app/staticfiles
     expose:
