@@ -13,3 +13,15 @@ document.querySelectorAll(".dynamicLink").forEach(element => {
         window.location.href = currentUrl.toString();
     });
 });
+
+var toggle = false;
+
+function searchFieldToggle() {
+    if(toggle) {
+        $(".toggleBox").css("display", "none");
+        toggle = false;
+    } else {
+        $(".toggleBox").css("display", "block");
+        toggle = true;
+    }
+}

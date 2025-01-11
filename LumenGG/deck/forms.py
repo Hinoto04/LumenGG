@@ -22,11 +22,12 @@ class DeckSearchForm(forms.Form):
     )
 
 class DeckMakeForm(forms.ModelForm):
-    char = forms.ModelMultipleChoiceField(
+    char = forms.ModelChoiceField(
         label = "캐릭터",
         queryset = Character.objects.order_by('name'),
-        widget = forms.CheckboxSelectMultiple(attrs = {'class': 'searchCheckbox ms-1'}),
+        widget = forms.RadioSelect(attrs = {'class': 'charSelect searchCheckbox ms-1'}),
         required = False,
+        initial = Character.objects.get(id=1),
     )
     keyword = forms.CharField(
         label = "태그",

@@ -9,7 +9,7 @@
 }
 
 #Side > div > .imgBox {
-    height: 10%;
+    height: 100%;
     width: 100%;
 }
 
@@ -29,6 +29,11 @@
 
     .sideImg {
         position: absolute;
+        width: 100%;
+    }
+
+    #Side > div > .imgBox {
+        height: 10%;
         width: 100%;
     }
 }
