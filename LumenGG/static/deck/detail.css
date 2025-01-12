@@ -49,6 +49,7 @@
 
     #Side > div > .imgBox {
         width: 16.6%;
+        height: auto;
     }
 
     #Side {
