@@ -129,6 +129,8 @@ function Increase(pk) {
 function Decrease(pk) {
     if(Object.keys(deckList).includes(String(pk))) { //Key 존재 시,
         if(deckList[pk]["count"] == 1) {
+            handCount-=deckList[pk]['hand'];
+            sideCount-=deckList[pk]['side'];
             delete deckList[pk]
             $(`#in_deck_${pk}`).remove()
         } else {
