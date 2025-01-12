@@ -163,8 +163,8 @@ function sIncrease(pk, mode) {
             }
         }
     } else if(mode == 's') {
-        if(sideCount==6) {
-            alert("사이드 매수는 최대 6장입니다.");
+        if(sideCount==9) {
+            alert("사이드 매수는 최대 9장입니다.");
             return;
         }
         if(Object.keys(deckList).includes(String(pk))) { //Key 존재 시,
