@@ -131,3 +131,16 @@ def createSearch(req):
     data = Card.objects.filter(q)
     sdata = serializers.serialize('json', data)
     return JsonResponse(sdata, safe=False)
+
+@login_required(login_url='common:login')
+def delete(req, id):
+    try:
+        deck = Deck.objects.get(id=id)
+    except Deck.DoesNotExist:
+        raise Http404()
+
+    if deck.author == req.user:
+        deck.delete()
+        return redirect('deck:index')
+    else:
+        return HttpResponse("권한이 없습니다.")

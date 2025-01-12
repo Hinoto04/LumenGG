@@ -17,6 +17,9 @@
             <h5>{{deck.author.username}}</h5>
         </div>
         {{deck.description|safe}}
+        <div class="d-flex flex-row justify-content-end">
+            <a class="btn btn-sm btn-danger" href="{% url "deck:delete" deck.id %}">덱 삭제 </a>
+        </div>
     </div>
     <div id="ImageDeck" class="w-100">
         <div id="List" class="p-1 border">
