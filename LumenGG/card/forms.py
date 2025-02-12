@@ -47,7 +47,8 @@ class CardForm(forms.Form):
             ('ST', '스타터 덱'), 
             ('AWL', '어웨이크닝 루멘'),
             ('UNC', '유니즌 챌린저'), 
-            ('LMI', '루미너스 이노센스')],
+            ('LMI', '루미너스 이노센스'),
+            ('CRS', '크림슨 스트라이커즈')],
         widget = forms.Select(attrs = {'class': 'btn btn-sm border'}),
         required = False,
     )

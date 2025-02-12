@@ -17,7 +17,7 @@ class Card(models.Model):
     frame = models.SmallIntegerField(null=True) #속도
     damage = models.IntegerField(null=True) #대미지
     pos = models.CharField(max_length=3, null=True) #판정 (상단, 중단, 하단)
-    body = models.CharField(default='', max_length=10, null=False) #부위 (손, 발)
+    body = models.CharField(default='', max_length=10, null=True) #부위 (손, 발)
     text = models.TextField(blank=True) #카드 효과
     hit = models.CharField(default=0, max_length=4, null=True) #히트 시 프레임
     guard = models.CharField(default=0, max_length=4, null=True) #가드 시

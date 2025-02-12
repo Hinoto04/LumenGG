@@ -8,7 +8,7 @@ import re
 
 def importCards(req):
     
-    wb = openpyxl.load_workbook('../CardList.xlsx')
+    wb = openpyxl.load_workbook('../CRS CardList.xlsx')
     sheet = wb['CardList']
     
     cards = []
@@ -23,6 +23,10 @@ def importCards(req):
     for row in sheet.rows:
         if row[0].value is None: continue
         ll = list(map(lambda x: x.value, row))
+        
+        if ll[1] == '중립': ll[1] = '세츠메이'
+        # else:
+        #     continue
         
         # if not(ll[11] is None):
         #     pat = re.sub(r" (?=[①②③④⑤⑥⑦⑧])", '\n', ll[11])

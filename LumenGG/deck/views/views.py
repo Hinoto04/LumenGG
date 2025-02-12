@@ -78,7 +78,7 @@ def create(req):
         try:
             newDeck = Deck(
                 name = data['name'], character_id=int(data['char']),
-                description='', keyword='', version='LMI', author=req.user
+                description='', keyword='', version='CRS', author=req.user
             )
             newDeck.save()
         except:
