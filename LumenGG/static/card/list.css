@@ -56,6 +56,10 @@
     padding: 0.25em;
 }
 
+.needLoadingImg {
+    display: none;
+}
+
 @media screen and (max-width: 645px) {
     .cards {
         width: 33.3%;

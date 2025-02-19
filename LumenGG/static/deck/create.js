@@ -56,10 +56,19 @@ function cardSearch() {
             for(let i=0;i<a.length;i++) {
                 $("#SearchResult > div").append(`
                     <div id="card_img_${a[i]["pk"]}" class='resultCard'>
-                        <img class='cardImg'
+                        <img class='cardImg needLoadingImg'
                         src="${a[i]["fields"]["img"]}"
-                        alt="${a[i]["fields"]["name"]}"></div>
+                        alt="${a[i]["fields"]["name"]}">
+                        <img class='cardImg loading'
+                        src="${loadingImgLink}"></div>
                     `);
+                $(".needLoadingImg").each(function() {
+                    $(this).hide();
+                    $(this).on('load', function() {
+                        $(this).show();
+                        $(this).parent().find('.loading').hide();
+                    });
+                });
                 $(`#card_img_${a[i]["pk"]}`).on('click', function(event) {
                     Increase(a[i]["pk"])});
                 $(`#card_img_${a[i]["pk"]}`).on('contextmenu', function(event) {

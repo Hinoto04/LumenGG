@@ -65,7 +65,8 @@
         <div class="cards">
             <a href="{% url "card:detail" card.id %}">
                 <div class="w-100 upper">
-                    <img class="w-100" src="{{ card.img }}" alt="{{ card.img }}">
+                    <img class="w-100 needLoadingImg" src="{{ card.img }}" alt="{{ card.img }}">
+                    <img class="w-100 loading" src="{% static "Image Loading.png" %}" alt="로딩중">
                 </div>
                 <div class="cardinfo ms-auto me-auto">
                     <p class="mb-1">{{ card.name }}</p>
@@ -91,4 +92,5 @@
     </div>
 </div>
 <script src="{% static "card/list.js" %}"></script>
+<script src="{% static "imgloading.js" %}"></script>
 {% endblock content %}
