@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'card.apps.CardConfig',
     'common.apps.CommonConfig',
     'deck.apps.DeckConfig',
+    'qna.apps.QnaConfig',
     'django_summernote',
     'django.contrib.admin',
     'django.contrib.auth',

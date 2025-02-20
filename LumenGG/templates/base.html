@@ -39,7 +39,8 @@
         <div id="menuBar" class="d-flex justify-content-between ms-auto me-auto">
             <div>
                 <a href="{% url "card:index" %}" class="me-2">카드</a>
-                <a href="{% url "deck:index" %}">덱</a>
+                <a href="{% url "deck:index" %}" class="me-2">덱</a>
+                <a href="{% url "qna:index" %}" class="me-2">Q&A</a>
             </div>
             <div>
                 {% if user.is_authenticated %}
@@ -57,7 +58,7 @@
     <footer id="footer" class="d-flex flex-column">
         <div class="ms-auto me-auto">본 사이트는 팬 사이트이며, 수익창출을 하지 않습니다.</div>
         <div class="ms-auto me-auto">Developed by Hinoto</div>
-        <div class="ms-auto me-auto">Copyright 2023-2024 Yaoni Comic, Perso Studio All rights reserved.</div>
+        <div class="ms-auto me-auto">Copyright 2023-2025 Yaoni Comic, Perso Studio All rights reserved.</div>
     </footer>
 </body>
 </html>

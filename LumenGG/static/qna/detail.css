@@ -1,0 +1,27 @@
+.relationCards {
+    width: 16.6%;
+}
+
+.hoverBig {
+    z-index: 999;
+}
+
+.hoverBig > img {
+    z-index: 1;
+}
+
+.hoverBig:hover > img {
+    transform: scale(1.8);
+    z-index: 2;
+    pointer-events: none;
+}
+
+@media screen and (max-width: 645px) {
+    .relationCards {
+        width: 33.3%;
+    }
+
+    .hoverBig:hover > img {
+        transform: scale(1);
+    }
+}

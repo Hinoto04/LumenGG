@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load static %}
+{% load card_tags %}
+{% block title %}
+{{ qna.title }}
+{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "qna/detail.css" %}">
+{% endblock style %}
+{% block content %}
+<div>
+    <div class="border p-2 mt-2"><h3 class="mb-0">{{ qna.title }}</h3></div>
+    <div class="border p-2 mt-2">
+        <h4 class="mb-0">Q</h4>
+        <p class="mb-0">{{ qna.question }}</p>
+    </div>
+    <div class="border p-2 mt-2">
+        <h4 class="mb-0">A</h4>
+        <p class="mb-0">{{ qna.answer }}</p>
+    </div>
+    <div class="border p-2 mt-2 mb-2">
+        <h4 class="mb-0">관련 카드</h4>
+        <div class="d-flex flex-row flex-wrap justify-content-center">
+            {% for card in qna.cards.all %}
+            <div class="relationCards">
+                <a href="{% url 'card:detail' card.id %}">
+                    <div class="w-100 d-flex flex-column justify-content-center hoverBig">
+                        <img class="w-100" src="{{ card.img }}" alt="{{ card.name }}">
+                        <div style="text-align: center">{{ card.name }}</div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock content %}

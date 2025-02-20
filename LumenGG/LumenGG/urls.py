@@ -24,5 +24,6 @@ urlpatterns = [
     path('', include('card.urls'), name='card'),
     path('common/', include('common.urls'), name='common'),
     path('deck/', include('deck.urls'), name='deck'),
+    path('qna/', include('qna.urls'), name='qna'),
     path('summernote/', include('django_summernote.urls')),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
