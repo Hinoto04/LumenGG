@@ -4,6 +4,7 @@ from django.http import HttpResponse, Http404
 from django.db.models import Q
 
 from .models import QNA, QNARelation
+from .forms import QnaSearchForm
 from card.models import Card
 
 import openpyxl
@@ -11,12 +12,23 @@ import openpyxl
 # Create your views here.
 def index(req):
     page = req.GET.get('page', 1)
-    qna = QNA.objects.order_by('-created_at')
+    
+    form = QnaSearchForm(req.GET)
+    if not form.is_valid():
+        query = None
+    else:
+        query = form.cleaned_data['query']
+
+    if query:
+        qna = QNA.objects.filter(title__contains=query).order_by('-created_at')
+    else:
+        qna = QNA.objects.all().order_by('-created_at')
     
     paginator = Paginator(qna, 30)
     page_data = paginator.get_page(page)
     
     context = {
+        'form': form,
         'data': page_data
     }
     

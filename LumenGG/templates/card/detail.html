@@ -96,11 +96,13 @@
     <div id="qna" class="mt-2 mb-3">
         <div class="w-100" style="text-align: center; font-size: 1.3em;">관련 Q&A</div>
         {% for qna in card.qna.all %}
-        <div class="border p-2 mt-2">
-            <h4 class="mb-0">{{ qna.title }}</h4>
-            <p class="mb-0"><b>Q: </b>{{ qna.question }}</p>
-            <p class="mb-0"><b>A: </b>{{ qna.answer }}</p>
-        </div>
+        <a href="{% url "qna:detail" qna.id %}">
+            <div class="border p-2 mt-2">
+                <h4 class="mb-0">{{ qna.title }}</h4>
+                <p class="mb-0"><b>Q: </b>{{ qna.question }}</p>
+                <p class="mb-0"><b>A: </b>{{ qna.answer }}</p>
+            </div>
+        </a>
         {% endfor %}
     </div>
 </div>

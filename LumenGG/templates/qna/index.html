@@ -5,6 +5,15 @@
 {% comment %} <link rel="stylesheet" href="{% static "qna/index.css" %}"> {% endcomment %}
 {% endblock style %}
 {% block content %}
+<div id="searchBox" class="mt-2">
+    <form action="" method="get" class="form-control">
+        <h4 class="mb-1">검색</h4>
+        {{ form.query }}
+        <div class="d-flex w-100 justify-content-center mt-2">
+            <button class="btn btn-sm btn-primary" type="submit">검색</button>
+        </div>
+    </form>
+</div>
 <table class="table table-sm table-striped">
     <thead>
         <tr>
