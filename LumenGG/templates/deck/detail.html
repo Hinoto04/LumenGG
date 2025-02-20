@@ -19,6 +19,7 @@
         {{deck.description|safe}}
         {% if user == deck.author %}
         <div class="d-flex flex-row justify-content-end">
+            <a class="btn btn-sm btn-warning me-2" href="{% url "deck:update" deck.id %}">덱 수정 </a>
             <a class="btn btn-sm btn-danger" href="{% url "deck:delete" deck.id %}">덱 삭제 </a>
         </div>
         {% endif %}
@@ -28,7 +29,7 @@
             <p class="mb-0">리스트</p>
             <div id="listtop" class="d-flex flex-row justify-content-center"></div>
             <div id="listbottom" class="d-flex flex-row justify-content-center"></div>
-            <div id="original">
+            <div id="original" class="gridBox">
                 {% for card in cards %}
                 {% for _ in card|listcard %}
                 <div class="imgBox">
@@ -42,7 +43,7 @@
         </div>
         <div id="Hand" class="d-flex flex-column p-1 border">
             <p class="mb-0">손패</p>
-            <div class="d-flex flex-row">
+            <div class="gridBox">
                 {% for card in hands %}
                 {% for _ in card.hand|times %}
                 <div class="imgBox">

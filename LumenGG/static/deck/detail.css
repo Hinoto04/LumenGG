@@ -38,6 +38,12 @@
     }
 }
 
+.gridBox {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.25em;
+}
+
 @media screen and (max-width: 768px) {
     #ImageDeck {
         grid-template-areas:
@@ -61,9 +67,9 @@
 #Side { grid-area: side; }
 #Hand { grid-area: hand; }
 
-#List > div > .imgBox, #Hand > div > .imgBox {
+/* #List > div > .imgBox, #Hand > div > .imgBox {
     width: 20%;
-}
+} */
 
 .cardImg {
     width: 100%;

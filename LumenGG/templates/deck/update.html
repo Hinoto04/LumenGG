@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}덱 만들기{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "deck/create.css" %}">
+{% endblock style %}
+{% block content %}
+<div id="CreateMain" class="d-flex flex-column w-100">
+    <div class="d-flex w-100 mt-2 mb-2">
+        <form action="" method="post" class="form-control" id="submitForm">
+        {% csrf_token %}
+        <div class="createField w-100 mb-2 p-2">
+            <div id="charbox" class="d-flex flex-row p-2">
+                <label class="ms-2 searchLabel" for="char">캐릭터</label>
+                {{ form.char }}
+            </div>
+            <div class="d-flex input-group-sm w-100">
+                <label class="ms-2 searchLabel" for="name">덱 이름</label>
+                {{ form.name }}
+            </div>
+        </div>
+        <div class="d-flex justify-content-end">
+            <button class="btn btn-sm btn-primary" type="button" onclick="deckSubmit();">수정</button>
+        </div>
+        </form>
+    </div>
+    <div class="columnChange">
+        <div id="CardList" class="border d-flex flex-column">
+            <div id="SearchDiv" class="m-1">
+                <form class="form-control mt-2" id="cardSearchForm">
+                    <h3>검색</h3>
+                    <div class="cardSearch mb-2 d-flex flex-row">
+                        <div class="d-flex flex-row w-50 p-2">
+                            <label class="ms-2 searchLabel" for="char">캐릭터</label>
+                            <div class="d-flex flex-wrap flex-grow-1 justify-content-around">
+                                <div class="mt-auto mb-auto">
+                                    <input type="checkbox" name="char" value="0" id="char_main" class="me-1">
+                                    <label for="char_main" id="char_main">미선택</label>
+                                </div>
+                                <div class="mt-auto mb-auto">
+                                    <input type="checkbox" name="neutral" value="1" id="char_neutral" class="me-1">
+                                    <label for="char_neutral" id="char_neutral">세츠메이</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="frameField" class="d-flex flex-row w-50 ms-2 p-2">
+                            <label class="ms-2 searchLabel" for="frame">속도</label>
+                            <div class="d-flex flex-row mt-auto mb-auto justify-content-center flex-grow-1">
+                                <input type="number" name="framenum" id="framenum" class="w-25"
+                                min="1" max="14">
+                                <select name="frametype" id="frametype">
+                                    <option value="일치">일치</option>
+                                    <option value="이상">이상</option>
+                                    <option value="이하">이하</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex input-group-sm">
+                        {{ form.keyword }}
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button class="btn btn-sm btn-primary" onclick="cardSearch();" type="button">검색</button>
+                    </div>
+                </form>
+            </div>
+            <div id="SearchResult" class="">
+                <div>
+                    
+                </div>
+            </div>
+        </div>
+        <div id="DeckList" class="d-flex flex-column border">
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr>
+                        <th scope="col">카드명</th>
+                        <th scope="col">Count</th>
+                        <th scope="col">Hand</th>
+                        <th scope="col">Side</th>
+                    </tr>
+                    <tr>
+                        <th>합계</th>
+                        <th id="CardCount" class="counts">0</th>
+                        <th id="HandCount" class="counts">0</th>
+                        <th id="SideCount" class="counts">0</th>
+                    </tr>
+                </thead>
+                <tbody id="MainDeckList">
+                    
+                </tbody>
+            </table>
+            <br>
+            Left Click to Increase
+            <br>
+            Right Click to Decrease
+        </div>
+    </div>
+</div>
+<script>
+    const loadingImgLink = '{% static "Image Loading.png" %}' 
+</script>
+<script src="{% static "deck/create.js" %}"></script>
+<script src="{% static "imgloading.js" %}"></script>
+<script>
+    $('label').each(function() {
+        if ($(this).text().trim() === '{{ char }}') {
+            const inputId = $(this).attr('for');
+            const input = $(`input#${inputId}`);
+            if (input.length) {
+                input.prop('checked', true);
+            }
+            input.trigger('change');
+        }
+    });
+</script>
+<script>
+    {% for card in cid %}
+        cardList.push({
+            'pk': {{ card.card.id }}, 
+            'fields': {
+                'name': "{{ card.card.name }}",
+                'img': "{{ card.card.img }}",
+                'character': {{ card.card.character.id }},
+            }
+        });
+        for (let i = 0; i < {{ card.count }}; i++) {
+            Increase({{ card.card.id }});
+        }
+        for (let i = 0; i < {{ card.hand }}; i++) {
+            sIncrease({{ card.card.id }}, 'h');
+        }
+        for (let i = 0; i < {{ card.side }}; i++) {
+            sIncrease({{ card.card.id }}, 's');
+        }
+    {% endfor %}
+</script>
+{% endblock content %}

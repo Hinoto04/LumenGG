@@ -2,7 +2,7 @@ var deckList = {
     //이후에 덱리스트가 추가될 dictionary
 }
 
-var cardList;
+var cardList = [];
 var listCount = 0;
 var handCount = 0;
 var sideCount = 0;
@@ -18,7 +18,7 @@ var exceptList = {
     '236': 2
 }
 
-$("input.charSelect").change(function() {
+function charChange() {
     var selectedLabel = $(this).parent().text();
     if($(this).val() == 5) maxDeckSize = 23;
     else maxDeckSize = 20;
@@ -35,7 +35,9 @@ $("input.charSelect").change(function() {
             $(`#in_deck_${pk}`).remove()
         }
     } 
-});
+}
+
+$("input.charSelect").change(charChange);
 
 function cardSearch() {
     var formData = $("#cardSearchForm").serialize();

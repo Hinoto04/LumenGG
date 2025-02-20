@@ -3,6 +3,7 @@ from django.db.models import Q
 from django.urls import reverse
 from django.core import serializers
 from django.core.paginator import Paginator
+from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 
@@ -131,6 +132,55 @@ def createSearch(req):
     data = Card.objects.filter(q)
     sdata = serializers.serialize('json', data)
     return JsonResponse(sdata, safe=False)
+
+@login_required(login_url='common:login')
+def update(req, id=0):
+    try:
+        deck = Deck.objects.get(id=id)
+    except Deck.DoesNotExist:
+        raise Http404()
+    
+    if deck.author != req.user:
+        raise PermissionDenied()
+    
+    if req.method == "GET":
+        form = DeckMakeForm(instance=deck)
+        cid = CardInDeck.objects.filter(deck=deck)
+        return render(req, 'deck/update.html', context={'form': form, 'cid': cid, 'char': deck.character.name})
+    else:
+        data = json.loads(req.body)
+        print(data)
+        errorContent = { 'status': 200 }
+        if not ('char' in data.keys()) or not ('name' in data.keys()):
+            errorContent['msg'] =  '형식이 올바르지 못합니다.'
+            return JsonResponse(errorContent)
+        if data['char'] == '' or data['name'] == '':
+            errorContent['msg'] =  '존재하지 않는 데이터가 있습니다.'
+            return JsonResponse(errorContent)
+        if len(data['deck']) < 14 or len(data['deck']) > 23:
+            errorContent['msg'] =  '덱 매수가 너무 적거나 너무 많습니다.'
+            return JsonResponse(errorContent)
+        
+        deck.name = data['name']
+        deck.character_id = int(data['char'])
+        deck.save()
+        
+        CardInDeck.objects.filter(deck=deck).delete()
+        for cards in data['deck']:
+            cid = CardInDeck(
+                card_id = cards[0],
+                deck = deck,
+                count = cards[1]['count'],
+                hand = cards[1]['hand'],
+                side = cards[1]['side'],
+            )
+            cid.save()
+        
+        content = {
+            'status': 100,
+            'url': reverse('deck:detail', kwargs={'id': deck.id})
+        }
+        return JsonResponse(content)
 
 @login_required(login_url='common:login')
 def delete(req, id):
