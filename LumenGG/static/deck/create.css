@@ -12,7 +12,7 @@
     width: 100%;
     display: grid;
     gap: .5em;
-    grid-template-columns: 60% 40%;
+    grid-template-columns: calc(60% - 0.25em) calc(40% - 0.25em);
     grid-template-areas: 
     "card deck";
 }
@@ -73,6 +73,7 @@ input.searchCheckbox {
     width: 100%;
 }
 #SearchResult > div {
+    width: 100%;
     overflow-x: scroll;
     display: grid;
     grid-template-rows: repeat(3, auto);

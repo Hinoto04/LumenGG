@@ -9,27 +9,43 @@
     <div class="d-flex w-100 mt-2 mb-2">
         <form action="{% url "deck:create" %}" method="post" class="form-control" id="submitForm">
         {% csrf_token %}
-        <div class="createField w-100 mb-2 p-2">
+        <div class="createField w-100 p-2">
             <div id="charbox" class="d-flex flex-row p-2">
                 <label class="ms-2 searchLabel" for="char">캐릭터</label>
                 {{ form.char }}
             </div>
+            <div class="d-flex flex-lg-row flex-column">
+                <div class="d-flex input-group-sm w-100 mb-2">
+                    <label class="searchLabel" for="name">덱 이름</label>
+                    {{ form.name }}
+                </div>
+                <div class="d-flex input-group-sm mb-2">
+                    <label class="ms-2 me-2 searchLabel" for="version">버전</label>
+                    {{ form.version }}
+                </div>
+            </div>
             <div class="d-flex input-group-sm w-100">
-                <label class="ms-2 searchLabel" for="name">덱 이름</label>
-                {{ form.name }}
+                <label class="me-2 searchLabel" for="keyword">키워드</label>
+                {{ form.keyword }}
             </div>
         </div>
         <div class="d-flex justify-content-end">
             <button class="btn btn-sm btn-primary" type="button" onclick="deckSubmit();">생성</button>
         </div>
+        <label for="description">
+            <button class="btn btn-sm btn-dark mb-2" id="DescToggleBtn"
+            onclick="ToggleDesc();" type="button">▼ 덱 설명</button></label>
+            <div id="DescriptionInput" style="display: none;">
+                {{ form.description }}
+            </div>
         </form>
     </div>
-    <div class="columnChange">
+    <div class="columnChange mb-2">
         <div id="CardList" class="border d-flex flex-column">
             <div id="SearchDiv" class="m-1">
                 <form class="form-control mt-2" id="cardSearchForm">
                     <h3>검색</h3>
-                    <div class="cardSearch mb-2 d-flex flex-row">
+                    <div class="cardSearch mb-1 d-flex flex-row">
                         <div class="d-flex flex-row w-50 p-2">
                             <label class="ms-2 searchLabel" for="char">캐릭터</label>
                             <div class="d-flex flex-wrap flex-grow-1 justify-content-around">
@@ -56,8 +72,8 @@
                             </div>
                         </div>
                     </div>
-                    <div class="d-flex input-group-sm">
-                        {{ form.keyword }}
+                    <div class="d-flex input-group-sm mb-2">
+                        <input class="w-100" type="text" name="keyword" id="keyword" placeholder="검색어를 입력하세요.">
                     </div>
                     <div class="d-flex justify-content-end">
                         <button class="btn btn-sm btn-primary" onclick="cardSearch();" type="button">검색</button>

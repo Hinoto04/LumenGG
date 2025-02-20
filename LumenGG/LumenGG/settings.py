@@ -200,3 +200,11 @@ LOGGING = {
         },
     }
 }
+
+SUMMERNOTE_CONFIG = {
+    # You can put custom Summernote settings
+    'summernote': {
+        # Change editor size
+        'width': '100%',
+    },
+}

@@ -18,6 +18,16 @@ var exceptList = {
     '236': 2
 }
 
+function ToggleDesc() {
+    if($("#DescriptionInput").css('display') == 'none') {
+        $("#DescriptionInput").show();
+        $("#DescToggleBtn").text('▲ 덱 설명');
+    } else {
+        $("#DescriptionInput").hide();
+        $("#DescToggleBtn").text('▼ 덱 설명');
+    }
+}
+
 function charChange() {
     var selectedLabel = $(this).parent().text();
     if($(this).val() == 5) maxDeckSize = 23;

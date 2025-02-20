@@ -9,14 +9,24 @@
     <div class="d-flex w-100 mt-2 mb-2">
         <form action="" method="post" class="form-control" id="submitForm">
         {% csrf_token %}
-        <div class="createField w-100 mb-2 p-2">
+        <div class="createField w-100 p-2">
             <div id="charbox" class="d-flex flex-row p-2">
                 <label class="ms-2 searchLabel" for="char">캐릭터</label>
                 {{ form.char }}
             </div>
+            <div class="d-flex flex-lg-row flex-column">
+                <div class="d-flex input-group-sm w-100 mb-2">
+                    <label class="searchLabel" for="name">덱 이름</label>
+                    {{ form.name }}
+                </div>
+                <div class="d-flex input-group-sm mb-2">
+                    <label class="ms-2 me-2 searchLabel" for="version">버전</label>
+                    {{ form.version }}
+                </div>
+            </div>
             <div class="d-flex input-group-sm w-100">
-                <label class="ms-2 searchLabel" for="name">덱 이름</label>
-                {{ form.name }}
+                <label class="me-2 searchLabel" for="keyword">키워드</label>
+                {{ form.keyword }}
             </div>
         </div>
         <div class="d-flex justify-content-end">
@@ -96,6 +106,8 @@
             Right Click to Decrease
         </div>
     </div>
+    <label for="description">덱 설명</label>
+    {{ form.description }}
 </div>
 <script>
     const loadingImgLink = '{% static "Image Loading.png" %}' 

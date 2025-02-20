@@ -17,7 +17,7 @@
 // }
 
   // 함수 실행
-splitElements();
+//splitElements();
 
 $(document).ready(function () {
 $('.hoverOn').each(function () {
@@ -34,3 +34,19 @@ $('.hoverOn').each(function () {
     );
 });
 });
+
+var deckDisplay = 'image';
+
+function deckToggle() {
+    if (deckDisplay == 'image') {
+        $("#ImageDisplay").hide();
+        $("#TextDisplay").show();
+        $("#displayToggleBtn").text('이미지로 보기');
+        deckDisplay = 'text';
+    } else {
+        $("#ImageDisplay").show();
+        $("#TextDisplay").hide();
+        $("#displayToggleBtn").text('텍스트로 보기');
+        deckDisplay = 'image';
+    }
+}

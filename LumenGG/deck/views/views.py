@@ -78,8 +78,12 @@ def create(req):
         
         try:
             newDeck = Deck(
-                name = data['name'], character_id=int(data['char']),
-                description='', keyword='', version='CRS', author=req.user
+                name=data['name'],
+                character_id=int(data['char']),
+                description=data['description'], 
+                keyword=data['keyword'], 
+                version=data['version'],
+                author=req.user
             )
             newDeck.save()
         except:
@@ -145,6 +149,7 @@ def update(req, id=0):
     
     if req.method == "GET":
         form = DeckMakeForm(instance=deck)
+        form['version'].initial = deck.version
         cid = CardInDeck.objects.filter(deck=deck)
         return render(req, 'deck/update.html', context={'form': form, 'cid': cid, 'char': deck.character.name})
     else:
@@ -163,6 +168,9 @@ def update(req, id=0):
         
         deck.name = data['name']
         deck.character_id = int(data['char'])
+        deck.version = data['version']
+        deck.keyword = data['keyword']
+        deck.description = data['description']
         deck.save()
         
         CardInDeck.objects.filter(deck=deck).delete()

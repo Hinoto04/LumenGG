@@ -22,6 +22,14 @@ class DeckSearchForm(forms.Form):
     )
 
 class DeckMakeForm(forms.ModelForm):
+    name = forms.CharField(
+        label = "덱 이름",
+        max_length = 25,
+        widget = forms.TextInput(
+            attrs = {
+                'class': 'ms-1',
+                'placeholder': '덱 이름'}),
+    )
     char = forms.ModelChoiceField(
         label = "캐릭터",
         queryset = Character.objects.order_by('name'),
@@ -29,19 +37,31 @@ class DeckMakeForm(forms.ModelForm):
         required = False,
         initial = Character.objects.get(id=1),
     )
+    version = forms.ChoiceField(
+        label = "버전",
+        choices = [
+            ('ST', 'ST'),
+            ('AWL', 'AWL'),
+            ('UNC', 'UNC'),
+            ('LMI', 'LMI'),
+            ('CRS', 'CRS'),
+            ('N/A', 'N/A'),
+        ],
+        initial = 'N/A'
+    )
     keyword = forms.CharField(
         label = "태그",
         max_length = 255,
         required = False,
         widget = forms.TextInput(
             attrs = {
-                'class': 'form-control w-100 mb-2',
-                'placeholder': '키워드 검색'}),
+                'class': 'w-100',
+                'placeholder': '검색 키워드 목록'}),
     )
     
     class Meta:
         model = Deck
         fields = ['name', 'description', 'char', 'keyword']
         widgets = {
-            'description': SummernoteWidget()
+            'description': SummernoteWidget(attrs={'class': 'w-100'}),
         }

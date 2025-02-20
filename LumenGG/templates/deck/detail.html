@@ -16,84 +16,77 @@
             <h5>캐릭터명 : {{deck.character.name}}</h5>
             <h5>{{deck.author.username}}</h5>
         </div>
-        {{deck.description|safe}}
-        {% if user == deck.author %}
-        <div class="d-flex flex-row justify-content-end">
-            <a class="btn btn-sm btn-warning me-2" href="{% url "deck:update" deck.id %}">덱 수정 </a>
-            <a class="btn btn-sm btn-danger" href="{% url "deck:delete" deck.id %}">덱 삭제 </a>
-        </div>
-        {% endif %}
-    </div>
-    <div id="ImageDeck" class="w-100">
-        <div id="List" class="p-1 border">
-            <p class="mb-0">리스트</p>
-            <div id="listtop" class="d-flex flex-row justify-content-center"></div>
-            <div id="listbottom" class="d-flex flex-row justify-content-center"></div>
-            <div id="original" class="gridBox">
-                {% for card in cards %}
-                {% for _ in card|listcard %}
-                <div class="imgBox">
-                    <a href="{% url "card:detail" card.card.id %}">
-                        <img class="cardImg" src="{{card.card.img}}" alt="{{card.card.name}}">
-                    </a>
-                </div>
-                {% endfor %}
-                {% endfor %}
+        <div class="d-flex flex-row justify-content-between">
+            <button id="displayToggleBtn" class="btn btn-sm btn-primary" 
+            onclick="deckToggle();" type="button">텍스트로 보기</button>
+            {% if user == deck.author %}
+            <div class="d-flex flex-row">
+                <a class="btn btn-sm btn-warning me-2" href="{% url "deck:update" deck.id %}">덱 수정 </a>
+                <a class="btn btn-sm btn-danger" href="{% url "deck:delete" deck.id %}">덱 삭제 </a>
             </div>
-        </div>
-        <div id="Hand" class="d-flex flex-column p-1 border">
-            <p class="mb-0">손패</p>
-            <div class="gridBox">
-                {% for card in hands %}
-                {% for _ in card.hand|times %}
-                <div class="imgBox">
-                    <a href="{% url "card:detail" card.card.id %}">
-                        <img class="cardImg" src="{{card.card.img}}" alt="{{card.card.name}}">
-                    </a>
-                </div>
-                {% endfor %}
-                {% endfor %}
-            </div>
-        </div>
-        <div id="Side" class="d-flex flex-column p-1 border">
-            <p class="mb-0">사이드</p>
-            <div class="d-flex flex-md-column flex-wrap flex-md-nowrap flex-grow-1 sideBox">
-                {% for card in sides %}
-                {% for _ in card.side|times %}
-                <div class="hoverOn imgBox">
-                    <a class="" href="{% url "card:detail" card.card.id %}">
-                        <div class="w-100" style="">
-                            <img class="w-100 sideImg" src="{{card.card.img}}" alt="{{card.card.name}}">
-                        </div>
-                    </a>
-                </div>
-                {% endfor %}
-                {% endfor %}
-            </div>
+            {% else %}
+            <div></div>
+            {% endif %}
         </div>
     </div>
-    <div class="d-flex">
-        <div class="p-2 w-50">
-            <h3>덱 리스트</h3>
-            <table class="table table-striped table-sm">
-                <tbody>
+    <div id="ImageDisplay">
+        <div id="ImageDeck" class="w-100">
+            <div id="List" class="p-1 border">
+                <p class="mb-0">리스트</p>
+                <div id="listtop" class="d-flex flex-row justify-content-center"></div>
+                <div id="listbottom" class="d-flex flex-row justify-content-center"></div>
+                <div id="original" class="gridBox">
                     {% for card in cards %}
-                    {% for _ in card.count|times %}
-                    <tr>
-                        <th><a href="{% url "card:detail" card.card.id %}">{{card.card.name}}</a></th>
-                    </tr>
+                    {% for _ in card|listcard %}
+                    <div class="imgBox">
+                        <a href="{% url "card:detail" card.card.id %}">
+                            <img class="cardImg" src="{{card.card.img}}" alt="{{card.card.name}}">
+                        </a>
+                    </div>
                     {% endfor %}
                     {% endfor %}
-                </tbody>
-            </table>
+                </div>
+            </div>
+            <div id="Hand" class="d-flex flex-column p-1 border">
+                <p class="mb-0">손패</p>
+                <div class="gridBox">
+                    {% for card in hands %}
+                    {% for _ in card.hand|times %}
+                    <div class="imgBox">
+                        <a href="{% url "card:detail" card.card.id %}">
+                            <img class="cardImg" src="{{card.card.img}}" alt="{{card.card.name}}">
+                        </a>
+                    </div>
+                    {% endfor %}
+                    {% endfor %}
+                </div>
+            </div>
+            <div id="Side" class="d-flex flex-column p-1 border">
+                <p class="mb-0">사이드</p>
+                <div class="d-flex flex-md-column flex-wrap flex-md-nowrap flex-grow-1 sideBox">
+                    {% for card in sides %}
+                    {% for _ in card.side|times %}
+                    <div class="hoverOn imgBox">
+                        <a class="" href="{% url "card:detail" card.card.id %}">
+                            <div class="w-100" style="">
+                                <img class="w-100 sideImg" src="{{card.card.img}}" alt="{{card.card.name}}">
+                            </div>
+                        </a>
+                    </div>
+                    {% endfor %}
+                    {% endfor %}
+                </div>
+            </div>
         </div>
-        <div class="p-2 w-50 d-flex flex-column">
-            <div class="">
-                <h3>손패</h3>
+    </div>
+    <div id="TextDisplay" style="display:none;">
+        <div class="d-flex">
+            <div class="p-2 w-50">
+                <h3>덱 리스트</h3>
                 <table class="table table-striped table-sm">
                     <tbody>
-                        {% for card in hands %}
-                        {% for _ in card.hand|times %}
+                        {% for card in cards %}
+                        {% for _ in card.count|times %}
                         <tr>
                             <th><a href="{% url "card:detail" card.card.id %}">{{card.card.name}}</a></th>
                         </tr>
@@ -102,21 +95,41 @@
                     </tbody>
                 </table>
             </div>
-            <div class="">
-                <h3>사이드</h3>
-                <table class="table table-striped table-sm">
-                    <tbody>
-                        {% for card in sides %}
-                        {% for _ in card.side|times %}
-                        <tr>
-                            <th><a href="{% url "card:detail" card.card.id %}">{{card.card.name}}</a></th>
-                        </tr>
-                        {% endfor %}
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="p-2 w-50 d-flex flex-column">
+                <div class="">
+                    <h3>손패</h3>
+                    <table class="table table-striped table-sm">
+                        <tbody>
+                            {% for card in hands %}
+                            {% for _ in card.hand|times %}
+                            <tr>
+                                <th><a href="{% url "card:detail" card.card.id %}">{{card.card.name}}</a></th>
+                            </tr>
+                            {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="">
+                    <h3>사이드</h3>
+                    <table class="table table-striped table-sm">
+                        <tbody>
+                            {% for card in sides %}
+                            {% for _ in card.side|times %}
+                            <tr>
+                                <th><a href="{% url "card:detail" card.card.id %}">{{card.card.name}}</a></th>
+                            </tr>
+                            {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
+    </div>
+    <div class="mt-2 mb-2 border p-2">
+        <h4>덱 설명</h4>
+    {{ deck.description|safe }}
     </div>
 </div>
 <script src="{% static "deck/detail.js" %}"></script>
