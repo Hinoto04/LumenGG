@@ -32,6 +32,12 @@
         <div class="d-flex justify-content-end">
             <button class="btn btn-sm btn-primary" type="button" onclick="deckSubmit();">수정</button>
         </div>
+        <label for="description">
+        <button class="btn btn-sm btn-dark mb-2" id="DescToggleBtn"
+        onclick="ToggleDesc();" type="button">▼ 덱 설명</button></label>
+        <div id="DescriptionInput" style="display: none;">
+            {{ form.description }}
+        </div>
         </form>
     </div>
     <div class="columnChange">
@@ -106,8 +112,6 @@
             Right Click to Decrease
         </div>
     </div>
-    <label for="description">덱 설명</label>
-    {{ form.description }}
 </div>
 <script>
     const loadingImgLink = '{% static "Image Loading.png" %}' 
