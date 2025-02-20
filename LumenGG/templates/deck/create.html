@@ -33,12 +33,12 @@
             <button class="btn btn-sm btn-primary" type="button" onclick="deckSubmit();">생성</button>
         </div>
         <label for="description">
-            <button class="btn btn-sm btn-dark mb-2" id="DescToggleBtn"
-            onclick="ToggleDesc();" type="button">▼ 덱 설명</button></label>
-            <div id="DescriptionInput" style="display: none;">
-                {{ form.description }}
-            </div>
-        </form>
+        <button class="btn btn-sm btn-dark mb-2" id="DescToggleBtn"
+        onclick="ToggleDesc();" type="button">▼ 덱 설명</button></label>
+        <div id="DescriptionInput" style="display: none;">
+            {{ form.description }}
+        </div>
+    </form>
     </div>
     <div class="columnChange mb-2">
         <div id="CardList" class="border d-flex flex-column">
