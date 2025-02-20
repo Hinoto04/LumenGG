@@ -27,4 +27,20 @@
         {% endfor %}
     </tbody>
 </table>
+<div class="paginator d-flex justify-content-center">
+    <ul class="pagination">
+        {% for page_number in data.paginator.page_range %}
+        {% if page_number >= data.number|add:-5 and page_number <= data.number|add:5 and page_number != data.number %}
+            <li class="page_item">
+                <a class="page-link dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+            </li>
+        {% elif page_number == data.number %}
+            <li class="page-item active" aria-current="page">
+                <a class="page-link dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+            </li>
+        {% endif %}
+        {% endfor %}
+    </ul>
+</div>
+<script src="{% static "card/list.js" %}"></script>
 {% endblock content %}
