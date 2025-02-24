@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponse, Http404
 from django.core.paginator import Paginator
+from django.db.models import Q
 import openpyxl
 
 from ..models import Card, Character
@@ -98,3 +99,14 @@ def keywordSet(req):
         'cards': cards
     }
     return render(req, 'card/keywordset.html', context=context)
+
+def bujeonseung(req):
+    
+    q = Q()
+    
+    q.add(Q(), q.AND)
+    
+    data = Card.objects.filter(q)
+    print(data)
+    
+    return HttpResponse("출력창 확인")

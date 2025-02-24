@@ -1,7 +1,7 @@
 $("#kwSelect").on("change", function() {
-    $('.relationBox').hide();
-    $("#"+$(this).val()).show();
+    $('.관련상자').hide();
+    $("#"+$(this).val()).css('display', 'grid');
 })
 
 //console.log($("#kwSelect").val())
-$("#"+$("#kwSelect").val()).show();
+$("#"+$("#kwSelect").val()).css('display', 'grid');

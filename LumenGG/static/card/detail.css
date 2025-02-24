@@ -1,41 +1,151 @@
-.mainBox {
-    flex-direction: row;
-}
-.cardimg {
-    width: 40%;
-}
-.cardinfo {
-    width: 60%;
-}
-table {
+
+.relationBox {
+    display: none;
     text-align: center;
 }
 
+.relationText {
+    font-size: 20px;
+}
+
+/* Renewal Design */
+
+#돌아가기 {
+    font-size: 2em;
+    font-weight: 900;
+}
+
+#섹션1 {
+    display: grid;
+    grid-template-columns: repeat(2, calc(50% - .5em));
+    gap: 1em;
+}
 
 @media screen and (max-width: 645px) {
-    .mainBox {
-        flex-direction: column;
-    }
-    .cardimg {
-        width: 100%;
-    }
-    .cardinfo {
-        width: 100%;
-    }
-    table {
-        text-align: center;
+    #섹션1 {
+        grid-template-columns: 100%;
     }
 }
 
-.판정1 {
-    width: 45%;
-}
-.판정2 {
-    width: 55%;
+#카드 {
+    border-radius: 1em;
 }
 
-.relationCards {
-    width: 16.6%;
+.카드정보 { padding: .5em .75em .5em .75em; }
+.카드정보 > p { margin: 0; }
+.카드명 { font-size: 1.2em; font-weight: 900; }
+
+#기본정보 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: .5em;
+}
+
+#기본정보.공격 {
+    grid-template-rows: repeat(3, 6em);
+}
+#기본정보.수비 {
+    grid-template-rows: repeat(1, 6em);
+}
+
+#처리 {
+    display: grid;
+    grid-column: 1 / 3;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .25em;
+}
+
+.정보상자 {
+    text-align: center;
+    border-radius: .5em;
+}
+
+.정보상자 > div {
+    height: 50%;
+    text-align: center;
+    padding: .5em;
+    font-size: 1em;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.정보상자 > div:nth-child(1) {
+    background-color: #F2F2F2;
+    border-radius: 1em 1em 0 0;
+    font-weight: 900;
+}
+
+.정보상자 > div:nth-child(2) {
+    border-width: 0px 1px 1px 1px;
+    border-style: solid;
+    border-radius: 0 0 1em 1em;
+    border-color: #D9D9D9;
+}
+
+.정보상자 > div > p {
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+#섹션2 {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: .5em;
+}
+
+#섹션2 > div {
+    border-radius: 1em;
+    padding: 1em;
+}
+
+#섹션2 > div > p:nth-child(1) {
+    font-weight: 900;
+    font-size: 1.2em;
+    margin-right: .75em;
+}
+
+#효과 {
+    grid-column: 1 / 3;
+}
+
+@media screen and (max-width: 645px) {
+    #섹션2 {
+        grid-template-columns: 1fr;
+    }
+
+    #효과 {
+        grid-column: 1 / 2;
+    }
+}
+
+#관련카드목록 {
+    font-size: 1.5em;
+    font-weight: 900;
+}
+
+.관련상자 {
+    display: none;
+    grid-template-columns: repeat(5, calc(20% - .4em));
+    gap: .5em;
+}
+
+@media screen and (max-width: 768px) {
+    .관련상자 {
+        grid-template-columns: repeat(2, calc(50% - .25em))
+    }
+}
+
+.관련카드 { border-radius: 1em; }
+
+.캐릭터명2 { 
+    font-weight: 400;
+    font-size: .6em; 
+}
+
+.카드명2 {
+    font-size: .8em;
+    font-weight: 900;
 }
 
 .hoverBig {
@@ -47,26 +157,22 @@ table {
 }
 
 .hoverBig:hover > img {
-    transform: scale(2.5);
+    transform: scale(1.75);
     z-index: 2;
     pointer-events: none;
 }
 
-@media screen and (max-width: 645px) {
-    .relationCards {
-        width: 33.3%;
-    }
-
+@media screen and (max-width: 768px) {
     .hoverBig:hover > img {
         transform: scale(1);
     }
 }
 
-.relationBox {
-    display: none;
-    text-align: center;
+.질문답변 {
+    border-radius: 1em;
+    padding: 1em;
 }
 
-.relationText {
-    font-size: 20px;
+.질문답변 > h4 {
+    font-weight: 900;
 }

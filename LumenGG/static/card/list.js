@@ -16,12 +16,12 @@ document.querySelectorAll(".dynamicLink").forEach(element => {
 
 var toggle = false;
 
-function searchFieldToggle() {
+function 필터토글() {
     if(toggle) {
-        $(".toggleBox").css("display", "none");
+        $("#검색필터").css("display", "none");
         toggle = false;
     } else {
-        $(".toggleBox").css("display", "block");
+        $("#검색필터").css("display", "grid");
         toggle = true;
     }
 }
