@@ -171,6 +171,7 @@
 .질문답변 {
     border-radius: 1em;
     padding: 1em;
+    margin-bottom: .5em;
 }
 
 .질문답변 > h4 {

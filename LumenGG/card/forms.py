@@ -76,7 +76,7 @@ class CardForm(forms.Form):
         required = False,
         widget = forms.TextInput(
             attrs = {
-                'class': 'form-control 배경색 w-100',
+                'class': 'form-control 배경색1 w-100',
                 'placeholder': '카드명, 키워드 검색'}),
     )
     sort = forms.ChoiceField(
