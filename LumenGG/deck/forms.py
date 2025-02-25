@@ -8,7 +8,7 @@ class DeckSearchForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
         label = "캐릭터",
         queryset = Character.objects.order_by('name'),
-        widget = forms.CheckboxSelectMultiple(attrs = {'class': 'searchCheckbox ms-1'}),
+        widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크 flex-wrap'}),
         required = False,
     )
     keyword = forms.CharField(
@@ -17,7 +17,7 @@ class DeckSearchForm(forms.Form):
         required = False,
         widget = forms.TextInput(
             attrs = {
-                'class': 'form-control w-100 mb-2',
+                'class': 'form-control 배경색1 w-100',
                 'placeholder': '키워드 검색'}),
     )
 

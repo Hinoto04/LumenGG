@@ -1,26 +1,60 @@
-
-.searchLabel {
-    font-weight: 900;
-    margin-top: auto;
-    margin-bottom: auto;
-}
-
-.searchField {
-    display: grid;
-    row-gap: 0.5em;
-    column-gap: 0.5em;
-}
-
-.searchField > div > .searchCheckbox {
-    margin-top: auto;
-    margin-bottom: auto;
+.필터세부 {
     display: flex;
-    flex-grow: 1;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: space-around;
+    flex-direction: column;
+    background-color: #F2F2F2;
+    padding: .5em;
+    border-radius: 1em;
 }
 
-.searchField > div {
-    border: 1px solid #000;
+.필터세부 > label, .필터세부 > div > label {
+    font-weight: 900;
+    font-size: 1.3em;
 }
+
+.검색체크 {
+    display: flex;
+    flex-direction: row;
+}
+
+.검색체크 > div > label {
+    padding: 0.25em 0.5em 0.25em 0.5em;
+    border-radius: 0.5em;
+    margin: 0.1em 0.25em 0.1em 0.25em;
+    font-size: 0.85em;
+    cursor: pointer;
+    background-color: #fff;
+    border: 1px solid #d9d9d9;
+}
+
+input.검색체크 {
+    display: none;
+}
+
+label:has(> input.검색체크:checked)  {
+    background-color: #333;
+    color: #fff;
+}
+
+.모바일비표시 {
+    display: tabel-cell;
+}
+
+@media screen and (max-width: 768px) {
+    .모바일비표시 {
+        display: none;
+    }
+}
+
+#덱목록 {
+    border-collapse: separate;
+    border-spacing: 0 .5em;
+    font-weight: 400;
+}
+
+.열정보 > th { padding: 1em .5em; }
+
+.덱정보 > td { padding: .5em; }
+.덱정보 > td:nth-child(1) { border-radius: 1em 0 0 1em }
+.덱정보 > td:nth-last-child(1) { border-radius: 0 1em 1em 0}
+
+.덱이름 { font-weight: 700; }
