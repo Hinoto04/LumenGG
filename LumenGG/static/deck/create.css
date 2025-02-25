@@ -32,52 +32,84 @@
     }
 }
 
-.searchLabel {
-    font-weight: 900;
-    margin-top: auto;
-    margin-bottom: auto;
-}
-
-.createField {
+.필터세부 {
     display: flex;
     flex-direction: column;
+    background-color: #F2F2F2;
+    padding: .5em;
+    border-radius: 1em;
 }
 
-div.searchCheckbox {
+.필터세부 > label, .필터세부 > div > label {
+    font-weight: 900;
+    font-size: 1.3em;
+}
+
+.검색체크 {
     display: flex;
     flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: space-around;
+}
+
+.검색체크 > div > label {
+    padding: 0.25em 0.5em 0.25em 0.5em;
+    border-radius: 0.5em;
+    margin: 0.1em 0.25em 0.1em 0.25em;
+    font-size: 0.85em;
+    cursor: pointer;
+    background-color: #fff;
+    border: 1px solid #d9d9d9;
+}
+
+.작은옵션 {
+    margin: auto 0;
     flex-grow: 1;
-}
-#id_name {
-    margin-left: 1em;
-    flex-grow: 1;
-}
-
-#charbox {
-    border: 1px solid #000;
-    display: flex;
-    margin-bottom: 0.5em;
+    text-align: center;
+    height: 1.5em;
+    border: 0;
+    border-radius: .5em;
 }
 
-.cardSearch > div {
-    border: 1px solid #000;
-    margin-bottom: 0.5em;
-}
-input.searchCheckbox {
-    display: inline;
+input.검색체크 {
+    display: none;
 }
 
-#SearchResult {
+label:has(> input.검색체크:checked), input.검색체크:checked + label {
+    background-color: #333;
+    color: #fff;
+}
+
+#덱정보입력 > form > div { margin-bottom: 1em; }
+
+.덱생성라벨 { 
+    white-space: nowrap;
+    font-weight: 900;
+    font-size: 1.5em;
+    margin-right: .5em;
+}
+
+#SearchResult, .searchResult {
     width: 100%;
 }
-#SearchResult > div {
+#ImageResult > div {
     width: 100%;
     overflow-x: scroll;
     display: grid;
     grid-template-rows: repeat(3, auto);
     gap: 0.4em;
+}
+#TextResult {
+    display: none;
+    grid-template-columns: repeat(4, auto);
+    gap: 0.25em;
+}
+@media screen and (max-width: 450px) {
+    #TextResult {
+        grid-template-columns: repeat(3, auto);
+    }
+}
+
+#TextResult > div:hover {
+    cursor: pointer;
 }
 /* .divBtn {
     background: none;
@@ -91,8 +123,19 @@ input.searchCheckbox {
 .resultCard:nth-child(3n+1) { grid-row: 1; }
 .resultCard:nth-child(3n+2) { grid-row: 2; }
 
-#Decklist > table {
+.resultCardText {
+    padding: .25em;
+    border-radius: .5em;
+}
+
+#DeckList {
+    border-radius: .5em;
+}
+
+#DeckList > table {
     table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0 .5em;
 }
 .in_deck_cardname {
     white-space: nowrap;
@@ -100,5 +143,14 @@ input.searchCheckbox {
     text-overflow: ellipsis;
 }
 .counts {
-    min-width: 80px;
+    min-width: 70px;
 }
+
+#MainDeckList > tr > td { 
+    padding: .5em; 
+    background-color: #fff;
+    border-color: #d9d9d9;
+    border-width: 1px 0 1px 0;
+}
+#MainDeckList > tr > td:nth-child(1) { border-radius: 1em 0 0 1em }
+#MainDeckList > tr > td:nth-last-child(1) { border-radius: 0 1em 1em 0}
