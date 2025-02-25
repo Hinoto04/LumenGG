@@ -1,0 +1,14 @@
+#QNA목록 {
+    border-collapse: separate;
+    border-spacing: 0 .5em;
+    font-weight: 400;
+}
+
+.열정보 > th { 
+    padding: 1em .5em; 
+    border-bottom: 1px solid #d9d9d9;
+}
+
+.QNA정보 > td { padding: .5em; }
+.QNA정보 > td:nth-child(1) { border-radius: 1em 0 0 1em }
+.QNA정보 > td:nth-last-child(1) { border-radius: 0 1em 1em 0}

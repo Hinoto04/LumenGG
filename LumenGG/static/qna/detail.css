@@ -1,5 +1,42 @@
-.relationCards {
-    width: 16.6%;
+#QNA > div.배경색1 {
+    padding: 1em;
+    border-radius: 1em;
+    margin-bottom: 1em;
+}
+
+h3, h4 {
+    font-weight: 900;
+}
+
+#관련카드목록 {
+    font-size: 1.5em;
+    font-weight: 900;
+}
+
+.관련상자 {
+    display: grid;
+    grid-template-columns: repeat(5, calc(20% - .4em));
+    gap: .5em;
+}
+
+@media screen and (max-width: 768px) {
+    .관련상자 {
+        grid-template-columns: repeat(2, calc(50% - .25em))
+    }
+}
+
+.관련카드 { border-radius: 1em; }
+
+.카드정보 { padding: .5em .75em .5em .75em; }
+
+.캐릭터명2 { 
+    font-weight: 400;
+    font-size: .6em; 
+}
+
+.카드명2 {
+    font-size: .8em;
+    font-weight: 900;
 }
 
 .hoverBig {
@@ -11,16 +48,12 @@
 }
 
 .hoverBig:hover > img {
-    transform: scale(1.8);
+    transform: scale(1.75);
     z-index: 2;
     pointer-events: none;
 }
 
-@media screen and (max-width: 645px) {
-    .relationCards {
-        width: 33.3%;
-    }
-
+@media screen and (max-width: 768px) {
     .hoverBig:hover > img {
         transform: scale(1);
     }

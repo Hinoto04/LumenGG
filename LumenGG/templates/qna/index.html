@@ -2,21 +2,23 @@
 {% load static %}
 {% block title %}QNA{% endblock title %}
 {% block style %}
-{% comment %} <link rel="stylesheet" href="{% static "qna/index.css" %}"> {% endcomment %}
+<link rel="stylesheet" href="{% static "qna/index.css" %}">
 {% endblock style %}
 {% block content %}
+<div style="font-size: 2em; font-weight: 900;">
+    QNA 목록
+</div>
 <div id="searchBox" class="mt-2">
-    <form action="" method="get" class="form-control">
-        <h4 class="mb-1">검색</h4>
+    <form action="" method="get" class="">
         {{ form.query }}
         <div class="d-flex w-100 justify-content-center mt-2">
-            <button class="btn btn-sm btn-primary" type="submit">검색</button>
+            <button class="btn btn-sm btn-dark" type="submit">검색</button>
         </div>
     </form>
 </div>
-<table class="table table-sm table-striped">
+<table id="QNA목록" class="w-100">
     <thead>
-        <tr>
+        <tr class="열정보">
             <th>번호</th>
             <th>제목</th>
             <th>FAQ</th>
@@ -24,7 +26,7 @@
     </thead>
     <tbody>
         {% for qna in data %}
-        <tr>
+        <tr class="QNA정보 배경색1">
             <td>{{ qna.id }}</td>
             <td><a href="{% url "qna:detail" qna.id %}">{{ qna.title }}</a></td>
             {% if qna.faq %}
