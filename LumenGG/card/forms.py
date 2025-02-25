@@ -5,25 +5,25 @@ class CardForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
         label = "캐릭터",
         queryset = Character.objects.order_by('name'),
-        widget = forms.CheckboxSelectMultiple(attrs = {'class': 'searchCheckbox ms-1'}),
+        widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크 flex-wrap'}),
         required = False,
     )
     type = forms.MultipleChoiceField(
         label = "분류",
         choices = [('특성', '특성'), ('공격', '공격'), ('수비', '수비'), ('특수', '특수')],
-        widget = forms.CheckboxSelectMultiple(attrs = {'class': 'searchCheckbox ms-1'}),
+        widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크'}),
         required = False,
     )
     pos = forms.MultipleChoiceField(
         label = "판정",
         choices = [('상단', '상단'), ('중단', '중단'), ('하단', '하단')],
-        widget = forms.CheckboxSelectMultiple(attrs = {'class': 'searchCheckbox ms-1'}),
+        widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크'}),
         required = False,
     )
     body = forms.MultipleChoiceField(
         label = "부위",
         choices = [('없음', '없음'), ('손', '손'), ('발', '발')],
-        widget = forms.CheckboxSelectMultiple(attrs = {'class': 'searchCheckbox ms-1'}),
+        widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크'}),
         required = False,
     )
     specialpos = forms.MultipleChoiceField(
@@ -31,14 +31,14 @@ class CardForm(forms.Form):
         required = False,
         choices = [
             ('상단', '상단'), ('중단', '중단'), ('하단', '하단')], 
-        widget = forms.CheckboxSelectMultiple(attrs = {'class': 'searchCheckbox ms-1'}),
+        widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크'}),
     )
     specialtype = forms.MultipleChoiceField(
         label = "특수",
         required = False,
         choices = [
-            ('회피', '회피'), ('상쇄', '상쇄')],
-        widget = forms.CheckboxSelectMultiple(attrs = {'class': 'searchCheckbox ms-2 mt-auto mb-auto'}),
+            ('회피', '회피'), ('상쇄', '상쇄'), ('그랩', '그랩')],
+        widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크'}),
     )
     pack = forms.ChoiceField(
         label = "출신 팩",
@@ -49,7 +49,7 @@ class CardForm(forms.Form):
             ('UNC', '유니즌 챌린저'), 
             ('LMI', '루미너스 이노센스'),
             ('CRS', '크림슨 스트라이커즈')],
-        widget = forms.Select(attrs = {'class': 'btn btn-sm border'}),
+        widget = forms.Select(attrs = {'class': '긴옵션 배경색2'}),
         required = False,
     )
     framenum = forms.IntegerField(
@@ -59,7 +59,7 @@ class CardForm(forms.Form):
         required = False,
         widget = forms.NumberInput(
             attrs = {
-                'class': 'btn btn-sm border',
+                'class': '긴옵션 배경색2',
                 'placeholder': '속도'}),
     )
     frametype = forms.ChoiceField(
@@ -67,7 +67,8 @@ class CardForm(forms.Form):
         required = False,
         choices = [
             ('일치', '일치'), ('이상', '이상'), ('이하', '이하')],
-        widget = forms.Select(attrs = {'class': 'btn btn-sm border ms-2'}),
+        widget = forms.RadioSelect(attrs = {'class': '검색체크 작은버튼'}),
+        initial = '일치',
     )
     keyword = forms.CharField(
         label = "",
@@ -75,7 +76,7 @@ class CardForm(forms.Form):
         required = False,
         widget = forms.TextInput(
             attrs = {
-                'class': 'form-control w-100',
+                'class': 'form-control 배경색1 w-100',
                 'placeholder': '카드명, 키워드 검색'}),
     )
     sort = forms.ChoiceField(
@@ -83,7 +84,7 @@ class CardForm(forms.Form):
         required = False,
         choices = [
             ('', '정렬'), 
-            ('-속도', '-속도'), ('+속도', '+속도'), 
-            ('-데미지', '-데미지'), ('+데미지', '+데미지'),],
+            ('-속도', '속도 내림차순'), ('+속도', '속도 오름차순'), 
+            ('-데미지', '데미지 내림차순'), ('+데미지', '데미지 오름차순'),],
         widget = forms.Select(attrs = {'class': 'btn btn-sm border'}),
     )

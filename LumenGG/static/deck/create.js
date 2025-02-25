@@ -28,12 +28,24 @@ function ToggleDesc() {
     }
 }
 
+function textToggle() {
+    if($("#TextResult").css('display') == 'none') {
+        $("#ImageResult").hide();
+        $("#TextResult").css('display', 'grid');
+        $("#TextToggleBtn").text('이미지로 보기');
+    } else {
+        $("#TextResult").hide();
+        $("#ImageResult").css('display', 'grid');
+        $("#TextToggleBtn").text('텍스트로 보기');
+    }
+}
+
 function charChange() {
     var selectedLabel = $(this).parent().text();
     if($(this).val() == 5) maxDeckSize = 23;
     else maxDeckSize = 20;
     $("input#char_main").attr('value', $(this).val());
-    $("label#char_main").text(selectedLabel);
+    $("#char_main_box > label").text(selectedLabel);
     
     for(pk of Object.keys(deckList)) {
         let card = listSearch(pk)
@@ -52,8 +64,9 @@ $("input.charSelect").change(charChange);
 function cardSearch() {
     var formData = $("#cardSearchForm").serialize();
     
-    $('#SearchResult > div').remove()
-    $('#SearchResult').append('<div></div>')
+    $('#ImageResult > div').remove()
+    $('#ImageResult').append(`<div></div>`)
+    $('#TextResult').empty();
     $.ajax({
         type: 'GET',
         url: '/deck/createSearch',
@@ -64,9 +77,9 @@ function cardSearch() {
                 return i["fields"]["frame"] - j["fields"]["frame"]
             })
             cardList = [...a];
-            $("#SearchResult > div").css("grid-template-columns", "repeat(" + String(Math.ceil(a.length/3)) + ", 120px)")
+            $("#ImageResult > div").css("grid-template-columns", "repeat(" + String(Math.ceil(a.length/3)) + ", 120px)")
             for(let i=0;i<a.length;i++) {
-                $("#SearchResult > div").append(`
+                $("#ImageResult > div").append(`
                     <div id="card_img_${a[i]["pk"]}" class='resultCard'>
                         <img class='cardImg needLoadingImg'
                         src="${a[i]["fields"]["img"]}"
@@ -87,6 +100,18 @@ function cardSearch() {
                     event.preventDefault();
                     Decrease(a[i]["pk"])
                 });
+
+                $("#TextResult").append(`
+                    <div id="card_text_${a[i]["pk"]}" class='resultCardText 배경색1'>
+                        ${a[i]["fields"]["name"]}
+                    </div>
+                    `);
+                    $(`#card_text_${a[i]["pk"]}`).on('click', function(event) {
+                        Increase(a[i]["pk"])});
+                    $(`#card_text_${a[i]["pk"]}`).on('contextmenu', function(event) {
+                        event.preventDefault();
+                        Decrease(a[i]["pk"])
+                    });
             }
         }
     })
@@ -103,21 +128,39 @@ function listSearch(pk) {
 function getTemplate(pk) {
     return $(`
         <tr id="in_deck_${pk}">
-            <th class="in_deck_cardname">${listSearch(pk)["fields"]["name"]}</th>
-            <th>
-                <button class="decrease btn btn-sm btn-danger" onclick="Decrease('${pk}')">-</button>
+            <td class="in_deck_cardname">${listSearch(pk)["fields"]["name"]}</th>
+            <td>
+                <button class="decrease btn p-0 btn-danger" onclick="Decrease('${pk}')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-dash-lg" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8"/>
+                </svg></button>
                 <p id="in_deck_count_${pk}" class="d-inline">1</p>
-                <button class="increase btn btn-sm btn-primary" onclick="Increase('${pk}')">+</button></th>
-            <th>
-                <button class="decrease btn btn-sm btn-danger" onclick="sDecrease('${pk}', 'h')">-</button>
-                <p id="in_hand_count_${pk}" class="d-inline">0</p>
-                <button class="increase btn btn-sm btn-primary" onclick="sIncrease('${pk}', 'h')">+</button>
-            </th>
-            <th>
-                <button class="decrease btn btn-sm btn-danger" onclick="sDecrease('${pk}', 's')">-</button>
+                <button class="increase btn p-0 btn-primary" onclick="Increase('${pk}')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-lg" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/>
+                </svg></button></th>
+            <td>
+                <button class="decrease btn p-0 btn-danger" onclick="sDecrease('${pk}', 'h')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-dash-lg" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8"/>
+                </svg></button>
+                    <p id="in_hand_count_${pk}" class="d-inline">0</p>
+                <button class="increase btn p-0 btn-primary" onclick="sIncrease('${pk}', 'h')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-lg" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/>
+                </svg></button>
+            </td>
+            <td>
+                <button class="decrease btn p-0 btn-danger" onclick="sDecrease('${pk}', 's')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-dash-lg" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8"/>
+                </svg></button>
                 <p id="in_side_count_${pk}" class="d-inline">0</p>
-                <button class="increase btn btn-sm btn-primary" onclick="sIncrease('${pk}', 's')">+</button>
-            </th>
+                <button class="increase btn p-0 btn-primary" onclick="sIncrease('${pk}', 's')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-lg" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/>
+                </svg></button>
+            </td>
         </tr>
     `)
 }

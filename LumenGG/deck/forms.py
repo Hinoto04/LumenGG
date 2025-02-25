@@ -8,7 +8,7 @@ class DeckSearchForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
         label = "캐릭터",
         queryset = Character.objects.order_by('name'),
-        widget = forms.CheckboxSelectMultiple(attrs = {'class': 'searchCheckbox ms-1'}),
+        widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크 flex-wrap'}),
         required = False,
     )
     keyword = forms.CharField(
@@ -17,7 +17,7 @@ class DeckSearchForm(forms.Form):
         required = False,
         widget = forms.TextInput(
             attrs = {
-                'class': 'form-control w-100 mb-2',
+                'class': 'form-control 배경색1 w-100',
                 'placeholder': '키워드 검색'}),
     )
 
@@ -27,13 +27,13 @@ class DeckMakeForm(forms.ModelForm):
         max_length = 25,
         widget = forms.TextInput(
             attrs = {
-                'class': 'ms-1',
+                'class': 'form-control 배경색1',
                 'placeholder': '덱 이름'}),
     )
     char = forms.ModelChoiceField(
         label = "캐릭터",
         queryset = Character.objects.order_by('name'),
-        widget = forms.RadioSelect(attrs = {'class': 'charSelect searchCheckbox ms-1'}),
+        widget = forms.RadioSelect(attrs = {'class': '검색체크 flex-wrap charSelect'}),
         required = False,
         initial = Character.objects.get(id=1),
     )
@@ -47,7 +47,8 @@ class DeckMakeForm(forms.ModelForm):
             ('CRS', 'CRS'),
             ('N/A', 'N/A'),
         ],
-        initial = 'N/A'
+        initial = 'N/A',
+        widget = forms.Select(attrs={'class': 'btn border 배경색1'})
     )
     keyword = forms.CharField(
         label = "태그",
@@ -55,7 +56,7 @@ class DeckMakeForm(forms.ModelForm):
         required = False,
         widget = forms.TextInput(
             attrs = {
-                'class': 'w-100',
+                'class': 'form-control 배경색1',
                 'placeholder': '검색 키워드 목록'}),
     )
     

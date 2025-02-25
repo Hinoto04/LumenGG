@@ -10,39 +10,72 @@ a {
     color: black;
 }
 
+#홈버튼 {
+    font-size: 1.3em;
+}
+
 #header {
-    border-bottom: 1px solid #000;
-    font-size: 20px;
-}
-
-#upperHeader {
-    max-width: 1050px;
-    width: 90%;
-}
-
-#menuBar {
-    max-width: 1050px;
-    width: 90%;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.logoimg {
-    width: 200px;
-    object-fit: cover;
-}
-
-@media screen and (max-width: 1050px) {
-    #upperHeader {
-        justify-content: center;
-    }
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    max-width: 1200px;
+    margin: 24px auto auto auto;
+    padding: 24px;
+    font-size: 1em;
 }
 
 #content {
-    max-width: 1050px;
+    margin: 4em auto 4em auto;
+    max-width: 1200px;
+    width: calc(100% - 2em);
+}
+
+@media screen and (max-width: 768px) {
+    #content {
+        margin: 0 .5em 2em .5em;
+        width: calc(100% - 1em);
+    }
 }
 
 #footer {
     border-top: 1px solid #000;
     text-align: center;
 }
+
+/* 기본 숫자 입력에 있는 무쌩긴 위아래 화살표 제거 */
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox  */
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+p { margin: 0;}
+.페이지 {
+    margin: 0 .5em;
+    text-align: center;
+    font-family: "Noto Sans KR";
+    font-size: 20px;
+}
+.페이지 > a {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    color: #777;
+}
+.페이지.활성화 > a { color: #000; }
+
+.페이지:nth-child(1) {
+    border-radius: 0.5em 0 0 0.5em;
+}
+.페이지:nth-last-child(1) {
+    border-radius: 0 0.5em 0.5em 0;
+}
+
+.배경색1 { background-color: #F2F2F2; }
+.배경색2 { background-color: #D9D9D9; }

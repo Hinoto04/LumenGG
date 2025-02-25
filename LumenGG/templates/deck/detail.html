@@ -7,17 +7,17 @@
 {% block title %}{{deck.name}}{% endblock title %}
 {% block content %}
 <div>
-    <div class="deckInfo mb-2 mt-2 p-2 border">
-        <div class="topInfo d-flex flex-row justify-content-between">
-            <h4>{{deck.name}}</h4>
-            <h4>ver.{{deck.version}}</h4>
+    <div id="덱정보" class="배경색1">
+        <div id="위쪽정보">
+            <p>{{deck.name}}</p>
+            <p>ver.{{deck.version}}</p>
         </div>
-        <div class="midInfo d-flex flex-row justify-content-between">
-            <h5>캐릭터명 : {{deck.character.name}}</h5>
-            <h5>{{deck.author.username}}</h5>
+        <div id="아래쪽정보">
+            <p>캐릭터 : {{deck.character.name}}</p>
+            <p>{{deck.author.username}}</p>
         </div>
-        <div class="d-flex flex-row justify-content-between">
-            <button id="displayToggleBtn" class="btn btn-sm btn-primary" 
+        <div id="기능버튼">
+            <button id="displayToggleBtn" class="btn btn-sm btn-dark" 
             onclick="deckToggle();" type="button">텍스트로 보기</button>
             {% if user == deck.author %}
             <div class="d-flex flex-row">
@@ -29,9 +29,10 @@
             {% endif %}
         </div>
     </div>
+    <hr class="my-4">
     <div id="ImageDisplay">
         <div id="ImageDeck" class="w-100">
-            <div id="List" class="p-1 border">
+            <div id="List" class="배경색1">
                 <p class="mb-0">리스트</p>
                 <div id="listtop" class="d-flex flex-row justify-content-center"></div>
                 <div id="listbottom" class="d-flex flex-row justify-content-center"></div>
@@ -47,7 +48,7 @@
                     {% endfor %}
                 </div>
             </div>
-            <div id="Hand" class="d-flex flex-column p-1 border">
+            <div id="Hand" class="d-flex flex-column 배경색1">
                 <p class="mb-0">손패</p>
                 <div class="gridBox">
                     {% for card in hands %}
@@ -61,7 +62,7 @@
                     {% endfor %}
                 </div>
             </div>
-            <div id="Side" class="d-flex flex-column p-1 border">
+            <div id="Side" class="d-flex flex-column 배경색1">
                 <p class="mb-0">사이드</p>
                 <div class="d-flex flex-md-column flex-wrap flex-md-nowrap flex-grow-1 sideBox">
                     {% for card in sides %}
@@ -80,10 +81,10 @@
         </div>
     </div>
     <div id="TextDisplay" style="display:none;">
-        <div class="d-flex">
-            <div class="p-2 w-50">
-                <h3>덱 리스트</h3>
-                <table class="table table-striped table-sm">
+        <div id="텍스트리스트" class="d-flex">
+            <div class="w-50 텍스트구획 배경색1 me-1">
+                <h3 class="구획명">덱 리스트</h3>
+                <table class="table table-sm">
                     <tbody>
                         {% for card in cards %}
                         {% for _ in card.count|times %}
@@ -95,10 +96,10 @@
                     </tbody>
                 </table>
             </div>
-            <div class="p-2 w-50 d-flex flex-column">
-                <div class="">
-                    <h3>손패</h3>
-                    <table class="table table-striped table-sm">
+            <div class="w-50 d-flex flex-column">
+                <div class="텍스트구획 배경색1">
+                    <h3 class="구획명">손패</h3>
+                    <table class="table table-sm">
                         <tbody>
                             {% for card in hands %}
                             {% for _ in card.hand|times %}
@@ -110,9 +111,9 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="">
-                    <h3>사이드</h3>
-                    <table class="table table-striped table-sm">
+                <div class="텍스트구획 배경색1">
+                    <h3 class="구획명">사이드</h3>
+                    <table class="table table-sm">
                         <tbody>
                             {% for card in sides %}
                             {% for _ in card.side|times %}
@@ -127,7 +128,8 @@
             </div>
         </div>
     </div>
-    <div class="mt-2 mb-2 border p-2">
+    <hr class="my-4">
+    <div id="덱설명" class="배경색1 mt-3">
         <h4>덱 설명</h4>
     {{ deck.description|safe }}
     </div>

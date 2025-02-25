@@ -8,25 +8,29 @@
 <link rel="stylesheet" href="{% static "qna/detail.css" %}">
 {% endblock style %}
 {% block content %}
-<div>
-    <div class="border p-2 mt-2"><h3 class="mb-0">{{ qna.title }}</h3></div>
-    <div class="border p-2 mt-2">
+<div id="QNA">
+    <div class="배경색1"><h3 class="mb-0">{{ qna.title }}</h3></div>
+    <div class="배경색1">
         <h4 class="mb-0">Q</h4>
         <p class="mb-0">{{ qna.question }}</p>
     </div>
-    <div class="border p-2 mt-2">
+    <div class="배경색1">
         <h4 class="mb-0">A</h4>
         <p class="mb-0">{{ qna.answer }}</p>
     </div>
-    <div class="border p-2 mt-2 mb-2">
-        <h4 class="mb-0">관련 카드</h4>
-        <div class="d-flex flex-row flex-wrap justify-content-center">
+    <hr class="my-4">
+    <div id="관련카드목록">
+        <o class="mb-0">관련 카드</p>
+        <div class="관련상자">
             {% for card in qna.cards.all %}
-            <div class="relationCards">
+            <div class="관련카드 배경색1">
                 <a href="{% url 'card:detail' card.id %}">
                     <div class="w-100 d-flex flex-column justify-content-center hoverBig">
                         <img class="w-100" src="{{ card.img }}" alt="{{ card.name }}">
-                        <div style="text-align: center">{{ card.name }}</div>
+                        <div class="카드정보">
+                            <p class="캐릭터명2">{{ card.character.name }}</p>
+                            <p class="카드명2">{{ card.name }}</p>
+                        </div>
                     </div>
                 </a>
             </div>

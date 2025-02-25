@@ -6,70 +6,68 @@
 {% endblock style %}
 {% block content %}
 <div>
-    <form class="form-control mt-2" action="" method="get">
-        <div class="d-flex flex-row justify-content-start mb-2">
-            <h3 class="mb-0">검색</h3>
-            <button type="button" onclick="searchFieldToggle();"
-            class="btn btn-secondary btn-sm ms-2 mt-auto mb-auto">상세 필터</button>
-        </div>
-        <div class="d-flex input-group-sm justify-content-between mb-2">
-            {{ form.keyword }}
-            <button class="btn btn-sm btn-primary mt-auto mb-auto ms-2" type="submit">검색</button>
-        </div>
-        <div class="toggleBox">
-            <div class="searchField mb-2">
-                <div id="charbox" class="d-flex flex-row">
-                    <label class="ms-2 searchLabel" for="char">캐릭터</label>
-                    {{ form.char }}
-                </div>
-                <div id="typebox" class="d-flex flex-row">
-                    <label class="ms-2 searchLabel" for="type">분류</label>
-                    {{ form.type }}
-                </div>
-                <div id="posbox" class="d-flex flex-row">
-                    <label class="ms-2 searchLabel" for="pos">판정</label>
-                    {{ form.pos }}
-                </div>
-                <div id="bodybox" class="d-flex flex-row">
-                    <label class="ms-2 searchLabel" for="body">부위</label>
-                    {{ form.body }}
-                </div>
-                <div id="posField" class="d-flex flex-row justify-content-center">
-                    <label class="ms-2 searchLabel" for="special">특수<br>판정</label>
-                    <div class="d-flex flex-grow-1 flex-row justify-content-center mt-auto mb-auto">
-                        {{ form.specialpos }}
-                        {{ form.specialtype }}
-                    </div>
-                </div>
-                <div id="packbox" class="d-flex flex-row">
-                    {{ form.pack }}
-                </div>
-                <div id="frameField" class="d-flex flex-row">
-                    <label class="ms-2 searchLabel" for="frame">속도</label>
-                    <div class="d-flex flex-row mt-auto mb-auto justify-content-center flex-grow-1">
-                        {{ form.framenum }}
-                        {{ form.frametype }}
-                    </div>
-                </div>
-                <div id="sortbox" class="d-flex flex-row">
-                    {{ form.sort }}
-                </div>
-            </div>
-            <div class="d-flex justify-content-center">
-                <button class="btn btn-sm btn-primary" type="submit">검색</button>
+    <div id="최상단" class="d-flex flex-column mb-1">
+        <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">카드 검색</div>
+    </div>
+    <form action="" class="d-flex flex-column m-2" id="검색툴">
+        {{ form.keyword }}
+        <div class="d-flex flex-row justify-content-between mt-1 mb-1">
+            <button class="btn btn-light border" onclick="필터토글();" type="button">필터</button>
+            <div class="d-flex flex-row">
+                <p class="mt-auto mb-auto me-2">정렬</p>
+                {{ form.sort}}
             </div>
         </div>
+        <div id="검색필터">
+            <div id="캐릭" class="필터세부 배경색1">
+                <label for="char">캐릭터</label>
+                {{ form.char }}
+            </div>
+            <div id="분류" class="필터세부 배경색1">
+                <label for="type">분류</label>
+                {{ form.type }}
+            </div>
+            <div id="판정" class="필터세부 배경색1">
+                <label for="pos">판정</label>
+                {{ form.pos }}
+            </div>
+            <div id="부위" class="필터세부 배경색1">
+                <label for="body">부위</label>
+                {{ form.body }}
+            </div>
+            <div id="특수" class="필터세부 배경색1 justify-content-center">
+                <label for="special">특수 판정</label>
+                <div class="d-flex flex-row flex-wrap">
+                    {{ form.specialpos }}
+                    {{ form.specialtype }}
+                </div>
+            </div>
+            <div id="frameField" class="필터세부 배경색1">
+                <div class="d-flex flex-row">
+                    <label for="frame">속도</label>
+                    {{ form.frametype }}
+                </div>
+                {{ form.framenum }}
+            </div>
+            <div id="packbox" class="필터세부 배경색1">
+                <label for="pack">출신 팩</label>
+                {{ form.pack }}
+            </div>
+        </div>
+        <button class="btn btn-light border" type="submit">
+            검색
+        </button>
     </form>
-    <div class="d-flex flex-wrap">
+    <div id="카드리스트">
         {% for card in cards %}
-        <div class="cards">
+        <div class="카드 배경색1">
             <a href="{% url "card:detail" card.id %}">
-                <div class="w-100 upper">
-                    <img class="w-100 needLoadingImg" src="{{ card.img }}" alt="{{ card.img }}">
-                    <img class="w-100 loading" src="{% static "Image Loading.png" %}" alt="로딩중">
+                <div class="w-100">
+                    <img class="w-100" src="{{ card.img }}" alt="{{ card.img }}">
                 </div>
-                <div class="cardinfo ms-auto me-auto">
-                    <p class="mb-1">{{ card.name }}</p>
+                <div class="카드정보">
+                    <p class="캐릭터명">{{ card.character.name }}</p>
+                    <p class="카드명">{{ card.name }}</p>
                 </div>
             </a>
         </div>
@@ -79,12 +77,12 @@
         <ul class="pagination">
             {% for page_number in cards.paginator.page_range %}
             {% if page_number >= cards.number|add:-5 and page_number <= cards.number|add:5 and page_number != cards.number %}
-                <li class="page_item">
-                    <a class="page-link dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                <li class="페이지">
+                    <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
                 </li>
             {% elif page_number == cards.number %}
-                <li class="page-item active" aria-current="page">
-                    <a class="page-link dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                <li class="페이지 활성화" aria-current="page">
+                    <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
                 </li>
             {% endif %}
             {% endfor %}
@@ -92,5 +90,4 @@
     </div>
 </div>
 <script src="{% static "card/list.js" %}"></script>
-<script src="{% static "imgloading.js" %}"></script>
 {% endblock content %}
