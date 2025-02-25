@@ -209,3 +209,10 @@ SUMMERNOTE_CONFIG = {
         'width': '100%',
     },
 }
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST_USER = SECRET_KEYS.EMAIL_USER
+EMAIL_HOST_PASSWORD = SECRET_KEYS.EMAIL_PASSWORD
+EMAIL_USE_TLS = True
+EMAIL_PORT = 587
