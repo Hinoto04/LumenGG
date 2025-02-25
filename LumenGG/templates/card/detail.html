@@ -20,37 +20,35 @@
                 <p class="카드명">{{ card.name }}</p>
             </div>
         </div>
-        {% if card.type == "공격" %}
-        
-        {% endif %}
-        {% if card.type == "공격" %}
-        <div id="기본정보" class="공격">
-            <div id="판정" class="정보상자">
-            <div><p>판정</p></div><div><p>{{ card.pos }} {{ card.body|default_if_none:"" }}</p></div>
-            </div>
-            <div id="특수" class="정보상자">
-            <div><p>특수 판정</p></div><div><p>{{ card.special|default_if_none:"X" }}</p></div>
-            </div>
-            <div id="댐지" class="정보상자">
-            <div><p>대미지</p></div><div><p>{{ card.damage }}</p></div>
-            </div>
-            <div id="속도" class="정보상자">
-            <div><p>속도</p></div><div><p>{{ card.frame }}</p></div>
-            </div>
-            <div id="처리">
-                <div id="처리1" class="정보상자">
-                    <div><p>히트</p></div><div><p>{{ card.hit|default_if_none:"X" }}</p></div>
-                </div>
-                <div id="처리2" class="정보상자">
-                    <div><p>가드</p></div><div><p>{{ card.guard|default_if_none:"X" }}</p></div>
-                </div>
-                <div id="처리3" class="정보상자">
-                    <div><p>카운터</p></div><div><p>{{ card.counter|default_if_none:"X" }}</p></div>
-                </div>
-            </div>
-        </div>
-        {% elif card.type == "수비" %}
         <div>
+            {% if card.type == "공격" %}
+            <div id="기본정보" class="공격">
+                <div id="판정" class="정보상자">
+                    <div><p>판정</p></div><div><p>{{ card.pos }} {{ card.body|default_if_none:"" }}</p></div>
+                </div>
+                <div id="특수" class="정보상자">
+                    <div><p>특수 판정</p></div><div><p>{{ card.special|default_if_none:"X" }}</p></div>
+                </div>
+                <div id="댐지" class="정보상자">
+                    <div><p>대미지</p></div><div><p>{{ card.damage }}</p></div>
+                </div>
+                <div id="속도" class="정보상자">
+                    <div><p>속도</p></div><div><p>{{ card.frame }}</p></div>
+                </div>
+                <div id="처리">
+                    <div id="처리1" class="정보상자">
+                        <div><p>히트</p></div><div><p>{{ card.hit|default_if_none:"X" }}</p></div>
+                    </div>
+                    <div id="처리2" class="정보상자">
+                        <div><p>가드</p></div><div><p>{{ card.guard|default_if_none:"X" }}</p></div>
+                    </div>
+                    <div id="처리3" class="정보상자">
+                        <div><p>카운터</p></div><div><p>{{ card.counter|default_if_none:"X" }}</p></div>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-4">
+            {% elif card.type == "수비" %}
             <div id="기본정보" class="수비">
                 <div id="처리">
                     <div id="처리1" class="정보상자">
@@ -65,6 +63,7 @@
                 </div>
             </div>
             <hr class="my-4">
+            {% endif %}
             <div id="섹션2">
                 <div id="효과" class="배경색1">
                     <p>효과</p>
@@ -80,40 +79,7 @@
                 </div>
             </div>
         </div>
-        {% else %}
-        <div id="섹션2">
-            <div id="효과" class="배경색1">
-                <p>효과</p>
-                <p>{{ card.text|linebreaks }}</p>
-            </div>
-            <div class="배경색1">
-                <p>최초 수록</p>
-                <p>{{ card.code }}</p>
-            </div>
-            <div class="배경색1">
-                <p>태그</p>
-                <p>{{ card.keyword|keywords }}</p>
-            </div>
-        </div>
-        {% endif %}
     </div>
-    {% if card.type == "공격" %}
-    <hr class="my-4">
-    <div id="섹션2">
-        <div id="효과" class="배경색1">
-            <p>효과</p>
-            <p>{{ card.text|linebreaks }}</p>
-        </div>
-        <div class="배경색1">
-            <p>최초 수록</p>
-            <p>{{ card.code }}</p>
-        </div>
-        <div class="배경색1">
-            <p>태그</p>
-            <p>{{ card.keyword|keywords }}</p>
-        </div>
-    </div>
-    {% endif %}
     <hr class="my-4">
     <div id="관련카드목록">
         <div class="d-flex flex-row mb-2">
@@ -126,7 +92,7 @@
         </div>
         <div>
             {% for kw, vs in relation.items %}
-        
+            
             <div id="{{ kw|cut:" " }}" class="관련상자">
                 {% for v in vs %}
                 <div class="관련카드 배경색1">

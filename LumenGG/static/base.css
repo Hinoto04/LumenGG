@@ -33,6 +33,7 @@ a {
 @media screen and (max-width: 768px) {
     #content {
         margin: 0 .5em 2em .5em;
+        width: calc(100% - 1em);
     }
 }
 
