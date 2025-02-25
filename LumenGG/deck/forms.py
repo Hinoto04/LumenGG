@@ -18,7 +18,7 @@ class DeckSearchForm(forms.Form):
         widget = forms.TextInput(
             attrs = {
                 'class': 'form-control 배경색1 w-100',
-                'placeholder': '키워드 검색'}),
+                'placeholder': '키워드, 작성자 검색'}),
     )
 
 class DeckMakeForm(forms.ModelForm):

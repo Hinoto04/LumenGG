@@ -27,7 +27,11 @@ def index(req):
     
     q = Q() 
     if char: q.add(Q(character__in=char), q.AND)
-    if keyword: q.add(Q(keyword__in=keyword), q.AND)
+    if keyword: 
+        qq = Q()
+        qq.add(Q(keyword__contains=keyword), qq.OR)
+        qq.add(Q(author__username=keyword), qq.OR)
+        q.add(qq, q.AND)
     
     data = Deck.objects.filter(q).order_by('-created')
     
