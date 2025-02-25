@@ -80,6 +80,7 @@
             </div>
         </div>
     </div>
+    {% if relation|length != 0 %}
     <hr class="my-4">
     <div id="관련카드목록">
         <div class="d-flex flex-row mb-2">
@@ -111,6 +112,7 @@
             {% endfor %}
         </div>
     </div>
+    {% endif %}
     <hr class="my-4">
     <div id="qna" class="mt-2 mb-3">
         <div class="w-100" style="font-size: 1.5em; font-weight: 900;">관련 Q&A</div>
