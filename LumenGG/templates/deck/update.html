@@ -6,96 +6,120 @@
 {% endblock style %}
 {% block content %}
 <div id="CreateMain" class="d-flex flex-column w-100">
-    <div class="d-flex w-100 mt-2 mb-2">
-        <form action="" method="post" class="form-control" id="submitForm">
+    <div style="font-size: 2em; font-weight: 900;">
+        유저 덱 생성
+    </div>
+    <div id="덱정보입력">
+        <form action="" method="post" class="" id="submitForm">
         {% csrf_token %}
-        <div class="createField w-100 p-2">
-            <div id="charbox" class="d-flex flex-row p-2">
-                <label class="ms-2 searchLabel" for="char">캐릭터</label>
-                {{ form.char }}
+        <div id="캐릭" class="필터세부 배경색1 mt-2">
+            <label for="char">캐릭터</label>
+            {{ form.char }}
+        </div>
+        <div class="d-flex flex-row">
+            <div id="이름" class="d-flex flex-row flex-grow-1 me-4">
+                <label class="덱생성라벨" for="name">덱 이름</label>
+                {{ form.name }}
             </div>
-            <div class="d-flex flex-lg-row flex-column">
-                <div class="d-flex input-group-sm w-100 mb-2">
-                    <label class="searchLabel" for="name">덱 이름</label>
-                    {{ form.name }}
-                </div>
-                <div class="d-flex input-group-sm mb-2">
-                    <label class="ms-2 me-2 searchLabel" for="version">버전</label>
-                    {{ form.version }}
-                </div>
-            </div>
-            <div class="d-flex input-group-sm w-100">
-                <label class="me-2 searchLabel" for="keyword">키워드</label>
-                {{ form.keyword }}
+            <div id="버전" class="d-flex flex-row">
+                <label class="덱생성라벨" for="version">버전</label>
+                {{ form.version }}
             </div>
         </div>
-        <div class="d-flex justify-content-end">
-            <button class="btn btn-sm btn-primary" type="button" onclick="deckSubmit();">수정</button>
+        <div class="d-flex w-100">
+            <label class="덱생성라벨" for="keyword">키워드</label>
+            {{ form.keyword }}
         </div>
-        <label for="description">
-        <button class="btn btn-sm btn-dark mb-2" id="DescToggleBtn"
-        onclick="ToggleDesc();" type="button">▼ 덱 설명</button></label>
-        <div id="DescriptionInput" style="display: none;">
-            {{ form.description }}
+        <div class="d-flex flex-row justify-content-between">
+            <label for="description">
+                <button class="btn btn-sm btn-light border" id="DescToggleBtn"
+                onclick="ToggleDesc();" type="button">▼ 덱 설명 작성</button>
+            </label>
+            <button class="btn btn-sm btn-dark" type="button" onclick="deckSubmit();">생성</button>
         </div>
+            <div id="DescriptionInput" style="display: none;">
+                {{ form.description }}
+            </div>
         </form>
     </div>
-    <div class="columnChange">
-        <div id="CardList" class="border d-flex flex-column">
-            <div id="SearchDiv" class="m-1">
-                <form class="form-control mt-2" id="cardSearchForm">
-                    <h3>검색</h3>
-                    <div class="cardSearch mb-2 d-flex flex-row">
-                        <div class="d-flex flex-row w-50 p-2">
-                            <label class="ms-2 searchLabel" for="char">캐릭터</label>
-                            <div class="d-flex flex-wrap flex-grow-1 justify-content-around">
-                                <div class="mt-auto mb-auto">
-                                    <input type="checkbox" name="char" value="0" id="char_main" class="me-1">
-                                    <label for="char_main" id="char_main">미선택</label>
-                                </div>
-                                <div class="mt-auto mb-auto">
-                                    <input type="checkbox" name="neutral" value="1" id="char_neutral" class="me-1">
-                                    <label for="char_neutral" id="char_neutral">세츠메이</label>
-                                </div>
+    <hr class="my-4">
+    <div class="columnChange mb-2">
+        <div id="CardList" class="d-flex flex-column">
+            <form class="form-control mt-2" id="cardSearchForm">
+                <p style="font-size: 1.5em; font-weight: 900;">카드 검색</p>
+                <div class="cardSearch mb-1 d-flex flex-md-row flex-column">
+                    <div class="필터세부 flex-row me-2 mb-2">
+                        <label class="덱생성라벨" for="char">캐릭터</label>
+                        <div class="검색체크">
+                            <div class="mt-auto mb-auto" id="char_main_box">
+                                <input type="checkbox" name="char" value="0" id="char_main" class="검색체크">
+                                <label for="char_main">
+                                    미선택
+                                </label>
                             </div>
-                        </div>
-                        <div id="frameField" class="d-flex flex-row w-50 ms-2 p-2">
-                            <label class="ms-2 searchLabel" for="frame">속도</label>
-                            <div class="d-flex flex-row mt-auto mb-auto justify-content-center flex-grow-1">
-                                <input type="number" name="framenum" id="framenum" class="w-25"
-                                min="1" max="14">
-                                <select name="frametype" id="frametype">
-                                    <option value="일치">일치</option>
-                                    <option value="이상">이상</option>
-                                    <option value="이하">이하</option>
-                                </select>
+                            <div class="mt-auto mb-auto">
+                                <label for="char_neutral">
+                                    <input type="checkbox" name="neutral" value="1" id="char_neutral" class="검색체크">
+                                    세츠메이
+                                </label>
                             </div>
                         </div>
                     </div>
-                    <div class="d-flex input-group-sm">
-                        {{ form.keyword }}
+                    <div id="frameField" class="필터세부 flex-row flex-grow-1 mb-2">
+                        <label for="frame" class="덱생성라벨">속도</label>
+                        <div class="d-flex flex-row justify-content-center flex-grow-1">
+                            <input type="number" name="framenum" id="framenum" class="작은옵션 배경색2 me-3"
+                            min="1" max="14">
+                            <div class="검색체크">
+                                <div class="mt-auto mb-auto">
+                                    <label for="id_frametype0">
+                                        <input type="radio" name="frametype" value="일치" id="id_frametype0" class="검색체크">
+                                        일치
+                                    </label>
+                                </div>
+                                <div class="mt-auto mb-auto">
+                                    <label for="id_frametype1">
+                                        <input type="radio" name="frametype" value="이상" id="id_frametype1" class="검색체크">
+                                        이상
+                                    </label>
+                                </div>
+                                <div class="mt-auto mb-auto">
+                                    <label for="id_frametype2">
+                                        <input type="radio" name="frametype" value="이하" id="id_frametype2" class="검색체크">
+                                        이하
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="d-flex justify-content-end">
-                        <button class="btn btn-sm btn-primary" onclick="cardSearch();" type="button">검색</button>
-                    </div>
-                </form>
-            </div>
+                </div>
+                <div class="d-flex input-group-sm mb-2">
+                    <input class="form-control 배경색1" type="text" name="keyword" id="keyword" placeholder="검색어를 입력하세요.">
+                </div>
+                <div class="d-flex justify-content-between">
+                    <button id="TextToggleBtn" class="btn btn-sm btn-dark" onclick="textToggle();" type="button">텍스트로 보기</button>
+                    <button class="btn btn-sm btn-dark" onclick="cardSearch();" type="button">검색</button>
+                </div>
+            </form>
             <div id="SearchResult" class="">
-                <div>
-                    
+                <div id="ImageResult" class="searchResult">
+                    <div></div>
+                </div>
+                <div id="TextResult" class="searchResult">
+                    <div></div>
                 </div>
             </div>
         </div>
-        <div id="DeckList" class="d-flex flex-column border">
-            <table class="table table-sm table-striped">
+        <div id="DeckList" class="d-flex flex-column border 배경색1 p-1">
+            <table class="배경색1">
                 <thead>
-                    <tr>
+                    <tr class="배경색1">
                         <th scope="col">카드명</th>
                         <th scope="col">Count</th>
                         <th scope="col">Hand</th>
                         <th scope="col">Side</th>
                     </tr>
-                    <tr>
+                    <tr class="배경색1">
                         <th>합계</th>
                         <th id="CardCount" class="counts">0</th>
                         <th id="HandCount" class="counts">0</th>
@@ -107,9 +131,9 @@
                 </tbody>
             </table>
             <br>
-            Left Click to Increase
+            이미지를 좌클릭하여 증가
             <br>
-            Right Click to Decrease
+            이미지를 우클릭하여 감소
         </div>
     </div>
 </div>
