@@ -6,8 +6,8 @@
 {% endblock style %}
 {% block content %}
 <div>
-    <div>
-        <a id="돌아가기" href="javascript:history.back()">← 돌아가기</a>
+    <div style="text-align: start; font-size: 2em; font-weight: 900;">
+        <a id="돌아가기" href="{% url "card:tagList" %}">← 돌아가기</a>
     </div>
     <div id="섹션1" class="배경색1 섹션">
         <div class="굵은글씨">태그명 | {{ tag.name }}</div>
