@@ -81,19 +81,37 @@ def searchAdd(data, keyword):
 def keywordSet(req):
     cards = []
     
-    keyword = "「암야」"
-    datas = Card.objects.filter(text__contains=keyword)
+    #검색될 키워드가 포함된 카드들을 찾아서 키워드를 변경/추가한다.
+    keyword = "콤보 시동"
+    datas = Card.objects.filter(keyword__contains=keyword)
     for data in datas:
         # 키워드 전환용
-        # ls = data.search.split('/')[:-1]
-        # if (keyword in ls):
-        #     ls[ls.index(keyword)] = '라이'
-        # s = '/'.join(ls) + '/'
-        # data.search = s
+        ls = data.keyword.split('/')[:-1]
+        if (keyword in ls):
+            ls[ls.index(keyword)] = '콤보 시동기'
+        s = '/'.join(ls) + '/'
+        data.keyword = s
         
-        keywordAdd(data, '암야')
+        # keywordAdd(data, '암야')
         cards.append(data)
-        #data.save()
+        
+        data.save()
+    
+    #찾을 키워드가 포함된 카드들을 찾아서 키워드를 변경/추가한다.
+    # keyword = "콤보 시동"
+    # datas = Card.objects.filter(search__contains=keyword)
+    # for data in datas:
+    #     # 키워드 전환용
+    #     ls = data.search.split('/')[:-1]
+    #     if (keyword in ls):
+    #         ls[ls.index(keyword)] = '콤보 시동기'
+    #     s = '/'.join(ls) + '/'
+    #     data.search = s
+        
+    #     # keywordAdd(data, '암야')
+    #     # cards.append(data)
+        
+    #     data.save()
     
     context = {
         'cards': cards

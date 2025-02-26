@@ -10,7 +10,7 @@ urlpatterns = [
     path('detail/', views.detail, name='detailNone'),
     path('detail/<int:id>/', views.detail, name='detail'),
     #path('import/', util_views.importCards, name='import'),
-    path('dbkeywordset/', util_views.keywordSet, name='keywordSet'),
+    #path('dbkeywordset/', util_views.keywordSet, name='keywordSet'),
     #path('bujeonseung', util_views.bujeonseung, name='bujeonseung'),
     
     path('tag/', views.tagList, name='tagList'),
