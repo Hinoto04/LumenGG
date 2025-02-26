@@ -1,10 +1,11 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import HttpResponse, Http404
 from django.core.paginator import Paginator
 from django.db.models import Q
 
-from ..models import Card, Character
-from ..forms import CardForm
+from ..models import Card, Character, Tag
+from ..forms import CardForm, TagCreateForm, CardTagEditForm
+from decorators import permission_required
 import re
 
 # Create your views here.
@@ -109,3 +110,77 @@ def detail(req, id=0):
         'relation': relation,
     }
     return render(req, 'card/detail.html', context=context)
+
+def tagList(req):
+    page = req.GET.get('page', '1')
+    keyword = req.GET.get('keyword', '')
+    
+    q = Q()
+    q.add(Q(name__contains=keyword), q.OR)
+    q.add(Q(description__contains=keyword), q.OR)
+    tags = Tag.objects.filter(q)
+    
+    paginator = Paginator(tags, 30)
+    page_data = paginator.get_page(page)
+    
+    if req.method == 'GET':
+        return render(req, 'card/tagList.html', context={'tags': page_data})
+
+def tagDetail(req, id=0):
+    try:
+        tag = Tag.objects.get(id = id)
+    except Tag.DoesNotExist:
+        raise Http404("태그가 존재하지 않습니다.")
+    
+    keyword = Card.objects.filter(keyword__contains=tag.name)
+    search = Card.objects.filter(search__contains=tag.name)
+    
+    context = {
+        'tag': tag,
+        'keyword': keyword,
+        'search': search,
+    }
+    return render(req, 'card/tagDetail.html', context=context)
+
+@permission_required('card.tag_update')
+def tagCreate(req):
+    if req.method == 'POST':
+        form = TagCreateForm(req.POST)
+        if form.is_valid():
+            tag = form.save()
+            return redirect('card:tagDetail', tag.id)
+    else:
+        form = TagCreateForm()
+    
+    return render(req, 'card/tagCreate.html', context={'form': form})
+
+@permission_required('card.tag_update')
+def tagUpdate(req, id=0):
+    try:
+        tag = Tag.objects.get(id = id)
+    except Tag.DoesNotExist:
+        raise Http404("태그가 존재하지 않습니다.")
+    
+    if req.method == 'POST':
+        form = TagCreateForm(req.POST, instance=tag)
+        if form.is_valid():
+            tag = form.save()
+            return render(req, 'card/tagDetail.html', context={'tag': tag})
+    else:
+        form = TagCreateForm(instance=tag)
+    
+    return render(req, 'card/tagUpdate.html', context={'form': form})
+
+
+@permission_required('card.tag_update')
+def editCardTag(req, id=0):
+    try:
+        card = Card.objects.get(id = id)
+    except Card.DoesNotExist:
+        raise Http404("카드가 존재하지 않습니다.")
+    
+    card.keyword = req.POST['keyword']
+    card.search = req.POST['search']
+    card.save()
+    
+    return redirect('card:detail', id)

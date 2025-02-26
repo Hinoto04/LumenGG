@@ -190,3 +190,19 @@
 .질문답변 > h4 {
     font-weight: 900;
 }
+
+#태그폼 {
+    padding: 1em;
+    border-radius: 1em;
+}
+
+#태그폼 > div {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: .5em;
+}
+
+#태그폼 > div > label {
+    font-weight: 700;
+    font-size: 1.2em;
+}

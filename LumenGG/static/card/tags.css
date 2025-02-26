@@ -1,0 +1,32 @@
+label {
+    font-weight: 700;
+    font-size: 1.5em;
+}
+
+.섹션 {
+    padding: 1em;
+    border-radius: 1em;
+    margin-bottom: .5em;
+}
+
+.굵은글씨 {
+    font-weight: 700;
+    font-size: 1.5em;
+}
+
+#태그목록 {
+    border-collapse: separate;
+    border-spacing: 0 .5em;
+    font-weight: 400;
+}
+
+.열정보 > th { 
+    padding: 1em .5em;
+    border-bottom: 1px solid #d9d9d9; 
+}
+
+.태그정보 > td { padding: .5em; }
+.태그정보 > td:nth-child(1) { border-radius: 1em 0 0 1em }
+.태그정보 > td:nth-last-child(1) { border-radius: 0 1em 1em 0}
+
+.태그이름 { font-weight: 700; }

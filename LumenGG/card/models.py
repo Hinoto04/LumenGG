@@ -35,3 +35,12 @@ class Card(models.Model):
     
     def __str__(self):
         return self.code + " / " + self.name
+
+    class Meta:
+        permissions = [
+            ("tag_update", "태그 수정")
+        ]
+
+class Tag(models.Model):
+    name = models.CharField(max_length=20) #태그명
+    description = models.TextField() #태그 설명

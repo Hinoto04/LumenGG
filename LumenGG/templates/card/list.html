@@ -12,7 +12,12 @@
     <form action="" class="d-flex flex-column m-2" id="검색툴">
         {{ form.keyword }}
         <div class="d-flex flex-row justify-content-between mt-1 mb-1">
-            <button class="btn btn-light border" onclick="필터토글();" type="button">필터</button>
+            <div class="d-flex flex-row">
+                <button class="btn btn-light border me-2" onclick="필터토글();" type="button">필터</button>
+                {% if perms.card.tag_update %}
+                <a href="{% url "card:tagList" %}" class="btn btn-light border">키워드 목록</a>
+                {% endif %}
+            </div>
             <div class="d-flex flex-row">
                 <p class="mt-auto mb-auto me-2">정렬</p>
                 {{ form.sort}}

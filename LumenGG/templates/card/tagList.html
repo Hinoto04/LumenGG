@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}태그 목록{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "card/tags.css" %}">
+{% endblock style %}
+{% block content %}
+<div>
+    <div id="최상단" class="d-flex flex-column mb-1">
+        <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">태그 목록</div>
+    </div>
+    <form class="d-flex flex-column p-2" action="" method="get">
+        <input type="text" name="keyword" id="keyword" placeholder="검색어" class="form-control 배경색1">
+        <button class="btn btn-light border mt-2" type="submit">검색</button>
+    </form>
+    <hr class="my-4">
+    <div>
+        <table id="태그목록" class="w-100">
+            <thead>
+                <tr class="열정보">
+                    <th scope="col" class="모바일비표시">No.</th>
+                    <th scope="col">태그명</th>
+                    <th scope="col">태그 설명</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tag in tags %}
+                <tr class="태그정보 배경색1">
+                    <td class="모바일비표시">{{ tag.id }}</td>
+                    <td><a href="{% url "card:tagDetail" tag.id %}" class="w-100 태그이름">{{ tag.name }}</a></td>
+                    <td>{{ tag.description|linebreaks }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <hr class="my-4">
+    {% if perms.card.tag_update %}
+    <div class="d-flex flex-row justify-content-end">
+        <a class="btn btn-dark btn-sm" href="{% url "card:tagCreate" %}">태그 만들기</a>
+    </div>
+    {% endif %}
+    <div class="paginator d-flex justify-content-center">
+        <ul class="pagination">
+            {% for page_number in tags.paginator.page_range %}
+            {% if page_number >= tags.number|add:-5 and page_number <= tags.number|add:5 and page_number != tags.number %}
+                <li class="페이지">
+                    <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% elif page_number == tags.number %}
+                <li class="페이지 활성화" aria-current="page">
+                    <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+<script src="{% static "card/list.js" %}"></script>
+{% endblock content %}

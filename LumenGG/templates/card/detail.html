@@ -113,6 +113,24 @@
         </div>
     </div>
     {% endif %}
+    {% if perms.card.tag_update %}
+    <hr class="my-4">
+    <div style="font-size: 1.5em; font-weight: 900;">태그 업데이트</div>
+    <form action="{% url "card:editCardTag" card.id %}" method="post" class="배경색1" id="태그폼">
+        {% csrf_token %}
+        <div>
+            <label for="keyword">이 카드가 가진 태그</label>
+            <input class="form-control 배경색2" type="text" name="keyword" id="keyword" value="{{ card.keyword }}">
+        </div>
+        <div>
+            <label for="search">이 카드가 찾는 태그</label>
+            <input class="form-control 배경색2" type="text" name="search" id="search" value="{{ card.search }}">
+        </div>
+        <div class="flex-row justify-content-end">
+            <button class="btn btn-dark" type="submit">수정</button>
+        </div>
+    </form>
+    {% endif %}
     <hr class="my-4">
     <div id="qna" class="mt-2 mb-3">
         <div class="w-100" style="font-size: 1.5em; font-weight: 900;">관련 Q&A</div>

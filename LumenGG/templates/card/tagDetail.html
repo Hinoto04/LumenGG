@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ tag.name }} 상세{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "card/tags.css" %}">
+{% endblock style %}
+{% block content %}
+<div>
+    <div>
+        <a id="돌아가기" href="javascript:history.back()">← 돌아가기</a>
+    </div>
+    <div id="섹션1" class="배경색1 섹션">
+        <div class="굵은글씨">태그명 | {{ tag.name }}</div>
+        <div class="굵은글씨">태그 설명</div>
+        <div>{{ tag.description|linebreaks }}</div>
+        {% if perms.card.tag_update %}
+        <a href="{% url "card:tagUpdate" tag.id %}" class="btn btn-sm btn-warning">태그 수정</a>
+        {% endif %}
+    </div>
+    <div id="섹션2" class="배경색1 섹션">
+        <div class="굵은글씨">이 태그를 가지고 있는 카드 목록</div>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th scope="col">카드명</th>
+                    <th scope="col">사용자명</th>
+                    <th scope="col">효과</th>
+                    <th scope="col">가진 태그</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for card in keyword %}
+                <tr>
+                    <td><a href="{% url "card:detail" card.id %}">{{ card.name }}</a></td>
+                    <td>{{ card.character.name }}</td>
+                    <td>{{ card.text|linebreaks }}</td>
+                    <td>{{ card.keyword }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div id="섹션3" class="배경색1 섹션">
+        <div class="굵은글씨">이 태그를 찾는 카드 목록</div>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th scope="col">카드명</th>
+                    <th scope="col">사용자명</th>
+                    <th scope="col">효과</th>
+                    <th scope="col">찾는 태그</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for card in search %}
+                <tr>
+                    <td><a href="{% url "card:detail" card.id %}">{{ card.name }}</a></td>
+                    <td>{{ card.character.name }}</td>
+                    <td>{{ card.text|linebreaks }}</td>
+                    <td>{{ card.search }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

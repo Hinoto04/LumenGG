@@ -1,5 +1,5 @@
 from django import forms
-from .models import Character, Card
+from .models import Character, Card, Tag
 
 class CardForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
@@ -87,4 +87,31 @@ class CardForm(forms.Form):
             ('-속도', '속도 내림차순'), ('+속도', '속도 오름차순'), 
             ('-데미지', '데미지 내림차순'), ('+데미지', '데미지 오름차순'),],
         widget = forms.Select(attrs = {'class': 'btn btn-sm border'}),
+    )
+
+class TagCreateForm(forms.ModelForm):
+    name = forms.CharField(
+        label = "태그명",
+        max_length = 20,
+        widget = forms.TextInput(attrs = {'class': 'form-control'}),
+    )
+    description = forms.CharField(
+        label = "태그 설명",
+        widget = forms.Textarea(attrs = {'class': 'form-control'}),
+    )
+    
+    class Meta:
+        model = Tag
+        fields = ['name', 'description']
+
+class CardTagEditForm(forms.Form):
+    keyword = forms.CharField(
+        label = '이 카드의 태그',
+        max_length = 255,
+        widget = forms.TextInput(attrs = {'class': 'form-control'})
+    )
+    search = forms.CharField(
+        label = '이 카드가 찾는 태그',
+        max_length = 255,
+        widget = forms.TextInput(attrs = {'class': 'form-control'})
     )
