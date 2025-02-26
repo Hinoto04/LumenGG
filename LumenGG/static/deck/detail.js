@@ -67,6 +67,9 @@ function deckCopy() {
 }
 
 function deckCapture() {
+    if (deckDisplay != 'image') {
+        deckToggle();
+    }
     const captureArea = document.getElementById('ImageDisplay');
     html2canvas(captureArea, {
         useCORS: true,
