@@ -61,3 +61,20 @@ function deckCopy() {
         alert("클립보드에 복사되었습니다!")
     });
 }
+
+function deckCapture() {
+    const captureArea = document.getElementById('ImageDisplay');
+    html2canvas(captureArea, {
+        useCORS: true,
+        allowTaint: false,
+        scale: 2,
+    }).then(canvas => {
+        // 캔버스를 이미지로 변환
+        const image = canvas.toDataURL('image/png');
+        // 이미지 다운로드 링크 생성
+        const link = document.createElement('a');
+        link.href = image;
+        link.download = 'captured-image.png';
+        link.click();
+    });
+}

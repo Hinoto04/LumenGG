@@ -20,8 +20,10 @@
             <div class="d-flex flex-row">
                 <button id="displayToggleBtn" class="btn btn-sm btn-dark me-2" 
                 onclick="deckToggle();" type="button">텍스트로 보기</button>
-                <button type="button" class="btn btn-sm btn-dark" 
+                <button type="button" class="btn btn-sm btn-dark me-2" 
                 onclick="deckCopy()">텍스트 덱 복사</button>
+                <button type="button" class="btn btn-sm btn-dark" 
+                onclick="deckCapture()">덱 캡쳐</button>
             </div>
             {% if user == deck.author %}
             <div class="d-flex flex-row">
@@ -138,6 +140,7 @@
     {{ deck.description|safe }}
     </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="{% static "deck/detail.js" %}"></script>
 <script src="{% static "imgloading.js" %}"></script>
 {% endblock content %}
