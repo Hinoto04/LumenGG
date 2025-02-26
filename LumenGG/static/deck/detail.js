@@ -19,20 +19,24 @@
   // 함수 실행
 //splitElements();
 
-$(document).ready(function () {
-$('.hoverOn').each(function () {
-    const originalHeight = $(this).height(); // 각 부모의 초기 높이 저장
+$(document).ready(function() {
+    $('.hoverOn').each(function () {
 
-    $(this).hover(
-    function () {
-        const childHeight = $(this).find('.sideImg').outerHeight(); // 자식 요소 높이 계산
-        $(this).css('height', childHeight); // 부모 높이를 증가
-    },
-    function () {
-        $(this).css('height', originalHeight); // 부모 높이를 초기 높이로 복원
-    }
-    );
-});
+        // Hover 이벤트 설정
+        $(this).hover(
+            function () {
+                if(window.innerWidth > 768) { // 함수 호출 시 마다 창의 너비 확인
+                    const childHeight = $(this).find('.sideImg').outerHeight(); // 자식 요소 높이 계산
+                    $(this).css('height', childHeight); // 부모 높이를 증가
+                }
+            },
+            function () {
+                if(window.innerWidth > 768) { // 함수 호출 시 마다 창의 너비 확인
+                    $(this).css('height', "10%"); // 부모 높이를 초기 높이로 복원
+                }
+            }
+        );
+    });
 });
 
 var deckDisplay = 'image';
