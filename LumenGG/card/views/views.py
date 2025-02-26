@@ -65,6 +65,7 @@ def index(req):
         q1 = Q()
         q1.add(Q(name__contains=keyword), q.OR)
         q1.add(Q(keyword__contains=keyword), q.OR)
+        q1.add(Q(hiddenKeyword__contains=keyword), q.OR)
         q.add(q1, q.AND)
     
     data = Card.objects.filter(q)
@@ -179,6 +180,7 @@ def editCardTag(req, id=0):
     except Card.DoesNotExist:
         raise Http404("카드가 존재하지 않습니다.")
     
+    card.hiddenKeyword = req.POST['hidden']
     card.keyword = req.POST['keyword']
     card.search = req.POST['search']
     card.save()

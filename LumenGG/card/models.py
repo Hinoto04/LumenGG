@@ -30,6 +30,7 @@ class Card(models.Model):
     code = models.CharField(max_length=20) #카드 일련번호 (UNC-AT-000)
     character = models.ForeignKey(Character, on_delete=models.PROTECT, related_name='cards') #캐릭터
     img = models.URLField() #이미지 URL
+    hiddenKeyword = models.CharField(blank=True, default='', max_length=255) #이 카드를 찾기 위한 키워드
     keyword = models.CharField(blank=True, default='', max_length=255) #이 카드를 찾기 위한 키워드
     search = models.CharField(blank=True, default='', max_length=255) #이 카드가 찾는 관련 카드 키워드
     

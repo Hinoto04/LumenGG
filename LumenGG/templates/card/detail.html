@@ -126,6 +126,10 @@
             <label for="search">이 카드가 찾는 태그</label>
             <input class="form-control 배경색2" type="text" name="search" id="search" value="{{ card.search }}">
         </div>
+        <div>
+            <label for="hidden">이 카드의 숨겨진 검색어</label>
+            <input class="form-control 배경색2" type="text" name="hidden" id="hidden" value="{{ card.hiddenKeyword }}">
+        </div>
         <div class="flex-row justify-content-end">
             <button class="btn btn-dark" type="submit">수정</button>
         </div>
