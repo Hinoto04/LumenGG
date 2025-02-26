@@ -50,3 +50,14 @@ function deckToggle() {
         deckDisplay = 'image';
     }
 }
+
+function deckCopy() {
+    var deckList = "";
+    $("#텍스트리스트전체 > tbody > tr > th > a").each(function(index, item) {
+        deckList += String(index+1) + ". " + item.text + "\n";
+    });
+    console.log(deckList);
+    window.navigator.clipboard.writeText(deckList).then(() => {
+        alert("클립보드에 복사되었습니다!")
+    });
+}
