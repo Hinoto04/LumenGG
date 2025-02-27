@@ -47,7 +47,7 @@ def detail(req, id=0):
     return render(req, 'qna/detail.html', context=context)
 
 def xlsxImport(req):
-    wb = openpyxl.load_workbook('../루멘 QNA.xlsx')
+    wb = openpyxl.load_workbook('../루멘 QNA (1).xlsx')
     sheet = wb.active
     
     for row in sheet.rows:
@@ -57,6 +57,7 @@ def xlsxImport(req):
             answer = row[2].value,
             faq = True,
         )
+        print(newQNA.question, newQNA.answer)
         newQNA.save()
         
         for c in row[3].value.split(' / '):

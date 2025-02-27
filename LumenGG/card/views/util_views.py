@@ -82,13 +82,25 @@ def keywordSet(req):
     cards = []
     
     #검색될 키워드가 포함된 카드들을 찾아서 키워드를 변경/추가한다.
-    keyword = "콤보 시동"
-    datas = Card.objects.filter(keyword__contains=keyword)
+    keyword = "세츠메이 홀수 속도"
+    datas = Card.objects.filter(keyword__contains = keyword)
     for data in datas:
-        # 키워드 전환용
+        
+        # if data.type != '공격' or data.frame%2 == 0:
+        #     continue
+        
         ls = data.keyword.split('/')[:-1]
-        if (keyword in ls):
-            ls[ls.index(keyword)] = '콤보 시동기'
+        
+        # 키워드 전환용
+        # if (keyword in ls):
+        #     ls[ls.index(keyword)] = '콤보 시동기'
+        
+        # 키워드 제거용
+        # if (keyword in ls):
+        #     ls.remove(keyword)
+            
+        #키워드 추가용용
+        ls.append('세츠메이 홀수 속도')
         s = '/'.join(ls) + '/'
         data.keyword = s
         
