@@ -131,6 +131,7 @@ def createSearch(req):
     c = Q()
     if keyword != '':
         c.add(Q(keyword__contains=keyword), c.OR)
+        c.add(Q(hiddenKeyword__contains=keyword), c.OR)
         c.add(Q(name__contains=keyword), c.OR)
         c.add(Q(pos__contains=keyword), c.OR)
         q.add(c, q.AND)
