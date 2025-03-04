@@ -146,3 +146,8 @@
 #덱설명 > h4 {
     font-weight: 900;
 }
+
+img {
+    object-fit: cover;
+    max-width: 100%;
+}
