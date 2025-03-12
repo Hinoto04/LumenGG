@@ -12,11 +12,11 @@
     <div class="배경색1"><h3 class="mb-0">{{ qna.title }}</h3></div>
     <div class="배경색1">
         <h4 class="mb-0">Q</h4>
-        <p class="mb-0">{{ qna.question }}</p>
+        <p class="mb-0">{{ qna.question|linebreaks }}</p>
     </div>
     <div class="배경색1">
         <h4 class="mb-0">A</h4>
-        <p class="mb-0">{{ qna.answer }}</p>
+        <p class="mb-0">{{ qna.answer|linebreaks }}</p>
     </div>
     <hr class="my-4">
     <div id="관련카드목록">

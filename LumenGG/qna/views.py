@@ -46,28 +46,52 @@ def detail(req, id=0):
     
     return render(req, 'qna/detail.html', context=context)
 
+def qnaPreprocess(string: str):
+    text = string.lstrip("Q").lstrip('A').\
+        lstrip('1').lstrip('2').lstrip('3').lstrip('4').lstrip('5')\
+            .lstrip('6').lstrip('7').lstrip('8').lstrip('9').lstrip('0')\
+                .lstrip('.').lstrip(' ')
+    text = text.replace('\\n', '').replace('.', '.\n')\
+        .replace('??', '?').replace('?', '?\n')\
+        .replace('!!', '!').replace('!', '!\n')\
+        .replace('\n ', '\n').strip()
+    ex = ['라이', '레피', '파이어', '바운스', '촙', '봄버', '드릴', '러시', '스위치', '울트라', '스크류', '캐치', '아아앗', '캐논']
+    for e in ex:
+        text = text.replace(e+'!\n', e+'! ')
+    return text
+    
 def xlsxImport(req):
-    wb = openpyxl.load_workbook('../루멘 QNA (1).xlsx')
+    wb = openpyxl.load_workbook('../QNA NEW.xlsx')
     sheet = wb.active
     
     for row in sheet.rows:
         newQNA = QNA(
             title = row[0].value,
-            question = row[1].value,
-            answer = row[2].value,
-            faq = True,
+            question = qnaPreprocess(row[1].value),
+            answer = qnaPreprocess(row[2].value),
+            faq = False,
         )
-        print(newQNA.question, newQNA.answer)
+        #print("질문: ", newQNA.question)
+        #print("답변: ", newQNA.answer)
         newQNA.save()
+        if row[3].value == '없음':
+            continue
         
-        for c in row[3].value.split(' / '):
-            card = Card.objects.filter(name__contains=c)
-            for relatedCard in card:
-                newRelation = QNARelation(
-                    qna = newQNA,
-                    card = relatedCard
-                )
-                print(newRelation)
-                newRelation.save()
+        ps = ['팔괘엔진', '장막을 두른 칼날', '어쌔신', '가디언', '팔라딘']
+        
+        for c in row[3].value.split(', '):
+            for p in ps:
+                c = c.replace(p, '「'+p+'」')
+            try:
+                card = Card.objects.get(name=c)
+            except Card.DoesNotExist:
+                print(newQNA.question, " 카드 이름 오류 : ", c)
+                continue
+            newRelation = QNARelation(
+                qna = newQNA,
+                card = card
+            )
+            #print(newRelation)
+            newRelation.save()
     
     return redirect('qna:index')
