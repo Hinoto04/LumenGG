@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}QNA 생성{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "qna/create.css" %}">
+{% endblock style %}
+{% block content %}
+<div>
+    <div style="font-size: 2em; font-weight: 900;">
+        QNA 생성
+    </div>
+    <form action="{% url "qna:create" %}" method="post" class="mt-2 p-2" id="submitForm">
+        {% include "form_errors.html" %}
+        {% csrf_token %}
+        <div class="form-group mb-2" id="큰상자">
+            <label for="title">제목</label>
+            <input type="text" class="form-control" id="title" name="title" value="{{ form.title.value|default_if_none:"" }}">
+            <label for="question">질문</label>
+            <textarea class="form-control" id="question" name="question" rows="3">{{ form.question.value|default_if_none:"" }}</textarea>
+            <label for="answer">답변</label>
+            <textarea class="form-control" id="answer" name="answer" rows="3">{{ form.answer.value|default_if_none:"" }}</textarea>
+            <div class="form-check">
+                <input class="form-check-input me-2" type="checkbox" id="faq" name="faq" {% if form.faq.value %}checked{% endif %}>
+                <label class="form-check-label" for="faq">FAQ</label>
+            </div>
+        </div>
+        <div class="d-flex flex-row justify-content-end">
+            <button onclick="qnaSubmit();" type="button" class="btn btn-dark">생성</button>
+        </div>
+    </form>
+    <div id="relationBox">
+        <div id="CardList" class="d-flex flex-column">
+            <form class="form-control mt-2" id="cardSearchForm" 
+            onkeydown="if(event.keyCode == 13) {cardSearch(); return false}">
+                <p style="font-size: 1.5em; font-weight: 900;">카드 검색</p>
+                <div class="d-flex input-group-sm mb-2">
+                    <input class="form-control 배경색1" type="text" name="keyword" id="keyword" 
+                    placeholder="검색어를 입력하세요.">
+                </div>
+                <div class="d-flex flex-row justify-content-end">
+                    <button onclick="cardSearch();" class="btn btn-dark" type="button">검색</button>
+                </div>
+            </form>
+            <div id="SearchResult" class="">
+                <div id="ImageResult" class="searchResult">
+                    <div></div>
+                </div>
+                <div id="TextResult" class="searchResult">
+                    <div></div>
+                </div>
+            </div>
+        </div>
+        <div id="DeckList" class="d-flex flex-column form-control p-2">
+            <p style="font-size: 1.5em; font-weight: 900;">관련 카드 목록</p>
+            <div id="RelationList">
+
+            </div>
+        </div>
+    </div>
+</div>
+<script src="{% static "qna/create.js" %}"></script>
+{% endblock content %}

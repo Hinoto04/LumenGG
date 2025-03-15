@@ -1,13 +1,16 @@
 from django.shortcuts import render, redirect
+from django.urls import reverse
+from django.core import serializers
 from django.core.paginator import Paginator
-from django.http import HttpResponse, Http404
+from django.http import HttpResponse, Http404, JsonResponse
 from django.db.models import Q
 
 from .models import QNA, QNARelation
-from .forms import QnaSearchForm
+from .forms import QnaSearchForm, QnaForm
 from card.models import Card
+from decorators import permission_required
 
-import openpyxl
+import openpyxl, json
 
 # Create your views here.
 def index(req):
@@ -59,6 +62,102 @@ def qnaPreprocess(string: str):
     for e in ex:
         text = text.replace(e+'!\n', e+'! ')
     return text
+
+@permission_required('qna.manage')
+def create(req):
+    if req.method == 'GET':
+        form = QnaForm()
+        return render(req, 'qna/create.html', {'form': form})
+    else:
+        data = json.loads(req.body)
+        errorContent = {'status': 200}
+        try:
+            newQNA = QNA(
+                title = data['title'],
+                question = data['question'],
+                answer = data['answer'],
+                faq = ('faq' in data.keys())
+            )
+            newQNA.save()
+        except:
+            errorContent['msg'] =  '올바르지 않은 데이터가 있습니다.'
+            return JsonResponse(errorContent)
+        else:
+            for cards in data['related']:
+                rc = QNARelation(
+                    qna = newQNA,
+                    card_id = cards[0]
+                )
+                rc.save()
+            
+            content = {
+                'status': 100,
+                'url': reverse('qna:detail', kwargs={'id': newQNA.id})
+            }
+            return JsonResponse(content)
+
+def createSearch(req):
+    keyword = req.GET.get('keyword', '')
+    
+    if keyword != '':
+        q = Q()
+        q.add(Q(name__contains=keyword), q.OR)
+        q.add(Q(keyword__contains=keyword), q.OR)
+        cards = Card.objects.filter(q)
+        
+        sdata = serializers.serialize('json', cards)
+        return JsonResponse(sdata, safe=False)
+    else:
+        return JsonResponse([], safe=False)
+
+@permission_required('qna.manage')
+def update(req, id=0):
+    try:
+        qna = QNA.objects.get(id=id)
+    except QNA.DoesNotExist:
+        raise Http404('QNA가 존재하지 않습니다.')
+    
+    if req.method == 'GET':
+        form = QnaForm(instance=qna)
+        related = QNARelation.objects.filter(qna=qna)
+        return render(req, 'qna/update.html', {'form': form, 'related': related})
+    else:
+        data = json.loads(req.body)
+        errorContent = {'status': 200}
+        try:
+            qna.title = data['title']
+            qna.question = data['question']
+            qna.answer = data['answer']
+            qna.faq = ('faq' in data.keys())
+            qna.save()
+        except:
+            errorContent['msg'] =  '올바르지 않은 데이터가 있습니다.'
+            return JsonResponse(errorContent)
+        else:
+            QNARelation.objects.filter(qna=qna).delete()
+            for cards in data['related']:
+                rc = QNARelation(
+                    qna = qna,
+                    card_id = cards[0]
+                )
+                rc.save()
+            
+            content = {
+                'status': 100,
+                'url': reverse('qna:detail', kwargs={'id': qna.id})
+            }
+            return JsonResponse(content)
+
+@permission_required('qna.manage')
+def delete(req, id=0):
+    try:
+        qna = QNA.objects.get(id=id)
+    except QNA.DoesNotExist:
+        raise Http404('QNA가 존재하지 않습니다.')
+    
+    qna.delete()
+    
+    return redirect('qna:index')
     
 def xlsxImport(req):
     wb = openpyxl.load_workbook('../QNA NEW.xlsx')

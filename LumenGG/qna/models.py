@@ -12,6 +12,11 @@ class QNA(models.Model):
     
     def __str__(self):
         return self.title
+    
+    class Meta:
+        permissions = [
+            ("manage", "QNA 관리")
+        ]
 
 class QNARelation(models.Model):
     qna = models.ForeignKey(QNA, on_delete=models.CASCADE) #질문

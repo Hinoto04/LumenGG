@@ -10,6 +10,12 @@
 {% block content %}
 <div id="QNA">
     <div class="배경색1"><h3 class="mb-0">{{ qna.title }}</h3></div>
+    {% if perms.qna.manage %}
+    <div class="d-flex flex-row justify-content-end mb-2">
+        <a href="{% url "qna:update" qna.id %}" class="btn btn-sm btn-warning me-2">QNA 수정</a>
+        <a href="{% url "qna:delete" qna.id %}" class="btn btn-sm btn-danger">QNA 삭제</a>
+    </div>
+    {% endif %}
     <div class="배경색1">
         <h4 class="mb-0">Q</h4>
         <p class="mb-0">{{ qna.question|linebreaks }}</p>

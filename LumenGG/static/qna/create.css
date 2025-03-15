@@ -1,0 +1,35 @@
+label {
+    font-size: 1.5em;
+    font-weight: 900;
+}
+
+input, textarea {
+    margin-bottom: 1em;
+}
+
+input[type="checkbox"] {
+    width: 2em;
+    height: 2em;
+}
+
+#relationBox {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .5em;
+    margin-bottom: 1em;
+}
+
+@media screen and (max-width: 768px) {
+    #relationBox {
+        grid-template-columns: 1fr;
+    }
+    
+}
+
+#TextResult > div {
+    margin: .25em;
+}
+
+#RelationList > div {
+    margin: .25em;
+}
