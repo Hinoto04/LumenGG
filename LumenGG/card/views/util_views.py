@@ -140,3 +140,15 @@ def bujeonseung(req):
     print(data)
     
     return HttpResponse("출력창 확인")
+
+def noSpaceAdd(req):
+    cards = Card.objects.all()
+    
+    for card in cards:
+        hiddenKeyword = card.hiddenKeyword.split('/')[:-1]
+        if '' in hiddenKeyword:
+            hiddenKeyword.remove('')
+        if not (card.name.replace(' ', '') in hiddenKeyword):
+            hiddenKeyword.append(card.name.replace(' ', ''))
+        card.hiddenKeyword = '/'.join(hiddenKeyword) + '/'
+        card.save()

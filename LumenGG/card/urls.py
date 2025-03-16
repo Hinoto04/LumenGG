@@ -12,6 +12,7 @@ urlpatterns = [
     #path('import/', util_views.importCards, name='import'),
     #path('dbkeywordset/', util_views.keywordSet, name='keywordSet'),
     #path('bujeonseung', util_views.bujeonseung, name='bujeonseung'),
+    #path('noSpaceAdd/', util_views.noSpaceAdd, name='noSpaceAdd'),
     
     path('tag/', views.tagList, name='tagList'),
     path('tag/<int:id>/', views.tagDetail, name='tagDetail'),
