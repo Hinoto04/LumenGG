@@ -62,8 +62,8 @@
 </div>
 <script src="{% static "qna/create.js" %}"></script>
 <script>
-    var simplemde1 = new SimpleMDE({ element: $("#question")[0] });
-    var simplemde2 = new SimpleMDE({ element: $("#answer")[0] });
+    var simplemde1 = new SimpleMDE({ element: $("#question")[0], spellChecker: false, });
+    var simplemde2 = new SimpleMDE({ element: $("#answer")[0], spellChecker: false, });
     {% for card in related %}
         cardList.push({
             'pk': {{ card.card.id}},
