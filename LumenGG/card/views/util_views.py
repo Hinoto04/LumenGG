@@ -150,5 +150,10 @@ def noSpaceAdd(req):
             hiddenKeyword.remove('')
         if not (card.name.replace(' ', '') in hiddenKeyword):
             hiddenKeyword.append(card.name.replace(' ', ''))
-        card.hiddenKeyword = '/'.join(hiddenKeyword) + '/'
+        if card.name in hiddenKeyword:
+            hiddenKeyword.remove(card.name)
+        if hiddenKeyword == []:
+            card.hiddenKeyword = ''
+        else:
+            card.hiddenKeyword = '/'.join(hiddenKeyword) + '/'
         card.save()

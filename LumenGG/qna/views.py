@@ -25,9 +25,9 @@ def index(req):
         faq = form.cleaned_data['faq']
 
     if query:
-        qna = QNA.objects.filter(title__contains=query).order_by('-created_at')
+        qna = QNA.objects.filter(title__contains=query).order_by('-faq', '-created_at')
     else:
-        qna = QNA.objects.all().order_by('-created_at')
+        qna = QNA.objects.all().order_by('-faq', '-created_at')
     
     if faq:
         qna = qna.filter(faq=True)
