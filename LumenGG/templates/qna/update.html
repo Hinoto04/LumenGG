@@ -18,9 +18,9 @@
             <label for="title">제목</label>
             <input type="text" class="form-control" id="title" name="title" value="{{ form.title.value|default_if_none:"" }}">
             <label for="question">질문</label>
-            <textarea class="form-control" id="question" name="question" rows="3">{{ form.question.value|default_if_none:"" }}</textarea>
+            <textarea class="form-control" id="question" name="question">{{ form.question.value|default_if_none:"" }}</textarea>
             <label for="answer">답변</label>
-            <textarea class="form-control" id="answer" name="answer" rows="3">{{ form.answer.value|default_if_none:"" }}</textarea>
+            <textarea class="form-control" id="answer" name="answer">{{ form.answer.value|default_if_none:"" }}</textarea>
             <div class="form-check">
                 <input class="form-check-input me-2" type="checkbox" id="faq" name="faq" {% if form.faq.value %}checked{% endif %}>
                 <label class="form-check-label" for="faq">FAQ</label>
@@ -64,6 +64,14 @@
 <script>
     var simplemde1 = new SimpleMDE({ element: $("#question")[0], spellChecker: false, });
     var simplemde2 = new SimpleMDE({ element: $("#answer")[0], spellChecker: false, });
+
+    simplemde1.codemirror.on("change", function(){
+        $("#question").val(simplemde1.value());
+    });
+    simplemde2.codemirror.on("change", function(){
+        $("#answer").val(simplemde2.value());
+    });
+
     {% for card in related %}
         cardList.push({
             'pk': {{ card.card.id}},

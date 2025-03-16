@@ -64,5 +64,12 @@
 <script>
     var simplemde1 = new SimpleMDE({ element: $("#question")[0], spellChecker: false, });
     var simplemde2 = new SimpleMDE({ element: $("#answer")[0], spellChecker: false, });
+
+    simplemde1.codemirror.on("change", function(){
+        $("#question").val(simplemde1.value());
+    });
+    simplemde2.codemirror.on("change", function(){
+        $("#answer").val(simplemde2.value());
+    });
 </script>
 {% endblock content %}
