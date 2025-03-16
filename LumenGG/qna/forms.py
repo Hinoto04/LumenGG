@@ -1,5 +1,7 @@
 from django import forms
 from .models import QNA
+from martor.fields import MartorFormField
+from martor.widgets import MartorWidget
 
 class QnaSearchForm(forms.Form):
     query = forms.CharField(max_length=255, required=False, label='Search', 
@@ -11,7 +13,8 @@ class QnaForm(forms.ModelForm):
         model = QNA
         fields = ['title', 'question', 'answer', 'faq']
         widgets = {
-            'title': forms.TextInput(attrs={'class': 'form-control'}),
-            'question': forms.Textarea(attrs={'class': 'form-control'}),
-            'answer': forms.Textarea(attrs={'class': 'form-control'}),
+            'question': MartorWidget(attrs={
+                'class': 'w-100',}),
+            'answer': MartorWidget(attrs={
+                'class': 'w-100',})
         }

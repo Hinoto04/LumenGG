@@ -1,5 +1,7 @@
 from django.contrib import admin
 from .models import QNA, QNARelation
+from django.db import models
+from martor.widgets import AdminMartorWidget, MartorWidget
 
 class QNAAdmin(admin.ModelAdmin):
     list_display = ['title', 'faq', 'created_at']

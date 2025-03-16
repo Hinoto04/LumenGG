@@ -31,7 +31,6 @@ ALLOWED_HOSTS = [
     'lumen.hinoto.kr',
 ]
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -40,6 +39,7 @@ INSTALLED_APPS = [
     'deck.apps.DeckConfig',
     'qna.apps.QnaConfig',
     'django_summernote',
+    'martor',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -216,3 +216,9 @@ EMAIL_HOST_USER = SECRET_KEYS.EMAIL_USER
 EMAIL_HOST_PASSWORD = SECRET_KEYS.EMAIL_PASSWORD
 EMAIL_USE_TLS = True
 EMAIL_PORT = 587
+
+MARTOR_TOOLBAR_BUTTONS = [
+    'bold', 'italic', 'horizontal', 'heading', 'pre-code',
+    'blockquote', 'unordered-list', 'ordered-list',
+    'link', 'image-link', 'emoji', 'help'
+]

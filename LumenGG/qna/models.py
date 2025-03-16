@@ -1,11 +1,12 @@
 from django.db import models
 from card.models import Card
+from martor.models import MartorField
 
 # Create your models here.
 class QNA(models.Model):
     title = models.CharField(max_length=100) #제목
-    question = models.TextField() #질문
-    answer = models.TextField() #답변
+    question = MartorField() #질문
+    answer = MartorField() #답변
     faq = models.BooleanField(default=False) #FAQ 여부
     created_at = models.DateTimeField(auto_now_add=True) #생성일
     cards = models.ManyToManyField(Card, through='QNARelation', related_name='qna') #관련 카드

@@ -1,0 +1,17 @@
+asgiref==3.8.1
+bleach==6.2.0
+certifi==2024.12.14
+charset-normalizer==3.4.0
+Django==5.1.4
+django-summernote==0.8.20.0
+et_xmlfile==2.0.0
+idna==3.10
+Markdown==3.5.2
+martor==1.6.45
+mysqlclient==2.2.7
+openpyxl==3.1.5
+requests==2.32.3
+sqlparse==0.5.3
+tzdata==2024.2
+urllib3==2.2.3
+webencodings==0.5.1

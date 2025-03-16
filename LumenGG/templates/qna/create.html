@@ -16,9 +16,9 @@
             <label for="title">제목</label>
             <input type="text" class="form-control" id="title" name="title" value="{{ form.title.value|default_if_none:"" }}">
             <label for="question">질문</label>
-            <textarea class="form-control" id="question" name="question" rows="3">{{ form.question.value|default_if_none:"" }}</textarea>
+            {{ form.question }}
             <label for="answer">답변</label>
-            <textarea class="form-control" id="answer" name="answer" rows="3">{{ form.answer.value|default_if_none:"" }}</textarea>
+            {{ form.answer }}
             <div class="form-check">
                 <input class="form-check-input me-2" type="checkbox" id="faq" name="faq" {% if form.faq.value %}checked{% endif %}>
                 <label class="form-check-label" for="faq">FAQ</label>

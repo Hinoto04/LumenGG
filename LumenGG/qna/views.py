@@ -72,6 +72,8 @@ def qnaPreprocess(string: str):
 def create(req):
     if req.method == 'GET':
         form = QnaForm()
+        
+        print(form.fields['question'].widget)
         return render(req, 'qna/create.html', {'form': form})
     else:
         data = json.loads(req.body)
