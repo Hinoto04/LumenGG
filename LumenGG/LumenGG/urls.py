@@ -27,7 +27,6 @@ urlpatterns = [
     path('deck/', include('deck.urls'), name='deck'),
     path('qna/', include('qna.urls'), name='qna'),
     path('summernote/', include('django_summernote.urls')),
-    path('martor/', include('martor.urls')),
     
     path('password_reset/', auth_views.PasswordResetView.as_view(), name="password_reset"),
     path('password_reset_done/', auth_views.PasswordResetDoneView.as_view(), name="password_reset_done"),

@@ -3,6 +3,8 @@
 {% block title %}QNA 수정{% endblock title %}
 {% block style %}
 <link rel="stylesheet" href="{% static "qna/create.css" %}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
+<script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
 {% endblock style %}
 {% block content %}
 <div>
@@ -60,6 +62,8 @@
 </div>
 <script src="{% static "qna/create.js" %}"></script>
 <script>
+    var simplemde1 = new SimpleMDE({ element: $("#question")[0] });
+    var simplemde2 = new SimpleMDE({ element: $("#answer")[0] });
     {% for card in related %}
         cardList.push({
             'pk': {{ card.card.id}},

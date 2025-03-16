@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
 {% load qna_tags %}
-{% load martortags %}
 {% block title %}
 {{ qna.title }}
 {% endblock title %}
@@ -19,11 +18,11 @@
     {% endif %}
     <div class="배경색1">
         <h4 class="mb-0">Q</h4>
-        <p class="mb-0">{{ qna.question|safe_markdown }}</p>
+        <p class="mb-0">{{ qna.question|mark }}</p>
     </div>
     <div class="배경색1">
         <h4 class="mb-0">A</h4>
-        <p class="mb-0">{{ qna.answer|safe_markdown }}</p>
+        <p class="mb-0">{{ qna.answer|mark }}</p>
     </div>
     <hr class="my-4">
     <div id="관련카드목록">
