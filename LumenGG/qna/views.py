@@ -19,13 +19,18 @@ def index(req):
     form = QnaSearchForm(req.GET)
     if not form.is_valid():
         query = None
+        faq = None
     else:
         query = form.cleaned_data['query']
+        faq = form.cleaned_data['faq']
 
     if query:
         qna = QNA.objects.filter(title__contains=query).order_by('-created_at')
     else:
         qna = QNA.objects.all().order_by('-created_at')
+    
+    if faq:
+        qna = qna.filter(faq=True)
     
     paginator = Paginator(qna, 30)
     page_data = paginator.get_page(page)

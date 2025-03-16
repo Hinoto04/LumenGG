@@ -10,7 +10,15 @@
 </div>
 <div id="searchBox" class="mt-2">
     <form action="" method="get" class="">
-        {{ form.query }}
+        <div class="d-flex w-100">
+            {{ form.query }}
+            <div class="검색체크">
+                <label for="faq">
+                    <input type="checkbox" name="faq" value="1" id="faq" class="검색체크">
+                    FAQ
+                </label>
+            </div>
+        </div>
         <div class="d-flex w-100 justify-content-center mt-2">
             <button class="btn btn-sm btn-dark" type="submit">검색</button>
         </div>
