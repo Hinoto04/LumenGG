@@ -12,9 +12,3 @@ class QnaForm(forms.ModelForm):
     class Meta:
         model = QNA
         fields = ['title', 'question', 'answer', 'faq']
-        widgets = {
-            'question': MartorWidget(attrs={
-                'class': 'w-100',}),
-            'answer': MartorWidget(attrs={
-                'class': 'w-100',})
-        }
