@@ -24,9 +24,11 @@
         </div>
     </form>
 </div>
+{% if perms.qna.manage %}
 <div class="d-flex flex-row justify-content-end">
     <a href="{% url "qna:create" %}" class="btn btn-sm btn-dark">Q&A추가</a>
 </div>
+{% endif %}
 <table id="QNA목록" class="w-100">
     <thead>
         <tr class="열정보">
@@ -49,9 +51,11 @@
         {% endfor %}
     </tbody>
 </table>
+{% if perms.qna.manage %}
 <div class="d-flex flex-row justify-content-end">
     <a href="{% url "qna:create" %}" class="btn btn-sm btn-dark">Q&A추가</a>
 </div>
+{% endif %}
 <div class="paginator d-flex justify-content-center">
     <ul class="pagination">
         {% for page_number in data.paginator.page_range %}
