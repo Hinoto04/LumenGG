@@ -33,6 +33,7 @@ def index(req):
         qq.add(Q(author__username=keyword), qq.OR)
         q.add(qq, q.AND)
     
+    q.add(~Q(private=True), q.AND)
     data = Deck.objects.filter(q).order_by('-created')
     
     paginator = Paginator(data, 20)

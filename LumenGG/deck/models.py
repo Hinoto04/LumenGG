@@ -12,6 +12,8 @@ class Deck(models.Model):
     version = models.CharField(max_length=5, default='LMI')
     keyword = models.CharField(max_length=255, default='', blank=True)
     description = models.TextField(blank=True, default="", null=False)
+    private = models.BooleanField(default=False)
+    tags = models.CharField(max_length=255, default='', blank=True)
     created = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
