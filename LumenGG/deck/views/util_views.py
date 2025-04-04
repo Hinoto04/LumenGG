@@ -1,9 +1,9 @@
 from django.shortcuts import render
 from django.db.models import Q
 from django.core.paginator import Paginator
-from django.http import Http404
+from django.http import Http404, HttpResponse, JsonResponse
 
-from ..models import Deck
+from ..models import Deck, CardInDeck
 from card.models import Card
 from ..forms import DeckSearchForm
 
@@ -23,3 +23,21 @@ def deckMake(req):
     
     print(deck.card.all())
     return render(req, 'deck/import.html', context={'deck': deck})
+
+def statistics(req):
+    q = Q()
+    q.add(Q(deck__tags='LCDCS001'), q.AND)
+    q.add(Q(card__character__name='세츠메이'), q.AND)
+    data = CardInDeck.objects.filter(q)
+    
+    stat = {}
+    
+    for c in data:
+        if c.card.name in stat.keys():
+            stat[c.card.name] += 1 
+        else: stat[c.card.name] = 1
+    
+    print(stat)
+    
+    print(data)
+    return HttpResponse('OK')

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ collection.name }}{% endblock %}
+{% block style %}
+<link rel="stylesheet" href="{% static "collection/index.css" %}">
+<style>
+    {% if not user.is_authenticated %}
+    .로그인한정 {
+        display: none;
+    }
+    {% endif %}
+</style>
+{% endblock style %}
+{% block content %}
+<div id="최상단" class="d-flex flex-column mb-1">
+    <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">컬렉션 목록</div>
+</div>
+<div id="검색상자">
+    <form action="" class="d-flex flex-column m-2" method="get">
+        <div id="캐릭" class="필터세부 배경색1 mt-2">
+            <label for="char">캐릭터</label>
+            {{ form.char }}
+        </div>
+        <div id="레어" class="필터세부 배경색1 mt-2">
+            <label for="rare">레어도</label>
+            {{ form.rare }}
+        </div>
+        <div id="팩" class="필터세부 배경색1 mt-2">
+            <label for="rare">출신 팩</label>
+            {{ form.code }}
+        </div>
+        <button class="btn btn-light border mt-2" type="submit">
+            검색
+        </button>
+    </form>
+</div>
+<div id="너무크면줄임">
+    {% if user.is_authenticated %}
+    <div id="컬렉션목록그리드로그인">
+    {% else %}
+    <div id="컬렉션목록그리드">
+    {% endif %}
+        <div class="grid-row first-row">
+            <div class="bold">카드명</div>
+            <div class="모바일미표시 bold">코드</div>
+            <div class="bold">레어도</div>
+            <div class="로그인한정 bold">갯수</div>
+        </div>
+        {% for c in data %}
+        <div class="grid-row">
+            {% if c.card %}
+            <div class="merging">
+                <a href="{% url "card:detail" c.card.id %}" class="hoverImage">
+                    {{ c.name }}
+                    <span><img src="{{ c.image }}" alt="카드이미지"></span>
+                </a>
+            </div>
+            {% else %}
+            <div class="merging">
+                <p class="hoverImage">
+                    {{ c.name }}
+                    <span>
+                        <img src="{{ c.image }}" alt="카드이미지">
+                    </span>
+                </p>
+            </div>
+            {% endif %}
+            <div class="모바일미표시">{{ c.code }}</div>
+            <div><div class="rarebox {{ c.rare }}">{{ c.rare }}</div></div>
+            <div class="로그인한정">
+                <input type="number" name="count" id="cc_input_{{ c.id }}"
+                class="cc_input" value="{{ c.amount|default_if_none:0 }}">
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<div class="paginator d-flex justify-content-center mt-4 mb-5">
+    <ul class="pagination">
+        {% for page_number in data.paginator.page_range %}
+        {% if page_number >= data.number|add:-5 and page_number <= data.number|add:5 and page_number != data.number %}
+            <li class="페이지">
+                <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+            </li>
+        {% elif page_number == data.number %}
+            <li class="페이지 활성화" aria-current="page">
+                <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+            </li>
+        {% endif %}
+        {% endfor %}
+    </ul>
+</div>
+<script src="{% static "collection/index.js" %}"></script>
+{% endblock content %}

@@ -132,6 +132,46 @@
     }
 }
 
+.released {
+    display: flex;
+    flex-direction: row;
+    padding: .25em;
+    border: 1px solid #000;
+}
+
+.released > div:nth-child(1) {
+    min-width: 100px;
+}
+.released > div:nth-child(2) {
+    min-width: 120px;
+}
+.released > div:nth-child(3) {
+    flex-grow: 1;
+}
+.released > div:nth-child(4) {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: .5em;
+    min-width: 70px;
+    text-align: center;
+    padding: auto;
+}
+
+@media screen and (max-width: 768px) {
+    .released > div:nth-child(1) {
+        display: none;
+    }
+}
+
+.N { background-color: #aaaaaa;}
+.SR { background-color: skyblue; }
+.EXR { background-color: plum; }
+.AN { background-color: #444444; color: #ffffff; }
+.AEX { background-color: purple; color: #ffffff; }
+.SAEX { background-color: blue; color: #ffffff;}
+.SKR { background-color: crimson; color: #ffffff;}
+
 #관련카드목록 {
     font-size: 1.5em;
     font-weight: 900;

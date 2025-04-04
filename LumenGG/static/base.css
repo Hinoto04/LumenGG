@@ -79,3 +79,12 @@ p { margin: 0;}
 
 .배경색1 { background-color: #F2F2F2; }
 .배경색2 { background-color: #D9D9D9; }
+
+.sectionName {
+    font-size: 1.5em;
+    font-weight: 900;
+}
+
+.bold {
+    font-weight: 900;
+}

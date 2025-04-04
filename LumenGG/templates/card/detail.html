@@ -82,7 +82,7 @@
     </div>
     {% if perms.card.tag_update %}
     <hr class="my-4">
-    <div style="font-size: 1.5em; font-weight: 900;">태그 업데이트</div>
+    <div class="sectionName">태그 업데이트</div>
     <form action="{% url "card:editCardTag" card.id %}" method="post" class="배경색1" id="태그폼">
         {% csrf_token %}
         <div>
@@ -102,6 +102,25 @@
         </div>
     </form>
     {% endif %}
+    <hr class="my-4">
+    <div id="수록정보">
+        <div class="sectionName">수록 정보</div>
+        <div class="released">
+            <div>출시일</div>
+            <div>수록번호</div>
+            <div>수록 팩</div>
+            <div>레어도</div>
+        </div>
+        {% for ccc in cc %}
+        <div class="released">
+            <div>{{ ccc.pack.released|date:"y-m-d" }}</div>
+            <div>{{ ccc.code }}</div>
+            <div>{{ ccc.pack.name }}</div>
+            <div class="{{ ccc.rare }}">{{ ccc.rare }}</div>
+        </div>
+        {% endfor %}
+        
+    </div>
     {% if relation|length != 0 %}
     <hr class="my-4">
     <div id="관련카드목록">
@@ -115,7 +134,6 @@
         </div>
         <div>
             {% for kw, vs in relation.items %}
-            
             <div id="{{ kw|cut:" " }}" class="관련상자">
                 {% for v in vs %}
                 <div class="관련카드 배경색1">
@@ -137,7 +155,7 @@
     {% endif %}
     <hr class="my-4">
     <div id="qna" class="mt-2 mb-3">
-        <div class="w-100" style="font-size: 1.5em; font-weight: 900;">관련 Q&A</div>
+        <div class="w-100 sectionName">관련 Q&A</div>
         {% for qna in card.qna.all %}
         <a href="{% url "qna:detail" qna.id %}">
             <div class="질문답변 배경색1">

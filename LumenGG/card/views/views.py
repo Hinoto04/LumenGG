@@ -4,6 +4,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 
 from ..models import Card, Character, Tag
+from collection.models import CollectionCard
 from ..forms import CardForm, TagCreateForm, CardTagEditForm
 from decorators import permission_required
 import re
@@ -106,9 +107,12 @@ def detail(req, id=0):
         relation[kw] = Card.objects.filter(keyword__contains=kw)
         relation[kw] = relation[kw].exclude(id = id)
     
+    cc = CollectionCard.objects.filter(card = card).order_by('pack__released', 'code')
+    
     context = {
         'card': card,
         'relation': relation,
+        'cc': cc,
     }
     return render(req, 'card/detail.html', context=context)
 
