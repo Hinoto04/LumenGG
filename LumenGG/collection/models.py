@@ -22,7 +22,7 @@ class CollectionCard(models.Model):
     pack = models.ForeignKey(Pack, null=True, on_delete=models.DO_NOTHING, related_name='collection_card')
     
     def __str__(self):
-        return self.code + ' - ' + self.card.name + ' - ' + self.rare
+        return self.code + ' - ' + self.name + ' - ' + self.rare
 
 class Collected(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='collection')
@@ -30,4 +30,4 @@ class Collected(models.Model):
     amount = models.SmallIntegerField(default=0)
 
     def __str__(self):
-        return self.user.username + ' <- ' + self.card.card.name + '-' + self.card.rare
+        return self.user.username + ' <- ' + self.card.name + '-' + self.card.rare
