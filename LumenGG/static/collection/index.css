@@ -108,7 +108,14 @@ input[type='number'] {
 }
 .merging { 
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
     align-items: center;
+    vertical-align: middle;
+}
+.merging > div {
+    display: flex;
+    flex-direction: column;
 }
 
 .grid-row > div {

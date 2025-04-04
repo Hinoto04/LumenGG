@@ -1,14 +1,5 @@
 var tooltips = document.querySelectorAll('.hoverImage span');
 
-window.onmousemove = function (e) {
-    var x = (e.clientX + 20) + 'px',
-        y = (e.clientY + 20) + 'px';
-    for (var i = 0; i < tooltips.length; i++) {
-        tooltips[i].style.top = y;
-        tooltips[i].style.left = x;
-    }
-};
-
 $(document).ready(function() {
     $('#id_char > div > label').on('click', function(event) {
         const radioButton = $(this).find('input[type="radio"]');
@@ -23,6 +14,7 @@ $(document).ready(function() {
 
 $(document).ready(function() {
     let previousCardName = '';
+    let previousImageLink = '';
     let startIndex = null;
     let rowspan = 1;
 
@@ -31,6 +23,17 @@ $(document).ready(function() {
 
         if (currentCardName === previousCardName) {
             rowspan++;
+            let imageLink = $(this).find('img').attr('src');
+            if (imageLink !== previousImageLink) {
+                if($(this).find('a')) {
+                    $(this).find('a').contents()[0].nodeValue = "(다른 판본)"; //요소 복사
+                    $('.merging').eq(startIndex).find('div').append($(this).find('a').clone()); //요소 복사
+                } else if($(this).find('p')) {
+                    $(this).find('p').contents()[0].nodeValue = "(다른 판본)";
+                    $('.merging').eq(startIndex).find('div').append($(this).find('p').clone()); //요소 복사
+                }
+                previousImageLink = imageLink; // 이미지 링크 업데이트
+            }
             $(this).css('display', 'none'); // 동일한 카드명 셀 숨기기
         } else {
             // 새로운 카드명을 만났을 때 이전 카드명의 셀을 병합
@@ -38,6 +41,7 @@ $(document).ready(function() {
                 $('.merging').eq(startIndex).css('grid-row-end', `span ${rowspan}`);
             }
             previousCardName = currentCardName;
+            previousImageLink = $(this).find('img').attr('src');
             startIndex = index;
             rowspan = 1;
         }
@@ -47,6 +51,8 @@ $(document).ready(function() {
     if (startIndex !== null) {
         $('.merging').eq(startIndex).css('grid-row-end', `span ${rowspan}`);
     }
+
+    tooltips = document.querySelectorAll('.hoverImage span');
 });
 
 document.querySelectorAll(".dynamicLink").forEach(element => {
@@ -64,3 +70,12 @@ document.querySelectorAll(".dynamicLink").forEach(element => {
         window.location.href = currentUrl.toString();
     });
 });
+
+window.onmousemove = function (e) {
+    var x = (e.clientX + 20) + 'px',
+        y = (e.clientY + 20) + 'px';
+    for (var i = 0; i < tooltips.length; i++) {
+        tooltips[i].style.top = y;
+        tooltips[i].style.left = x;
+    }
+};

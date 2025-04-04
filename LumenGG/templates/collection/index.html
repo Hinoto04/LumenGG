@@ -50,19 +50,23 @@
         <div class="grid-row">
             {% if c.card %}
             <div class="merging">
-                <a href="{% url "card:detail" c.card.id %}" class="hoverImage">
-                    {{ c.name }}
-                    <span><img src="{{ c.image }}" alt="카드이미지"></span>
-                </a>
+                <div>
+                    <a href="{% url "card:detail" c.card.id %}" class="hoverImage">
+                        {{ c.name }}
+                        <span><img src="{{ c.image }}" alt="카드이미지"></span>
+                    </a>
+                </div>
             </div>
             {% else %}
             <div class="merging">
-                <p class="hoverImage">
-                    {{ c.name }}
-                    <span>
-                        <img src="{{ c.image }}" alt="카드이미지">
-                    </span>
-                </p>
+                <div>
+                    <p class="hoverImage">
+                        {{ c.name }}
+                        <span>
+                            <img src="{{ c.image }}" alt="카드이미지">
+                        </span>
+                    </p>
+                </div>
             </div>
             {% endif %}
             <div class="모바일미표시">{{ c.code }}</div>
