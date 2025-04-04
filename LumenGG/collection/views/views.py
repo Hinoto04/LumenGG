@@ -31,7 +31,7 @@ def index(req):
         collection = CollectionCard.objects.filter(q)
     #filter(code__contains='CRS').order_by('code')
     
-    collection = collection.order_by('card__frame', 'card__name')
+    collection = collection.order_by('card__frame', 'card__name', 'pack__released', 'code')
     
     paginator = Paginator(collection, 40)  # Show 20 collection cards per page.
     page_data = paginator.get_page(page_number)
