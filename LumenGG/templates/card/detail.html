@@ -14,7 +14,7 @@
     </div>
     <div id="섹션1">
         <div id="카드" class="배경색1">
-            <img class="w-100" src="{{ card.img }}" alt="{{ card.img }}">
+            <img id="카드이미지" class="w-100" src="{{ card.img }}" alt="{{ card.img }}">
             <div class="카드정보">
                 <p class="캐릭터명">{{ card.character.name }}</p>
                 <p class="카드명">{{ card.name }}</p>
@@ -168,4 +168,12 @@
     </div>
 </div>
 <script src="{% static "card/detail.js" %}"></script>
+<script>
+    {% for ccc in cc %}
+        {% if ccc.image %}
+        imgList.push("{{ ccc.image }}");
+        {% endif %}
+    {% endfor %}
+    imgList = [...new Set(imgList)];
+</script>
 {% endblock content %}

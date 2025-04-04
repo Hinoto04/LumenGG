@@ -31,6 +31,10 @@
     border-radius: 1em;
 }
 
+#카드이미지:hover {
+    cursor: pointer;
+}
+
 .카드정보 { padding: .5em .75em .5em .75em; }
 .카드정보 > p { margin: 0; }
 .카드명 { font-size: 1.2em; font-weight: 900; }
