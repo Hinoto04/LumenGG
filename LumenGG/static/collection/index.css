@@ -117,6 +117,9 @@ input[type='number'] {
     display: flex;
     flex-direction: column;
 }
+.merging > div > p:hover {
+    cursor: pointer;
+}
 
 .grid-row > div {
     border-bottom: 1px solid #000;
