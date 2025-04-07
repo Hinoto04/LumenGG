@@ -63,6 +63,11 @@
             검색
         </button>
     </form>
+    {% if perms.card.add_card %}
+    <div class="d-flex flex-row justify-content-end mb-2">
+        <a href="{% url "card:create" %}" class="btn btn-light border">카드 추가</a>
+    </div>
+    {% endif %}
     <div id="카드리스트">
         {% for card in cards %}
         <div class="카드 배경색1">
