@@ -60,6 +60,12 @@ class DeckMakeForm(forms.ModelForm):
                 'class': 'form-control 배경색1',
                 'placeholder': '검색 키워드 목록'}),
     )
+    private = forms.BooleanField(
+        label = "비공개",
+        required = False,
+        initial = False,
+        widget = forms.CheckboxInput(attrs={'class': 'form-check-input mt-auto mb-auto'}),
+    )
     
     class Meta:
         model = Deck

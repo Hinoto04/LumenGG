@@ -13,6 +13,7 @@ class Deck(models.Model):
     keyword = models.CharField(max_length=255, default='', blank=True)
     description = models.TextField(blank=True, default="", null=False)
     private = models.BooleanField(default=False)
+    deleted = models.BooleanField(default=False)
     tags = models.CharField(max_length=255, default='', blank=True)
     created = models.DateTimeField(auto_now_add=True)
     

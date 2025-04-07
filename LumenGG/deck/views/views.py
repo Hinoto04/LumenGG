@@ -25,7 +25,7 @@ def index(req):
         char = form.cleaned_data['char']
         keyword = form.cleaned_data['keyword']
     
-    q = Q() 
+    q = Q(deleted=False)
     if char: q.add(Q(character__in=char), q.AND)
     if keyword: 
         qq = Q()
@@ -82,13 +82,15 @@ def create(req):
             return JsonResponse(errorContent)
         
         try:
+            print(data)
             newDeck = Deck(
                 name=data['name'],
                 character_id=int(data['char']),
                 description=data['description'], 
                 keyword=data['keyword'], 
                 version=data['version'],
-                author=req.user
+                author=req.user,
+                private=('private' in data.keys()),
             )
             newDeck.save()
         except:
@@ -204,7 +206,8 @@ def delete(req, id):
         raise Http404()
 
     if deck.author == req.user:
-        deck.delete()
+        deck.deleted = True
+        deck.save()
         return redirect('deck:index')
     else:
-        return HttpResponse("권한이 없습니다.")
+        raise PermissionDenied()
