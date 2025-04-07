@@ -9,6 +9,7 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('detail/', views.detail, name='detailNone'),
     path('detail/<int:id>/', views.detail, name='detail'),
+    path('create/', views.create, name='create'),
     #path('import/', util_views.importCards, name='import'),
     #path('dbkeywordset/', util_views.keywordSet, name='keywordSet'),
     #path('bujeonseung', util_views.bujeonseung, name='bujeonseung'),

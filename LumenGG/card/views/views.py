@@ -4,8 +4,8 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 
 from ..models import Card, Character, Tag
-from collection.models import CollectionCard
-from ..forms import CardForm, TagCreateForm, CardTagEditForm
+from collection.models import CollectionCard, Pack
+from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm
 from decorators import permission_required
 import re
 
@@ -115,6 +115,32 @@ def detail(req, id=0):
         'cc': cc,
     }
     return render(req, 'card/detail.html', context=context)
+
+def create(req):
+    if req.method == 'GET':
+        form = CardCreateForm()
+        
+        return render(req, 'card/create.html', context={'form': form})
+    else:
+        form = CardCreateForm(req.POST)
+        if form.is_valid():
+            try:
+                card = form.save()
+            except:
+                card = Card.objects.get(name = form.cleaned_data['name'])
+            for r in form.data.getlist('rare'):
+                newCC = CollectionCard(
+                    card = card,
+                    pack = Pack.objects.get(id = form.data.get('pack')),
+                    code = card.code,
+                    image = card.img,
+                    name = card.name,
+                    rare = r)
+                print(newCC.__dict__)
+                newCC.save()
+            return redirect('card:detail', card.id)
+        else:
+            return render(req, 'card/create.html', context={'form': form})
 
 def tagList(req):
     page = req.GET.get('page', '1')

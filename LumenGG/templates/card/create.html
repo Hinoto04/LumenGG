@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}카드 추가{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "card/create.css" %}">
+{% endblock style %}
+{% block content %}
+<div id="최상단" class="d-flex flex-column mb-1">
+    <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">카드 추가</div>
+</div>
+<form action="" method="post">
+    {% include "form_errors.html" %}
+    {% csrf_token %}
+    <div class="행">
+        <div class="option">
+            <label for="name">카드명</label>
+            {{ form.name }}
+        </div>
+        <div class="option">
+            <label for="ruby">루비</label>
+            {{ form.ruby }}
+        </div>
+        <div class="option">
+            <label for="character">캐릭터</label>
+            {{ form.character }}
+        </div>
+        <div class="option">
+            <label for="frame">속도</label>
+            {{ form.frame }}
+        </div>
+        <div class="option combinedoption">
+            <div>
+                <label for="pos">판정</label>
+                {{ form.pos }}
+            </div>
+            <div>
+                <label for="body">부위</label>
+                {{ form.body }}
+            </div>
+        </div>
+        <div class="option">
+            <label for="special">특수 판정</label>
+            {{ form.special }}
+        </div>
+        <div class="option">
+            <label for="damage">대미지</label>
+            {{ form.damage }}
+        </div>
+        <div class="option combinedoption">
+            <div>
+                <label for="hit">히트</label>
+                {{ form.hit }}
+            </div>
+            <div>
+                <label for="guard">가드</label>
+                {{ form.guard }}
+            </div>
+            <div>
+                <label for="counter">카운터</label>
+                {{ form.counter }}
+            </div>
+        </div>
+        <div class="option combinedoption">
+            <div>
+                <label for="g_top">상단 가드</label>
+                {{ form.g_top }}
+            </div>
+            <div>
+                <label for="g_mid">중단 가드</label>
+                {{ form.g_mid }}
+            </div>
+            <div>
+                <label for="g_bot">하단 가드</label>
+                {{ form.g_bot }}
+            </div>
+        </div>
+        <div class="option">
+            <label for="code">최초 수록(카드번호)</label>
+            {{ form.code }}
+        </div>
+        <div class="option">
+            <label for="img">이미지</label>
+            {{ form.img }}
+        </div>
+        <div class="option">
+            <label for="pack">수록 팩</label>
+            {{ form.pack }}
+        </div>
+    </div>
+    <div class="option">
+        <label for="rare">레어도</label>
+        {{ form.rare }}
+    </div>
+    <div class="option">
+        <label for="text">효과</label>
+        {{ form.text }}
+    </div>
+    <button class="w-100 border btn btn-light" type="submit">저장</button>
+</form>
+{% endblock content %}

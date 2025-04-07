@@ -1,5 +1,6 @@
 from django import forms
 from .models import Character, Card, Tag
+from collection.models import Pack
 
 class CardForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
@@ -48,7 +49,8 @@ class CardForm(forms.Form):
             ('AWL', '어웨이크닝 루멘'),
             ('UNC', '유니즌 챌린저'), 
             ('LMI', '루미너스 이노센스'),
-            ('CRS', '크림슨 스트라이커즈')],
+            ('CRS', '크림슨 스트라이커즈'),
+            ('PMP', '프레데터 엠프레스')],
         widget = forms.Select(attrs = {'class': '긴옵션 배경색2'}),
         required = False,
     )
@@ -115,3 +117,46 @@ class CardTagEditForm(forms.Form):
         max_length = 255,
         widget = forms.TextInput(attrs = {'class': 'form-control'})
     )
+
+class CardCreateForm(forms.ModelForm):
+    pack = forms.ModelChoiceField(
+        queryset = Pack.objects.all(),
+        label="팩",
+        widget=forms.Select(),
+    )
+    rare = forms.MultipleChoiceField(
+        label = "레어리티",
+        choices = [
+            ('N', 'N'), ('SR', 'SR'), ('EXR', 'EXR'), ('AN', 'AN'), ('AEX', 'AEX'), ('SKR', 'SKR'), ('SAEX', 'SAEX')],
+        widget = forms.CheckboxSelectMultiple(attrs={'class': 'rare'}),
+        required = False,
+    )
+    class Meta:
+        model = Card
+        fields = ['name', 'ruby', 'type', 'frame', 
+                  'damage', 'pos', 'body', 'special', 'code', 
+                  'hit', 'guard', 'counter', 
+                  'g_top', 'g_mid', 'g_bot', 
+                  'character', 'img', 'text']
+        widgets = {
+            "pos": forms.Select(choices = [
+                ('상단', '상단'), ('중단', '중단'), ('하단', '하단')]),
+            "body": forms.Select(choices = [
+                ('', ''), ('손', '손'), ('발', '발')]),
+            "type": forms.Select(choices = [
+                ('공격', '공격'), ('수비', '수비'), ('특수', '특수'), ('특성', '특성'), ('토큰', '토큰')],),
+            'g_top': forms.Select(choices = [
+                ('', ''), ('방어', '방어'), ('상쇄', '상쇄'), ('회피', '회피')]),
+            'g_mid': forms.Select(choices = [
+                ('', ''), ('방어', '방어'), ('상쇄', '상쇄'), ('회피', '회피')]),
+            'g_bot': forms.Select(choices = [
+                ('', ''), ('방어', '방어'), ('상쇄', '상쇄'), ('회피', '회피')]),
+        }
+        labels = {
+            "name": "카드명", "ruby": "루비", "type": "카드 분류", "frame": "속도",
+            "damage": "데미지", "pos": "판정", "body": "부위",
+            "special": "특수", "code": "최초 수록", "hit": "히트",
+            "guard": "가드", "counter": "카운터",
+            "character": "캐릭터", "img": "이미지(링크)", "text": "텍스트",
+            "g_top": "상단 방어", "g_mid": "중단 방어", "g_bot": "하단 방어",
+        }
