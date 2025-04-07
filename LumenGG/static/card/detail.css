@@ -34,6 +34,19 @@
 #카드이미지:hover {
     cursor: pointer;
 }
+.overlayButton {
+    position: relative;
+}
+.imageChange {
+    position: absolute;
+    bottom: 0%;
+    right: 0%;
+    width: 10%;
+    border: 0;
+}
+.imageChange > img {
+    width: 100%;
+}
 
 .카드정보 { padding: .5em .75em .5em .75em; }
 .카드정보 > p { margin: 0; }

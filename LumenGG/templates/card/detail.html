@@ -8,13 +8,28 @@
 <link rel="stylesheet" href="{% static "card/detail.css" %}">
 {% endblock style %}
 {% block content %}
+<script>
+    var imgList = [];
+    var now = 0;
+
+    function imageChange() {
+        now++;
+        if(now >= imgList.length) now = 0;
+        $("#카드이미지").attr("src", imgList[now]);
+    }
+</script>
 <div>
     <div>
         <a id="돌아가기" href="javascript:history.back()">← 돌아가기</a>
     </div>
     <div id="섹션1">
         <div id="카드" class="배경색1">
-            <img id="카드이미지" class="w-100" src="{{ card.img }}" alt="{{ card.img }}">
+            <div class="overlayButton">
+                <img id="카드이미지" class="w-100" src="{{ card.img }}" alt="{{ card.img }}">
+                <button class="imageChange" onclick="imageChange();">
+                    <img src="{% static "card/change-arrow.png" %}" alt="다른 판본">
+                </button>
+            </div>
             <div class="카드정보">
                 <p class="캐릭터명">{{ card.character.name }}</p>
                 <p class="카드명">{{ card.name }}</p>
@@ -175,5 +190,9 @@
         {% endif %}
     {% endfor %}
     imgList = [...new Set(imgList)];
+
+    if(imgList.length == 1) {
+        $(".imageChange").css("display", "none");
+    }
 </script>
 {% endblock content %}
