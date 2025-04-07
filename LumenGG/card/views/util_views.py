@@ -5,6 +5,7 @@ from django.db.models import Q
 import openpyxl
 
 from ..models import Card, Character
+from collection.models import CollectionCard
 import re
 
 def importCards(req):
@@ -157,3 +158,41 @@ def noSpaceAdd(req):
         else:
             card.hiddenKeyword = '/'.join(hiddenKeyword) + '/'
         card.save()
+
+def smallImgInit(req):
+    
+    linklist = {}
+    f = open('../imglinks_mid.txt', encoding='UTF-8')
+    while l:=f.readline():
+        l = l.strip()
+        code = l.split('/')[-1][:-7]
+        linklist[code] = l
+    
+    cards = Card.objects.all()
+    for card in cards:
+        card.img_mid = linklist[card.code]
+        card.save()
+    
+    ccs = CollectionCard.objects.all()
+    for cc in ccs:
+        if not (cc.code in linklist.keys()):
+            try:
+                cc.img_sm = cc.card.img_sm
+                cc.save()
+            except:
+                print(cc.name, cc.code)
+                cc.img_sm = cc.image
+                cc.save()
+        else:
+            try:
+                cc.img_sm = linklist[cc.code]
+                cc.save()
+            except:
+                try:
+                    cc.img_sm = cc.card.img_sm
+                    cc.save()
+                except:
+                    print(cc.name, cc.code)
+                    cc.img_sm = cc.image
+                    cc.save()
+            

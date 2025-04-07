@@ -82,7 +82,7 @@ function cardSearch() {
                 $("#ImageResult > div").append(`
                     <div id="card_img_${a[i]["pk"]}" class='resultCard'>
                         <img class='cardImg needLoadingImg'
-                        src="${a[i]["fields"]["img"]}"
+                        src="${a[i]["fields"]["img_sm"]}"
                         alt="${a[i]["fields"]["name"]}">
                         <img class='cardImg loading'
                         src="${loadingImgLink}"></div>

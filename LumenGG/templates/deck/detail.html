@@ -47,7 +47,7 @@
                     {% for _ in card|listcard %}
                     <div class="imgBox">
                         <a href="{% url "card:detail" card.card.id %}">
-                            <img class="cardImg" src="{{card.card.img}}" alt="{{card.card.name}}">
+                            <img class="cardImg" src="{{card.card.img_mid}}" alt="{{card.card.name}}">
                         </a>
                     </div>
                     {% endfor %}
@@ -61,7 +61,7 @@
                     {% for _ in card.hand|times %}
                     <div class="imgBox">
                         <a href="{% url "card:detail" card.card.id %}">
-                            <img class="cardImg" src="{{card.card.img}}" alt="{{card.card.name}}">
+                            <img class="cardImg" src="{{card.card.img_mid}}" alt="{{card.card.name}}">
                         </a>
                     </div>
                     {% endfor %}
@@ -76,7 +76,7 @@
                     <div class="hoverOn imgBox">
                         <a class="" href="{% url "card:detail" card.card.id %}">
                             <div class="w-100" style="">
-                                <img class="w-100 sideImg" src="{{card.card.img}}" alt="{{card.card.name}}">
+                                <img class="w-100 sideImg" src="{{card.card.img_mid}}" alt="{{card.card.name}}">
                             </div>
                         </a>
                     </div>

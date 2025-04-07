@@ -32,7 +32,7 @@
             <div class="관련카드 배경색1">
                 <a href="{% url 'card:detail' card.id %}">
                     <div class="w-100 d-flex flex-column justify-content-center hoverBig">
-                        <img class="w-100" src="{{ card.img }}" alt="{{ card.name }}">
+                        <img class="w-100" src="{{ card.img_mid }}" alt="{{ card.name }}">
                         <div class="카드정보">
                             <p class="캐릭터명2">{{ card.character.name }}</p>
                             <p class="카드명2">{{ card.name }}</p>

@@ -53,7 +53,7 @@
                 <div>
                     <a href="{% url "card:detail" c.card.id %}" class="hoverImage">
                         {{ c.name }}
-                        <span><img src="{{ c.image }}" alt="카드이미지"></span>
+                        <span><img src="{{ c.img_sm }}" alt="카드이미지"></span>
                     </a>
                 </div>
             </div>
@@ -63,7 +63,7 @@
                     <p class="hoverImage">
                         {{ c.name }}
                         <span>
-                            <img src="{{ c.image }}" alt="카드이미지">
+                            <img src="{{ c.img_sm }}" alt="카드이미지">
                         </span>
                     </p>
                 </div>

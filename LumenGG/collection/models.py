@@ -18,6 +18,7 @@ class CollectionCard(models.Model):
     rare = models.CharField(max_length=10, default='')
     code = models.CharField(max_length=20, default='')
     image = models.URLField(blank=True)
+    img_sm = models.URLField(blank=True, default='')
     name = models.CharField(max_length=50, default='', blank=True)
     pack = models.ForeignKey(Pack, null=True, on_delete=models.DO_NOTHING, related_name='collection_card')
     

@@ -14,6 +14,7 @@ urlpatterns = [
     #path('dbkeywordset/', util_views.keywordSet, name='keywordSet'),
     #path('bujeonseung', util_views.bujeonseung, name='bujeonseung'),
     #path('noSpaceAdd/', util_views.noSpaceAdd, name='noSpaceAdd'),
+    #path('smallImg/', util_views.smallImgInit, name='smallImgInit'),
     
     path('tag/', views.tagList, name='tagList'),
     path('tag/<int:id>/', views.tagDetail, name='tagDetail'),

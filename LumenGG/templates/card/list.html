@@ -73,7 +73,7 @@
         <div class="카드 배경색1">
             <a class="w-100" href="{% url "card:detail" card.id %}">
                 <div class="w-100">
-                    <img class="w-100" src="{{ card.img }}" alt="{{ card.img }}">
+                    <img class="w-100" src="{{ card.img_mid }}" alt="{{ card.name }}">
                 </div>
                 <div class="카드정보">
                     <p class="캐릭터명">{{ card.character.name }}</p>
