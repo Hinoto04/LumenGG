@@ -45,6 +45,7 @@ class DeckMakeForm(forms.ModelForm):
             ('UNC', 'UNC'),
             ('LMI', 'LMI'),
             ('CRS', 'CRS'),
+            ('PMP', 'PMP'),
             ('N/A', 'N/A'),
         ],
         initial = 'N/A',
