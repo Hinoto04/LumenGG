@@ -116,6 +116,7 @@ def detail(req, id=0):
     }
     return render(req, 'card/detail.html', context=context)
 
+@permission_required('card.add_card')
 def create(req):
     if req.method == 'GET':
         form = CardCreateForm()
