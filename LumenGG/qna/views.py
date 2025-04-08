@@ -84,6 +84,7 @@ def create(req):
                 title = data['title'],
                 question = data['question'],
                 answer = data['answer'],
+                tags = data['tags'],
                 faq = ('faq' in data.keys())
             )
             newQNA.save()
