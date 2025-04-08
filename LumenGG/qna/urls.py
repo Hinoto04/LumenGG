@@ -12,4 +12,6 @@ urlpatterns = [
     path('update/<int:id>/', views.update, name='update'),
     path('delete/<int:id>/', views.delete, name='delete'),
     #path('xlsxImport/', views.xlsxImport, name='xlsxImport'),
+    
+    path('special/', views.special, name='special'),
 ]

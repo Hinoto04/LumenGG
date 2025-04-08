@@ -3,7 +3,7 @@ from django.urls import reverse
 from django.core import serializers
 from django.core.paginator import Paginator
 from django.http import HttpResponse, Http404, JsonResponse
-from django.db.models import Q
+from django.db.models import Q, Count
 
 from .models import QNA, QNARelation
 from .forms import QnaSearchForm, QnaForm
@@ -201,3 +201,34 @@ def xlsxImport(req):
             newRelation.save()
     
     return redirect('qna:index')
+
+def special(req):
+    page = req.GET.get('page', 1)
+    
+    form = QnaSearchForm(req.GET)
+    if not form.is_valid():
+        query = None
+        faq = None
+    else:
+        query = form.cleaned_data['query']
+        faq = form.cleaned_data['faq']
+
+    if query:
+        qna = QNA.objects.filter(title__contains=query).order_by('-faq', '-created_at')
+    else:
+        qna = QNA.objects.all().order_by('-faq', '-created_at')
+    
+    if faq:
+        qna = qna.filter(faq=True)
+    
+    qna = qna.annotate(num_related=Count('cards')).filter(num_related=0)
+    
+    paginator = Paginator(qna, 30)
+    page_data = paginator.get_page(page)
+    
+    context = {
+        'form': form,
+        'data': page_data
+    }
+    
+    return render(req, 'qna/index.html', context=context)
