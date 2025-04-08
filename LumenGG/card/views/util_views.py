@@ -170,14 +170,17 @@ def smallImgInit(req):
     
     cards = Card.objects.all()
     for card in cards:
-        card.img_mid = linklist[card.code]
+        card.img = "https://images.hinoto.kr/lumendb/original/" + card.code + ".jpg"
+        card.img_mid = "https://images.hinoto.kr/lumendb/mid/" + card.code + "-sm.jpg"
+        card.img_sm = "https://images.hinoto.kr/lumendb/sm/" + card.code + "-sm.jpg"
         card.save()
     
     ccs = CollectionCard.objects.all()
     for cc in ccs:
         if not (cc.code in linklist.keys()):
             try:
-                cc.img_sm = cc.card.img_sm
+                cc.image = cc.card.img
+                cc.img_sm = cc.card.img_mid
                 cc.save()
             except:
                 print(cc.name, cc.code)
@@ -185,11 +188,12 @@ def smallImgInit(req):
                 cc.save()
         else:
             try:
-                cc.img_sm = linklist[cc.code]
+                cc.image = "https://images.hinoto.kr/lumendb/original/" + cc.code + ".jpg"
+                cc.img_sm = "https://images.hinoto.kr/lumendb/mid/" + cc.code + "-sm.jpg"
                 cc.save()
             except:
                 try:
-                    cc.img_sm = cc.card.img_sm
+                    cc.img_sm = cc.card.img_mid
                     cc.save()
                 except:
                     print(cc.name, cc.code)

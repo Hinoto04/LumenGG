@@ -79,3 +79,89 @@ window.onmousemove = function (e) {
         tooltips[i].style.left = x;
     }
 };
+
+// 컬렉션 수정 관련
+
+var changedCollection = {};
+
+function collectionUpdate() {
+    let formData = new FormData($("#컬렉션업데이트")[0]);
+    var object = {};
+    formData.forEach((value, key) => object[key] = value);
+
+    let csrftoken = object['csrfmiddlewaretoken'];
+    object['collected'] = Object.assign({}, changedCollection);
+    changedCollection = {};
+    var json = JSON.stringify(object);
+
+    console.log(json);
+
+    $.ajax({
+        type: 'POST',
+        url: '/collection/update/',
+        contentType: 'application/json',
+        data: json,
+        headers: {"X-CSRFToken": csrftoken},
+        success: function(res) {
+            if(res.status == 100) {
+                window.location.href = res.url;
+            } else {
+                console.log(res);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.log(error);
+        },
+    })
+}
+
+
+var nowSortType = '';
+
+function sortTypeChange(t) {
+    $("#id_sortValue").val(t);
+    $("#검색폼").submit();
+}
+
+$(document).ready(function() {
+    let currentUrl = new URL(window.location.href);
+
+    nowSortType = currentUrl.searchParams.get('sortValue');
+    if (nowSortType == 'name') {
+        $("#정렬카드명").text('카드명 ▲');
+    } else if (nowSortType == 'code') {
+        $("#정렬코드").text('코드 ▲');
+    }
+
+    $("#컬렉션수정버튼").on('click', function() {
+        collectionUpdate();
+    });
+
+    $("#정렬카드명").on('click', function() {
+        if(nowSortType != 'name') {
+            nowSortType = 'name';
+            sortTypeChange('name');
+        } else {
+            nowSortType = '';
+            sortTypeChange('');
+        }
+    })
+
+    $("#정렬코드").on('click', function() {
+        if(nowSortType != 'code') {
+            nowSortType = 'code';
+            sortTypeChange('code');
+        } else {
+            nowSortType = '';
+            sortTypeChange('');
+        }
+    });
+});
+
+$(".cc_input").change(function() {
+    let name = $(this).attr('name');
+    let value = $(this).val();
+
+    changedCollection[name] = value;
+    console.log(changedCollection);
+})

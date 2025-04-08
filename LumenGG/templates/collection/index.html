@@ -16,7 +16,7 @@
     <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">컬렉션 목록</div>
 </div>
 <div id="검색상자">
-    <form action="" class="d-flex flex-column m-2" method="get">
+    <form action="" class="d-flex flex-column m-2" method="get" id="검색폼">
         <div id="캐릭" class="필터세부 배경색1 mt-2">
             <label for="char">캐릭터</label>
             {{ form.char }}
@@ -25,9 +25,23 @@
             <label for="rare">레어도</label>
             {{ form.rare }}
         </div>
-        <div id="팩" class="필터세부 배경색1 mt-2">
-            <label for="rare">출신 팩</label>
-            {{ form.code }}
+        <div class="행 d-flex flex-row mt-2">
+            <div id="팩" class="필터세부 배경색1 flex-grow-1">
+                <label for="rare">출신 팩</label>
+                {{ form.code }}
+            </div>
+            <div id="정렬" class="d-none">
+                <label for="sort">정렬</label>
+                <div class="d-flex flex-row">
+                    {{ form.sortValue }}
+                </div>
+            </div>
+            {% if user.is_authenticated %}
+            <div id="미보유" class="필터세부 배경색1 ms-2">
+                <label for="미보유">미보유</label>
+                {{ form.onlyZero }}
+            </div>
+            {% endif %}
         </div>
         <button class="btn btn-light border mt-2" type="submit">
             검색
@@ -35,14 +49,20 @@
     </form>
 </div>
 <div id="너무크면줄임">
+<form action="{% url "collection:update_collected" %}" method="post" id="컬렉션업데이트">{% csrf_token %}</form>
     {% if user.is_authenticated %}
+    <div class="w-100" style="text-align: center;">
+        갯수를 변경한 경우, 아래쪽 저장 버튼을 눌러주세요.
+        <br>
+        "카드명" 또는 "코드" 를 클릭하면, 해당 기준으로 정렬할 수 있습니다.
+    </div>
     <div id="컬렉션목록그리드로그인">
     {% else %}
     <div id="컬렉션목록그리드">
     {% endif %}
         <div class="grid-row first-row">
-            <div class="bold">카드명</div>
-            <div class="모바일미표시 bold">코드</div>
+            <div id="정렬카드명" class="bold">카드명</div>
+            <div id="정렬코드" class="모바일미표시 bold">코드</div>
             <div class="bold">레어도</div>
             <div class="로그인한정 bold">갯수</div>
         </div>
@@ -72,12 +92,17 @@
             <div class="모바일미표시">{{ c.code }}</div>
             <div><div class="rarebox {{ c.rare }}">{{ c.rare }}</div></div>
             <div class="로그인한정">
-                <input type="number" name="count" id="cc_input_{{ c.id }}"
+                <input type="number" name="{{ c.id }}" id="cc_input_{{ c.id }}"
                 class="cc_input" value="{{ c.amount|default_if_none:0 }}">
             </div>
         </div>
         {% endfor %}
     </div>
+    {% if user.is_authenticated %}
+    <div class="d-flex flex-row justify-content-end">
+        <button class="btn btn-light border" type="button" id="컬렉션수정버튼">저장</button>
+    </div>
+    {% endif %}
 </div>
 <div class="paginator d-flex justify-content-center mt-4 mb-5">
     <ul class="pagination">

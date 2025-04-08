@@ -162,3 +162,35 @@ input[type='number'] {
     text-align: center;
 }
 
+/* .행 {
+    margin-top: .5em;
+    display: grid;
+    flex-direction: row;
+    grid-template-areas: 
+    "팩 팩 팩"
+    "정렬 정렬 미보유";
+    gap: .5em;
+} */
+#팩 { grid-area: 팩; }
+#정렬 { grid-area: 정렬; }
+#미보유 { grid-area: 미보유;}
+
+#팩 {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#id_onlyZero {
+    margin: .5em;
+    height: 100%;
+}
+
+#정렬카드명:hover, #정렬코드:hover {
+    cursor: pointer;
+}
+
+@media screen and (max-width: 768px) {
+    .행 {
+        flex-direction: column;
+    }
+}
