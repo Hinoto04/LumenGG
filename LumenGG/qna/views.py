@@ -25,7 +25,8 @@ def index(req):
         faq = form.cleaned_data['faq']
 
     if query:
-        qna = QNA.objects.filter(title__contains=query).order_by('-faq', '-created_at')
+        q = Q(title__contains=query) | Q(tags__contains=query)
+        qna = QNA.objects.filter(q).order_by('-faq', '-created_at')
     else:
         qna = QNA.objects.all().order_by('-faq', '-created_at')
     
@@ -135,6 +136,7 @@ def update(req, id=0):
             qna.title = data['title']
             qna.question = data['question']
             qna.answer = data['answer']
+            qna.tags = data['tags']
             qna.faq = ('faq' in data.keys())
             qna.save()
         except:
@@ -214,7 +216,8 @@ def special(req):
         faq = form.cleaned_data['faq']
 
     if query:
-        qna = QNA.objects.filter(title__contains=query).order_by('-faq', '-created_at')
+        q = Q(title__contains=query) | Q(tags__contains=query)
+        qna = QNA.objects.filter(q).order_by('-faq', '-created_at')
     else:
         qna = QNA.objects.all().order_by('-faq', '-created_at')
     

@@ -10,6 +10,7 @@ class QNA(models.Model):
     faq = models.BooleanField(default=False) #FAQ 여부
     created_at = models.DateTimeField(auto_now_add=True) #생성일
     cards = models.ManyToManyField(Card, through='QNARelation', related_name='qna') #관련 카드
+    tags = models.CharField(max_length=100, blank=True, default="") #태그
     
     def __str__(self):
         return self.title

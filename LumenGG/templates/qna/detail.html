@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load card_tags %}
 {% load qna_tags %}
 {% block title %}
 {{ qna.title }}
@@ -9,7 +10,10 @@
 {% endblock style %}
 {% block content %}
 <div id="QNA">
-    <div class="배경색1"><h3 class="mb-0">{{ qna.title }}</h3></div>
+    <div class="배경색1">
+        <h3 class="mb-1">{{ qna.title }}</h3>
+        <p>태그 : {{ qna.tags|keywords }}</p>
+    </div>
     {% if perms.qna.manage %}
     <div class="d-flex flex-row justify-content-end mb-2">
         <a href="{% url "qna:update" qna.id %}" class="btn btn-sm btn-warning me-2">QNA 수정</a>
