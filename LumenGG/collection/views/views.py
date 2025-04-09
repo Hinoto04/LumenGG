@@ -64,7 +64,7 @@ def index(req):
         else:
             collection = collection.order_by('card__frame', 'pack__released', 'custom_order')
     else:
-        collection = collection.order_by('card__frame', 'pack__released', 'custom_order')
+        collection = collection.order_by('card__frame', 'code', 'pack__released', 'custom_order')
     
     
     paginator = Paginator(collection, 40)  # Show 20 collection cards per page.

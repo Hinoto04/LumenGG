@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, Http404
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, Case, When, IntegerField
 
 from ..models import Card, Character, Tag
 from collection.models import CollectionCard, Pack
@@ -107,7 +107,21 @@ def detail(req, id=0):
         relation[kw] = Card.objects.filter(keyword__contains=kw)
         relation[kw] = relation[kw].exclude(id = id)
     
-    cc = CollectionCard.objects.filter(card = card).order_by('pack__released', 'code')
+    cc = CollectionCard.objects.filter(card = card)
+    cc = cc.annotate(
+        custom_order=Case(
+        When(rare='N', then=0),
+        When(rare='SR', then=1),
+        When(rare='EXR', then=2),
+        When(rare='AN', then=3),
+        When(rare='AEX', then=4),
+        When(rare='SAEX', then=5),
+        When(rare='SKR', then=6),
+        default=7,
+        output_field=IntegerField(),
+        )
+    )
+    cc = cc.order_by('pack__released', 'code', 'custom_order')
     
     context = {
         'card': card,
