@@ -8,6 +8,10 @@
     .로그인한정 {
         display: none;
     }
+    {% else %}
+    .로그인한정 {
+        display: flex;
+    }
     {% endif %}
 </style>
 {% endblock style %}
@@ -107,7 +111,7 @@
             {% endif %}
             <div class="모바일미표시">{{ c.code }}</div>
             <div><div class="rarebox {{ c.rare }}">{{ c.rare }}</div></div>
-            <div class="로그인한정 d-flex flex-row">
+            <div class="로그인한정 flex-row">
                 <button type="button" class="컬렉션버튼 btn btn-danger" onclick="dec({{c.id}})">-</button>
                 <input type="number" name="{{ c.id }}" id="cc_input_{{ c.id }}"
                 class="cc_input" value="{{ c.amount|default_if_none:0 }}">
