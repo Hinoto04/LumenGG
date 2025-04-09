@@ -161,6 +161,13 @@ $(document).ready(function() {
 $(".cc_input").change(function() {
     let name = $(this).attr('name');
     let value = $(this).val();
+    if(value < 0) {
+        value = 0;
+        $(this).val(0);
+    } else if(value > 99) {
+        value = 99;
+        $(this).val(99);
+    }
 
     changedCollection[name] = value;
     console.log(changedCollection);
