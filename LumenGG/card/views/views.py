@@ -7,7 +7,7 @@ from ..models import Card, Character, Tag
 from collection.models import CollectionCard, Pack
 from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm
 from decorators import permission_required
-import re
+import re, random
 
 # Create your views here.
 def index(req):
@@ -82,6 +82,9 @@ def index(req):
             data = data.order_by('damage')
     else:
         data = data.order_by('id')
+    
+    if req.GET.get('random', None):
+        data = random.choices(k=int(req.GET.get('random', 1)), population=data)
     
     paginator = Paginator(data, 12)
     page_data = paginator.get_page(page)

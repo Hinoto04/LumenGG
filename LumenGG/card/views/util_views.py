@@ -5,8 +5,9 @@ from django.db.models import Q
 import openpyxl
 
 from ..models import Card, Character
+from ..forms import CardForm
 from collection.models import CollectionCard
-import re
+import re, random
 
 def importCards(req):
     
@@ -199,4 +200,3 @@ def smallImgInit(req):
                     print(cc.name, cc.code)
                     cc.img_sm = cc.image
                     cc.save()
-            

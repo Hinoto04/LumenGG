@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}카드 리스트{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "card/list.css" %}">
+{% endblock style %}
+{% block content %}
+<div>
+    <div id="최상단" class="d-flex flex-column mb-1">
+        <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">카드 검색</div>
+    </div>
+    <form action="" class="d-flex flex-column m-2" id="검색툴">
+        {{ form.keyword }}
+        <div class="d-flex flex-row justify-content-between mt-1 mb-1">
+            <div class="d-flex flex-row">
+                <button class="btn btn-light border me-2" onclick="필터토글();" type="button">필터</button>
+                {% if perms.card.tag_update %}
+                <a href="{% url "card:tagList" %}" class="btn btn-light border">태그 목록</a>
+                {% endif %}
+            </div>
+            <div class="d-flex flex-row">
+                <p class="mt-auto mb-auto me-2">정렬</p>
+                {{ form.sort}}
+            </div>
+        </div>
+        <div id="검색필터">
+            <div id="캐릭" class="필터세부 배경색1">
+                <label for="char">캐릭터</label>
+                {{ form.char }}
+            </div>
+            <div id="분류" class="필터세부 배경색1">
+                <label for="type">분류</label>
+                {{ form.type }}
+            </div>
+            <div id="판정" class="필터세부 배경색1">
+                <label for="pos">판정</label>
+                {{ form.pos }}
+            </div>
+            <div id="부위" class="필터세부 배경색1">
+                <label for="body">부위</label>
+                {{ form.body }}
+            </div>
+            <div id="특수" class="필터세부 배경색1 justify-content-center">
+                <label for="special">특수 판정</label>
+                <div class="d-flex flex-row flex-wrap">
+                    {{ form.specialpos }}
+                    {{ form.specialtype }}
+                </div>
+            </div>
+            <div id="frameField" class="필터세부 배경색1">
+                <div class="d-flex flex-row">
+                    <label for="frame">속도</label>
+                    {{ form.frametype }}
+                </div>
+                {{ form.framenum }}
+            </div>
+            <div id="packbox" class="필터세부 배경색1">
+                <label for="pack">출신 팩</label>
+                {{ form.pack }}
+            </div>
+            <div id="randombox" class="필터세부 배경색1">
+                <label for="random">뽑을 갯수</label>
+                <input type="number" name="random" id="id_random" class="긴옵션 배경색2" min=1 max=12 value=1>
+            </div>
+        </div>
+        <button class="btn btn-light border" type="submit">
+            검색
+        </button>
+    </form>
+    {% if perms.card.add_card %}
+    <div class="d-flex flex-row justify-content-end mb-2">
+        <a href="{% url "card:create" %}" class="btn btn-light border">카드 추가</a>
+    </div>
+    {% endif %}
+    <div id="카드리스트">
+        {% for card in cards %}
+        <div class="카드 배경색1">
+            <a class="w-100" href="{% url "card:detail" card.id %}">
+                <div class="w-100">
+                    <img class="w-100" src="{{ card.img_mid }}" alt="{{ card.name }}">
+                </div>
+                <div class="카드정보">
+                    <p class="캐릭터명">{{ card.character.name }}</p>
+                    <p class="카드명">{{ card.name }}</p>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="paginator d-flex justify-content-center">
+        <ul class="pagination">
+            {% for page_number in cards.paginator.page_range %}
+            {% if page_number >= cards.number|add:-5 and page_number <= cards.number|add:5 and page_number != cards.number %}
+                <li class="페이지">
+                    <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% elif page_number == cards.number %}
+                <li class="페이지 활성화" aria-current="page">
+                    <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+<script src="{% static "card/list.js" %}"></script>
+{% endblock content %}

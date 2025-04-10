@@ -73,7 +73,7 @@ function deckCapture() {
     const captureArea = document.getElementById('ImageDisplay');
     html2canvas(captureArea, {
         useCORS: true,
-        allowTaint: false,
+        allowTaint: true,
         scale: 2,
     }).then(canvas => {
         // 캔버스를 이미지로 변환
