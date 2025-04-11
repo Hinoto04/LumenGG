@@ -23,7 +23,7 @@ class CardForm(forms.Form):
     )
     body = forms.MultipleChoiceField(
         label = "부위",
-        choices = [('없음', '없음'), ('손', '손'), ('발', '발')],
+        choices = [('없음', '없음'), ('손', '손'), ('발', '발'), ('잔향', '잔향')],
         widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크'}),
         required = False,
     )
@@ -148,7 +148,7 @@ class CardCreateForm(forms.ModelForm):
             "pos": forms.Select(choices = [
                 ('상단', '상단'), ('중단', '중단'), ('하단', '하단')]),
             "body": forms.Select(choices = [
-                ('', ''), ('손', '손'), ('발', '발')]),
+                ('', ''), ('손', '손'), ('발', '발'), ('잔향', '잔향')]),
             "type": forms.Select(choices = [
                 ('공격', '공격'), ('수비', '수비'), ('특수', '특수'), ('특성', '특성'), ('토큰', '토큰')],),
             'g_top': forms.Select(choices = [
