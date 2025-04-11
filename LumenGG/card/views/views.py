@@ -151,10 +151,10 @@ def create(req):
             
             compress_image(path, os.path.join(settings.MEDIA_ROOT, 
                                             'webpsm', 
-                                            (form.cleaned_data['code']+'.webp')), 235, 100)
+                                            (form.cleaned_data['code']+'.webp')), 319, 100)
             compress_image(path, os.path.join(settings.MEDIA_ROOT, 
                                             'webpmin', 
-                                            (form.cleaned_data['code']+'.webp')), 157, 100)
+                                            (form.cleaned_data['code']+'.webp')), 213, 100)
             
             try:
                 card = Card.objects.get(name = form.cleaned_data['name'])
