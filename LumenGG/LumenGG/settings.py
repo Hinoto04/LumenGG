@@ -133,6 +133,13 @@ if DEBUG:
 else:
     STATIC_ROOT = BASE_DIR / "static"
 
+if DEBUG:
+    MEDIA_ROOT = BASE_DIR / 'media'
+    MEDIA_URL = '/media/'
+else:
+    MEDIA_ROOT = '/home/ubuntu/images/lumendb'
+    MEDIA_URL = 'https://images.hinoto.kr/'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 

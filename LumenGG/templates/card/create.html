@@ -8,7 +8,7 @@
 <div id="최상단" class="d-flex flex-column mb-1">
     <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">카드 추가</div>
 </div>
-<form action="" method="post">
+<form action="" method="post" enctype="multipart/form-data">
     {% include "form_errors.html" %}
     {% csrf_token %}
     <div class="행">
@@ -79,8 +79,8 @@
             {{ form.code }}
         </div>
         <div class="option">
-            <label for="img">이미지</label>
-            {{ form.img }}
+            <label for="img">이미지(webp)</label>
+            {{ form.imageFile }}
         </div>
         <div class="option">
             <label for="pack">수록 팩</label>

@@ -1,13 +1,16 @@
 from django.shortcuts import render, redirect
-from django.http import HttpResponse, Http404
+from django.http import HttpResponse, Http404, JsonResponse
 from django.core.paginator import Paginator
 from django.db.models import Q, Case, When, IntegerField
+from django.conf import settings
 
 from ..models import Card, Character, Tag
 from collection.models import CollectionCard, Pack
 from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm
 from decorators import permission_required
-import re, random
+import re, random, os
+
+from PIL import Image
 
 # Create your views here.
 def index(req):
@@ -140,18 +143,36 @@ def create(req):
         
         return render(req, 'card/create.html', context={'form': form})
     else:
-        form = CardCreateForm(req.POST)
+        form = CardCreateForm(req.POST, req.FILES)
         if form.is_valid():
+            path = os.path.join(settings.MEDIA_ROOT, 'webp', (form.cleaned_data['code']+'.webp'))
+            handle_uploaded_file(req.FILES['imageFile'], 
+                path)
+            
+            compress_image(path, os.path.join(settings.MEDIA_ROOT, 
+                                            'webpsm', 
+                                            (form.cleaned_data['code']+'.webp')), 235, 100)
+            compress_image(path, os.path.join(settings.MEDIA_ROOT, 
+                                            'webpmin', 
+                                            (form.cleaned_data['code']+'.webp')), 157, 100)
+            
             try:
-                card = form.save()
-            except:
                 card = Card.objects.get(name = form.cleaned_data['name'])
+                return redirect('card:detail', card.id)
+            except:
+                card = form.save(commit=False)
+                card.img = 'https://images.hinoto.kr/lumendb/webp/' + card.code + '.webp'
+                card.img_mid = 'https://images.hinoto.kr/lumendb/webpsm/' + card.code + '.webp'
+                card.img_sm = 'https://images.hinoto.kr/lumendb/webpmin/' + card.code + '.webp'
+                card.save()
+                
             for r in form.data.getlist('rare'):
                 newCC = CollectionCard(
                     card = card,
                     pack = Pack.objects.get(id = form.data.get('pack')),
                     code = card.code,
                     image = card.img,
+                    img_sm = card.img_mid,
                     name = card.name,
                     rare = r)
                 print(newCC.__dict__)
@@ -160,6 +181,22 @@ def create(req):
         else:
             return render(req, 'card/create.html', context={'form': form})
 
+def handle_uploaded_file(f, filePath):
+    print(filePath)
+    with open(filePath, "wb+") as destination:
+        for chunk in f.chunks():
+            destination.write(chunk)
+
+#mid = 235, #sm = 157
+def compress_image(filePath: str, newFilePath: str, max_width: int = 235, quality = 100):
+    with Image.open(filePath) as img:
+        width, height = img.size
+        if width > max_width:
+            ratio = max_width / width
+            new_height = int(height * ratio)
+            img = img.resize((max_width, new_height), Image.ANTIALIAS)
+        img.save(newFilePath, quality=quality)
+            
 def tagList(req):
     page = req.GET.get('page', '1')
     keyword = req.GET.get('keyword', '')

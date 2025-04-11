@@ -171,9 +171,9 @@ def smallImgInit(req):
     
     cards = Card.objects.all()
     for card in cards:
-        card.img = "https://images.hinoto.kr/lumendb/original/" + card.code + ".jpg"
-        card.img_mid = "https://images.hinoto.kr/lumendb/mid/" + card.code + "-sm.jpg"
-        card.img_sm = "https://images.hinoto.kr/lumendb/sm/" + card.code + "-sm.jpg"
+        card.img = "https://images.hinoto.kr/lumendb/webp/" + card.code + ".webp"
+        card.img_mid = "https://images.hinoto.kr/lumendb/webpsm/" + card.code + ".webp"
+        card.img_sm = "https://images.hinoto.kr/lumendb/webpmin/" + card.code + ".webp"
         card.save()
     
     ccs = CollectionCard.objects.all()
@@ -189,8 +189,8 @@ def smallImgInit(req):
                 cc.save()
         else:
             try:
-                cc.image = "https://images.hinoto.kr/lumendb/original/" + cc.code + ".jpg"
-                cc.img_sm = "https://images.hinoto.kr/lumendb/mid/" + cc.code + "-sm.jpg"
+                cc.image = "https://images.hinoto.kr/lumendb/webp/" + cc.code + ".webp"
+                cc.img_sm = "https://images.hinoto.kr/lumendb/webpsm/" + cc.code + ".webp"
                 cc.save()
             except:
                 try:

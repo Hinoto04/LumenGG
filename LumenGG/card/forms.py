@@ -1,7 +1,7 @@
 from django import forms
 from .models import Character, Card, Tag
 from collection.models import Pack
-
+from django.core.validators import FileExtensionValidator
 class CardForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
         label = "캐릭터",
@@ -131,13 +131,19 @@ class CardCreateForm(forms.ModelForm):
         widget = forms.CheckboxSelectMultiple(attrs={'class': 'rare'}),
         required = False,
     )
+    imageFile = forms.FileField(
+        label = "이미지",
+        required = False,
+        validators=[FileExtensionValidator(allowed_extensions=['webp'])],
+        widget = forms.ClearableFileInput(attrs={'multiple': False}),
+    )
     class Meta:
         model = Card
         fields = ['name', 'ruby', 'type', 'frame', 
                   'damage', 'pos', 'body', 'special', 'code', 
                   'hit', 'guard', 'counter', 
                   'g_top', 'g_mid', 'g_bot', 
-                  'character', 'img', 'text']
+                  'character', 'text']
         widgets = {
             "pos": forms.Select(choices = [
                 ('상단', '상단'), ('중단', '중단'), ('하단', '하단')]),
