@@ -192,9 +192,7 @@ def compress_image(filePath: str, newFilePath: str, max_width: int = 235, qualit
     with Image.open(filePath) as img:
         width, height = img.size
         if width > max_width:
-            ratio = max_width / width
-            new_height = int(height * ratio)
-            img = img.resize((max_width, new_height), Image.ANTIALIAS)
+            img.thumbnail((max_width, max_width))
         img.save(newFilePath, quality=quality)
             
 def tagList(req):
