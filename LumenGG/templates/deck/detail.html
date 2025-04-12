@@ -139,6 +139,32 @@
         <h4>덱 설명</h4>
     {{ deck.description|safe }}
     </div>
+    {% if user.is_authenticated %}
+    <div id="개추존" class="d-flex justify-content-center mt-2">
+        <form method="POST" action="">
+            {% csrf_token %}
+            {% if deck.deck_like.like %}
+            <button class="개추버튼 me-2 pressed" type="submit">
+            {% else %}
+            <button class="개추버튼 me-2" type="submit">
+            {% endif %}
+                <img src="{% static "thumbs-up.png" %}" alt="">
+                <p>{{ likecount }}</p>
+            </button>
+        </form>
+        <form method="POST" action="">
+            {% csrf_token %}
+            {% if deck.deck_like.bookmark %}
+                <button class="개추버튼 me-2 pressed" type="submit">
+            {% else %}
+                <button class="개추버튼 me-2" type="submit">
+            {% endif %}
+                <img src="{% static "bookmark.png" %}" alt="">
+                <p>{{ bookmarkcount }}</p>
+            </button>
+        </form>
+    </div>
+    {% endif %}
 </div>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="{% static "deck/detail.js" %}"></script>

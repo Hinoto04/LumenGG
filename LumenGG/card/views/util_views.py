@@ -162,41 +162,47 @@ def noSpaceAdd(req):
 
 def smallImgInit(req):
     
-    linklist = {}
-    f = open('../imglinks_mid.txt', encoding='UTF-8')
-    while l:=f.readline():
-        l = l.strip()
-        code = l.split('/')[-1][:-7]
-        linklist[code] = l
+    # linklist = {}
+    # f = open('../imglinks_mid.txt', encoding='UTF-8')
+    # while l:=f.readline():
+    #     l = l.strip()
+    #     code = l.split('/')[-1][:-7]
+    #     linklist[code] = l
     
-    cards = Card.objects.all()
-    for card in cards:
-        card.img = "https://images.hinoto.kr/lumendb/webp/" + card.code + ".webp"
-        card.img_mid = "https://images.hinoto.kr/lumendb/webpsm/" + card.code + ".webp"
-        card.img_sm = "https://images.hinoto.kr/lumendb/webpmin/" + card.code + ".webp"
-        card.save()
+    # cards = Card.objects.all()
+    # for card in cards:
+    #     card.img = "https://images.hinoto.kr/lumendb/webp/" + card.code + ".webp"
+    #     card.img_mid = "https://images.hinoto.kr/lumendb/webpsm/" + card.code + ".webp"
+    #     card.img_sm = "https://images.hinoto.kr/lumendb/webpmin/" + card.code + ".webp"
+    #     card.save()
     
-    ccs = CollectionCard.objects.all()
+    # ccs = CollectionCard.objects.all()
+    # for cc in ccs:
+    #     if not (cc.code in linklist.keys()):
+    #         try:
+    #             cc.image = cc.card.img
+    #             cc.img_sm = cc.card.img_mid
+    #             cc.save()
+    #         except:
+    #             print(cc.name, cc.code)
+    #             cc.img_sm = cc.image
+    #             cc.save()
+    #     else:
+    #         try:
+    #             cc.image = "https://images.hinoto.kr/lumendb/webp/" + cc.code + ".webp"
+    #             cc.img_sm = "https://images.hinoto.kr/lumendb/webpsm/" + cc.code + ".webp"
+    #             cc.save()
+    #         except:
+    #             try:
+    #                 cc.img_sm = cc.card.img_mid
+    #                 cc.save()
+    #             except:
+    #                 print(cc.name, cc.code)
+    #                 cc.img_sm = cc.image
+    #                 cc.save()
+    
+    ccs = CollectionCard.objects.filter(code__contains='UNC-PR')
     for cc in ccs:
-        if not (cc.code in linklist.keys()):
-            try:
-                cc.image = cc.card.img
-                cc.img_sm = cc.card.img_mid
-                cc.save()
-            except:
-                print(cc.name, cc.code)
-                cc.img_sm = cc.image
-                cc.save()
-        else:
-            try:
-                cc.image = "https://images.hinoto.kr/lumendb/webp/" + cc.code + ".webp"
-                cc.img_sm = "https://images.hinoto.kr/lumendb/webpsm/" + cc.code + ".webp"
-                cc.save()
-            except:
-                try:
-                    cc.img_sm = cc.card.img_mid
-                    cc.save()
-                except:
-                    print(cc.name, cc.code)
-                    cc.img_sm = cc.image
-                    cc.save()
+        cc.image = "https://images.hinoto.kr/lumendb/webp/" + cc.code + ".webp"
+        cc.img_sm = "https://images.hinoto.kr/lumendb/webpsm/" + cc.code + ".webp"
+        cc.save()

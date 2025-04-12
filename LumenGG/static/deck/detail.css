@@ -151,3 +151,19 @@ img {
     object-fit: cover;
     max-width: 100%;
 }
+
+.개추버튼 {
+    width: 75px;
+    height: 75px;
+    border: 1px solid #000;
+    border-radius: 50%;
+    padding: .5em;
+}
+
+.개추버튼 > img {
+    width: 43px;
+}
+
+.pressed {
+    filter: invert(73%) sepia(31%) saturate(6009%) hue-rotate(0deg) brightness(105%) contrast(105%);
+}

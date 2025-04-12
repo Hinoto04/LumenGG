@@ -29,3 +29,24 @@ class CardInDeck(models.Model):
     
     def __str__(self):
         return f"{self.deck.name} : {self.card.name} × {self.count}"
+
+class DeckLike(models.Model):
+    deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name='deck_like')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='deck_like')
+    like = models.BooleanField(default=False)
+    bookmark = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return f"{self.deck.name} : {self.author.username} - \
+            {'L' if self.like else ''}{'B' if self.bookmark else ''}"
+
+class DeckComment(models.Model):
+    deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name='deck_comment')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='deck_comment')
+    content = models.TextField()
+    created = models.DateTimeField(auto_now_add=True)
+    comment = models.ForeignKey('self', on_delete=models.DO_NOTHING, null=True, blank=True, related_name='replies')
+    deleted = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return f"{self.deck.name} : {self.author.username} : {self.content}"
