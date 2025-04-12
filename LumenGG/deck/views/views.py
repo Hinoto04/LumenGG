@@ -56,6 +56,8 @@ def detail(req, id=0):
     cards = CardInDeck.objects.filter(deck=deck).order_by('-card__type', 'card__frame')
     hands = cards.filter(hand__gte=1)
     sides = cards.filter(side__gte=1)
+    liked = DeckLike.objects.filter(deck=deck, author=req.user, like=True).exists()
+    bookmarked = DeckLike.objects.filter(deck=deck, author=req.user, bookmark=True).exists()
     
     context = {
         'deck': deck,
@@ -64,6 +66,8 @@ def detail(req, id=0):
         'sides': sides,
         'likecount': likecount,
         'bookmarkcount': bookmarkcount,
+        'liked': liked,
+        'bookmarked': bookmarked,
     }
     return render(req, 'deck/detail.html', context=context)
 
@@ -218,4 +222,36 @@ def delete(req, id):
 
 @login_required(login_url='common:login', redirect_field_name='next')
 def like(req, id):
-    raise Http404()
+    try:
+        deck = Deck.objects.get(id=id)
+    except Deck.DoesNotExist:
+        raise Http404()
+    
+    if req.method == "POST":
+        try:
+            dl = DeckLike.objects.get(deck=deck, author=req.user)
+            dl.like = not dl.like
+        except DeckLike.DoesNotExist:
+            dl = DeckLike(deck=deck, author=req.user, like=True)
+        dl.save()
+        return redirect(reverse('deck:detail', kwargs={'id': id}))
+    else:
+        raise Http404()
+
+@login_required(login_url='common:login', redirect_field_name='next')
+def bookmark(req, id):
+    try:
+        deck = Deck.objects.get(id=id)
+    except Deck.DoesNotExist:
+        raise Http404()
+    
+    if req.method == "POST":
+        try:
+            dl = DeckLike.objects.get(deck=deck, author=req.user)
+            dl.bookmark = not dl.bookmark
+        except DeckLike.DoesNotExist:
+            dl = DeckLike(deck=deck, author=req.user, bookmark=True)
+        dl.save()
+        return redirect(reverse('deck:detail', kwargs={'id': id}))
+    else:
+        raise Http404()

@@ -141,9 +141,9 @@
     </div>
     {% if user.is_authenticated %}
     <div id="개추존" class="d-flex justify-content-center mt-2">
-        <form method="POST" action="">
+        <form method="POST" action="{% url "deck:like" deck.id %}">
             {% csrf_token %}
-            {% if deck.deck_like.like %}
+            {% if liked %}
             <button class="개추버튼 me-2 pressed" type="submit">
             {% else %}
             <button class="개추버튼 me-2" type="submit">
@@ -152,9 +152,9 @@
                 <p>{{ likecount }}</p>
             </button>
         </form>
-        <form method="POST" action="">
+        <form method="POST" action="{% url "deck:bookmark" deck.id %}">
             {% csrf_token %}
-            {% if deck.deck_like.bookmark %}
+            {% if bookmarked %}
                 <button class="개추버튼 me-2 pressed" type="submit">
             {% else %}
                 <button class="개추버튼 me-2" type="submit">

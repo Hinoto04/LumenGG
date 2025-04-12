@@ -164,6 +164,6 @@ img {
     width: 43px;
 }
 
-.pressed {
+.pressed > img {
     filter: invert(73%) sepia(31%) saturate(6009%) hue-rotate(0deg) brightness(105%) contrast(105%);
 }
