@@ -56,8 +56,12 @@ def detail(req, id=0):
     cards = CardInDeck.objects.filter(deck=deck).order_by('-card__type', 'card__frame')
     hands = cards.filter(hand__gte=1)
     sides = cards.filter(side__gte=1)
-    liked = DeckLike.objects.filter(deck=deck, author=req.user, like=True).exists()
-    bookmarked = DeckLike.objects.filter(deck=deck, author=req.user, bookmark=True).exists()
+    if req.user.is_authenticated:
+        liked = DeckLike.objects.filter(deck=deck, author=req.user, like=True).exists()
+        bookmarked = DeckLike.objects.filter(deck=deck, author=req.user, bookmark=True).exists()
+    else:
+        liked = False
+        bookmarked = False
     
     context = {
         'deck': deck,
