@@ -2,7 +2,7 @@
 {% block title %}로그인{% endblock title %}
 {% block content %}
 <div class="container my-3">
-    <form method="post" action="{% url 'common:login' %}">
+    <form method="post" action="">
         {% csrf_token %}
         {% include "form_errors.html" %}
         <div class="col-lg-5 d-flex flex-column justify-content-center ms-auto me-auto">

@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.urls import reverse
 from django.core import serializers
 from django.core.paginator import Paginator
@@ -8,7 +8,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 
 from card.models import Card, Character
-from ..models import Deck, CardInDeck
+from ..models import Deck, CardInDeck, DeckLike, DeckComment
 from ..forms import DeckSearchForm, DeckMakeForm
 
 import json
@@ -51,6 +51,8 @@ def detail(req, id=0):
     except Deck.DoesNotExist:
         raise Http404()
     
+    likecount = DeckLike.objects.filter(deck=deck, like=True).count()
+    bookmarkcount = DeckLike.objects.filter(deck=deck, bookmark=True).count()
     cards = CardInDeck.objects.filter(deck=deck).order_by('-card__type', 'card__frame')
     hands = cards.filter(hand__gte=1)
     sides = cards.filter(side__gte=1)
@@ -60,10 +62,12 @@ def detail(req, id=0):
         'cards': cards,
         'hands': hands,
         'sides': sides,
+        'likecount': likecount,
+        'bookmarkcount': bookmarkcount,
     }
     return render(req, 'deck/detail.html', context=context)
 
-@login_required(login_url='common:login')
+@login_required(login_url='common:login', redirect_field_name='next')
 def create(req):
     if req.method == "GET":
         form = DeckMakeForm()
@@ -145,7 +149,7 @@ def createSearch(req):
     sdata = serializers.serialize('json', data)
     return JsonResponse(sdata, safe=False)
 
-@login_required(login_url='common:login')
+@login_required(login_url='common:login', redirect_field_name='next')
 def update(req, id=0):
     try:
         deck = Deck.objects.get(id=id)
@@ -198,7 +202,7 @@ def update(req, id=0):
         }
         return JsonResponse(content)
 
-@login_required(login_url='common:login')
+@login_required(login_url='common:login', redirect_field_name='next')
 def delete(req, id):
     try:
         deck = Deck.objects.get(id=id)
@@ -211,3 +215,7 @@ def delete(req, id):
         return redirect('deck:index')
     else:
         raise PermissionDenied()
+
+@login_required(login_url='common:login', redirect_field_name='next')
+def like(req, id):
+    raise Http404()

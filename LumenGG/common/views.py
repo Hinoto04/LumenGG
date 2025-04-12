@@ -1,7 +1,26 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout, authenticate, login
-from .forms import UserForm
+from django.http import HttpResponseRedirect
+from .forms import UserForm, LoginForm
+
+def login_view(req):
+    redirect_to = req.GET.get('next', 'card:index')
+    if req.user.is_authenticated:
+        return redirect(redirect_to)
+    
+    if req.method == "POST":
+        form = LoginForm(req.POST)
+        if form.is_valid():
+            username = form.cleaned_data.get('username')
+            password = form.cleaned_data.get('password')
+            user = authenticate(req, username=username, password=password)
+            if user is not None:
+                login(req, user)
+                return redirect(redirect_to)
+        return render(req, 'common/login.html', context={'form': form})
+    else:
+        return render(req, 'common/login.html')
 
 # Create your views here.
 @login_required(login_url='common:login')
