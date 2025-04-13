@@ -14,11 +14,11 @@ class LoginForm(forms.Form):
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            self.add_error('아이디', '존재하지 않는 아이디입니다.')
+            self.add_error('username', '존재하지 않는 아이디입니다.')
             return cleaned_data
         else:
             if not user.check_password(password):
-                self.add_error('비밀번호', '비밀번호가 틀렸습니다.')
+                self.add_error('password', '비밀번호가 틀렸습니다.')
         
         return cleaned_data
 
