@@ -6,6 +6,8 @@ from .forms import UserForm, LoginForm
 
 def login_view(req):
     redirect_to = req.GET.get('next', 'card:index')
+    if redirect_to == '':
+        redirect_to = 'card:index'
     if req.user.is_authenticated:
         return redirect(redirect_to)
     
