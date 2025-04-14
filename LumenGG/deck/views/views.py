@@ -21,9 +21,11 @@ def index(req):
     if not form.is_valid():
         char = None
         keyword = None
+        sort = None
     else:
         char = form.cleaned_data['char']
         keyword = form.cleaned_data['keyword']
+        sort = form.cleaned_data['sort']
     
     q = Q(deleted=False)
     if char: q.add(Q(character__in=char), q.AND)
@@ -34,7 +36,17 @@ def index(req):
         q.add(qq, q.AND)
     
     q.add(~Q(private=True), q.AND)
-    data = Deck.objects.filter(q).order_by('-created')
+    data = Deck.objects.filter(q).annotate(
+        likecount = Count('deck_like')
+        )
+    
+    
+    if sort == 'recent':
+        data = data.order_by('-created')
+    elif sort == 'version':
+        data = data.order_by('-version', '-created')
+    elif sort == 'like':
+        data = data.order_by('-likecount', '-created')
     
     paginator = Paginator(data, 20)
     page_data = paginator.get_page(page)

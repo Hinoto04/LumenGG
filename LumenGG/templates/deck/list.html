@@ -15,6 +15,10 @@
             <label for="char">캐릭터</label>
             {{ form.char }}
         </div>
+        <div class="d-flex justify-content-end mt-2">
+            <label for="id_sort" class="mt-auto mb-auto me-2">정렬</label>
+            {{ form.sort }}
+        </div>
         <button class="btn btn-light border mt-2" type="submit">검색</button>
     </form>
     <hr class="my-4">
@@ -26,8 +30,9 @@
             <thead>
                 <tr class="열정보">
                     <th scope="col" class="모바일비표시">No.</th>
-                    <th scope="col">이름</th>
+                    <th scope="col" class="t-left">이름</th>
                     <th scope="col">캐릭터</th>
+                    <th scope="col">추천</th>
                     <th scope="col" class="모바일비표시">작성자</th>
                     <th scope="col" class="모바일비표시">버전</th>
                 </tr>
@@ -36,8 +41,11 @@
                 {% for deck in decks %}
                 <tr class="덱정보 배경색1">
                     <td class="모바일비표시">{{ deck.id }}</td>
-                    <td><a href="{% url "deck:detail" deck.id %}" class="w-100 덱이름">{{ deck.name }}</a></td>
+                    <td class="t-left">
+                        <a href="{% url "deck:detail" deck.id %}" class="w-100 덱이름 t-left">{{ deck.name }}</a>
+                    </td>
                     <td>{{ deck.character.name }}</td>
+                    <td>{{ deck.likecount }}</td>
                     <td class="모바일비표시">{{ deck.author.username }}</td>
                     <td class="모바일비표시">{{ deck.version }}</td>
                 </tr>

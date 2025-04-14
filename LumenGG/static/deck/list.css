@@ -54,9 +54,16 @@ label:has(> input.검색체크:checked)  {
 .열정보 > th { 
     padding: 1em .5em;
     border-bottom: 1px solid #d9d9d9; 
+    text-align: center;
 }
 
-.덱정보 > td { padding: .5em; }
+.덱정보 > td { 
+    padding: .5em;
+    text-align: center;
+}
+.t-left {
+    text-align: left!important;
+}
 .덱정보 > td:nth-child(1) { border-radius: 1em 0 0 1em }
 .덱정보 > td:nth-last-child(1) { border-radius: 0 1em 1em 0}
 

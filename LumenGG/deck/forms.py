@@ -20,6 +20,16 @@ class DeckSearchForm(forms.Form):
                 'class': 'form-control 배경색1 w-100',
                 'placeholder': '키워드, 작성자 검색'}),
     )
+    sort = forms.ChoiceField(
+        label = "정렬",
+        choices = [
+            ('recent', '최신순'),
+            ('version', '버전순'),
+            ('like', '좋아요순'),
+        ],
+        initial = 'recent', 
+        widget = forms.Select(attrs={'class': 'btn border 배경색1'})
+    )
 
 class DeckMakeForm(forms.ModelForm):
     name = forms.CharField(

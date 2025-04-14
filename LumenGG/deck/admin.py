@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import Deck, CardInDeck
 
 class DeckAdmin(admin.ModelAdmin):
-    list_display = ('name', 'character', 'version', 'author')
+    list_display = ('id', 'name', 'character', 'version', 'author')
     list_filter = ('character', 'version')
     search_fields = ('name', 'character__name', 'version', 'keyword', 'author__username')
     ordering = ('-created',)
