@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'deck.apps.DeckConfig',
     'qna.apps.QnaConfig',
     'collection.apps.CollectionConfig',
+    'statistic.apps.StatisticConfig',
     'django_summernote',
     'martor',
     'django.contrib.admin',

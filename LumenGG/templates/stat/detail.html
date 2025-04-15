@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}통계 목록{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "stat/list.css" %}">
+<link rel="stylesheet" href="{% static "stat/detail.css" %}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock style %}
+{% block content %}
+<div id="CS정보" class="배경색1">
+    <div id="위쪽정보">
+        <p>{{cs.name}}</p>
+        <p>{{cs.datetime}}</p>
+    </div>
+    <div id="아래쪽정보">
+        <p>{{cs.description}}</p>
+    </div>
+</div>
+<hr class="my-4">
+<div class="d-flex flex-column mb-1">
+    <div style="text-align: start; font-size: 1.5em; font-weight: 900;" class="ms-1">참가자 목록</div>
+</div>
+<div class="d-flex">
+    <table id="덱목록" class="w-100">
+        <thead>
+            <tr class="열정보">
+                <th scope="col" class="">플레이어</th>
+                <th scope="col" class="">순위</th>
+                <th scope="col" class="">캐릭터</th>
+                <th scope="col" class="">덱</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for deck in decks %}
+            <tr class="덱정보 배경색1">
+                <td class="모바일비표시">{{ deck.user }}</td>
+                <td class="">{{ deck.place }}</td>
+                <td>{{ deck.deck.character.name }}</td>
+                <td>
+                    <a href="{% url "deck:detail" deck.deck.id %}">{{ deck.deck.name }}</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<hr class="my-4">
+<div class="d-flex flex-column mb-1">
+    <div style="text-align: start; font-size: 1.5em; font-weight: 900;" class="ms-1">통계 정보</div>
+</div>
+<div id="통계">
+    <canvas id="캐릭터파이" style="width:100%; max-height: 400px;"></canvas>
+    <canvas id="중립카드사용률" style="width:100%;"></canvas>
+</div>
+<script>
+    var loadUrl = "{% url "stat:detailData" cs.id %}";
+</script>
+<script src="{% static "stat/detail.js" %}"></script>
+{% endblock content %}

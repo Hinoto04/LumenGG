@@ -1,0 +1,25 @@
+#CS정보 {
+    padding: 1em;
+    border-radius: 1em;
+    margin-bottom: 1em;
+}
+
+#CS정보 > div {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+#위쪽정보 {
+    font-size: 1.5em;
+    font-weight: 900;
+}
+
+#아래쪽정보 {
+    font-size: 1.3em;
+    font-weight: 700;
+}
+
+#통계 > canvas {
+    margin-bottom: 1em;
+}

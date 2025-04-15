@@ -5,7 +5,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 
 from ..models import Deck, CardInDeck
 from card.models import Card
-from ..forms import DeckSearchForm, StatForm
+from ..forms import DeckSearchForm
 
 def deckMake(req):
     deckList = ['스탠딩 가드', '다운 가드', '구르기', '세츠메이 킥',

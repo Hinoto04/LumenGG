@@ -7,6 +7,7 @@ class Character(models.Model):
     group = models.CharField(max_length=100) #캐릭터 소속 (루멘콘덴서, 뉴트럴 등)
     hp_hand = models.JSONField() #남은 체력 별 손 크기 제한
     img = models.URLField() #이미지 URL
+    color = models.CharField(max_length=12, default="#ffffff")
     
     def __str__(self):
         return self.name

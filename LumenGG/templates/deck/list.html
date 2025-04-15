@@ -15,9 +15,12 @@
             <label for="char">캐릭터</label>
             {{ form.char }}
         </div>
-        <div class="d-flex justify-content-end mt-2">
-            <label for="id_sort" class="mt-auto mb-auto me-2">정렬</label>
-            {{ form.sort }}
+        <div class="d-flex justify-content-between mt-2">
+            <a class="btn btn-dark" href="{% url "stat:index" %}">통계</a>
+            <div>
+                <label for="id_sort" class="mt-auto mb-auto me-2">정렬</label>
+                {{ form.sort }}
+            </div>
         </div>
         <button class="btn btn-light border mt-2" type="submit">검색</button>
     </form>

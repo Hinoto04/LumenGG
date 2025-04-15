@@ -40,13 +40,12 @@ def index(req):
         likecount = Count('deck_like')
         )
     
-    
-    if sort == 'recent':
-        data = data.order_by('-created')
-    elif sort == 'version':
+    if sort == 'version':
         data = data.order_by('-version', '-created')
     elif sort == 'like':
         data = data.order_by('-likecount', '-created')
+    else:
+        data = data.order_by('-created')
     
     paginator = Paginator(data, 20)
     page_data = paginator.get_page(page)

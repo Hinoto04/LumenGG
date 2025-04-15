@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}통계 목록{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "stat/list.css" %}">
+{% endblock style %}
+{% block content %}
+<div>
+    <div id="최상단" class="d-flex flex-column mb-1">
+        <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">통계 목록</div>
+    </div>
+    <form class="d-flex flex-column p-2" action="" method="get">
+        {{ form.keyword }}
+        <button class="btn btn-light border mt-2" type="submit">검색</button>
+    </form>
+    <hr class="my-4">
+    <div class="d-flex">
+        <table id="덱목록" class="w-100">
+            <thead>
+                <tr class="열정보">
+                    <th scope="col" class="모바일비표시">No.</th>
+                    <th scope="col" class="">이름</th>
+                    <th scope="col" class="">개최일</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cs in css %}
+                <tr class="덱정보 배경색1">
+                    <td class="모바일비표시">{{ cs.id }}</td>
+                    <td class="">
+                        <a href="{% url "stat:detail" cs.id %}" class="w-100 덱이름 t-left">{{ cs.name }}</a>
+                    </td>
+                    <td>{{ cs.datetime }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="paginator d-flex justify-content-center">
+        <ul class="pagination">
+            {% for page_number in decks.paginator.page_range %}
+            {% if page_number >= decks.number|add:-5 and page_number <= decks.number|add:5 and page_number != decks.number %}
+                <li class="페이지">
+                    <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% elif page_number == decks.number %}
+                <li class="페이지 활성화" aria-current="page">
+                    <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+<script src="{% static "card/list.js" %}"></script>
+{% endblock content %}
