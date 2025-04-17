@@ -213,9 +213,12 @@ LOGGING = {
 
 SUMMERNOTE_CONFIG = {
     # You can put custom Summernote settings
+    'iframe': False,
     'summernote': {
         # Change editor size
         'width': '100%',
+        'minHeight': '300px',
+        'maxHeight': '600px',
     },
 }
 

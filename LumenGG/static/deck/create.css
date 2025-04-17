@@ -154,3 +154,7 @@ label:has(> input.검색체크:checked), input.검색체크:checked + label {
 }
 #MainDeckList > tr > td:nth-child(1) { border-radius: 1em 0 0 1em }
 #MainDeckList > tr > td:nth-last-child(1) { border-radius: 0 1em 1em 0}
+
+.summernote-div, #id_description_iframe {
+    height: 540px!important;
+}
