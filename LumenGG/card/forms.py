@@ -175,5 +175,5 @@ class CardCommentForm(forms.ModelForm):
         widgets = {
             "comment": forms.TextInput(attrs={
                 "class": "form-control 긴옵션 배경색2",
-                "placeholder": "코멘트 입력(200자 까지)"})
+                "placeholder": "코멘트 작성/수정(200자 까지)"})
         }

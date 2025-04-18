@@ -278,7 +278,7 @@ def comment(req, id=0):
     except Card.DoesNotExist:
         raise Http404("카드가 존재하지 않습니다.")
     
-    comments = CardComment.objects.filter(card=card)
+    comments = CardComment.objects.filter(card=card).order_by('-created_at')
     
     if req.method == 'POST':
         if not req.user.is_authenticated:
@@ -302,7 +302,6 @@ def comment(req, id=0):
         form = CardCommentForm()
         
     page = req.GET.get('page', '1')
-    
     
     context = {
         'card': card,
