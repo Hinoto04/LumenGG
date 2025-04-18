@@ -15,6 +15,7 @@ $(document).ready(function(){
     // Check Radio-box
     $(".rating input:radio").attr("checked", false);
     $("#initValue").attr("checked", true);
+    $("#initValue").parent().addClass('checked');
 
     $('.rating input').click(function () {
         $(".rating span").removeClass('checked');
