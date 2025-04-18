@@ -35,3 +35,7 @@ def packname(code):
         if i in packnameDict.keys():
             name += packnameDict[i] + ' '
     return name
+
+@register.filter(name="toStar")
+def toStar(value):
+    return "★"*value + "☆"*(10-value)

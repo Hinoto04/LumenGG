@@ -1,12 +1,12 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, Http404, JsonResponse
 from django.core.paginator import Paginator
-from django.db.models import Q, Case, When, IntegerField
+from django.db.models import Q, Case, When, IntegerField, Avg
 from django.conf import settings
 
-from ..models import Card, Character, Tag
+from ..models import Card, Character, Tag, CardComment
 from collection.models import CollectionCard, Pack
-from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm
+from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm, CardCommentForm
 from decorators import permission_required
 import re, random, os
 
@@ -83,6 +83,8 @@ def index(req):
             data = data.order_by('-damage')
         elif sort == '+데미지':
             data = data.order_by('damage')
+        elif sort == "-점수":
+            data = data.order_by('-score')
     else:
         data = data.order_by('id')
     
@@ -269,3 +271,42 @@ def editCardTag(req, id=0):
     card.save()
     
     return redirect('card:detail', id)
+
+def comment(req, id=0):
+    try:
+        card = Card.objects.get(id = id)
+    except Card.DoesNotExist:
+        raise Http404("카드가 존재하지 않습니다.")
+    
+    comments = CardComment.objects.filter(card=card)
+    
+    if req.method == 'POST':
+        if not req.user.is_authenticated:
+            return redirect('card:comment', card.id)
+        form = CardCommentForm(req.POST)
+        if form.is_valid():
+            try:
+                comment = comments.get(author=req.user)
+                comment.score = form.cleaned_data['score']
+                comment.comment = form.cleaned_data['comment']
+            except CardComment.DoesNotExist:
+                comment = CardComment(
+                    author = req.user,
+                    score = form.cleaned_data['score'],
+                    comment = form.cleaned_data['comment'],
+                    card = card
+                )
+            comment.save()
+            return redirect('card:comment', card.id)
+    else:
+        form = CardCommentForm()
+        
+    page = req.GET.get('page', '1')
+    
+    
+    context = {
+        'card': card,
+        'comments': comments,
+        'form': form,
+    }
+    return render(req, 'card/comment.html', context = context)

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% load static %}
+{% load card_tags %}
+{% block title %}
+{{ card.name }}
+{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="{% static "card/detail.css" %}">
+<link rel="stylesheet" href="{% static "card/comment.css" %}">
+{% endblock style %}
+{% block content %}
+<div>
+    <div>
+        <a id="돌아가기" href="javascript:history.back()">← 돌아가기</a>
+    </div>
+    <div id="섹션1">
+        <div id="카드" class="배경색1">
+            <div class="overlayButton">
+                <img id="카드이미지" class="w-100" src="{{ card.img }}" alt="{{ card.img }}">
+            </div>
+            <div class="d-flex flex-row justify-content-between">
+                <div class="카드정보">
+                    <p class="캐릭터명">{{ card.character.name }}</p>
+                    <p class="카드명">{{ card.name }}</p>
+                </div>
+                <div class="mt-auto mb-auto me-2">
+                    <a href="{% url "card:comment" card.id %}" class="btn btn-dark">평점 {{ card.score|default_if_none:"미평가" }}/10.0</a>
+                </div>
+            </div>
+        </div>
+        <div>
+            {% if card.type == "공격" %}
+            <div id="기본정보" class="공격">
+                <div id="판정" class="정보상자">
+                    <div><p>판정</p></div><div><p>{{ card.pos }} {{ card.body|default_if_none:"" }}</p></div>
+                </div>
+                <div id="특수" class="정보상자">
+                    <div><p>특수 판정</p></div><div><p>{{ card.special|default_if_none:"X" }}</p></div>
+                </div>
+                <div id="댐지" class="정보상자">
+                    <div><p>대미지</p></div><div><p>{{ card.damage }}</p></div>
+                </div>
+                <div id="속도" class="정보상자">
+                    <div><p>속도</p></div><div><p>{{ card.frame }}</p></div>
+                </div>
+                <div id="처리">
+                    <div id="처리1" class="정보상자">
+                        <div><p>히트</p></div><div><p>{{ card.hit|default_if_none:"X" }}</p></div>
+                    </div>
+                    <div id="처리2" class="정보상자">
+                        <div><p>가드</p></div><div><p>{{ card.guard|default_if_none:"X" }}</p></div>
+                    </div>
+                    <div id="처리3" class="정보상자">
+                        <div><p>카운터</p></div><div><p>{{ card.counter|default_if_none:"X" }}</p></div>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-4">
+            {% elif card.type == "수비" %}
+            <div id="기본정보" class="수비">
+                <div id="처리">
+                    <div id="처리1" class="정보상자">
+                        <div><p>상단</p></div><div><p>{{ card.g_top|default_if_none:"X" }}</p></div>
+                    </div>
+                    <div id="처리2" class="정보상자">
+                        <div><p>중단</p></div><div><p>{{ card.g_mid|default_if_none:"X" }}</p></div>
+                    </div>
+                    <div id="처리3" class="정보상자">
+                        <div><p>하단</p></div><div><p>{{ card.g_bot|default_if_none:"X" }}</p></div>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-4">
+            {% endif %}
+            <div id="섹션2">
+                <div id="효과" class="배경색1">
+                    <p>효과</p>
+                    <p>{{ card.text|linebreaks }}</p>
+                </div>
+                <div class="배경색1">
+                    <p>최초 수록</p>
+                    <p>{{ card.code }}</p>
+                </div>
+                <div class="배경색1">
+                    <p>태그</p>
+                    <p>{{ card.keyword|keywords }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <hr class="my-4">
+    <div id="댓글창">
+        <div class="sectionName">카드 코멘트</div>
+        {% if user.is_authenticated %}
+        <form action="" method="post" class="배경색1 mb-2" id="코멘트작성">
+            {% csrf_token %}
+            {% include "form_errors.html" %}
+            <label for="id_score">별점</label>
+            <div class="rating d-flex flex-row">
+                <span><input type="radio" name="score" value="1"><label class="fa fa-star" for="str1"></label></span>
+                <span><input type="radio" name="score" value="2"><label class="fa fa-star" for="str2"></label></span>
+                <span><input type="radio" name="score" value="3"><label class="fa fa-star" for="str3"></label></span>
+                <span><input type="radio" name="score" value="4"><label class="fa fa-star" for="str4"></label></span>
+                <span><input type="radio" name="score" value="5"><label class="fa fa-star" for="str5"></label></span>
+                <span><input type="radio" name="score" value="6"><label class="fa fa-star" for="str6"></label></span>
+                <span><input type="radio" name="score" value="7"><label class="fa fa-star" for="str7"></label></span>
+                <span><input type="radio" name="score" value="8"><label class="fa fa-star" for="str8"></label></span>
+                <span><input type="radio" name="score" value="9"><label class="fa fa-star" for="str9"></label></span>
+                <span><input id="initValue" type="radio" name="score" value="10"><label class="fa fa-star" for="str10"></label></span>
+            </div>
+            <label for="id_comment">코멘트</label>
+            <div class="mb-2">
+                {{ form.comment }}
+            </div>
+            <div class="d-flex flex-row justify-content-end">
+                <button class="btn btn-dark ps-4 pe-4" type="submit">작성</button>
+            </div>
+        </form>
+        {% endif %}
+        {% for comment in comments %}
+        <div class="댓글 배경색1">
+            <div class="d-flex flex-row">
+                <div class="me-2">{{comment.author.username}} | </div>
+                <div class="별점">{{comment.score}}</div>
+            </div>
+            <div class="ms-2">{{comment.comment}}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<script src="{% static "card/comment.js" %}"></script>
+{% endblock content %}

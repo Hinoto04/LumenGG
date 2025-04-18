@@ -30,9 +30,14 @@
                     <img src="{% static "card/change-arrow.png" %}" alt="다른 판본">
                 </button>
             </div>
-            <div class="카드정보">
-                <p class="캐릭터명">{{ card.character.name }}</p>
-                <p class="카드명">{{ card.name }}</p>
+            <div class="d-flex flex-row justify-content-between">
+                <div class="카드정보">
+                    <p class="캐릭터명">{{ card.character.name }}</p>
+                    <p class="카드명">{{ card.name }}</p>
+                </div>
+                <div class="mt-auto mb-auto me-2">
+                    <a href="{% url "card:comment" card.id %}" class="btn btn-dark">평점 {{ card.score|default_if_none:"미평가" }}/10.0</a>
+                </div>
             </div>
         </div>
         <div>

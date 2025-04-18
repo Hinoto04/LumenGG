@@ -1,4 +1,6 @@
 from django.db import models
+from django.contrib.auth.models import User
+from django.db.models import Avg
 
 # Create your models here.
 class Character(models.Model):
@@ -44,7 +46,21 @@ class Card(models.Model):
         permissions = [
             ("tag_update", "태그 수정")
         ]
+    
+    @property
+    def score(self):
+        return self.comments.aggregate(avg_score=Avg('score'))['avg_score']
 
 class Tag(models.Model):
     name = models.CharField(max_length=20) #태그명
     description = models.TextField() #태그 설명
+
+class CardComment(models.Model):
+    score = models.SmallIntegerField(default = 3)
+    comment = models.CharField(max_length=200, default='', blank=True)
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='card_comments')
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='comments')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.author} -> {self.card.name} : {self.score}, {self.comment}"

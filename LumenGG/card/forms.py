@@ -1,5 +1,5 @@
 from django import forms
-from .models import Character, Card, Tag
+from .models import Character, Card, Tag, CardComment
 from collection.models import Pack
 from django.core.validators import FileExtensionValidator
 class CardForm(forms.Form):
@@ -165,4 +165,15 @@ class CardCreateForm(forms.ModelForm):
             "guard": "가드", "counter": "카운터",
             "character": "캐릭터", "img": "이미지(링크)", "text": "텍스트",
             "g_top": "상단 방어", "g_mid": "중단 방어", "g_bot": "하단 방어",
+        }
+
+class CardCommentForm(forms.ModelForm):
+    class Meta:
+        model = CardComment
+        fields = ['score', 'comment']
+        
+        widgets = {
+            "comment": forms.TextInput(attrs={
+                "class": "form-control 긴옵션 배경색2",
+                "placeholder": "코멘트 입력(200자 까지)"})
         }

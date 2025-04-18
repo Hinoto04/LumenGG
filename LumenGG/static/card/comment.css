@@ -1,0 +1,52 @@
+#코멘트작성 {
+    width: 100%;
+    padding: .5em;
+}
+
+#코멘트작성 > label { 
+    font-size: 1.2em;
+    font-weight: 700;
+}
+
+#id_comment {
+    width: 100%;
+}
+
+.댓글 {
+    padding: .5em;
+    border-radius: .5em;
+}
+
+.댓글 > div:nth-child(1) {
+    font-size: 1.1em;
+    font-weight: 900;
+}
+
+.checked {
+    color: orange;
+}
+
+.rating span { position:relative; }
+.rating span input {
+    position:absolute;
+    top:0px;
+    left:0px;
+    opacity:0;
+    width: 30px;
+    height: 30px;
+}
+.rating span label {
+    display:inline-block;
+    width:30px;
+    height:30px;
+    text-align:center;
+    font-size:30px;
+    margin-right:2px;
+    line-height:30px;
+    border-radius:50%;
+    -webkit-border-radius:50%;
+    color: orange;
+}
+span.checked ~ span label {
+    color: black;
+}
