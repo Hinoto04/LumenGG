@@ -7,9 +7,11 @@ class Character(models.Model):
     name = models.CharField(max_length=100) #캐릭터명
     description = models.TextField() #캐릭터 설명
     group = models.CharField(max_length=100) #캐릭터 소속 (루멘콘덴서, 뉴트럴 등)
-    hp_hand = models.JSONField() #남은 체력 별 손 크기 제한
+    datas = models.JSONField() #상세 페이지에서만 불러올 데이터
     img = models.URLField() #이미지 URL
+    sd_img = models.URLField(default='', blank=True, null=True)
     color = models.CharField(max_length=12, default="#ffffff")
+    pack = models.ForeignKey('collection.Pack', on_delete=models.SET_NULL, null=True, default=None)
     
     def __str__(self):
         return self.name

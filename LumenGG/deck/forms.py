@@ -45,7 +45,7 @@ class DeckMakeForm(forms.ModelForm):
         queryset = Character.objects.order_by('name'),
         widget = forms.RadioSelect(attrs = {'class': '검색체크 flex-wrap charSelect'}),
         required = False,
-        initial = Character.objects.get(id=1),
+        initial = 1,
     )
     version = forms.ChoiceField(
         label = "버전",

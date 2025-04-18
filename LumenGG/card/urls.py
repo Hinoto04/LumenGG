@@ -16,6 +16,7 @@ urlpatterns = [
     path('commentList/', views.commentList, name='commentList'),
     
     path('character/', character_views.character, name='character'),
+    path('character/<int:id>', character_views.detail, name='charDetail'),
     
     #path('import/', util_views.importCards, name='import'),
     #path('dbkeywordset/', util_views.keywordSet, name='keywordSet'),
