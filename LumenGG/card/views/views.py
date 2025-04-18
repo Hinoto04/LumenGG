@@ -72,7 +72,7 @@ def index(req):
         q1.add(Q(hiddenKeyword__contains=keyword), q.OR)
         q.add(q1, q.AND)
     
-    data = Card.objects.filter(q)
+    data = Card.objects.filter(q).annotate(avgscore=Avg('comments__score'))
     
     if sort:
         if sort == '-속도':
@@ -83,8 +83,10 @@ def index(req):
             data = data.order_by('-damage')
         elif sort == '+데미지':
             data = data.order_by('damage')
-        elif sort == "-점수":
-            data = data.order_by('-score')
+        elif sort == "-평점":
+            data = data.order_by('-avgscore')
+        elif sort == "+평점":
+            data = data.order_by('avgscore')
     else:
         data = data.order_by('id')
     
