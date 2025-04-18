@@ -311,3 +311,15 @@ def comment(req, id=0):
         'form': form,
     }
     return render(req, 'card/comment.html', context = context)
+
+def commentList(req):
+    page = req.GET.get('page', '1')
+    
+    comments = CardComment.objects.order_by('-created_at')
+    paginator = Paginator(comments, 30)
+    page_data = paginator.get_page(page)
+    
+    context = {
+        'comments': page_data
+    }
+    return render(req, 'card/commentList.html', context=context)

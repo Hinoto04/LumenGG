@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import views
+from .views import character_views
 from .views import util_views
 
 app_name = 'card'
@@ -12,6 +13,9 @@ urlpatterns = [
     path('create/', views.create, name='create'),
     
     path('comment/<int:id>/', views.comment, name='comment'),
+    path('commentList/', views.commentList, name='commentList'),
+    
+    path('character/', character_views.character, name='character'),
     
     #path('import/', util_views.importCards, name='import'),
     #path('dbkeywordset/', util_views.keywordSet, name='keywordSet'),

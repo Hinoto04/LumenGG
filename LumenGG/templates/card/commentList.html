@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}태그 목록{% endblock title %}
+{% block style %}
+{% endblock style %}
+{% block content %}
+<div>
+    <div id="최상단" class="d-flex flex-column mb-1">
+        <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">최근 작성된 코멘트 목록</div>
+    </div>
+    <div>
+        <table id="태그목록" class="w-100 table">
+            <thead>
+                <tr class="열정보">
+                    <th style="min-width: 150px" scope="col">카드</th>
+                    <th scope="col">작성자</th>
+                    <th scope="col">점수</th>
+                    <th scope="col">내용</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for comment in comments %}
+                <tr class="태그정보 배경색1">
+                    <td><a href="{% url "card:comment" comment.card.id %}">{{ comment.card.name }}</a></td>
+                    <td>{{ comment.author.username }}</td>
+                    <td>{{ comment.score }}</td>
+                    <td>{{ comment.comment }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <hr class="my-4">
+    <div class="paginator d-flex justify-content-center">
+        <ul class="pagination">
+            {% for page_number in comments.paginator.page_range %}
+            {% if page_number >= comments.number|add:-5 and page_number <= comments.number|add:5 and page_number != comments.number %}
+                <li class="페이지">
+                    <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% elif page_number == comments.number %}
+                <li class="페이지 활성화" aria-current="page">
+                    <a class="dynamicLink" href="#" data-page={{ page_number }}>{{ page_number }}</a>
+                </li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+<script src="{% static "card/list.js" %}"></script>
+{% endblock content %}
