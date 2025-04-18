@@ -105,7 +105,6 @@ def create(req):
             return JsonResponse(errorContent)
         
         try:
-            print(data)
             newDeck = Deck(
                 name=data['name'],
                 character_id=int(data['char']),

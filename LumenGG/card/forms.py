@@ -146,7 +146,7 @@ class CardCreateForm(forms.ModelForm):
                   'character', 'text']
         widgets = {
             "pos": forms.Select(choices = [
-                ('상단', '상단'), ('중단', '중단'), ('하단', '하단')]),
+                ('', ''), ('상단', '상단'), ('중단', '중단'), ('하단', '하단')]),
             "body": forms.Select(choices = [
                 ('', ''), ('손', '손'), ('발', '발'), ('잔향', '잔향')]),
             "type": forms.Select(choices = [
