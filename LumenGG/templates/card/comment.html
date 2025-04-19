@@ -12,7 +12,7 @@
 {% block content %}
 <div>
     <div>
-        <a id="돌아가기" href="javascript:history.back()">← 돌아가기</a>
+        <a id="돌아가기" href="{% url "card:detail" card.id %}">← 돌아가기</a>
     </div>
     <div id="섹션1">
         <div id="카드" class="배경색1">
