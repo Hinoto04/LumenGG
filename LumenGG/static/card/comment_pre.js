@@ -1,8 +1,15 @@
+var score = 5;
+
 function commentSubmit() {
     let formData = new FormData($("#코멘트작성")[0]);
     var object = {};
     formData.forEach((value, key) => object[key] = value);
     let csrftoken = object['csrfmiddlewaretoken'];
+
+    if(!object['score']) {
+        object['score'] = score;
+    }
+
     var json = JSON.stringify(object);
 
     $.ajax({

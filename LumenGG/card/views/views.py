@@ -286,22 +286,20 @@ def comment(req, id=0):
         if not req.user.is_authenticated:
             return redirect('card:comment', card.id)
         data = json.loads(req.body)
+        print(data)
         try:
-            try:
-                com = comments.get(author=req.user)
-                com.score = data['score']
-                com.comment = data['comment']
-            except CardComment.DoesNotExist:
-                com = CardComment(
-                    author = req.user,
-                    score = data['score'],
-                    comment = data['comment'],
-                    card = card
-                )
-            com.save()
-            return JsonResponse({'status': 100 })
-        except:
-            return JsonResponse({'status': 200, "msg": "잘못된 데이터가 있습니다."})
+            com = comments.get(author=req.user)
+            com.score = data['score']
+            com.comment = data['comment']
+        except CardComment.DoesNotExist:
+            com = CardComment(
+                author = req.user,
+                score = data['score'],
+                comment = data['comment'],
+                card = card
+            )
+        com.save()
+        return JsonResponse({'status': 100 })
     else:
         try:
             com = comments.get(author=req.user)

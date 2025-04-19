@@ -20,3 +20,9 @@ $(document).ready(function(){
         $(this).parent().addClass('checked');
     });
 });
+
+$('input[type="text"]').keydown(function(event) {
+    if (event.keyCode === 13) {
+        event.preventDefault();
+    }
+});

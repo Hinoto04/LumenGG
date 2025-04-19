@@ -36,7 +36,7 @@
                     <p class="카드명">{{ card.name }}</p>
                 </div>
                 <div class="mt-auto mb-auto me-2">
-                    <a href="{% url "card:comment" card.id %}" class="btn btn-dark">평점 {{ card.score|default_if_none:"미평가" }}/10.0</a>
+                    <a href="{% url "card:comment" card.id %}" class="btn btn-dark">평점 {{ card.score|floatformat|default_if_none:"미평가" }}/10.0</a>
                 </div>
             </div>
         </div>

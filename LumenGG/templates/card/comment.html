@@ -26,7 +26,7 @@
                     <p class="카드명">{{ card.name }}</p>
                 </div>
                 <div class="mt-auto mb-auto me-2">
-                    <a href="{% url "card:comment" card.id %}" class="btn btn-dark">평점 {{ card.score|default_if_none:"미평가" }}/10.0</a>
+                    <a href="{% url "card:comment" card.id %}" class="btn btn-dark">평점 {{ card.score|floatformat|default_if_none:"미평가" }}/10.0</a>
                 </div>
             </div>
         </div>
@@ -132,9 +132,9 @@
 </div>
 <script src="{% static "card/comment.js" %}"></script>
 <script>
-    let initValue = {{ form.score.value|default_if_none:'5' }};
+    score = {{ form.score.value|default_if_none:'5' }};
 
-    let obj = $(".rating input")[initValue-1];
+    let obj = $(".rating input")[score-1];
     $(obj).attr("checked", true);
     $(obj).parent().addClass('checked');
 </script>
