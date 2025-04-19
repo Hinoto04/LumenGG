@@ -10,9 +10,10 @@
 <link rel="stylesheet" href="{% static "card/comment.css" %}">
 {% endblock style %}
 {% block content %}
+<script src="{% static "card/comment_pre.js" %}"></script>
 <div>
     <div>
-        <a id="돌아가기" href="{% url "card:detail" card.id %}">← 돌아가기</a>
+        <a id="돌아가기" href="javascript:history.back()">← 돌아가기</a>
     </div>
     <div id="섹션1">
         <div id="카드" class="배경색1">
@@ -102,7 +103,7 @@
                 <span><input type="radio" name="score" value="2"><label class="fa fa-star" for="str2"></label></span>
                 <span><input type="radio" name="score" value="3"><label class="fa fa-star" for="str3"></label></span>
                 <span><input type="radio" name="score" value="4"><label class="fa fa-star" for="str4"></label></span>
-                <span><input id="initValue" type="radio" name="score" value="5"><label class="fa fa-star" for="str5"></label></span>
+                <span><input type="radio" name="score" value="5"><label class="fa fa-star" for="str5"></label></span>
                 <span><input type="radio" name="score" value="6"><label class="fa fa-star" for="str6"></label></span>
                 <span><input type="radio" name="score" value="7"><label class="fa fa-star" for="str7"></label></span>
                 <span><input type="radio" name="score" value="8"><label class="fa fa-star" for="str8"></label></span>
@@ -114,7 +115,7 @@
                 {{ form.comment }}
             </div>
             <div class="d-flex flex-row justify-content-end">
-                <button class="btn btn-dark ps-4 pe-4" type="submit">작성</button>
+                <button class="btn btn-dark ps-4 pe-4" type="button" onclick="commentSubmit();">작성</button>
             </div>
         </form>
         {% endif %}
@@ -130,4 +131,11 @@
     </div>
 </div>
 <script src="{% static "card/comment.js" %}"></script>
+<script>
+    let initValue = {{ form.score.value|default_if_none:'5' }};
+
+    let obj = $(".rating input")[initValue-1];
+    $(obj).attr("checked", true);
+    $(obj).parent().addClass('checked');
+</script>
 {% endblock content %}

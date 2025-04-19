@@ -8,7 +8,7 @@ from ..models import Card, Character, Tag, CardComment
 from collection.models import CollectionCard, Pack
 from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm, CardCommentForm
 from decorators import permission_required
-import re, random, os
+import re, random, os, json
 
 from PIL import Image
 
@@ -285,23 +285,30 @@ def comment(req, id=0):
     if req.method == 'POST':
         if not req.user.is_authenticated:
             return redirect('card:comment', card.id)
-        form = CardCommentForm(req.POST)
-        if form.is_valid():
+        data = json.loads(req.body)
+        try:
             try:
-                comment = comments.get(author=req.user)
-                comment.score = form.cleaned_data['score']
-                comment.comment = form.cleaned_data['comment']
+                com = comments.get(author=req.user)
+                com.score = data['score']
+                com.comment = data['comment']
             except CardComment.DoesNotExist:
-                comment = CardComment(
+                com = CardComment(
                     author = req.user,
-                    score = form.cleaned_data['score'],
-                    comment = form.cleaned_data['comment'],
+                    score = data['score'],
+                    comment = data['comment'],
                     card = card
                 )
-            comment.save()
-            return redirect('card:comment', card.id)
+            com.save()
+            return JsonResponse({'status': 100 })
+        except:
+            return JsonResponse({'status': 200, "msg": "잘못된 데이터가 있습니다."})
     else:
-        form = CardCommentForm()
+        try:
+            com = comments.get(author=req.user)
+        except:
+            form = CardCommentForm()
+        else:
+            form = CardCommentForm(instance=com)
         
     page = req.GET.get('page', '1')
     
