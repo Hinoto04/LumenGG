@@ -1,0 +1,22 @@
+#캐릭터정보 {
+    display: grid;
+    grid-template-columns: 35% 65%;
+}
+#캐릭터이미지 {
+    width: 100%;
+}
+
+.imageOverlay {
+    width: 100%;
+    position: relative;
+}
+.imageChange {
+    position: absolute;
+    bottom: 0%;
+    right: 0%;
+}
+.passiveChange {
+    position: absolute;
+    left: 0%;
+    bottom: 0%;
+}

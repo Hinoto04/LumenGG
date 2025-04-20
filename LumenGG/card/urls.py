@@ -15,7 +15,7 @@ urlpatterns = [
     path('comment/<int:id>/', views.comment, name='comment'),
     path('commentList/', views.commentList, name='commentList'),
     
-    path('character/', character_views.character, name='character'),
+    path('character/', character_views.index, name='character'),
     path('character/<int:id>', character_views.detail, name='charDetail'),
     
     #path('import/', util_views.importCards, name='import'),

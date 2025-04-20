@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}캐릭터 목록{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "character/index.css" %}">
+{% endblock style %}
+{% block content %}
+<div id="최상단" class="d-flex flex-column mb-1">
+    <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">캐릭터 목록</div>
+</div>
+<div id="캐릭터리스트">
+    {% for char in chars %}
+    <div class="캐릭터 배경색1">
+        <a class="w-100" href="{% url "card:charDetail" char.id %}">
+            <div class="w-100">
+                <img class="w-100" src="{{ char.img }}" alt="{{ char.name }}">
+            </div>
+            <div class="캐릭터정보">
+                <p class="캐릭터그룹">{{ char.group }}</p>
+                <p class="캐릭터터명">{{ char.name }}</p>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock content %}

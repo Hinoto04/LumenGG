@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{char.name}}{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "character/detail.css" %}">
+{% endblock style %}
+{% block content %}
+<div id="캐릭터정보">
+    <div class="imageOverlay">
+        <img id="캐릭터이미지" src="{{ char.img }}" alt="">
+        <button class="passiveChange" onclick="passiveChange();">
+            PASSIVE
+        </button>
+        <button class="imageChange" onclick="imageChange();">
+            SKIN
+        </button>
+    </div>
+    <div id="텍스트정보">
+
+    </div>
+</div>
+<script>
+    var jsonData = {{ jsonData }}
+</script>
+{% endblock content %}
