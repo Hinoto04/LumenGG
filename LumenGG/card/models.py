@@ -10,6 +10,7 @@ class Character(models.Model):
     datas = models.JSONField() #상세 페이지에서만 불러올 데이터
     img = models.URLField() #이미지 URL
     sd_img = models.URLField(default='', blank=True, null=True)
+    icon_img = models.URLField(default='', blank=True, null=True)
     color = models.CharField(max_length=12, default="#ffffff")
     pack = models.ForeignKey('collection.Pack', on_delete=models.SET_NULL, null=True, default=None)
     
@@ -58,7 +59,7 @@ class Tag(models.Model):
     description = models.TextField() #태그 설명
 
 class CardComment(models.Model):
-    score = models.SmallIntegerField(default = 3)
+    score = models.SmallIntegerField(default = 5)
     comment = models.CharField(max_length=200, default='', blank=True)
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='card_comments')
     card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='comments')
