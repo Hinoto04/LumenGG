@@ -119,6 +119,9 @@ function dataLoad(id) {
             $("#상징2 > p").text(res.char.datas.identity[1].text)
             $("#상징3 > img").attr("src", res.char.datas.identity[2].card[0].img_mid)
             $("#상징3 > p").text(res.char.datas.identity[2].text)
+
+            $("#특징").text("");
+            $("#특징").append(res.char.datas.playing);
         },
         error: function(xhr, status, error) {
             console.log(error);
