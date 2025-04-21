@@ -23,6 +23,8 @@
         if (value < 99) {
             input.value = value + 1;
         }
+        changedCollection[id] = input.value;
+        console.log(changedCollection);
     }
     function dec(id) {
         let input = document.getElementById("cc_input_" + id);
@@ -30,6 +32,8 @@
         if (value > 0) {
             input.value = value - 1;
         }
+        changedCollection[id] = input.value;
+        console.log(changedCollection);
     }
 </script>
 <div id="최상단" class="d-flex flex-column mb-1">
