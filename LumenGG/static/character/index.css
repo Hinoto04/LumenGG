@@ -3,9 +3,37 @@
 }
 
 #정보 {
+    grid-area: 정보;
     display: grid;
     grid-template-columns: 35% 65%;
-    margin-bottom: 3em;
+    margin-bottom: 1em;
+}
+@media screen and (max-width: 768px) {
+    #정보 {
+        grid-template-columns: 100%;
+    }
+}
+
+#픽창위치 { 
+    grid-area: 픽창;
+    overflow-x: auto;
+    overflow-y: visible;
+}
+#픽창위치::-webkit-scrollbar {
+    display: none;
+}
+#순서변경용 {
+    display: grid;
+    grid-template-areas: 
+    "정보"
+    "픽창";
+}
+@media screen and (max-width: 768px) {
+    #순서변경용 {
+        grid-template-areas:
+        "픽창"
+        "정보";
+    }
 }
 
 #캐릭터카드 {
@@ -59,6 +87,11 @@
     width: 60%;
     margin: 0 auto;
 }
+@media screen and (max-width: 768px) {
+    #캐릭터그래프 {
+        width: 100%;
+    }
+}
 #특징 {
     text-align: center;
 }
@@ -87,7 +120,13 @@
     grid-auto-rows: var(--size);
     gap: 5px;
     place-items: start center;
-    margin-bottom: var(--size);
+    white-space: nowrap;
+    margin-bottom: 1em;
+    overflow-x: auto;
+    padding: 2em 0 3em 0;
+}
+#픽창::-webkit-scrollbar {
+    display: none;
 }
 
 #픽창 div {

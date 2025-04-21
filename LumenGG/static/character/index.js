@@ -14,8 +14,12 @@ function HexToRGB(hex, alpha) {
 }
 
 function pickDisplaySet(windowSize) {
-    if(windowSize > 1200) windowSize = 1200;
-    $("#픽창").css("--size", ((windowSize*0.7)-5*11)/12 + 'px');
+    if(windowSize > 1200) 
+        windowSize = 1200;
+    if(windowSize > 768)
+        $("#픽창").css("--size", ((windowSize*0.7)-5*11)/12 + 'px');
+    else
+        $("#픽창").css("--size", (768-5*11)/12 + 'px');
 }
 
 const ctx = $("#캐릭터그래프")[0].getContext('2d');
