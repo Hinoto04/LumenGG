@@ -5,6 +5,11 @@
 {% block title %}
 {{ qna.title }}
 {% endblock title %}
+{% block meta %}
+<meta content="{{ qna.title }}" property="og:title" />
+<meta content="{{ qna.question }} - {{ qna.answer }}" property="og:description" />
+<meta content="https://images.hinoto.kr/lumendb/루멘DB로고.webp" property="og:image" />
+{% endblock meta %}
 {% block style %}
 <link rel="stylesheet" href="{% static "qna/detail.css" %}">
 {% endblock style %}

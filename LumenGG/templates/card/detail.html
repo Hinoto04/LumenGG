@@ -4,6 +4,12 @@
 {% block title %}
 {{ card.name }}
 {% endblock title %}
+{% block meta %}
+<meta content="{{ card.name }}" property="og:title" />
+<meta content="{{ card.text }}" property="og:description" />
+<meta content="{{ card.img_mid }}" property="og:image" />
+<meta content="#000000" data-react-helmet="true" name="theme-color" />
+{% endblock meta %}
 {% block style %}
 <link rel="stylesheet" href="{% static "card/detail.css" %}">
 {% endblock style %}
