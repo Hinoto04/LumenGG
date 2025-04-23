@@ -62,9 +62,9 @@ def index(req):
         elif form.data.get('sortValue') == 'code':
             collection = collection.order_by('code', 'pack__released', 'custom_order')
         else:
-            collection = collection.order_by('card__frame', 'name', 'code', 'pack__released', 'custom_order')
+            collection = collection.order_by('card__frame', 'name', 'pack__released', 'custom_order')
     else:
-        collection = collection.order_by('card__frame', 'name', 'code', 'pack__released', 'custom_order')
+        collection = collection.order_by('card__frame', 'name', 'pack__released', 'custom_order')
     
     
     paginator = Paginator(collection, 40)  # Show 20 collection cards per page.
