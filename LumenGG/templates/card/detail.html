@@ -161,7 +161,8 @@
                         <div class="w-100 d-flex flex-column justify-content-center hoverBig">
                             <img class="w-100" src="{{ v.img_mid }}" alt="{{ v.name }}">
                             <div class="카드정보">
-                                <p class="캐릭터명2">{{ v.character.name }}</p>
+                                <a class="캐릭터명2" href="{% url "card:character" %}?id={{v.character.id}}">
+                                    {{ v.character.name }}</a>
                                 <p class="카드명2">{{ v.name }}</p>
                             </div>
                         </div>

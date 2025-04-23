@@ -77,7 +77,7 @@
                     <img class="w-100" src="{{ card.img_mid }}" alt="{{ card.name }}">
                 </div>
                 <div class="카드정보">
-                    <p class="캐릭터명">{{ card.character.name }}</p>
+                    <a class="캐릭터명" href="{% url "card:character" %}?id={{card.character.id}}">{{ card.character.name }}</a>
                     <p class="카드명">{{ card.name }}</p>
                 </div>
             </a>

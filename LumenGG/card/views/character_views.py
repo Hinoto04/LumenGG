@@ -8,10 +8,12 @@ from django.forms.models import model_to_dict
 import json
 
 def index(req):
+    id = req.GET.get('id', '2')
     chars = Character.objects.filter(Q(id__gt=1)&Q(id__lt=13)).order_by('pack__released')
     
     context = {
-        'chars': chars
+        'chars': chars,
+        'id': id
     }
     return render(req, 'character/index.html', context=context)
 
@@ -20,9 +22,9 @@ def character(req):
     characters = Character.objects.filter(Q(id__gt=1)&Q(id__lt=13)).order_by('pack__released')
     
     context = {
-        'chars': characters
+        'chars': characters,
     }
-    return render(req, 'character/index.html', context=context)
+    return render(req, 'character/list.html', context=context)
 
 def detail(req, id):
     try:

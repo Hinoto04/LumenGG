@@ -39,7 +39,7 @@
                 <td>{{ deck.user }}</td>
                 {% endif %}
                 <td>{{ deck.place }}</td>
-                <td>{{ deck.deck.character.name }}</td>
+                <td><a href="{% url "card:character" %}?id={{deck.deck.character.id}}">{{ deck.deck.character.name }}</a></td>
                 <td>
                     <a href="{% url "deck:detail" deck.deck.id %}">{{ deck.deck.name }}</a>
                 </td>

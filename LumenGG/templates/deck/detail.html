@@ -13,7 +13,7 @@
             <p>ver.{{deck.version}}</p>
         </div>
         <div id="아래쪽정보">
-            <p>캐릭터 : {{deck.character.name}}</p>
+            <p>캐릭터 : <a href="{% url "card:character" %}?id={{deck.character.id}}">{{deck.character.name}}</a></p>
             <p><a href="{% url "common:userpage" deck.author.id %}">{{deck.author.username}}</a></p>
         </div>
         <div id="기능버튼" class="d-flex flex-row justify-content-between flex-wrap">

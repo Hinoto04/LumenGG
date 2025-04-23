@@ -9,7 +9,7 @@
 <div id="순서변경용">
 <div id="정보">
     <div id="캐릭터카드">
-        <img class="w-100" src="https://images.hinoto.kr/lumendb/webp/ST1-CH1.webp" alt="">
+        <img class="w-100" src="" alt="">
         <button class="btn btn-light border" id="passiveChange">
             PASSIVE
         </button>
@@ -30,15 +30,15 @@
         </div>
         <div id="상징카드정보">
             <div id="상징1" class="상징">
-                <img class="w-100" src="https://images.hinoto.kr/lumendb/webpsm/ST1-002.webp" alt="">
+                <img class="w-100" src="" alt="">
                 <p>초반 심리전</p>
             </div>
             <div id="상징2" class="상징">
-                <img class="w-100" src="https://images.hinoto.kr/lumendb/webpsm/ST1-007.webp" alt="">
+                <img class="w-100" src="" alt="">
                 <p>강력한 콤보용</p>
             </div>
             <div id="상징3" class="상징">
-                <img class="w-100" src="https://images.hinoto.kr/lumendb/webpsm/ST1-010.webp" alt="">
+                <img class="w-100" src="" alt="">
                 <p>압박 주축 카드</p>
             </div>
         </div>
@@ -58,4 +58,7 @@
 </div>
 </div>
 <script src="{% static "character/index.js" %}"></script>
+<script>
+    dataLoad({{ id }})
+</script>
 {% endblock content %}

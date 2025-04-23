@@ -147,8 +147,6 @@ $(document).ready(function() {
         pickDisplaySet(windowWidth);
         //console.log(`Width: ${windowWidth}`);
     });
-    // 캐릭터 데이터 불러오기
-    dataLoad(2);
 
     $("#passiveChange").click(function() {
         passiveChange()
