@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Not Found 404{% endblock title %}
+{% block content %}
+<div id="최상단" class="d-flex flex-column mb-1">
+    <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">카드가 존재하지 않습니다.</div>
+</div>
+<div>
+    <p>혹시 아래 카드를 찾고 계시진 않은가요?</p>
+    <ul>
+        {% for card in cards %}
+        <li><a href="{% url "card:detail" card.id %}">{{ card.name }}</a></li>
+        {% endfor %}
+    </ul>
+</div>
+<div>
+    <a id="돌아가기" href="javascript:history.back()">[ 이전 페이지로 돌아가기 ]</a>
+</div>
+{% endblock content %}

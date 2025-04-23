@@ -145,7 +145,10 @@ def detailName(req, name):
         card = Card.objects.get(name=name)
     except Card.DoesNotExist:
         cards = Card.objects.filter(Q(name__contains=name)|Q(keyword__contains=name)|Q(hiddenKeyword__contains=name))
-        print(cards)
+        context = {
+            'cards': cards
+        }
+        return render(req, 'card/card404.html', context=context)
     else:
         return detail(req, card.id)
 
