@@ -9,6 +9,7 @@ from django.db.models import Q, Count
 from .forms import UserForm, LoginForm, UserDataForm
 from statistic.models import Championship, CSDeck
 from deck.models import Deck
+from .models import UserData
 
 def login_view(req):
     redirect_to = req.GET.get('next', 'card:index')
@@ -91,8 +92,17 @@ def editProfile(req):
         if req.user.is_authenticated:
             form = UserDataForm(req.POST)
             if form.is_valid():
-                req.user.data.character = form.cleaned_data['character']
-                req.user.data.save()
+                try:
+                    ud = UserData.objects.get(user=req.user)
+                except UserData.DoesNotExist:
+                    ud = UserData(
+                        user = req.user,
+                        character = form.cleaned_data['character']
+                        )
+                    ud.save()
+                else:
+                    ud.character = form.cleaned_data['character']
+                    ud.save()
             else:
                 raise Http404()
             return redirect('common:mypage')
