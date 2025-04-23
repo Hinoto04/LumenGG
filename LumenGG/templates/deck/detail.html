@@ -14,7 +14,7 @@
         </div>
         <div id="아래쪽정보">
             <p>캐릭터 : {{deck.character.name}}</p>
-            <p>{{deck.author.username}}</p>
+            <p><a href="{% url "common:userpage" deck.author.id %}">{{deck.author.username}}</a></p>
         </div>
         <div id="기능버튼" class="d-flex flex-row justify-content-between flex-wrap">
             <div class="d-flex flex-row">

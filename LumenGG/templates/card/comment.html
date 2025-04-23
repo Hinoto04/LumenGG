@@ -122,7 +122,8 @@
         {% for comment in comments %}
         <div class="댓글 배경색1 mb-2">
             <div class="d-flex flex-row">
-                <div class="me-2">{{comment.author.username}} | </div>
+                <div class="me-2"><a href="{% url "common:userpage" comment.author.id %}">
+                    {{comment.author.username}}</a> | </div>
                 <div class="별점">{{comment.score}}</div>
             </div>
             <div class="ms-2">{{comment.comment}}</div>

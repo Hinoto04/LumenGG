@@ -49,7 +49,7 @@
                     </td>
                     <td>{{ deck.character.name }}</td>
                     <td>{{ deck.likecount }}</td>
-                    <td class="모바일비표시">{{ deck.author.username }}</td>
+                    <td class="모바일비표시"><a href="{% url "common:userpage" deck.author.id %}">{{ deck.author.username }}</a></td>
                     <td class="모바일비표시">{{ deck.version }}</td>
                 </tr>
                 {% endfor %}

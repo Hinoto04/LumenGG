@@ -22,7 +22,7 @@
                 {% for comment in comments %}
                 <tr class="태그정보 배경색1">
                     <td><a href="{% url "card:comment" comment.card.id %}">{{ comment.card.name }}</a></td>
-                    <td>{{ comment.author.username }}</td>
+                    <td><a href="{% url "common:userpage" comment.author.id %}">{{ comment.author.username }}</a></td>
                     <td>{{ comment.score }}</td>
                     <td>{{ comment.comment }}</td>
                 </tr>

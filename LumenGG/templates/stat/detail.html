@@ -24,17 +24,21 @@
     <table id="덱목록" class="w-100">
         <thead>
             <tr class="열정보">
-                <th scope="col" class="">플레이어</th>
-                <th scope="col" class="">순위</th>
-                <th scope="col" class="">캐릭터</th>
-                <th scope="col" class="">덱</th>
+                <th scope="col">플레이어</th>
+                <th scope="col">순위</th>
+                <th scope="col">캐릭터</th>
+                <th scope="col">덱</th>
             </tr>
         </thead>
         <tbody>
             {% for deck in decks %}
             <tr class="덱정보 배경색1">
-                <td class="모바일비표시">{{ deck.user }}</td>
-                <td class="">{{ deck.place }}</td>
+                {% if deck.user_model %}
+                <td><a href="{% url "common:userpage" deck.user_model.id %}">{{ deck.user }}</a></td>
+                {% else %}
+                <td>{{ deck.user }}</td>
+                {% endif %}
+                <td>{{ deck.place }}</td>
                 <td>{{ deck.deck.character.name }}</td>
                 <td>
                     <a href="{% url "deck:detail" deck.deck.id %}">{{ deck.deck.name }}</a>
