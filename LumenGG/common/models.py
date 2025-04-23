@@ -5,7 +5,7 @@ from card.models import Character, Card
 
 # Create your models here.
 def getUsername(self):
-    return self.usernmae
+    return self.username
 
 User.add_to_class("__str__", getUsername)
 
@@ -15,3 +15,6 @@ class UserData(models.Model):
     card1 = models.ForeignKey(Card, on_delete=models.SET_NULL, null=True, related_name="most1ed")
     card2 = models.ForeignKey(Card, on_delete=models.SET_NULL, null=True, related_name="most2ed")
     card3 = models.ForeignKey(Card, on_delete=models.SET_NULL, null=True, related_name="most3ed")
+    
+    def __str__(self):
+        return self.user.username

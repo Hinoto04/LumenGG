@@ -1,0 +1,49 @@
+#배경이미지 {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    opacity: 5%;
+    pointer-events: none;
+}
+@media screen and (max-width: 768px) {
+    #배경이미지 {
+        top: auto;
+        width: 100%;
+        height: auto;
+        bottom: 0;
+        right: 0;
+    }
+}
+#덱목록 {
+    border-collapse: separate;
+    border-spacing: 0 .5em;
+    font-weight: 400;
+}
+
+.열정보 > th { 
+    padding: 1em .5em;
+    border-bottom: 1px solid #d9d9d9; 
+    text-align: center;
+}
+
+.덱정보 > td { 
+    padding: .5em;
+    text-align: center;
+}
+.t-left {
+    text-align: left!important;
+}
+.덱정보 > td:nth-child(1) { border-radius: 1em 0 0 1em }
+.덱정보 > td:nth-last-child(1) { border-radius: 0 1em 1em 0}
+
+.덱이름 { font-weight: 700; }
+.모바일비표시 {
+    display: tabel-cell;
+}
+
+@media screen and (max-width: 768px) {
+    .모바일비표시 {
+        display: none;
+    }
+}

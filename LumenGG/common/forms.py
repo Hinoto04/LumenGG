@@ -2,6 +2,8 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
+from .models import UserData
+
 class LoginForm(forms.Form):
     username = forms.CharField(label="아이디", max_length=150)
     password = forms.CharField(label="비밀번호", widget=forms.PasswordInput)
@@ -28,3 +30,8 @@ class UserForm(UserCreationForm):
     class Meta:
         model = User
         fields = ("username", "password1", "password2", "email")
+
+class UserDataForm(forms.ModelForm):
+    class Meta:
+        model = UserData
+        fields = ("character", )

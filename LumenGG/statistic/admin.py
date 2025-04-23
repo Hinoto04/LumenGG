@@ -10,6 +10,7 @@ class CSAdmin(admin.ModelAdmin):
 class CSDeckAdmin(admin.ModelAdmin):
     list_display = ('cs', 'deck')
     search_fields = ('cs__name', 'deck__name')
+    autocomplete_fields = ('deck', 'user_model')
 
 admin.site.register(Championship, CSAdmin)
 admin.site.register(CSDeck, CSDeckAdmin)

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ target.username }}님의 프로필{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "common/profile.css" %}">
+{% endblock style %}
+{% block content %}
+<img id="배경이미지" src="{{ target.data.character.sd_img }}" alt="">
+<div id="최상단" class="d-flex flex-row justify-content-between mb-3">
+    <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">{{ target.username }}</div>
+    {% if user == target %}
+    <form action="{% url "common:editProfile" %}" method="post" id="프로필수정" 
+    class="d-flex flex-column justify-content-center">
+    {% csrf_token %}
+        <label for="id_character" style="text-align: center;">선호 캐릭터</label>
+        {{ form.character }}
+    </form>
+    {% endif %}
+</div>
+<div>
+    <div class="sectionName">작성한 덱 목록</div>
+    <table id="덱목록" class="w-100">
+        <thead>
+            <tr class="열정보">
+                <th scope="col" class="t-left">이름</th>
+                <th scope="col">캐릭터</th>
+                <th scope="col" class="모바일비표시">추천</th>
+                <th scope="col" class="모바일비표시">버전</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for deck in decks %}
+            <tr class="덱정보 배경색1">
+                <td class="t-left">
+                    <a href="{% url "deck:detail" deck.id %}" class="w-100 덱이름 t-left">{{ deck.name }}</a>
+                </td>
+                <td>{{ deck.character.name }}</td>
+                <td class="모바일비표시">{{ deck.likecount }}</td>
+                <td class="모바일비표시">{{ deck.version }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<hr class="my-4">
+<div>
+    <div class="sectionName">참가한 대회 목록</div>
+    <table id="덱목록" class="w-100">
+        <thead>
+            <tr class="열정보">
+                <th scope="col">대회명</th>
+                <th scope="col">순위</th>
+                <th scope="col">캐릭터</th>
+                <th scope="col">덱</th>
+                <th scope="col" class="모바일비표시">날짜</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for csd in csds %}
+            <tr class="덱정보 배경색1">
+                <td>
+                    <a href="{% url "stat:detail" csd.cs.id %}" class="w-100 덱이름 t-left">{{ csd.cs.name }}</a>
+                </td>
+                <td>{{ csd.place }}</td>
+                <td>{{ csd.deck.character.name }}</td>
+                <td>
+                    <a href="{% url "deck:detail" csd.deck.id %}">{{ csd.deck.name }}</a>
+                </td>
+                <td>{{ csd.cs.datetime }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<script src="{% static "common/profile.js" %}"></script>
+{% endblock content %}
