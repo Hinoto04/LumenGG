@@ -158,3 +158,22 @@ label:has(> input.검색체크:checked), input.검색체크:checked + label {
 .summernote-div, #id_description_iframe {
     height: 540px!important;
 }
+
+.autocomplete-list {
+    position: absolute;
+    border: 1px solid #ccc;
+    background-color: white;
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    max-height: 150px;
+    overflow-y: auto;
+    z-index: 1000;
+}
+.autocomplete-list li {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+.autocomplete-list li.selected {
+    background-color: #e9ecef;
+}

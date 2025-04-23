@@ -142,6 +142,9 @@
     padding: 1em;
     border-radius: 1em;
 }
+#덱설명 a {
+    color: rgba(var(--bs-link-color-rgb));
+}
 
 #덱설명 > h4 {
     font-weight: 900;

@@ -140,6 +140,15 @@ def detail(req, id=0):
     }
     return render(req, 'card/detail.html', context=context)
 
+def detailName(req, name):
+    try:
+        card = Card.objects.get(name=name)
+    except Card.DoesNotExist:
+        cards = Card.objects.filter(Q(name__contains=name)|Q(keyword__contains=name)|Q(hiddenKeyword__contains=name))
+        print(cards)
+    else:
+        return detail(req, card.id)
+
 @permission_required('card.add_card')
 def create(req):
     if req.method == 'GET':
@@ -286,7 +295,6 @@ def comment(req, id=0):
         if not req.user.is_authenticated:
             return redirect('card:comment', card.id)
         data = json.loads(req.body)
-        print(data)
         try:
             com = comments.get(author=req.user)
             com.score = data['score']

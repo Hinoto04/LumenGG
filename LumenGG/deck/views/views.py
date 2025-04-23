@@ -184,7 +184,6 @@ def update(req, id=0):
         return render(req, 'deck/update.html', context={'form': form, 'cid': cid, 'char': deck.character.name})
     else:
         data = json.loads(req.body)
-        print(data)
         errorContent = { 'status': 200 }
         if not ('char' in data.keys()) or not ('name' in data.keys()):
             errorContent['msg'] =  '형식이 올바르지 못합니다.'
