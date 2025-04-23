@@ -5,6 +5,11 @@
 <link rel="stylesheet" href="{% static "deck/detail.css" %}">
 {% endblock style %}
 {% block title %}{{deck.name}}{% endblock title %}
+{% block meta %}
+<meta content="{{ deck.name }}" property="og:title" />
+<meta content="캐릭터 : {{ deck.character.name }}\n작성자 : {{deck.author.username}}" property="og:description" />
+<meta content="https://images.hinoto.kr/lumendb/루멘DB로고.webp" property="og:image" />
+{% endblock meta %}
 {% block content %}
 <div>
     <div id="덱정보" class="배경색1">
