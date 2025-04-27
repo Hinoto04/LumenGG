@@ -5,7 +5,7 @@ from card.models import Character, Card
 
 # Create your models here.
 class Deck(models.Model):
-    name = models.CharField(max_length=25, null=False)
+    name = models.CharField(max_length=50, null=False)
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='decks')
     character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='decks')
     card = models.ManyToManyField(Card, through="CardInDeck")
