@@ -18,7 +18,29 @@ from django.contrib import admin
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
+from django.contrib.sitemaps.views import sitemap
 from django.urls import path, include
+
+from card.sitemaps import StaticSitemap as CardStaticSitemap, CardSitemap
+from collection.sitemaps import CollectionSitemap
+from common.sitemaps import StaticSitemap as CmnStaticSitemap, UserSitemap
+from deck.sitemaps import StaticSitemap as DeckStaticSitemap, DeckSitemap
+from qna.sitemaps import StaticSitemap as QnaStaticSitemap, QnaSitemap
+from statistic.sitemaps import StaticSitemap as StatStaticSitemap, ChampionshipSitemap
+
+sitemaps = {
+    "card-static": CardStaticSitemap,
+    "card": CardSitemap,
+    "deck-static": DeckStaticSitemap,
+    "deck": DeckSitemap,
+    "qna-static": QnaStaticSitemap,
+    "qna": QnaSitemap,
+    "collection": CollectionSitemap,
+    "statistic": StatStaticSitemap,
+    "championship": ChampionshipSitemap,
+    "common": CmnStaticSitemap,
+    "user": UserSitemap
+}
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -34,4 +56,6 @@ urlpatterns = [
     path('password_reset_done/', auth_views.PasswordResetDoneView.as_view(), name="password_reset_done"),
     path('password_reset_confirm/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(), name="password_reset_confirm"),
     path('password_reset_complete/', auth_views.PasswordResetCompleteView.as_view(), name="password_reset_complete"),
+    
+    path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="sitemap",),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
