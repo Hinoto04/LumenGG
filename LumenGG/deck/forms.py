@@ -34,7 +34,6 @@ class DeckSearchForm(forms.Form):
 class DeckMakeForm(forms.ModelForm):
     name = forms.CharField(
         label = "덱 이름",
-        max_length = 25,
         widget = forms.TextInput(
             attrs = {
                 'class': 'form-control 배경색1',
