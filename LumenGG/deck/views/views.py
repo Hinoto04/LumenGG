@@ -6,10 +6,13 @@ from django.core.paginator import Paginator
 from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from django.db.models import Case, When
 
 from card.models import Card, Character
 from ..models import Deck, CardInDeck, DeckLike, DeckComment
 from ..forms import DeckSearchForm, DeckMakeForm
+from collection.models import Pack
 
 import json
 
@@ -65,6 +68,13 @@ def detail(req, id=0):
     likecount = DeckLike.objects.filter(deck=deck, like=True).count()
     bookmarkcount = DeckLike.objects.filter(deck=deck, bookmark=True).count()
     cards = CardInDeck.objects.filter(deck=deck).order_by('-card__type', 'card__frame')
+    
+    codes = Pack.objects.filter(released__gt=timezone.now())
+    for code in codes:
+        cards = cards.annotate(
+            unReleased = Case(When(card__code__contains=code.code, then=True), default=False)
+        )
+        
     hands = cards.filter(hand__gte=1)
     sides = cards.filter(side__gte=1)
     if req.user.is_authenticated:

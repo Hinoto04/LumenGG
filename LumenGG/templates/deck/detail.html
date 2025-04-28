@@ -55,6 +55,9 @@
                         <a href="{% url "card:detail" card.card.id %}">
                             <img class="cardImg" src="{{card.card.img_mid}}" alt="{{card.card.name}}">
                         </a>
+                        {% if card.unReleased %}
+                        <div class="미발매">미발매</div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                     {% endfor %}
@@ -69,6 +72,9 @@
                         <a href="{% url "card:detail" card.card.id %}">
                             <img class="cardImg" src="{{card.card.img_mid}}" alt="{{card.card.name}}">
                         </a>
+                        {% if card.unReleased %}
+                        <div class="미발매">미발매</div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                     {% endfor %}
@@ -85,6 +91,9 @@
                                 <img class="w-100 sideImg" src="{{card.card.img_mid}}" alt="{{card.card.name}}">
                             </div>
                         </a>
+                        {% if card.unReleased %}
+                        <div class="미발매">미발매</div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                     {% endfor %}

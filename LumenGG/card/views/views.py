@@ -1,8 +1,9 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, Http404, JsonResponse
 from django.core.paginator import Paginator
-from django.db.models import Q, Case, When, IntegerField, Avg
+from django.db.models import Q, Case, When, IntegerField, Avg, BooleanField
 from django.conf import settings
+from django.utils import timezone
 
 from ..models import Card, Character, Tag, CardComment
 from collection.models import CollectionCard, Pack
@@ -91,12 +92,19 @@ def index(req):
         data = data.order_by('id')
     
     if req.GET.get('random', None):
-        data = random.choices(k=int(req.GET.get('random', 1)), population=data)
+        data = random.choices(k=int(req.GET.get('random', 1)), population=data, replace=False)
+    
+    codes = Pack.objects.filter(released__gt=timezone.now())
+    for code in codes:
+        data = data.annotate(
+            unReleased = Case(When(code__contains=code.code, then=True), default=False)
+        )
     
     paginator = Paginator(data, 12)
     page_data = paginator.get_page(page)
     
     form = CardForm(req.GET)
+    
     
     context = {
         'form': form,
@@ -133,10 +141,16 @@ def detail(req, id=0):
     )
     cc = cc.order_by('pack__released', 'code', 'custom_order')
     
+    if cc[0].pack.released > timezone.now().date():
+        unReleased = True
+    else:
+        unReleased = False
+    
     context = {
         'card': card,
         'relation': relation,
         'cc': cc,
+        'unReleased': unReleased,
     }
     return render(req, 'card/detail.html', context=context)
 

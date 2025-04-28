@@ -73,8 +73,11 @@
         {% for card in cards %}
         <div class="카드 배경색1">
             <a class="w-100" href="{% url "card:detail" card.id %}">
-                <div class="w-100">
+                <div class="w-100 카드이미지">
                     <img class="w-100" src="{{ card.img_mid }}" alt="{{ card.name }}">
+                    {% if card.unReleased %}
+                    <div class="미발매">미발매</div>
+                    {% endif %}
                 </div>
                 <div class="카드정보">
                     <a class="캐릭터명" href="{% url "card:character" %}?id={{card.character.id}}">{{ card.character.name }}</a>

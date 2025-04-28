@@ -44,6 +44,13 @@
     width: 10%;
     border: 0;
 }
+.미발매 {
+    position: absolute;
+    top: 64%;
+    right: 10%;
+    font-size: 1.5em;
+    color: red;
+}
 .imageChange > img {
     width: 100%;
 }

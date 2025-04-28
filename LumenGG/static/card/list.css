@@ -120,3 +120,14 @@ input[type='number'] {
 .카드정보 { padding: .5em .75em .5em .75em; }
 .카드정보 > p { margin: 0; }
 .카드명 { font-size: 1.2em; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.카드이미지 {
+    position: relative;
+}
+.미발매 {
+    position: absolute;
+    top: 64%;
+    right: 10%;
+    font-size: 1.2em;
+    color: red;
+}

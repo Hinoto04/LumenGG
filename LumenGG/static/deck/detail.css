@@ -170,3 +170,14 @@ img {
 button.pressed > img {
     filter: invert(73%) sepia(31%) saturate(6009%) hue-rotate(0deg) brightness(105%) contrast(105%);
 }
+
+.imgBox {
+    position: relative;
+}
+.미발매 {
+    position: absolute;
+    top: 64%;
+    right: 10%;
+    font-size: 1.2em;
+    color: red;
+}
