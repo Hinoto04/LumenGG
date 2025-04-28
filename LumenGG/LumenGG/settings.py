@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'qna.apps.QnaConfig',
     'collection.apps.CollectionConfig',
     'statistic.apps.StatisticConfig',
+    'battlelog.apps.BattlelogConfig',
     'django_summernote',
     'martor',
     'django.contrib.admin',
