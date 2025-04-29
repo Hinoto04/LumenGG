@@ -24,6 +24,12 @@ class CollectionCard(models.Model):
     
     def __str__(self):
         return self.code + ' - ' + self.name + ' - ' + self.rare
+    
+    @property
+    def isReleased(self):
+        if timezone.now().date() > self.pack.released:
+            return True
+        return False
 
 class Collected(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='collection')

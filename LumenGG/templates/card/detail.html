@@ -35,7 +35,9 @@
                 <button class="imageChange" onclick="imageChange();">
                     <img src="{% static "card/change-arrow.png" %}" alt="다른 판본">
                 </button>
+                {% if unReleased %}
                 <div class="미발매">미발매</div>
+                {% endif %}
             </div>
             <div class="d-flex flex-row justify-content-between">
                 <div class="카드정보">
@@ -140,7 +142,11 @@
         </div>
         {% for ccc in cc %}
         <div class="released">
+            {% if ccc.isReleased %}
             <div>{{ ccc.pack.released|date:"y-m-d" }}</div>
+            {% else %}
+            <div>미발매</div>
+            {% endif %}
             <div>{{ ccc.code }}</div>
             <div>{{ ccc.pack.name }}</div>
             <div class="{{ ccc.rare }}">{{ ccc.rare }}</div>
