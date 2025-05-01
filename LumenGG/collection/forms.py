@@ -86,7 +86,8 @@ class CollectionCreateForm(forms.ModelForm):
     card = forms.ModelChoiceField(
         queryset = Card.objects.order_by('name'),
         label= "카드",
-        widget = forms.Select()
+        widget = forms.Select(),
+        required = False,
     )
     
     class Meta:
