@@ -1,0 +1,99 @@
+#board {
+    display: grid;
+    grid-template-areas:
+    "p1 log p2"
+    "p1 ctr p2";
+    grid-template-columns: 530px auto 530px;
+    grid-template-rows: 1fr 1fr;
+    height: 900px
+}
+
+.player {
+    display: grid;
+    padding: 5px;
+    gap: 5px;
+}
+#P1 { 
+    grid-area: p1;
+    grid-template-areas:
+    "info floor"
+    "hand floor";
+    grid-template-rows: 115px auto;
+    grid-template-columns: 300px 215px;
+}
+#P2 { 
+    grid-area: p2;
+    grid-template-areas:
+    "floor info"
+    "floor hand";
+    grid-template-rows: 115px auto;
+    grid-template-columns: 215px 300px;
+}
+#center {
+    grid-area: ctr;
+}
+#log { grid-area: log;}
+
+.player-info {
+    grid-area: info;
+}
+.hand {
+    grid-area: hand;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(10, 1fr);
+    gap: 5px;
+}
+.floor {
+    grid-area: floor;
+    display: grid;
+    gap: 5px;
+    grid-template-rows: repeat(4, auto);
+    grid-template-areas:
+    "list"
+    "list"
+    "side"
+    "brek";
+}
+.floor > .card-area, #center > div > .card-area {
+    display: grid;
+    position: relative;
+    border: 1px solid #707070;
+    border-radius: 5px;
+    padding: 5px;
+}
+.area-name {
+    z-index: -1;
+    width: 100%;
+    position: absolute;
+    font-size: 40px;
+    text-align: center;
+    top: 5%;
+    color: #707070;
+    pointer-events: none;
+}
+
+#center {
+    display: grid;
+    grid-template-columns: 220px auto 220px;
+    grid-template-areas:
+    "p1center log p2center";
+    gap: 5px;
+}
+.center {
+    display: grid;
+    grid-template-columns: 100%;
+    grid-template-rows: auto auto;
+    grid-template-areas: 
+    "lumn"
+    "btle";
+    gap: 5px;
+}
+
+.list { grid-area: list; }
+.side { grid-area: side; }
+.brek { grid-area: brek; }
+.lumn { grid-area: lumn; }
+.btle { grid-area: btle; }
+#P1-center { grid-area: p1center; }
+#P2-center { grid-area: p2center; }

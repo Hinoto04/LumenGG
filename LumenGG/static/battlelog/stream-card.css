@@ -1,0 +1,75 @@
+body {
+    font-family: "Pretendard";
+    font-weight: 700;
+    user-select: none;
+}
+
+div { box-sizing: border-box; }
+
+/* 핸드 외에 있을 때 카드 */
+.lmc-card {
+    background-color: black;
+    border-radius: 5px;
+    padding: 7px;
+    width: 200px;
+    height: 40px;
+}
+/* 핸드에 있을 때 크기 변경 */
+.hand > .lmc-card {
+    width: 300px;
+    height: 73px;
+}
+.lmc-card:hover {
+    cursor: pointer;
+}
+
+.p1-card { border-left: 4px solid rgb(255, 99, 99); }
+.p2-card { border-right: 4px solid rgb(125, 125, 255); }
+
+/* 핸드에 있을 때 정보 */
+    .hand-info {
+        display: none;
+        gap: 7px;
+        grid-template-columns: 59px auto;
+        grid-template-rows: 59px;
+    }
+    .hand > .lmc-card > .hand-info {
+        display: grid;
+    }
+
+    .card-info { color: white; }
+
+    /* 공격상자일 때 정보 */
+    .pos { font-size: 18px; text-align: center; }
+    .frame { font-size: 30px; text-align: center; }
+
+    /* 수비상자일 때 정보 */
+    .guard { 
+        height: 19px;
+        font-size: 16px; 
+    }
+    .guard:nth-child(2) { text-align: right; }
+
+    /* 카드 이미지 및 정보 위치 */
+    .card-image {
+        position: relative;
+        background-image: url("https://images.hinoto.kr/lumendb/webpsm/ST1-015.webp");
+        background-size: 300px 420px;
+        background-position: -40px -84px;
+    }
+    .card-name {
+        position: absolute;
+        bottom: 0;
+        right: 2px;
+        font-size: 20px;
+        margin: 0;
+        text-shadow: -1px 0px white, 0px 1px white, 1px 0px white, 0px -1px white;
+    }
+
+/* 핸드 외에 있을 때 정보 */
+    .non-hand-info {
+        display: block;
+        color: white;
+        text-align: center;
+    }
+    .hand > .lmc-card > .non-hand-info { display: none; }

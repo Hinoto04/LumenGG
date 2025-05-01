@@ -3,25 +3,23 @@
 }
 
 #메인상자 {
-    width: 100%;
+    width: 99%;
     height: 900px;
     display: grid;
+    margin: .5em;
+    gap: .5em;
     grid-template-rows: 450px 450px;
-    grid-template-columns: 1350px auto;
+    grid-template-columns: 1345px auto;
     grid-template-areas:
     "p2area log"
-    "p1area search";
+    "p1area func";
 }
-#로그상자 {
-    grid-area: log;
-    border: 1px solid #7c7c7c;
-    border-radius: 1em;
-    padding: .5em;
-}
+#로그상자 { grid-area: log; }
 #logtext {
     height: 94%;
     overflow-y: auto;
 }
+#기능상자 { grid-area: func; }
 
 .info { grid-area: info; }
 .side { grid-area: side; }
@@ -31,16 +29,21 @@
 .lumen { grid-area: lumn; }
 .battle { grid-area: btle; }
 
+.special-area {
+    border: 1px solid #7c7c7c;
+    border-radius: 1em;
+    padding: .5em;
+}
 .area {
     display: grid;
-    margin: .25em;
     padding: .5em;
     border: 1px solid #7c7c7c;
     border-radius: 1em;
     grid-template-rows: repeat(3, 1fr);
-    grid-template-columns: 420px 450px 450px;
     gap: 3px;
 }
+#p1area { grid-template-columns: 420px 450px 450px; }
+#p2area { grid-template-columns: 450px 450px 420px; }
 
 #p1area {
     grid-area: p1area;
@@ -68,7 +71,8 @@
     border-radius: .5em;
     padding: 3px;
 
-    grid-template-columns: repeat(auto-fill, 80px);
+    --size: 80px;
+    grid-template-columns: repeat(auto-fill, var(--size));
     grid-template-rows: repeat(auto-fill, 50px);
 }
 
@@ -90,15 +94,18 @@
 }
 
 .lmc-card {
-    width: 80px;
+    width: var(--size);
     height: 50px;
     border: 1px solid #000;
     border-radius: .5em;
     font-size: 14px;
     cursor: pointer;
     user-select: none;
-    padding: 2px;
+    padding: 1px;
     text-align: center;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    overflow: hidden;
 }
 .p1-card {
     background-color: rgba(255, 105, 105, 0.61);
@@ -106,3 +113,12 @@
 .p2-card {
     background-color: rgba(108, 105, 255, 0.61);
 }
+
+#기능전환 { border-bottom: 1px solid #000; }
+#기능전환 > div {
+    flex-grow: 1;
+    text-align: center;
+    border-right: 1px solid #000;
+    cursor: pointer;
+}
+#기능전환 > div:nth-last-child(1) { border: 0; }
