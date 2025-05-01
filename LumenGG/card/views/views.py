@@ -205,7 +205,7 @@ def create(req):
                     img_sm = card.img_mid,
                     name = card.name,
                     rare = r)
-                print(newCC.__dict__)
+                #print(newCC.__dict__)
                 newCC.save()
             return redirect('card:detail', card.id)
         else:

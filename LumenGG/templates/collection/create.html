@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}카드 추가{% endblock title %}
+{% block style %}
+<link rel="stylesheet" href="{% static "card/create.css" %}">
+{% endblock style %}
+{% block content %}
+<div id="최상단" class="d-flex flex-column mb-1">
+    <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">카드 추가</div>
+</div>
+<form action="" method="post" enctype="multipart/form-data">
+    {% include "form_errors.html" %}
+    {% csrf_token %}
+    <div class="행">
+        <div class="option">
+            <label for="name">카드명</label>
+            {{ form.name }}
+        </div>
+        <div class="option">
+            <label for="card">카드</label>
+            {{ form.card }}
+        </div>
+        <div class="option">
+            <label for="code">수록 정보(카드번호)</label>
+            {{ form.code }}
+        </div>
+        <div class="option">
+            <label for="img">이미지(webp)</label>
+            {{ form.imageFile }}
+        </div>
+        <div class="option">
+            <label for="pack">수록 팩</label>
+            {{ form.pack }}
+        </div>
+    </div>
+    <div class="option">
+        <label for="rare">레어도</label>
+        {{ form.rare }}
+    </div>
+    <button class="w-100 border btn btn-light" type="submit">저장</button>
+</form>
+{% endblock content %}

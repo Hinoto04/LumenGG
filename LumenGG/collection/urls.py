@@ -7,6 +7,7 @@ app_name = 'collection'
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('create/', views.create, name='create'),
     path('update/', views.updateCollected, name='update_collected'),
     #path('export/', util_views.export_cards, name='export_cards'),
     #path('initinit/', util_views.initinit, name='initinit'),

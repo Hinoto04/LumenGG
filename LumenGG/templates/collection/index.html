@@ -72,6 +72,11 @@
         </button>
     </form>
 </div>
+{% if perms.card.add_card %}
+<div class="d-flex flex-row justify-content-end mb-2">
+    <a href="{% url "collection:create" %}" class="btn btn-light border">카드 추가</a>
+</div>
+{% endif %}
 <div id="너무크면줄임">
 <form action="{% url "collection:update_collected" %}" method="post" id="컬렉션업데이트">{% csrf_token %}</form>
     {% if user.is_authenticated %}

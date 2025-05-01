@@ -1,6 +1,7 @@
 from django import forms
 from .models import CollectionCard, Collected, Pack
 from card.models import Card, Character
+from django.core.validators import FileExtensionValidator
 
 class CollectionForm(forms.ModelForm):
     char = forms.ModelChoiceField(
@@ -62,3 +63,32 @@ class CollectionForm(forms.ModelForm):
     class Meta:
         model = CollectionCard
         fields = ['code', 'rare', 'char']
+
+class CollectionCreateForm(forms.ModelForm):
+    pack = forms.ModelChoiceField(
+        queryset = Pack.objects.all(),
+        label="팩",
+        widget=forms.Select(),
+    )
+    rare = forms.MultipleChoiceField(
+        label = "레어리티",
+        choices = [
+            ('N', 'N'), ('SR', 'SR'), ('EXR', 'EXR'), ('AN', 'AN'), ('AEX', 'AEX'), ('SKR', 'SKR'), ('SAEX', 'SAEX')],
+        widget = forms.CheckboxSelectMultiple(attrs={'class': 'rare'}),
+        required = False,
+    )
+    imageFile = forms.FileField(
+        label = "이미지",
+        required = False,
+        validators=[FileExtensionValidator(allowed_extensions=['webp'])],
+        widget = forms.ClearableFileInput(attrs={'multiple': False}),
+    )
+    card = forms.ModelChoiceField(
+        queryset = Card.objects.order_by('name'),
+        label= "카드",
+        widget = forms.Select()
+    )
+    
+    class Meta:
+        model = CollectionCard
+        fields = ['name', 'code']
