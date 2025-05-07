@@ -25,7 +25,7 @@ $(document).ready(function() {
             rowspan++;
             let imageLink = $(this).find('img').attr('src');
             if (imageLink !== previousImageLink) {
-                if($(this).find('a')) {
+                if($(this).find('a').length) {
                     $(this).find('a').contents()[0].nodeValue = "(다른 판본)"; //요소 복사
                     $('.merging').eq(startIndex).find('div').append($(this).find('a').clone()); //요소 복사
                 } else if($(this).find('p')) {
