@@ -5,7 +5,8 @@ from .models import Championship, CSDeck
 from .forms import CSSearchForm
 
 from django.http import Http404, JsonResponse
-from django.db.models import Q, Count
+from django.db.models import Q, Count, FloatField
+from django.db.models.functions import Cast
 from django.core import serializers
 
 # Create your views here.
@@ -45,14 +46,16 @@ def detailData(req, id):
     except Championship.DoesNotExist:
         raise Http404()
 
+    deckCount = CSDeck.objects.filter(cs = cs).count()
     chardata = Character.objects.annotate(
-        used = Count('decks__csdecks', filter=Q(decks__csdecks__cs=cs))
+        used = Count('decks__csdecks', filter=Q(decks__csdecks__cs=cs)),
     )
     chardata = chardata.filter(used__gt='0').order_by('-used')
     s_chardata = list(chardata.values('id', 'name', 'used', 'color'))
     
     carddata = Card.objects.only('name', 'cids').annotate(
-        used = Count('cids', filter=Q(cids__deck__csdecks__cs=cs))
+        used = Cast(Count('cids', filter=Q(cids__deck__csdecks__cs=cs))/deckCount,
+        FloatField())
     )
     carddata = carddata.filter(character_id=1).filter(used__gt=0).order_by('-used')
     s_carddata = list(carddata.values('id', 'name', 'used'))

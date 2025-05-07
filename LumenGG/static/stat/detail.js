@@ -59,7 +59,7 @@ function buildSetsumeiPie(carddata) {
                 legend: { display: false }
             },
             scales: {
-                x: { min: 0 }
+                x: { min: 0, max: 1 }
             }
         },
     })
