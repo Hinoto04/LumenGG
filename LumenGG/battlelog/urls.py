@@ -6,5 +6,7 @@ app_name = 'battlelog'
 
 urlpatterns = [
     path('sim/', views.sim, name='sim'),
-    path('stream/', views.stream, name='stream'),
+    path('cardLoad/', views.cardLoad, name='cardLoad'),
+    path('deckLoad/', views.deckLoad, name='deckLoad'),
+    #path('stream/', views.stream, name='stream'),
 ]

@@ -14,11 +14,31 @@
     "p2area log"
     "p1area func";
 }
-#로그상자 { grid-area: log; }
+#로그상자 { 
+    position: relative;
+    grid-area: log; 
+}
 #logtext {
     height: 94%;
     overflow-y: auto;
 }
+.logline > p {
+    display: inline;
+    margin: 0;
+}
+.P1log { color: red; }
+.P2log { color: blue; }
+#tooltip {
+    position: absolute;
+    display: none;
+    background-size: contain;
+    background-repeat: no-repeat;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+}
+
 #기능상자 { grid-area: func; }
 
 .info { grid-area: info; }
@@ -36,11 +56,13 @@
 }
 .area {
     display: grid;
+    position: relative;
     padding: .5em;
     border: 1px solid #7c7c7c;
     border-radius: 1em;
     grid-template-rows: repeat(3, 1fr);
     gap: 3px;
+    z-index: 0;
 }
 #p1area { grid-template-columns: 420px 450px 450px; }
 #p2area { grid-template-columns: 450px 450px 420px; }
@@ -49,18 +71,18 @@
     grid-area: p1area;
     background-color: rgba(255, 105, 105, 0.233);
     grid-template-areas:
-    "info lumn btle"
-    "side list hand"
-    "brek list hand";
+    "info info lumn"
+    "brek list btle"
+    "side list hand";
 }
 
 #p2area {
     grid-area: p2area;
     background-color: rgba(108, 105, 255, 0.233);
     grid-template-areas:
-    "hand list side"
     "hand list brek"
-    "btle lumn info";
+    "btle list side"
+    "lumn info info";
 }
 
 .card-area {
@@ -94,6 +116,7 @@
 }
 
 .lmc-card {
+    position: relative;
     width: var(--size);
     height: 50px;
     border: 1px solid #000;
@@ -106,6 +129,7 @@
     word-break: keep-all;
     overflow-wrap: break-word;
     overflow: hidden;
+    z-index: 9999!important;
 }
 .p1-card {
     background-color: rgba(255, 105, 105, 0.61);
@@ -122,3 +146,25 @@
     cursor: pointer;
 }
 #기능전환 > div:nth-last-child(1) { border: 0; }
+
+.functionTab {
+    display: none;
+}
+#cardSearchResult {
+    height: 300px;
+    overflow-y: scroll;
+}
+
+.기본정보 {
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+}
+.기본정보 > input { text-align: center; }
+.hpfp { margin: 0; }
+.hpfp > span{ 
+    font-size: 20px;
+    font-weight: 700;
+}
