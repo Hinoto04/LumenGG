@@ -26,6 +26,14 @@
     display: inline;
     margin: 0;
 }
+.logline > div {
+    display: inline-block;
+}
+.ptr {
+    width: 15px;
+    height: 10px;
+    color: red;
+}
 .P1log { color: red; }
 .P2log { color: blue; }
 #tooltip {
@@ -163,8 +171,34 @@
     text-align: center;
 }
 .기본정보 > input { text-align: center; }
+.hpfpbox {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
+.hpfpbox > button {
+    height: 40px;
+    margin: auto 0;
+}
 .hpfp { margin: 0; }
 .hpfp > span{ 
     font-size: 20px;
     font-weight: 700;
+}
+
+#logFunction div.text {
+    text-align: center;
+    font-weight: 900;
+}
+#logFunction > div {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: .25em;
+    border: 1px solid #000;
+    border-radius: .5em;
+    margin: .25em 0;
+}
+#logFunction button {
+    border: 1px solid #000;
 }

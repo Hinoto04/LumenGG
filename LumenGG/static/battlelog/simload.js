@@ -138,6 +138,10 @@ $(document).ready(function() {
         $(".functionTab").hide();
         $("#cardFunction").show();
     })
+    $("#LogBtn").on('click', function() {
+        $(".functionTab").hide();
+        $("#logFunction").show();
+    })
 
     $("#deckLoadForm").keydown(function(event) {
         if(event.keyCode == '13') {

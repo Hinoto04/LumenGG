@@ -1,43 +1,4 @@
 var startAreaId = null; // 드래그 시작 영역 ID
-var log = [];
-
-function reloadLog() {
-    let logbox = $('#logtext');
-    logbox.text('');
-    log.forEach(function(element) {
-        let id = element.card.split('_')[2];
-        if(element.type == 'CardMove')  {
-            logbox.append(
-                `<div class="logline">
-                    <p class="${element.start.substr(0,2)}log">
-                    <b>${element.start.substr(0,2)}</b>${element.start.substr(2)}</p><p> <b>→</b> </p>
-                    <p class="${element.end.substr(0,2)}log">
-                    <b>${element.end.substr(0,2)}</b>${element.end.substr(2)}</p><p> : </p>
-                    <p class="P${cardData[id].player}log">${cardData[id].name}</p>
-                </div>`
-            );
-        }
-        logbox.scrollTop($('#logtext')[0].scrollHeight);
-    })
-}
-
-function writeCardLog(startAreaId, dropAreaId, cardId) {
-    if(startAreaId == 'cardSearchResult' || dropAreaId == 'cardSearchResult') return;
-    let id = cardId.split('_')[2];
-    log.push(
-        {
-            'type': 'CardMove',
-            'start': startAreaId, 
-            'end': dropAreaId, 
-            'card': cardId
-        });
-    reloadLog();
-}
-
-function poplog() {
-    log.pop();
-    reloadLog();
-}
 
 $(document).ready(function() {
     $('.lmc-card').draggable({

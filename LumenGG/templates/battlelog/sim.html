@@ -15,6 +15,7 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 <link rel="stylesheet" href="{% static "battlelog/sim.css" %}">
+<script src="{% static "battlelog/simPreLoad.js" %}"></script>
 </head>
 <body>
     <div id="메인상자">
@@ -22,8 +23,16 @@
             <div id="P2정보" class="info">
                 <div class="기본정보">
                     <input type="text" value="플레이어2">
-                    <p class="hpfp">HP<br><span id="p2_hp">5000</span></p>
-                    <p class="hpfp">FP<br><span id="p2_fp">0</span></p>
+                    <div class="hpfpbox">
+                        <button type="button" id="hpIncrease" class="btn btn-danger">-100</button>
+                        <p class="hpfp">HP<br><span id="p2_hp">5000</span></p>
+                        <button type="button" id="hpDecrease" class="btn btn-success">+100</button>
+                    </div>
+                    <div class="hpfpbox">
+                        <button type="button" id="fpIncrease" class="btn btn-danger">-1FP</button>
+                        <p class="hpfp">FP<br><span id="p2_fp">0</span></p>
+                        <button type="button" id="fpDecrease" class="btn btn-success">+1FP</button>
+                    </div>
                 </div>
             </div>
             <div id="P2사이드" class="side card-area">
@@ -51,8 +60,16 @@
             <div id="P1정보" class="info">
                 <div class="기본정보">
                     <input type="text" value="플레이어1">
-                    <p class="hpfp">HP<br><span id="p1_hp">5000</span></p>
-                    <p class="hpfp">FP<br><span id="p1_fp">0</span></p>
+                    <div class="hpfpbox">
+                        <button type="button" id="hpIncrease" class="btn btn-danger">-100</button>
+                        <p class="hpfp">HP<br><span id="p1_hp">5000</span></p>
+                        <button type="button" id="hpDecrease" class="btn btn-success">+100</button>
+                    </div>
+                    <div class="hpfpbox">
+                        <button type="button" id="fpIncrease" class="btn btn-danger">-1FP</button>
+                        <p class="hpfp">FP<br><span id="p1_fp">0</span></p>
+                        <button type="button" id="fpDecrease" class="btn btn-success">+1FP</button>
+                    </div>
                 </div>
             </div>
             <div id="P1사이드" class="side card-area">
@@ -82,8 +99,8 @@
 
             </div>
             <div class="d-flex flex-row justify-content-end">
+                <button type="button" id="deleteTail" class="btn btn-sm border">되돌리기</button>
                 <button type="button" id="logReset" class="btn btn-sm border">로그 초기화</button>
-                <button type="button" id="deleteTail" class="btn btn-sm border">마지막 한 줄 지우기</button>
             </div>
             <div id="tooltip">
 
@@ -93,7 +110,7 @@
             <div id="기능전환" class="d-flex flex-row">
                 <div id="loadDeckBtn">덱</div>
                 <div id="loadCardBtn">카드</div>
-                <div id="setLogBtn">로그</div>
+                <div id="LogBtn">로그</div>
             </div>
             <div id="deckFunction" class="functionTab">
                 <form class="form-control mt-2" id="deckLoadForm">
@@ -126,6 +143,68 @@
                 </form>
                 <div id="cardSearchResult" class="card-area">
 
+                </div>
+            </div>
+            <div id="logFunction" class="functionTab">
+                <div>
+                    <div class="text">페이즈 출력</div>
+                    <div class="d-flex flex-row justify-content-around">
+                        <button class="btn btn-sm" onclick="writePhaseLog('루멘')">루멘</button> → 
+                        <button class="btn btn-sm" onclick="writePhaseLog('레디')">레디</button> → 
+                        <button class="btn btn-sm" onclick="writePhaseLog('배틀')">배틀</button> → 
+                        <button class="btn btn-sm" onclick="writePhaseLog('겟')">겟</button> → 
+                        <button class="btn btn-sm" onclick="writePhaseLog('리커버리')">리커버리</button> → 
+                        <button class="btn btn-sm" onclick="writeTurnLog()">다음 턴</button>
+                    </div>
+                </div>
+                <div>
+                    <div class="text my-auto">히트 출력</div>
+                    <div id="P1Action" class="d-flex flex-row flex-wrap justify-content-around">
+                        <div class="text">P1</div>
+                        <button class="btn btn-sm">히트</button>
+                        <button class="btn btn-sm">카운터</button>
+                        <button class="btn btn-sm">방어</button>
+                        <button class="btn btn-sm">방어됨</button>
+                        <button class="btn btn-sm">회피</button>
+                        <button class="btn btn-sm">회피됨</button>
+                        <button class="btn btn-sm">상쇄</button>
+                        <button class="btn btn-sm">대응 없음</button>
+                    </div>
+                    <hr>
+                    <div id="P2Action" class="d-flex flex-row flex-wrap justify-content-around">
+                        <div class="text my-auto">P2</div>
+                        <button class="btn btn-sm">히트</button>
+                        <button class="btn btn-sm">카운터</button>
+                        <button class="btn btn-sm">방어</button>
+                        <button class="btn btn-sm">방어됨</button>
+                        <button class="btn btn-sm">회피</button>
+                        <button class="btn btn-sm">회피됨</button>
+                        <button class="btn btn-sm">상쇄</button>
+                        <button class="btn btn-sm">대응 없음</button>
+                    </div>
+                </div>
+                <div>
+                    <div class="text">배틀 페이즈</div>
+                    <div class="d-flex flex-row flex-wrap justify-content-around">
+                        <button class="btn btn-sm" onclick="writeEtcLog('그랩 무효')">그랩 무효</button> → 
+                        <button class="btn btn-sm" onclick="writeEtcLog('회피 시')">회피 시</button> → 
+                        <button class="btn btn-sm" onclick="writeEtcLog('방어 시')">방어 시</button> → 
+                        <button class="btn btn-sm" onclick="writeEtcLog('히트 및 카운터 시')">히트 및 카운터 시</button> → 
+                        <button class="btn btn-sm" onclick="writeEtcLog('콤보 시')">콤보 시</button> → 
+                        <button class="btn btn-sm" onclick="writeEtcLog('상쇄 시')">상쇄 시</button> → 
+                        <button class="btn btn-sm" onclick="writeEtcLog('사용 후')">사용 후</button> → 
+                        <button class="btn btn-sm" onclick="writeEtcLog('콤보 타임')">콤보 타임</button> → 
+                        <button class="btn btn-sm" onclick="writeEtcLog('캐치 타임')">캐치 타임</button>
+                    </div>
+                </div>
+                <div>
+                    <div class="text">기타 기능</div>
+                    <div class="d-flex flex-row justify-content-around">
+                        <button class="btn btn-sm" onclick="writeEtcLog('----------------------------')">가로선 출력</button>
+                        <button class="btn btn-sm" onclick="writeEtcLog('우선권 동일 스킵')">우선권 동일 스킵</button>
+                        <button class="btn btn-sm" onclick="writeEtcLog('손패 제한 초과')">손패 제한 초과</button>
+                        <button class="btn btn-sm" onclick="ptr = log.length; reloadLog();">포인터 맨 아래로</button>
+                    </div>
                 </div>
             </div>
         </div>
