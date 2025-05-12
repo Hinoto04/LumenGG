@@ -27,7 +27,7 @@ def index(req):
     if form.data.get('char'):
         q1 = Q()
         q1.add(Q(card__character=form.data.get('char')), q.OR)
-        q1.add(Q(name__contains=charname[int(form.data.get('char'))]), q.OR)
+        q1.add(Q(name__contains=charname[int(form.data.get('char'))])&Q(rare='SKR'), q.OR)
         q.add(q1, q.AND)
     if form.data.get('rare'):
         q.add(Q(rare=form.data.get('rare')), q.AND)
