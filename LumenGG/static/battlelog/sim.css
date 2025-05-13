@@ -1,0 +1,214 @@
+* {
+    box-sizing: border-box;
+}
+
+#메인상자 {
+    width: 99%;
+    height: 900px;
+    display: grid;
+    margin: .5em;
+    gap: .5em;
+    grid-template-rows: 450px 450px;
+    grid-template-columns: 1345px auto;
+    grid-template-areas:
+    "p2area log"
+    "p1area func";
+}
+#로그상자 { 
+    position: relative;
+    grid-area: log; 
+}
+#logtext {
+    height: 94%;
+    overflow-y: auto;
+}
+.logline > p {
+    display: inline;
+    margin: 0;
+}
+.logline > div {
+    display: inline-block;
+}
+.ptr {
+    width: 15px;
+    height: 10px;
+    color: green;
+}
+.P1log { color: red; }
+.P2log { color: blue; }
+#tooltip {
+    position: absolute;
+    display: none;
+    background-size: contain;
+    background-repeat: no-repeat;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+}
+
+#기능상자 { grid-area: func; }
+
+.info { grid-area: info; }
+.side { grid-area: side; }
+.break { grid-area: brek; }
+.list { grid-area: list; }
+.hand { grid-area: hand; }
+.lumen { grid-area: lumn; }
+.battle { grid-area: btle; }
+
+.special-area {
+    border: 1px solid #7c7c7c;
+    border-radius: 1em;
+    padding: .5em;
+}
+.area {
+    display: grid;
+    position: relative;
+    padding: .5em;
+    border: 1px solid #7c7c7c;
+    border-radius: 1em;
+    grid-template-rows: repeat(3, 1fr);
+    gap: 3px;
+    z-index: 0;
+}
+#p1area { grid-template-columns: 420px 450px 450px; }
+#p2area { grid-template-columns: 450px 450px 420px; }
+
+#p1area {
+    grid-area: p1area;
+    background-color: rgba(255, 105, 105, 0.233);
+    grid-template-areas:
+    "info info lumn"
+    "brek list btle"
+    "side list hand";
+}
+
+#p2area {
+    grid-area: p2area;
+    background-color: rgba(108, 105, 255, 0.233);
+    grid-template-areas:
+    "hand list brek"
+    "btle list side"
+    "lumn info info";
+}
+
+.card-area {
+    position: relative;
+    display: grid;
+    gap: 3px;
+    border: 1px solid #afafaf;
+    border-radius: .5em;
+    padding: 3px;
+
+    --size: 80px;
+    grid-template-columns: repeat(auto-fill, var(--size));
+    grid-template-rows: repeat(auto-fill, 50px);
+}
+
+.area-name {
+    position: absolute;
+    top: 3px;
+    right: 7px;
+    color: #797979;
+    user-select: none;
+}
+.area-button {
+    position: absolute;
+    bottom: 3px;
+    right: 3px;
+    background-color: #fff;
+    border: 1px solid #000;
+    cursor: pointer;
+    user-select: none;
+}
+
+.lmc-card {
+    position: relative;
+    width: var(--size);
+    height: 50px;
+    border: 1px solid #000;
+    border-radius: .5em;
+    font-size: 14px;
+    cursor: pointer;
+    user-select: none;
+    padding: 1px;
+    text-align: center;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    overflow: hidden;
+    z-index: 9999!important;
+}
+.p1-card {
+    background-color: rgba(255, 105, 105, 0.61);
+}
+.p2-card {
+    background-color: rgba(108, 105, 255, 0.61);
+}
+
+#기능전환 { border-bottom: 1px solid #000; }
+#기능전환 > div {
+    flex-grow: 1;
+    text-align: center;
+    border-right: 1px solid #000;
+    cursor: pointer;
+}
+#기능전환 > div:nth-last-child(1) { border: 0; }
+
+.functionTab {
+    display: none;
+}
+#cardSearchResult {
+    height: 300px;
+    overflow-y: scroll;
+}
+#logFunction {
+    height: 400px;
+    overflow-y: scroll;
+}
+
+.기본정보 {
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+}
+.기본정보 > input { text-align: center; }
+.hpfpbox {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
+.hpfpbox > button {
+    height: 40px;
+    width: 80px;
+    padding: .25em;
+    font-weight: 900;
+    margin: auto 0;
+}
+.hpfp { margin: 0; }
+.hpfp > span{ 
+    font-size: 20px;
+    font-weight: 700;
+}
+.black {color: black; }
+.red {color: red; }
+.blue {color: blue; }
+
+#logFunction div.text {
+    text-align: center;
+    font-weight: 900;
+}
+#logFunction > div {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: .25em;
+    border: 1px solid #000;
+    border-radius: .5em;
+    margin: .25em 0;
+}
+#logFunction button {
+    border: 1px solid #000;
+}
