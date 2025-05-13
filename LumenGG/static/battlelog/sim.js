@@ -41,3 +41,80 @@ $(document).ready(function() {
         });
     })
 });
+
+var timeoutId = null; // 유예시간 타이머 ID
+var nowControl = null;
+var accumulatedValue = 0; // 버튼 안의 숫자 누적 값
+
+function hpfpChange(type, sign, accsign, event, obj) {
+    event.preventDefault(); // 기본 동작 방지
+    let button = $(obj);
+    if(nowControl == null)
+        nowControl = button
+    else if(nowControl.attr('id') != button.attr('id'))
+        return;
+
+    let num = (type=='HP'?100:1)*accsign;
+    accumulatedValue += num; // 숫자 100 증가
+    if(accumulatedValue<0) accumulatedValue=0;
+    button.text(sign+accumulatedValue); // 버튼에 업데이트
+
+    // 유예시간 타이머 초기화
+    if (timeoutId) {
+        clearTimeout(timeoutId);
+    }
+
+    // 2초 후 HP에 더하기
+    timeoutId = setTimeout(function () {
+        let hpElement = button.closest('.hpfpbox').find('.hpfp > span'); // HP 요소 찾기
+        let player = hpElement.attr('id').substr(0,2);
+        let currentHp = parseInt(hpElement.text()); // 현재 HP 가져오기
+        hpElement.text(currentHp + accumulatedValue*Number(sign+'1')); // HP에 누적 값 더하기
+        playerInfoChangeLog(type, player, accumulatedValue*Number(sign+'1'));
+        button.text(sign); // 버튼 숫자 초기화
+        accumulatedValue = 0; // 누적 값 초기화
+        nowControl = null;
+    }, 1000);
+}
+
+$(document).ready(function () {
+    // 왼쪽 클릭: 버튼 숫자 증가 및 유예시간 설정
+    $('.hpfpbox > .hpin').on('click', function (event) {
+        hpfpChange('HP', '+', +1, event, this);
+    });
+    $('.hpfpbox > .fpin').on('click', function (event) {
+        hpfpChange('FP', '+', +1, event, this);
+    });
+    $('.hpfpbox > .hpde').on('click', function (event) {
+        hpfpChange('HP', '-', +1, event, this);
+    });
+    $('.hpfpbox > .fpde').on('click', function (event) {
+        hpfpChange('FP', '-', +1, event, this);
+    });
+    // 오른쪽 클릭: 버튼 숫자 감소
+    $('.hpfpbox > .hpin').on('contextmenu', function (event) {
+        hpfpChange('HP', '+', -1, event, this);
+    });
+    $('.hpfpbox > .fpin').on('contextmenu', function (event) {
+        hpfpChange('FP', '+', -1, event, this);
+    });
+    $('.hpfpbox > .hpde').on('contextmenu', function (event) {
+        hpfpChange('HP', '-', -1, event, this);
+    });
+    $('.hpfpbox > .fpde').on('contextmenu', function (event) {
+        hpfpChange('FP', '-', -1, event, this);
+    });
+
+    $('#P1FPReset').on('click', function(event) {
+        let fp = $(this).find('span').text();
+        console.log(fp);
+        $(this).find('span').text(0);
+        console.log(Number(fp)*-1);
+        playerFPResetLog('P1', Number(fp));
+    });
+    $('#P2FPReset').on('click', function(event) {
+        let fp = $(this).find('span').text();
+        $(this).find('span').text(0);
+        playerFPResetLog('P2', Number(fp));
+    });
+});

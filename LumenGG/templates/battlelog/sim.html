@@ -24,14 +24,15 @@
                 <div class="기본정보">
                     <input type="text" value="플레이어2">
                     <div class="hpfpbox">
-                        <button type="button" id="hpIncrease" class="btn btn-danger">-100</button>
-                        <p class="hpfp">HP<br><span id="p2_hp">5000</span></p>
-                        <button type="button" id="hpDecrease" class="btn btn-success">+100</button>
+                        <button type="button" id="P2_HP_DE" class="btn btn-danger hpde">-</button>
+                        <p class="hpfp">HP<br><span id="P2_hp">5000</span></p>
+                        <button type="button" id="P2_HP_IN" class="btn btn-success hpin">+</button>
                     </div>
                     <div class="hpfpbox">
-                        <button type="button" id="fpIncrease" class="btn btn-danger">-1FP</button>
-                        <p class="hpfp">FP<br><span id="p2_fp">0</span></p>
-                        <button type="button" id="fpDecrease" class="btn btn-success">+1FP</button>
+                        <button type="button" id="P2_FP_DE" class="btn btn-danger fpde">-</button>
+                        <button id="P2FPReset" class="btn btn-light border hpfp">
+                            <span id="P2_fp">0</span> FP</button>
+                        <button type="button" id="P2_FP_IN" class="btn btn-success fpin">+</button>
                     </div>
                 </div>
             </div>
@@ -61,14 +62,15 @@
                 <div class="기본정보">
                     <input type="text" value="플레이어1">
                     <div class="hpfpbox">
-                        <button type="button" id="hpIncrease" class="btn btn-danger">-100</button>
-                        <p class="hpfp">HP<br><span id="p1_hp">5000</span></p>
-                        <button type="button" id="hpDecrease" class="btn btn-success">+100</button>
+                        <button type="button" id="P1_HP_DE" class="btn btn-danger hpde">-</button>
+                        <p class="hpfp">HP<br><span id="P1_hp">5000</span></p>
+                        <button type="button" id="P1_HP_IN" class="btn btn-success hpin">+</button>
                     </div>
                     <div class="hpfpbox">
-                        <button type="button" id="fpIncrease" class="btn btn-danger">-1FP</button>
-                        <p class="hpfp">FP<br><span id="p1_fp">0</span></p>
-                        <button type="button" id="fpDecrease" class="btn btn-success">+1FP</button>
+                        <button type="button" id="P1_FP_DE" class="btn btn-danger fpde">-</button>
+                        <button id="P1FPReset" class="btn btn-light border hpfp">
+                            <span id="P1_fp">0</span> FP</button>
+                        <button type="button" id="P1_FP_IN" class="btn btn-success fpin">+</button>
                     </div>
                 </div>
             </div>
@@ -100,7 +102,7 @@
             </div>
             <div class="d-flex flex-row justify-content-end">
                 <button type="button" id="deleteTail" class="btn btn-sm border">되돌리기</button>
-                <button type="button" id="logReset" class="btn btn-sm border">로그 초기화</button>
+                <button type="button" onclick="logReset();" class="btn btn-sm btn-danger">로그 초기화</button>
             </div>
             <div id="tooltip">
 
@@ -186,6 +188,7 @@
                 <div>
                     <div class="text">배틀 페이즈</div>
                     <div class="d-flex flex-row flex-wrap justify-content-around">
+                        <button class="btn btn-sm" onclick="writeEtcLog('판정 전')">판정 전</button> → 
                         <button class="btn btn-sm" onclick="writeEtcLog('그랩 무효')">그랩 무효</button> → 
                         <button class="btn btn-sm" onclick="writeEtcLog('회피 시')">회피 시</button> → 
                         <button class="btn btn-sm" onclick="writeEtcLog('방어 시')">방어 시</button> → 

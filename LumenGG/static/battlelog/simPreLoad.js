@@ -29,6 +29,26 @@ function reloadLog() {
             boxbox.append(`
                 <p class="${element.player}log">
                     <b>${element.player}</b>${element.text}</p>`)
+        } else if(['FP', 'HP'].indexOf(element.type) > -1) {
+            let pt = element.point;
+            let color = (pt==0)?"black":((pt>0)?"blue":"red")
+            let point = pt>=0?'＋'+String(pt):'－'+String(pt*-1);
+            boxbox.append(`
+                <p class="${element.player}log">
+                <b>${element.player} </b></p><p>${element.type}</p>
+                <p class="${color}"><b>${point}</b></p>
+                </p>
+                `)
+        } else if(element.type == 'FPReset') {
+            let pt = element.point;
+            let color = (pt==0)?"black":((pt>0)?"blue":"red")
+            let point = pt>=0?'＋'+String(pt):'－'+String(pt*-1);
+            boxbox.append(`
+                <p class="${element.player}log">
+                <b>${element.player} </b></p><p>FP 초기화</p>
+                <p class="${color}"> <b>(${point} → 0 )</b></p>
+                </p>
+                `)
         }
         if(index == ptr-1) logbox.scrollTop($('#logtext')[0].scrollHeight);
     })
@@ -83,6 +103,26 @@ function playerActionLog(player, action) {
     reloadLog();
 }
 
+function playerInfoChangeLog(type, player, point) {
+    // type: HP/FP, player: playernumber, point: value
+    log.splice(ptr, 0, {
+        'type': type,
+        'player': player,
+        'point': point,
+    });
+    ptr++;
+    reloadLog();
+}
+function playerFPResetLog(player, point) {
+    log.splice(ptr, 0, {
+        'type': 'FPReset',
+        'player': player,
+        'point': point,
+    })
+    ptr++;
+    reloadLog();
+}
+
 $(document).ready(function() {
     $('#P1Action > button').each(function(index, item) {
         let text = $(item).text();
@@ -97,3 +137,13 @@ $(document).ready(function() {
         });
     });
 });
+
+function logReset() {
+    let reset = confirm("정말로 초기화하시겠습니까?");
+    if(reset) {
+        log = [];
+        ptr = 0;
+        turn = 1; 
+    }
+    reloadLog();
+}
