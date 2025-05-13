@@ -70,7 +70,7 @@ function hpfpChange(type, sign, accsign, event, obj) {
         let player = hpElement.attr('id').substr(0,2);
         let currentHp = parseInt(hpElement.text()); // 현재 HP 가져오기
         hpElement.text(currentHp + accumulatedValue*Number(sign+'1')); // HP에 누적 값 더하기
-        playerInfoChangeLog(type, player, accumulatedValue*Number(sign+'1'));
+        playerInfoChangeLog(type, player, accumulatedValue*Number(sign+'1'), hpElement.text());
         button.text(sign); // 버튼 숫자 초기화
         accumulatedValue = 0; // 누적 값 초기화
         nowControl = null;

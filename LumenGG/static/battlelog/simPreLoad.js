@@ -33,10 +33,12 @@ function reloadLog() {
             let pt = element.point;
             let color = (pt==0)?"black":((pt>0)?"blue":"red")
             let point = pt>=0?'＋'+String(pt):'－'+String(pt*-1);
+            let result = element.result
+            result = (element.type=='FP')?(result>=0?'＋'+String(result):'－'+String(result*-1)):result;
             boxbox.append(`
                 <p class="${element.player}log">
                 <b>${element.player} </b></p><p>${element.type}</p>
-                <p class="${color}"><b>${point}</b></p>
+                <p class="${color}"><b>${result} ( ${point} )</b></p>
                 </p>
                 `)
         } else if(element.type == 'FPReset') {
@@ -103,12 +105,13 @@ function playerActionLog(player, action) {
     reloadLog();
 }
 
-function playerInfoChangeLog(type, player, point) {
+function playerInfoChangeLog(type, player, point, result) {
     // type: HP/FP, player: playernumber, point: value
     log.splice(ptr, 0, {
         'type': type,
         'player': player,
         'point': point,
+        'result': result,
     });
     ptr++;
     reloadLog();
