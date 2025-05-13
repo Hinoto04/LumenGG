@@ -45,7 +45,7 @@ def deckImport(req):
                 except:
                     cards = Card.objects.filter(Q(name__contains=card)|Q(keyword__contains=card)|Q(hiddenKeyword__contains=card))
                     hubos = [i.name for i in cards]
-                    form.add_error('deck', f'{card}는 존재하지 않는 카드명입니다.\n검색된 추천 카드명 [{','.join(hubos)}]')
+                    form.add_error('deck', f"{card}는 존재하지 않는 카드명입니다.\n검색된 추천 카드명 [{','.join(hubos)}]")
                 else:
                     deckList.append(card_obj)
             char = form.cleaned_data['char']
