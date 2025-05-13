@@ -18,7 +18,7 @@ class CSDeck(models.Model):
     deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name='csdecks')
     place = models.CharField(max_length=10, blank=True)
     user = models.CharField(max_length=30, default='', blank=True)
-    user_model = models.ForeignKey(User, default=None, null=True, on_delete=models.SET_NULL, related_name='css')
+    user_model = models.ForeignKey(User, default=None, null=True, blank=True, on_delete=models.SET_NULL, related_name='css')
     
     def __str__(self):
         return self.cs.name + ' - ' + self.place + ' - ' + self.deck.name

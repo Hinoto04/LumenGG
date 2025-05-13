@@ -13,12 +13,26 @@ class Deck(models.Model):
     keyword = models.CharField(max_length=255, default='', blank=True)
     description = models.TextField(blank=True, default="", null=False)
     private = models.BooleanField(default=False)
+    locked = models.BooleanField(default=False)
     deleted = models.BooleanField(default=False)
     tags = models.CharField(max_length=255, default='', blank=True)
     created = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return f"{self.name} by {self.author.username}"
+    
+    def add_card(self, card:Card):
+        card_in_deck, created = CardInDeck.objects.get_or_create(
+            deck=self,
+            card=card,
+        )
+        if not created:
+            # If the card already exists, increment the count
+            card_in_deck.count += 1
+            card_in_deck.save()
+        else:
+            card_in_deck.save()
+        return card_in_deck
 
 class CardInDeck(models.Model):
     card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='cids')

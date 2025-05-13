@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}오류{% endblock title %}
+{% block style %}
+<style>
+    .text-center {
+        font-size: 1.5em;
+        text-align: center;
+    }
+</style>
+{% endblock style %}
+{% block content %}
+<div class="d-flex flex-column justify-content-center">
+    <div class="text-center">ERROR</div>
+    <div class="text-center">{{ error|safe }}</div>
+    <a id="돌아가기" class="text-center" href="javascript:history.back()">[이전 페이지로 돌아가기]</a>
+</div>
+{% endblock content %}

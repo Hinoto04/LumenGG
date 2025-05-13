@@ -13,6 +13,7 @@ from card.models import Card, Character
 from ..models import Deck, CardInDeck, DeckLike, DeckComment
 from ..forms import DeckSearchForm, DeckMakeForm
 from collection.models import Pack
+from statistic.models import CSDeck
 
 import json
 
@@ -186,6 +187,10 @@ def update(req, id=0):
     
     if deck.author != req.user:
         raise PermissionDenied()
+    
+    csd = CSDeck.objects.filter(deck=deck)
+    if len(csd) > 0:
+        return render(req, 'error.html', context={'error':'대회에 사용된 덱은 수정하실 수 없습니다.'})
     
     if req.method == "GET":
         form = DeckMakeForm(instance=deck)

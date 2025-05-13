@@ -82,3 +82,44 @@ class DeckMakeForm(forms.ModelForm):
         widgets = {
             'description': SummernoteWidget(attrs={'class': 'w-100', 'rows':''}),
         }
+
+class DeckImportForm(forms.Form):
+    name = forms.CharField(
+        label = "덱 이름",
+        widget = forms.TextInput(
+            attrs = {
+                'class': 'form-control 배경색1',
+                'placeholder': '덱 이름'}),
+    )
+    char = forms.ModelChoiceField(
+        label = "캐릭터",
+        queryset = Character.objects.order_by('name'),
+        widget = forms.RadioSelect(attrs = {'class': '검색체크 flex-wrap charSelect'}),
+        required = False,
+        initial = 1,
+    )
+    version = forms.ChoiceField(
+        label = "버전",
+        choices = [
+            ('ST', 'ST'),
+            ('AWL', 'AWL'),
+            ('UNC', 'UNC'),
+            ('LMI', 'LMI'),
+            ('CRS', 'CRS'),
+            ('PMP', 'PMP'),
+            ('N/A', 'N/A'),
+        ],
+        initial = 'N/A',
+        widget = forms.Select(attrs={'class': 'btn border 배경색1'})
+    )
+    private = forms.BooleanField(
+        label = "비공개",
+        required = False,
+        initial = False,
+        widget = forms.CheckboxInput(attrs={'class': 'form-check-input mt-auto mb-auto'}),
+    )
+    deck = forms.CharField(widget=forms.Textarea(
+        attrs = {
+            'class': 'form-control'
+        }
+    ))

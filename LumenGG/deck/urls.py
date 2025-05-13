@@ -14,7 +14,7 @@ urlpatterns = [
     path('update/<int:id>', views.update, name='update'),
     path('update', views.update, name='updateEmpty'),
     
-    path('deckImport', util_views.deckMake, name='deckMakeUtil'),
+    path('deckImport', util_views.deckImport, name='deckImport'),
     path('delete', views.delete, name='deleteEmpty'),
     path('delete/<int:id>', views.delete, name='delete'),
     
