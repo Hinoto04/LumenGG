@@ -7,15 +7,13 @@ from card.models import Card
 from django.core.paginator import Paginator
 from django.conf import settings
 
+from card.models import Character
 from ..forms import CollectionForm, CollectionCreateForm
 import re, random, os, json
 from decorators import permission_required
 
 from PIL import Image
 
-charname = [
-    '', '세츠메이', '니아', '루트', '델피', '키스', '울프', '비올라', '타오', '리타', '레브', '린', '요한', '이제벨',
-]
 
 # Create your views here.
 def index(req):
@@ -27,7 +25,10 @@ def index(req):
     if form.data.get('char'):
         q1 = Q()
         q1.add(Q(card__character=form.data.get('char')), q.OR)
-        q1.add(Q(name__contains=charname[int(form.data.get('char'))])&Q(rare='SKR'), q.OR)
+        try:
+            q1.add(Q(name__contains=Character.objects.get(id=form.data.get('char')).name)&Q(rare='SKR'), q.OR)
+        except:
+            pass
         q.add(q1, q.AND)
     if form.data.get('rare'):
         q.add(Q(rare=form.data.get('rare')), q.AND)

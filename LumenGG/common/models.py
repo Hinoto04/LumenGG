@@ -18,3 +18,10 @@ class UserData(models.Model):
     
     def __str__(self):
         return self.user.username
+
+class SiteSettings(models.Model):
+    name = models.CharField(max_length=30)
+    setting = models.JSONField()
+    
+    def __str__(self):
+        return self.name

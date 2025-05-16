@@ -174,9 +174,9 @@ def createSearch(req):
     q.add(~Q(type="특성"), q.AND)
     q.add(~Q(type="토큰"), q.AND)
     
-    data = Card.objects.filter(q)
-    sdata = serializers.serialize('json', data)
-    return JsonResponse(sdata, safe=False)
+    data = list(Card.objects.filter(q).values('pk', 'name', 'frame', 'img_sm', 'character'))
+    #sdata = serializers.serialize('json', data)
+    return JsonResponse(data, safe=False)
 
 @login_required(login_url='common:login', redirect_field_name='next')
 def update(req, id=0):

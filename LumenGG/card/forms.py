@@ -2,6 +2,7 @@ from django import forms
 from .models import Character, Card, Tag, CardComment
 from collection.models import Pack
 from django.core.validators import FileExtensionValidator
+from common.models import SiteSettings
 class CardForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
         label = "캐릭터",
@@ -23,7 +24,7 @@ class CardForm(forms.Form):
     )
     body = forms.MultipleChoiceField(
         label = "부위",
-        choices = [('없음', '없음'), ('손', '손'), ('발', '발'), ('잔향', '잔향')],
+        choices = [],
         widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크'}),
         required = False,
     )
@@ -43,14 +44,7 @@ class CardForm(forms.Form):
     )
     pack = forms.ChoiceField(
         label = "출신 팩",
-        choices = [
-            ('', '출신 팩'), 
-            ('ST', '스타터 덱'), 
-            ('AWL', '어웨이크닝 루멘'),
-            ('UNC', '유니즌 챌린저'), 
-            ('LMI', '루미너스 이노센스'),
-            ('CRS', '크림슨 스트라이커즈'),
-            ('PMP', '프레데터 엠프레스')],
+        choices = [],
         widget = forms.Select(attrs = {'class': '긴옵션 배경색2'}),
         required = False,
     )
@@ -91,6 +85,16 @@ class CardForm(forms.Form):
             ('-평점', '평점 내림차순'), ('+평점', '평점 오름차순')],
         widget = forms.Select(attrs = {'class': 'btn btn-sm border'}),
     )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        try:
+            site_setting = SiteSettings.objects.get(name='검색필터 팩')
+            self.fields['pack'].choices = site_setting.setting["data"]
+            site_setting = SiteSettings.objects.get(name='부위판정종류')
+            self.fields['body'].choices = site_setting.setting["data"]
+        except SiteSettings.DoesNotExist:
+            self.fields['pack'].choices = []
 
 class TagCreateForm(forms.ModelForm):
     name = forms.CharField(
@@ -138,6 +142,12 @@ class CardCreateForm(forms.ModelForm):
         validators=[FileExtensionValidator(allowed_extensions=['webp'])],
         widget = forms.ClearableFileInput(attrs={'multiple': False}),
     )
+    body = forms.MultipleChoiceField(
+        label = "부위",
+        choices = [],
+        widget = forms.Select(attrs = {'class': '검색체크'}),
+        required = False,
+    )
     class Meta:
         model = Card
         fields = ['name', 'ruby', 'type', 'frame', 
@@ -148,8 +158,6 @@ class CardCreateForm(forms.ModelForm):
         widgets = {
             "pos": forms.Select(choices = [
                 ('', ''), ('상단', '상단'), ('중단', '중단'), ('하단', '하단')]),
-            "body": forms.Select(choices = [
-                ('', ''), ('손', '손'), ('발', '발'), ('잔향', '잔향')]),
             "type": forms.Select(choices = [
                 ('공격', '공격'), ('수비', '수비'), ('특수', '특수'), ('특성', '특성'), ('토큰', '토큰')],),
             'g_top': forms.Select(choices = [
@@ -167,6 +175,14 @@ class CardCreateForm(forms.ModelForm):
             "character": "캐릭터", "img": "이미지(링크)", "text": "텍스트",
             "g_top": "상단 방어", "g_mid": "중단 방어", "g_bot": "하단 방어",
         }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        try:
+            site_setting = SiteSettings.objects.get(name='부위판정종류')
+            self.fields['body'].choices = site_setting.setting["data"]
+        except SiteSettings.DoesNotExist:
+            self.fields['pack'].choices = []
 
 class CardCommentForm(forms.ModelForm):
     class Meta:

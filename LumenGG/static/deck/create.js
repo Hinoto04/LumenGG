@@ -72,9 +72,9 @@ function cardSearch() {
         url: '/deck/createSearch',
         data: formData,
         success: function(res) {
-            let a = JSON.parse(res);
+            let a = res;
             a.sort(function(i, j) {
-                return i["fields"]["frame"] - j["fields"]["frame"]
+                return i["frame"] - j["frame"]
             })
             cardList = [...a];
             $("#ImageResult > div").css("grid-template-columns", "repeat(" + String(Math.ceil(a.length/3)) + ", 120px)")
@@ -82,8 +82,8 @@ function cardSearch() {
                 $("#ImageResult > div").append(`
                     <div id="card_img_${a[i]["pk"]}" class='resultCard'>
                         <img class='cardImg needLoadingImg'
-                        src="${a[i]["fields"]["img_sm"]}"
-                        alt="${a[i]["fields"]["name"]}">
+                        src="${a[i]["img_sm"]}"
+                        alt="${a[i]["name"]}">
                         <img class='cardImg loading'
                         src="${loadingImgLink}"></div>
                     `);
@@ -103,7 +103,7 @@ function cardSearch() {
 
                 $("#TextResult").append(`
                     <div id="card_text_${a[i]["pk"]}" class='resultCardText 배경색1'>
-                        ${a[i]["fields"]["name"]}
+                        ${a[i]["name"]}
                     </div>
                     `);
                     $(`#card_text_${a[i]["pk"]}`).on('click', function(event) {
@@ -128,7 +128,7 @@ function listSearch(pk) {
 function getTemplate(pk) {
     return $(`
         <tr id="in_deck_${pk}">
-            <td class="in_deck_cardname">${listSearch(pk)["fields"]["name"]}</th>
+            <td class="in_deck_cardname">${listSearch(pk)["name"]}</th>
             <td>
                 <button class="decrease btn p-0 btn-danger" onclick="Decrease('${pk}')">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-dash-lg" viewBox="0 0 16 16">

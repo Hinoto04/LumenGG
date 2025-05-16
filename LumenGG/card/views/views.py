@@ -50,7 +50,10 @@ def index(req):
         q.add(Q(character__in=char), q.AND)
     if stype: q.add(Q(type__in=stype), q.AND)
     if pos: q.add(Q(pos__in=pos), q.AND)
-    if body: q.add(Q(body__in=body), q.AND)
+    if body: 
+        if body == "없음":
+            q.add(Q(body__isnull=True) | Q(body=""), q.AND)
+        else: q.add(Q(body__in=body), q.AND)
     if specialtype: 
         qtemp = Q()
         for sp in specialtype:
