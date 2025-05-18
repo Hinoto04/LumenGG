@@ -3,6 +3,8 @@
 {% block title %}덱 만들기{% endblock title %}
 {% block style %}
 <link rel="stylesheet" href="{% static "deck/create.css" %}">
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.15/dist/summernote-bs4.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.15/dist/summernote-bs4.min.js"></script>
 {% endblock style %}
 {% block content %}
 <div id="CreateMain" class="d-flex flex-column w-100">
@@ -145,6 +147,7 @@
     const loadingImgLink = '{% static "Image Loading.png" %}' 
 </script>
 <script src="{% static "deck/create.js" %}"></script>
+<script src="{% static "deck/deckCardLink.js" %}"></script>
 <script src="{% static "imgloading.js" %}"></script>
 <script>
     $('label').each(function() {
@@ -159,6 +162,9 @@
     });
 </script>
 <script>
+    
+    var exceptList = {{exceptList|safe}}
+    
     {% for card in cid %}
         cardList.push({
             'pk': {{ card.card.id }}, 
@@ -177,6 +183,5 @@
         }
     {% endfor %}
 
-    var exceptList = {{exceptList|safe}}
 </script>
 {% endblock content %}

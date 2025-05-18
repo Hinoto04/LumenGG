@@ -177,3 +177,7 @@ label:has(> input.검색체크:checked), input.검색체크:checked + label {
 .autocomplete-list li.selected {
     background-color: #e9ecef;
 }
+
+#DescriptionInput a {
+    color: rgba(var(--bs-link-color-rgb));
+}

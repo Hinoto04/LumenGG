@@ -79,9 +79,9 @@ class DeckMakeForm(forms.ModelForm):
     class Meta:
         model = Deck
         fields = ['name', 'description', 'char', 'keyword']
-        widgets = {
-            'description': SummernoteWidget(attrs={'class': 'w-100', 'rows':''}),
-        }
+        # widgets = {
+        #     'description': SummernoteWidget(attrs={'class': 'w-100', 'rows':''}),
+        # }
 
 class DeckImportForm(forms.Form):
     name = forms.CharField(

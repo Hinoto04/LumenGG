@@ -18,7 +18,8 @@ urlpatterns = [
     path('delete', views.delete, name='deleteEmpty'),
     path('delete/<int:id>', views.delete, name='delete'),
     
-    #path('statistics', util_views.statistics, name='statistics'),
+    #path('statistics', util_views.statistics, name='statistics'),'
+    path('checkCardName', views.check_cardname, name='checkName'),
     
     path('like/<int:id>', views.like, name='like'),
     path('bookmark/<int:id>', views.bookmark, name='bookmark'),

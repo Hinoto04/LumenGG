@@ -292,3 +292,12 @@ def bookmark(req, id):
         return redirect(reverse('deck:detail', kwargs={'id': id}))
     else:
         raise Http404()
+
+def check_cardname(req):
+    name = req.GET.get('name', '')
+    try:
+        Card.objects.get(name=name)
+    except Card.DoesNotExist:
+        raise Http404()
+    else:
+        return HttpResponse("존재")
