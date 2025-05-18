@@ -177,6 +177,6 @@
         }
     {% endfor %}
 
-    var exceptList = {{exceptList}}
+    var exceptList = {{exceptList|safe}}
 </script>
 {% endblock content %}
