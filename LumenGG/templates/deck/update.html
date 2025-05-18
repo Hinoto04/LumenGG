@@ -162,11 +162,9 @@
     {% for card in cid %}
         cardList.push({
             'pk': {{ card.card.id }}, 
-            'fields': {
-                'name': "{{ card.card.name }}",
-                'img': "{{ card.card.img_sm }}",
-                'character': {{ card.card.character.id }},
-            }
+            'name': "{{ card.card.name }}",
+            'img': "{{ card.card.img_sm }}",
+            'character': {{ card.card.character.id }},
         });
         for (let i = 0; i < {{ card.count }}; i++) {
             Increase({{ card.card.id }});
@@ -178,5 +176,7 @@
             sIncrease({{ card.card.id }}, 's');
         }
     {% endfor %}
+
+    var exceptList = {{exceptList}}
 </script>
 {% endblock content %}

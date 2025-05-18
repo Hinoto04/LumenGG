@@ -146,5 +146,8 @@
     const loadingImgLink = '{% static "Image Loading.png" %}'
 </script>
 <script src="{% static "deck/create.js" %}"></script>
+<script>
+    var exceptList = {{exceptList|safe}}
+</script>
 <script src="{% static "imgloading.js" %}"></script>
 {% endblock content %}

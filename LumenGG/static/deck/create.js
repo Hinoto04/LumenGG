@@ -8,15 +8,7 @@ var handCount = 0;
 var sideCount = 0;
 var maxDeckSize = 20;
 
-var exceptList = {
-    '175': 2,
-    '256': 3,
-    '212': 3,
-    '323': 3,
-    '321': 3,
-    '231': 2,
-    '236': 2
-}
+var exceptList = {};
 
 function ToggleDesc() {
     if($("#DescriptionInput").css('display') == 'none') {

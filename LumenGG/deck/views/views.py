@@ -14,6 +14,7 @@ from ..models import Deck, CardInDeck, DeckLike, DeckComment
 from ..forms import DeckSearchForm, DeckMakeForm
 from collection.models import Pack
 from statistic.models import CSDeck
+from common.models import SiteSettings
 
 import json
 
@@ -101,7 +102,10 @@ def detail(req, id=0):
 def create(req):
     if req.method == "GET":
         form = DeckMakeForm()
-        return render(req, 'deck/create.html', context={'form': form})
+        exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
+        return render(req, 'deck/create.html', context={
+            'form': form,
+            'exceptList': exceptList})
     else:
         data = json.loads(req.body)
         errorContent = { 'status': 200 }
@@ -196,7 +200,12 @@ def update(req, id=0):
         form = DeckMakeForm(instance=deck)
         form['version'].initial = deck.version
         cid = CardInDeck.objects.filter(deck=deck)
-        return render(req, 'deck/update.html', context={'form': form, 'cid': cid, 'char': deck.character.name})
+        exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
+        return render(req, 'deck/update.html', context=
+                    {'form': form, 
+                     'cid': cid, 
+                     'char': deck.character.name, 
+                     'exceptList': exceptList})
     else:
         data = json.loads(req.body)
         errorContent = { 'status': 200 }
