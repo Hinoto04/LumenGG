@@ -142,7 +142,7 @@ class CardCreateForm(forms.ModelForm):
         validators=[FileExtensionValidator(allowed_extensions=['webp'])],
         widget = forms.ClearableFileInput(attrs={'multiple': False}),
     )
-    body = forms.MultipleChoiceField(
+    body = forms.ChoiceField(
         label = "부위",
         choices = [],
         widget = forms.Select(attrs = {'class': '검색체크'}),
