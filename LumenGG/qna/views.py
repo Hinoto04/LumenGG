@@ -28,7 +28,7 @@ def index(req):
         q = Q(title__contains=query) | Q(tags__contains=query)
         qna = QNA.objects.filter(q).order_by('-faq', '-created_at')
     else:
-        qna = QNA.objects.all().order_by('-faq', '-created_at')
+        qna = QNA.objects.all().order_by('-created_at')
     
     if faq:
         qna = qna.filter(faq=True)
