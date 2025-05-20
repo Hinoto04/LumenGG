@@ -62,9 +62,9 @@ def profile(req, id=0):
     except User.DoesNotExist:
         raise Http404()
     if req.user == target:
-        decks = Deck.objects.filter(author=target)
+        decks = Deck.objects.filter(author=target, deleted=False)
     else:
-        decks = Deck.objects.filter(author=target, private=False)
+        decks = Deck.objects.filter(author=target, private=False, deleted=False)
     decks = decks.annotate(likecount = Count('deck_like')).order_by('-created')
     
     csds = CSDeck.objects.filter(user_model=target)

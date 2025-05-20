@@ -67,6 +67,9 @@ def detail(req, id=0):
     except Deck.DoesNotExist:
         raise Http404()
     
+    if deck.deleted:
+        raise Http404()
+    
     likecount = DeckLike.objects.filter(deck=deck, like=True).count()
     bookmarkcount = DeckLike.objects.filter(deck=deck, bookmark=True).count()
     cards = CardInDeck.objects.filter(deck=deck).order_by('-card__type', 'card__frame')
