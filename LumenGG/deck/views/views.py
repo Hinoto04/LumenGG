@@ -252,7 +252,11 @@ def delete(req, id):
         deck = Deck.objects.get(id=id)
     except Deck.DoesNotExist:
         raise Http404()
-
+    
+    csd = CSDeck.objects.filter(deck=deck)
+    if len(csd) > 0:
+        return render(req, 'error.html', context={'error':'대회에 사용된 덱은 삭제하실 수 없습니다.'})
+    
     if deck.author == req.user:
         deck.deleted = True
         deck.save()
