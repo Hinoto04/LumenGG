@@ -71,7 +71,7 @@
                 <li class="nav-item">
                     {% if user.is_authenticated %}
                     <div class="d-flex flex-row">
-                        <a href="{% url "common:mypage" %}" class="nav-link">{{ user.username }}</a>
+                        <a href="{% url "common:mypage" %}" class="nav-link me-2">{{ user.username }}</a>
                         <a href="{% url "common:logout" %}" class="nav-link">로그아웃</a>
                     </div>
                     {% else %}

@@ -17,6 +17,20 @@ class Character(models.Model):
     def __str__(self):
         return self.name
 
+class CharacterComment(models.Model):
+    character = models.ForeignKey(Character, on_delete=models.CASCADE)
+    author = models.ForeignKey(User, on_delete=models.DO_NOTHING)
+    comment = models.TextField(blank=True)
+    power = models.SmallIntegerField(default = None, null=True, blank=True)
+    combo = models.SmallIntegerField(default = None, null=True, blank=True)
+    reversal = models.SmallIntegerField(default = None, null=True, blank=True)
+    safety = models.SmallIntegerField(default = None, null=True, blank=True)
+    tempo = models.SmallIntegerField(default = None, null=True, blank=True)
+    created = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.author.username} → {self.character.name} : {self.power} {self.combo} {self.reversal} {self.safety} {self.tempo}"
+
 class Card(models.Model):
     name = models.CharField(max_length=100, blank=True) #카드명
     ruby = models.CharField(blank=True, max_length=100) #카드 루비(읽는 법)

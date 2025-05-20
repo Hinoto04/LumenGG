@@ -1,8 +1,10 @@
 from django import forms
-from .models import Character, Card, Tag, CardComment
+from .models import Character, Card, Tag, CardComment, CharacterComment
 from collection.models import Pack
 from django.core.validators import FileExtensionValidator
 from common.models import SiteSettings
+from django.utils import timezone
+from django.db.models import Q
 class CardForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
         label = "캐릭터",
@@ -193,4 +195,22 @@ class CardCommentForm(forms.ModelForm):
             "comment": forms.TextInput(attrs={
                 "class": "form-control 긴옵션 배경색2",
                 "placeholder": "코멘트 작성/수정(200자 까지)"})
+        }
+
+selectOptions = [('-1', '미평가')]+[(i, str(i)) for i in range(1, 11)]
+class CharacterCommentForm(forms.ModelForm):
+    character = forms.ModelChoiceField(
+        queryset = Character.objects.filter(Q(pack__released__lt=timezone.now())).order_by('pack__released'),
+        required = True
+    )
+    class Meta:
+        model = CharacterComment
+        fields = ['character', 'comment', 'power', 'combo', 'reversal', 'safety', 'tempo']
+        widgets = {
+            'power': forms.Select(choices=selectOptions, attrs={'class': '배경색2'}),
+            'combo': forms.Select(choices=selectOptions, attrs={'class': '배경색2'}),
+            'reversal': forms.Select(choices=selectOptions, attrs={'class': '배경색2'}),
+            'safety': forms.Select(choices=selectOptions, attrs={'class': '배경색2'}),
+            'tempo': forms.Select(choices=selectOptions, attrs={'class': '배경색2'}),
+            'comment': forms.Textarea(attrs={'class': '배경색2'})
         }

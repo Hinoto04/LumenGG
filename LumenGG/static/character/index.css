@@ -116,7 +116,6 @@
 #픽창 {
     --size: 50px;
     display: grid;
-    grid-template-columns: repeat(12, var(--size));
     grid-auto-rows: var(--size);
     gap: 5px;
     place-items: start center;
@@ -138,10 +137,6 @@
     transform: rotate(45deg);
 }
 
-#픽창 div:nth-child(8n-1) {
-    grid-column: 2 / span 2
-}
-
 .pickImg {
     width: 100%;
     transition:
@@ -155,4 +150,59 @@
 }
 .selected {
     filter: brightness(100%);
+}
+
+#코멘트작성 {
+    padding: 1em;
+    border-radius: 1em;
+}
+
+#캐릭터수치평가창 {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    margin-bottom: .5em;
+}
+
+#캐릭터수치평가창 div {
+    font-size: 20px;
+    text-align: center;
+}
+
+#캐릭터수치평가창 label, select {
+    cursor: pointer;
+    text-align: center;
+}
+
+#캐릭터수치평가창 select {
+    border: none;
+    border-radius: .25em;
+    font-weight: 900;
+}
+
+#id_character {
+    display: none;
+}
+
+#id_comment {
+    width: 100%;
+    height: 5em;
+    border: none;
+    border-radius: 1em;
+    padding: .5em;
+}
+.댓글 {
+    padding: .5em;
+    border-radius: .5em;
+}
+.댓글 > div:nth-child(1) {
+    font-size: 1.1em;
+    font-weight: 900;
+}
+.점수 {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-around;
 }
