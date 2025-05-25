@@ -144,6 +144,13 @@ function dataSet(id) {
         $("#id_reversal").val(sc.reversal?sc.reversal:-1)
         $("#id_safety").val(sc.safety?sc.safety:-1)
         $("#id_tempo").val(sc.tempo?sc.tempo:-1)
+    }else {
+        $("#id_comment").val("")
+        $("#id_power").val(-1)
+        $("#id_combo").val(-1)
+        $("#id_reversal").val(-1)
+        $("#id_safety").val(-1)
+        $("#id_tempo").val(-1)
     }
     commentLoad(charDatas[id].comments)
 
