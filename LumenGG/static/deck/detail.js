@@ -96,6 +96,10 @@ $(document).ready(function () {
 
     $('#덱설명').on('mouseenter', 'a', function (e) {
         let href = $(this).attr('href');
+        // 맨 뒤에 슬래시가 있으면 제거
+    if (href && href.endsWith('/')) {
+        href = href.slice(0, -1);
+    }
         let match = href && href.match(/^https:\/\/lumen\.hinoto\.kr\/detail\/(.+)$/);
         if (match) {
             let cardName = decodeURIComponent(match[1]);

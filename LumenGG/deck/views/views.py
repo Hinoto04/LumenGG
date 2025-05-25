@@ -316,6 +316,11 @@ def detail_hoverImg(req):
     try:
         card = Card.objects.get(name=name)
     except:
-        raise Http404()
+        try:
+            card = Card.objects.get(id=name)
+        except:
+            raise Http404()
+        else:
+            return HttpResponse(card.img_mid)
     else:
         return HttpResponse(card.img_mid)
