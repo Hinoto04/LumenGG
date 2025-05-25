@@ -27,7 +27,7 @@ class CollectionCard(models.Model):
     
     @property
     def isReleased(self):
-        if timezone.now().date() > self.pack.released:
+        if timezone.now().date() >= self.pack.released:
             return True
         return False
 

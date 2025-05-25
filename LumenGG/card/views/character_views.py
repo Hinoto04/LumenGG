@@ -12,7 +12,7 @@ import json, math
 
 def index(req):
     id = req.GET.get('id', '2')
-    chars = Character.objects.filter(Q(pack__released__lt=timezone.now())).order_by('pack__released')
+    chars = Character.objects.filter(Q(pack__released__lte=timezone.now())).order_by('pack__released')
     charnum = len(chars)+1
     charnum2 = math.ceil(len(chars)/2)+2
     form = CharacterCommentForm()
