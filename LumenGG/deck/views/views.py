@@ -202,6 +202,7 @@ def update(req, id=0):
     if req.method == "GET":
         form = DeckMakeForm(instance=deck)
         form['version'].initial = deck.version
+        print(form)
         cid = CardInDeck.objects.filter(deck=deck)
         exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
         return render(req, 'deck/update.html', context=
@@ -226,7 +227,7 @@ def update(req, id=0):
         deck.character_id = int(data['char'])
         deck.version = data['version']
         deck.keyword = data['keyword']
-        deck.private = data['private']
+        deck.private = 'private' in data.keys()
         deck.description = data['description']
         deck.save()
         
