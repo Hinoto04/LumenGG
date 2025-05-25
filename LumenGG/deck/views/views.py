@@ -226,6 +226,7 @@ def update(req, id=0):
         deck.character_id = int(data['char'])
         deck.version = data['version']
         deck.keyword = data['keyword']
+        deck.private = data['private']
         deck.description = data['description']
         deck.save()
         
