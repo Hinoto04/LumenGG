@@ -146,6 +146,11 @@ input[type='number'] {
 .hoverImage:hover span { 
     opacity: 1;
 }
+@media screen and (max-width: 768px) {
+    .hoverImage:hover span { 
+    display: none;
+}
+}
 
 .rarebox {
     display: flex;

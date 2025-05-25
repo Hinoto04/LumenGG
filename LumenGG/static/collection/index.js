@@ -72,14 +72,31 @@ document.querySelectorAll(".dynamicLink").forEach(element => {
 });
 
 window.onmousemove = function (e) {
-    var x = (e.clientX + 20) + 'px',
-        y = (e.clientY + 20) + 'px';
+    var padding = 20;
+    var mouseX = e.clientX, mouseY = e.clientY;
+    var winW = window.innerWidth, winH = window.innerHeight;
+
     for (var i = 0; i < tooltips.length; i++) {
-        tooltips[i].style.top = y;
-        tooltips[i].style.left = x;
+        var tooltip = tooltips[i];
+        // 툴팁 크기 계산 (보이지 않을 때는 임의값 사용)
+        var tooltipW = tooltip.offsetWidth || 200;
+        var tooltipH = tooltip.offsetHeight || 200;
+
+        var left = mouseX + padding;
+        var top = mouseY + padding;
+
+        // 오른쪽이 넘치면 왼쪽으로
+        if (left + tooltipW > winW) left = mouseX - tooltipW - padding;
+        if (left < 0) left = 0;
+
+        // 아래가 넘치면 위로
+        if (top + tooltipH > winH) top = mouseY - tooltipH - padding;
+        if (top < 0) top = 0;
+
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
     }
 };
-
 // 컬렉션 수정 관련
 
 var changedCollection = {};

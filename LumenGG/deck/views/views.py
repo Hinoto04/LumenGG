@@ -310,3 +310,12 @@ def check_cardname(req):
         raise Http404()
     else:
         return HttpResponse("존재")
+
+def detail_hoverImg(req):
+    name = req.GET.get('name', '')
+    try:
+        card = Card.objects.get(name=name)
+    except:
+        raise Http404()
+    else:
+        return HttpResponse(card.img_mid)

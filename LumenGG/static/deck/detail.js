@@ -85,3 +85,49 @@ function deckCapture() {
         link.click();
     });
 }
+
+$(document).ready(function () {
+    // 이미지 캐시 딕셔너리
+    const cardImgCache = {};
+
+    // 툴팁 이미지 DOM 생성
+    let $imgTooltip = $('<div id="card-hover-img-tooltip" style="position:fixed; display:none; z-index:9999; pointer-events:none;"><img src="" style="max-width:300px; max-height:400px; border:2px solid #333; background:#fff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.2);"></div>');
+    $('body').append($imgTooltip);
+
+    $('#덱설명').on('mouseenter', 'a', function (e) {
+        let href = $(this).attr('href');
+        let match = href && href.match(/^https:\/\/lumen\.hinoto\.kr\/detail\/(.+)$/);
+        if (match) {
+            let cardName = decodeURIComponent(match[1]);
+            if (cardImgCache[cardName]) {
+                $imgTooltip.find('img').attr('src', cardImgCache[cardName]);
+                $imgTooltip.show();
+            } else {
+                $.get('/deck/detailHoverImg', { name: cardName })
+                    .done(function (imgUrl) {
+                        cardImgCache[cardName] = imgUrl;
+                        $imgTooltip.find('img').attr('src', imgUrl);
+                        $imgTooltip.show();
+                    });
+            }
+        }
+    }).on('mousemove', 'a', function (e) {
+        // 툴팁 위치 조정 (화면 바깥으로 안나가게)
+        if (window.innerWidth <= 768) return;
+        let tooltip = $imgTooltip[0];
+        let img = $imgTooltip.find('img')[0];
+        let padding = 16;
+        let mouseX = e.clientX, mouseY = e.clientY;
+        let winW = window.innerWidth, winH = window.innerHeight;
+        let imgW = img.naturalWidth || 300, imgH = img.naturalHeight || 400;
+        let left = mouseX + padding, top = mouseY + padding;
+        if (left + imgW > winW) left = mouseX - imgW - padding;
+        if (left < 0) left = 0;
+        if (top + imgH > winH) top = mouseY - imgH - padding;
+        if (top < 0) top = 0;
+        $imgTooltip.css({ left: left + 'px', top: top + 'px' });
+    }).on('mouseleave', 'a', function () {
+        $imgTooltip.hide();
+        $imgTooltip.find('img').attr('src', '');
+    });
+});

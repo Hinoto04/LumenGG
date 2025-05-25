@@ -20,6 +20,7 @@ urlpatterns = [
     
     #path('statistics', util_views.statistics, name='statistics'),'
     path('checkCardName', views.check_cardname, name='checkName'),
+    path('detailHoverImg', views.detail_hoverImg, name='detailHoverImg'),
     
     path('like/<int:id>', views.like, name='like'),
     path('bookmark/<int:id>', views.bookmark, name='bookmark'),
