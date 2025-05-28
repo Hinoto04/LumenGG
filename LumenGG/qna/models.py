@@ -8,7 +8,7 @@ class QNA(models.Model):
     question = models.TextField() #질문
     answer = models.TextField() #답변
     faq = models.BooleanField(default=False) #FAQ 여부
-    created_at = models.DateTimeField(auto_now_add=True) #생성일
+    created_at = models.DateTimeField(auto_now=True) #생성일
     cards = models.ManyToManyField(Card, through='QNARelation', related_name='qna') #관련 카드
     tags = models.CharField(max_length=100, blank=True, default="") #태그
     
