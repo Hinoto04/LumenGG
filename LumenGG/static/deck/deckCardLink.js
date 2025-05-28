@@ -122,7 +122,7 @@ $(document).ready(function () {
                 error: function(xhr) {
                     if (xhr.status === 404) {
                         let currentHtml = $editor.summernote('code');
-                        let fail = `[[<span style="color:red;">${cardName}</span>]]`;
+                        let fail = `[[<span style="color:red;">${cardName}</span>]`;
                         let before = `[[${cardName}]]`;
                         let idx = currentHtml.indexOf(before);
                         if (idx !== -1) {
