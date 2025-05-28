@@ -192,13 +192,33 @@
     border-radius: 1em;
     padding: .5em;
 }
+#댓글창 {
+    width: 100%;
+}
 .댓글 {
     padding: .5em;
     border-radius: .5em;
 }
 .댓글 > div:nth-child(1) {
+    flex-direction: row;
     font-size: 1.1em;
     font-weight: 900;
+}
+.댓글 > div {
+    white-space: wrap;
+    width: 100%;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+@media screen and (max-width: 768px) {
+    .댓글 > div:nth-child(1) {
+        flex-direction: column;
+        font-size: 1.1em;
+        font-weight: 900;
+    }
+    .모바일비표시 {
+        display: none;
+    }
 }
 .점수 {
     display: flex;

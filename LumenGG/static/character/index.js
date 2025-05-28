@@ -104,14 +104,14 @@ function commentLoad(commentList) {
     $.each(commentList, function(index, item) {
         $("#댓글목록").append(`
             <div class="댓글 배경색1 mb-2">
-                <div class="d-flex flex-row">
+                <div class="d-flex flex-wrap">
                     <div class="me-2"><a href="/common/profile/${item.author_name}">
-                        ${item.author_name}</a> | </div>
+                        ${item.author_name} | </a></div>
                     <div class="점수 flex-grow-1">
                         <div>화력 : ${item.power?item.power:'미평가'}</div>
                         <div>연계 : ${item.combo?item.combo:'미평가'}</div>
-                        <div>변수창출 : ${item.reversal?item.reversal:'미평가'}</div>
-                        <div>안정성 : ${item.safety?item.safety:'미평가'}</div>
+                        <div>변수<span class="모바일비표시">창출</span> : ${item.reversal?item.reversal:'미평가'}</div>
+                        <div>안정<span class="모바일비표시">성</span> : ${item.safety?item.safety:'미평가'}</div>
                         <div>템포 : ${item.tempo?item.tempo:'미평가'}</div>
                     </div>
                 </div>
