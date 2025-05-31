@@ -11,13 +11,13 @@ class CardAdmin(admin.ModelAdmin):
     search_fields = ('name', 'character__name', 'pos', 'body', 'special', 'frame', 'code')
 
 class CharCommentAdmin(admin.ModelAdmin):
-    list_display = ('author__username', 'character__name', 'power', 'combo', 'reversal', 'safety', 'tempo')
+    list_display = ('author', 'character__name', 'power', 'combo', 'reversal', 'safety', 'tempo')
     list_filter = ('character',)
-    search_fields = ('author__username',)
+    search_fields = ('author',)
 
 class CardCommentAdmin(admin.ModelAdmin):
-    list_display = ('author__username', 'card__name', 'score')
-    search_fields = ('card__name', 'author__username')
+    list_display = ('author', 'card__name', 'score')
+    search_fields = ('card__name', 'author')
 
 # Register your models here.
 admin.site.register(Character, CharacterAdmin)
