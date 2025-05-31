@@ -21,4 +21,4 @@ class CSDeck(models.Model):
     user_model = models.ForeignKey(User, default=None, null=True, blank=True, on_delete=models.SET_NULL, related_name='css')
     
     def __str__(self):
-        return self.cs.name + ' - ' + self.place + ' - ' + self.deck.name
+        return self.cs.name + ' - ' + str(self.place_num) + ' - ' + self.deck.name
