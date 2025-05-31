@@ -61,7 +61,7 @@
                 <td>
                     <a href="{% url "stat:detail" csd.cs.id %}" class="w-100 덱이름 t-left">{{ csd.cs.name }}</a>
                 </td>
-                <td>{{ csd.place }}</td>
+                <td>{{ csd.place_num }}</td>
                 <td><a href="{% url "card:character" %}?id={{ csd.deck.character.id }}">{{ csd.deck.character.name }}</a></td>
                 <td>
                     <a href="{% url "deck:detail" csd.deck.id %}">{{ csd.deck.name }}</a>

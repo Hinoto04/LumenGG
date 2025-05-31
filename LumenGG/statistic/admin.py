@@ -8,7 +8,7 @@ class CSAdmin(admin.ModelAdmin):
     ordering = ('-datetime',)
 
 class CSDeckAdmin(admin.ModelAdmin):
-    list_display = ('cs', 'deck')
+    list_display = ('cs', 'place_num', 'deck__id', 'deck__name')
     search_fields = ('cs__name', 'deck__name')
     autocomplete_fields = ('deck', 'user_model')
 

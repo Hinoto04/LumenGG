@@ -16,7 +16,7 @@ class Championship(models.Model):
 class CSDeck(models.Model):
     cs = models.ForeignKey(Championship, on_delete=models.CASCADE)
     deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name='csdecks')
-    place = models.CharField(max_length=10, blank=True)
+    place_num = models.SmallIntegerField(default=0, blank=True, null=True)
     user = models.CharField(max_length=30, default='', blank=True)
     user_model = models.ForeignKey(User, default=None, null=True, blank=True, on_delete=models.SET_NULL, related_name='css')
     

@@ -50,7 +50,7 @@
     <div style="display: none;">
         {% for deck in decks %}
         <div>
-            {{ deck.place }} | {{ deck.deck.character.name }} | <a href="{% url "deck:detail" deck.deck.id %}">{{ deck.deck.name }}</a>
+            {{ deck.place_num }} | {{ deck.deck.character.name }} | <a href="{% url "deck:detail" deck.deck.id %}">{{ deck.deck.name }}</a>
         </div>
         {% endfor %}
     </div>

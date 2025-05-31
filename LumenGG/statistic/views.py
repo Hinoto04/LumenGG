@@ -5,8 +5,7 @@ from .models import Championship, CSDeck
 from .forms import CSSearchForm
 
 from django.http import Http404, JsonResponse
-from django.db.models import Q, Count, FloatField
-from django.db.models.functions import Cast
+from django.db.models import Q, Count, FloatField, IntegerField, F, Func, Value
 from django.core import serializers
 
 # Create your views here.
@@ -29,7 +28,7 @@ def detail(req, id):
     except Championship.DoesNotExist:
         raise Http404()
     
-    decks = CSDeck.objects.filter(cs=cs).order_by('place')
+    decks = CSDeck.objects.filter(cs=cs).order_by('place_num')
     #print(carddata)
 
     context = {
