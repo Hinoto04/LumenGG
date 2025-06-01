@@ -37,7 +37,6 @@ function processCardLinks($editor) {
                             range.collapse(true);
                             let sel = window.getSelection();
                             sel.removeAllRanges();
-                            console.log(range);
                             sel.addRange(range);
                         }
                     }, 0);
@@ -108,7 +107,6 @@ function processCardLinks($editor) {
                                 found = walker.currentNode;
                             }
                         }
-                        console.log(walker)
                         if (found) {
                             let range = document.createRange();
                             range.setStartAfter(found);
