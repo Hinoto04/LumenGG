@@ -46,7 +46,7 @@ function processCardLinks($editor) {
             error: function(xhr) {
                 if (xhr.status === 404) {
                     let currentHtml = $editor.summernote('code');
-                    let fail = `[[${linkText}|<span style="color:red;">${cardName}</span>]]`;
+                    let fail = `[[${linkText}|${cardName}]`;
                     let before = `[[${linkText}|${cardName}]]`;
                     let idx = currentHtml.indexOf(before);
                     if (idx !== -1) {
@@ -123,7 +123,7 @@ function processCardLinks($editor) {
             error: function(xhr) {
                 if (xhr.status === 404) {
                     let currentHtml = $editor.summernote('code');
-                    let fail = `[[<span style="color:red;">${cardName}</span>]`;
+                    let fail = `[[${cardName}]`;
                     let before = `[[${cardName}]]`;
                     let idx = currentHtml.indexOf(before);
                     if (idx !== -1) {
