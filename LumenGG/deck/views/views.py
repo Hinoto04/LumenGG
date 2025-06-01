@@ -202,7 +202,6 @@ def update(req, id=0):
     if req.method == "GET":
         form = DeckMakeForm(instance=deck)
         form['version'].initial = deck.version
-        print(form)
         cid = CardInDeck.objects.filter(deck=deck)
         exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
         return render(req, 'deck/update.html', context=
