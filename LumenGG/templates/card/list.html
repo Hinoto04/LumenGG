@@ -30,7 +30,37 @@
             </div>
             <div id="분류" class="필터세부 배경색1">
                 <label for="type">분류</label>
-                {{ form.type }}
+                <div class="d-flex justify-content-between">
+                    <div id="id_type" class="검색체크">
+                        <div>
+                        <label for="id_type_0">
+                            <input type="checkbox" name="type" value="특성" class="검색체크" id="id_type_0">특성
+                        </label>
+                        </div>
+                        <div>
+                            <label for="id_type_1">
+                                <input type="checkbox" name="type" value="공격" class="검색체크" id="id_type_1">공격
+                            </label>
+                        </div>
+                        <div>
+                            <label for="id_type_2">
+                                <input type="checkbox" name="type" value="수비" class="검색체크" id="id_type_2">수비
+                            </label>
+                        </div>
+                        <div>
+                            <label for="id_type_3">
+                                <input type="checkbox" name="type" value="특수" class="검색체크" id="id_type_3">특수
+                            </label>
+                        </div>
+                    </div>
+                    <div id="id_ultimate" class="검색체크">
+                        <div>
+                            <label for="ultimate">
+                                <input type="checkbox" name="ultimate" class="검색체크" id="ultimate">얼티밋
+                            </label>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div id="판정" class="필터세부 배경색1">
                 <label for="pos">판정</label>

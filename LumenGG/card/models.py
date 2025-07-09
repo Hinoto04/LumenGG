@@ -47,7 +47,8 @@ class Card(models.Model):
     g_mid = models.CharField(null=True, blank=True, max_length=5) #중단방어
     g_bot = models.CharField(null=True, blank=True, max_length=5) #하단방어
     type = models.CharField(default="공격", max_length=10, blank=True) #카드 종류 (공격, 수비, 특수 기술, 패시브)
-    code = models.CharField(max_length=20, blank=True) #카드 일련번호 (UNC-AT-000)
+    ultimate = models.BooleanField(default=False) #얼티밋 여부
+    code = models.CharField(max_length=25, blank=True) #카드 일련번호 (UNC-AT-000)
     character = models.ForeignKey(Character, on_delete=models.PROTECT, related_name='cards', blank=True) #캐릭터
     img = models.URLField(blank=True) #이미지 URL
     img_mid = models.URLField(blank=True, default='') #이미지 URL (중간 사이즈)

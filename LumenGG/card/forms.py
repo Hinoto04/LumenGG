@@ -18,6 +18,11 @@ class CardForm(forms.Form):
         widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크'}),
         required = False,
     )
+    ultimate = forms.BooleanField(
+        label = "얼티밋",
+        required = False,
+        widget = forms.CheckboxInput(attrs = {'class': '검색체크'}),
+    )
     pos = forms.MultipleChoiceField(
         label = "판정",
         choices = [('상단', '상단'), ('중단', '중단'), ('하단', '하단')],

@@ -31,6 +31,7 @@ def index(req):
         framenum = None
         frametype = None
         sort = None
+        ultimate = None
     else:
         char = form.cleaned_data['char']
         stype = form.cleaned_data['type']
@@ -43,12 +44,14 @@ def index(req):
         framenum = form.cleaned_data['framenum']
         frametype = form.cleaned_data['frametype']
         sort = form.cleaned_data['sort']
+        ultimate = form.cleaned_data['ultimate']
     
     q = Q()
     
     if char: 
         q.add(Q(character__in=char), q.AND)
     if stype: q.add(Q(type__in=stype), q.AND)
+    if ultimate: q.add(Q(ultimate=True), q.AND)
     if pos: q.add(Q(pos__in=pos), q.AND)
     if body: 
         if body == "없음":
