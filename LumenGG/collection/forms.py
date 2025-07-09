@@ -52,8 +52,8 @@ class CollectionForm(forms.ModelForm):
             ('EXR', 'EXR : 익스텐드 레어'),
             ('AN', 'AN : 어나더 노멀'),
             ('AEX', 'AEX : 어나더 익스텐드 레어'),
-            ('SAEX', 'SAEX : 시크릿 어나더 익스텐드 레어'),
-            ('SKR', 'SKR : 스킨 레어')
+            ('SAR', 'SAR : 시크릿 어나더 익스텐드 레어'),
+            ('SP', 'SP : 스페셜')
         ],
         required=False,
         widget=forms.RadioSelect(attrs = {'class': '검색체크 flex-wrap'}),
