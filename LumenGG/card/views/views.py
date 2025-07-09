@@ -139,8 +139,8 @@ def detail(req, id=0):
         When(rare='EXR', then=2),
         When(rare='AN', then=3),
         When(rare='AEX', then=4),
-        When(rare='SAEX', then=5),
-        When(rare='SKR', then=6),
+        When(rare='SAR', then=5),
+        When(rare='SP', then=6),
         default=7,
         output_field=IntegerField(),
         )

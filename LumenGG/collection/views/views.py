@@ -26,7 +26,8 @@ def index(req):
         q1 = Q()
         q1.add(Q(card__character=form.data.get('char')), q.OR)
         try:
-            q1.add(Q(name__contains=Character.objects.get(id=form.data.get('char')).name)&Q(rare='SKR'), q.OR)
+            q1.add(Q(name=Character.objects.get(id=form.data.get('char')).name), q.OR)
+            q1.add(Q(name__contains=Character.objects.get(id=form.data.get('char')).name)&Q(rare='SP'), q.OR)
         except:
             pass
         q.add(q1, q.AND)
@@ -55,8 +56,8 @@ def index(req):
         When(rare='EXR', then=2),
         When(rare='AN', then=3),
         When(rare='AEX', then=4),
-        When(rare='SAEX', then=5),
-        When(rare='SKR', then=6),
+        When(rare='SAR', then=5),
+        When(rare='SP', then=6),
         default=7,
         output_field=IntegerField(),
         )

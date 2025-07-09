@@ -73,7 +73,7 @@ class CollectionCreateForm(forms.ModelForm):
     rare = forms.MultipleChoiceField(
         label = "레어리티",
         choices = [
-            ('N', 'N'), ('SR', 'SR'), ('EXR', 'EXR'), ('AN', 'AN'), ('AEX', 'AEX'), ('SKR', 'SKR'), ('SAEX', 'SAEX')],
+            ('N', 'N'), ('SR', 'SR'), ('EXR', 'EXR'), ('AN', 'AN'), ('AEX', 'AEX'), ('SP', 'SP'), ('SAR', 'SAR')],
         widget = forms.CheckboxSelectMultiple(attrs={'class': 'rare'}),
         required = False,
     )

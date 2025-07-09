@@ -9,8 +9,8 @@
 .EXR { background-color: plum; }
 .AN { background-color: #444444; color: #ffffff; }
 .AEX { background-color: purple; color: #ffffff; }
-.SAEX { background-color: blue; color: #ffffff;}
-.SKR { background-color: crimson; color: #ffffff;}
+.SAR { background-color: blue; color: #ffffff;}
+.SP { background-color: crimson; color: #ffffff;}
 
 /* 각 필터의 체크박스와 라벨을 감싸는 상자 */
 .필터세부 {
