@@ -46,9 +46,15 @@
             <label for="damage">대미지</label>
             {{ form.damage }}
         </div>
-        <div class="option">
-            <label for="type">타입</label>
-            {{ form.type }}
+        <div class="option combinedoption">
+            <div>
+                <label for="type">타입</label>
+                {{ form.type }}
+            </div>
+            <div>
+                <label for="type">얼티밋</label>
+                {{ form.ultimate }}
+            </div>
         </div>
         <div class="option combinedoption" id="hitguardcounter">
             <div>

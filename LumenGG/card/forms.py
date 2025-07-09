@@ -157,8 +157,8 @@ class CardCreateForm(forms.ModelForm):
     )
     class Meta:
         model = Card
-        fields = ['name', 'ruby', 'type', 'frame', 
-                  'damage', 'pos', 'body', 'special', 'code', 
+        fields = ['name', 'ruby', 'type', 'ultimate', 'frame', 
+                  'damage', 'pos', 'body', 'special', 'code',
                   'hit', 'guard', 'counter', 
                   'g_top', 'g_mid', 'g_bot', 
                   'character', 'text']

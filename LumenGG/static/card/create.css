@@ -52,6 +52,10 @@ input[type="checkbox"] {
     margin-right: .5em;
 }
 
+#id_ultimate {
+    height: 1.5em;
+}
+
 #hitguardcounter > div {
     width: 50px;
 }
