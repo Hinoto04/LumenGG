@@ -26,8 +26,7 @@ def index(req):
         q1 = Q()
         q1.add(Q(card__character=form.data.get('char')), q.OR)
         try:
-            q1.add(Q(name=Character.objects.get(id=form.data.get('char')).name), q.OR)
-            q1.add(Q(name__contains=Character.objects.get(id=form.data.get('char')).name)&Q(rare='SP'), q.OR)
+            q1.add(Q(name__contains=Character.objects.get(id=form.data.get('char')).name)&Q(card=None), q.OR)
         except:
             pass
         q.add(q1, q.AND)

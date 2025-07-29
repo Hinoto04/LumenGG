@@ -45,7 +45,7 @@ def detail(req, id):
     for i in data['identity']:
         i['card'] = list(Card.objects.only('img_mid').filter(id=i['card']).values('id', 'name', 'img_mid'))
     
-    skinImgs = CollectionCard.objects.filter(Q(name__contains=char.name)&Q(rare="SKR")&Q(card_id=None))
+    skinImgs = CollectionCard.objects.filter(Q(name__contains=char.name)&Q(card_id=None))
     passive = list(Card.objects.filter(type="특성", character=char).values('id', 'name', 'img'))
     selfComment = None
     if req.user.is_authenticated:

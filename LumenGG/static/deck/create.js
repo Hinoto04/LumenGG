@@ -6,7 +6,7 @@ var cardList = [];
 var listCount = 0;
 var handCount = 0;
 var sideCount = 0;
-var maxDeckSize = 20;
+var maxDeckSize = 21;
 
 var exceptList = {};
 
@@ -34,8 +34,8 @@ function textToggle() {
 
 function charChange() {
     var selectedLabel = $(this).parent().text();
-    if($(this).val() == 5) maxDeckSize = 23;
-    else maxDeckSize = 20;
+    if($(this).val() == 5) maxDeckSize = 24;
+    else maxDeckSize = 21;
     $("input#char_main").attr('value', $(this).val());
     $("#char_main_box > label").text(selectedLabel);
     
