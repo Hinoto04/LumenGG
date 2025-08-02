@@ -45,7 +45,7 @@ def detail(req, id):
     for i in data['identity']:
         i['card'] = list(Card.objects.only('img_mid').filter(id=i['card']).values('id', 'name', 'img_mid'))
     
-    skinImgs = CollectionCard.objects.filter(Q(name__contains=char.name)&Q(card_id=None))
+    skinImgs = CollectionCard.objects.filter(Q(name__contains=char.name)&Q(card_id=None)).order_by('pack__released')
     passive = list(Card.objects.filter(type="특성", character=char).values('id', 'name', 'img'))
     selfComment = None
     if req.user.is_authenticated:
@@ -61,7 +61,7 @@ def detail(req, id):
     jsons = {
         'char': model_to_dict(char),
         "passive": passive,
-        "skin": [char.img] + [i.image for i in skinImgs],
+        "skin": [i.image for i in skinImgs],
         "selfComment": selfComment,
         "comments": comments,
     }
