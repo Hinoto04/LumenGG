@@ -41,9 +41,10 @@ def index(req):
         q.add(qq, q.AND)
     
     q.add(~Q(private=True), q.AND)
-    data = Deck.objects.filter(q).annotate(
-        likecount = Count('deck_like')
-        )
+    data = Deck.objects.fildeck_l.annotate(cardcount = Count('cids'), 
+        likecount = Count('deck_like'))
+        
+    data = data.filter(cardcount__gte=15)
     
     if sort == 'version':
         data = data.order_by('-version', '-created')
