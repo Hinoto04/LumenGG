@@ -41,12 +41,17 @@ def index(req):
         q.add(qq, q.AND)
     
     q.add(~Q(private=True), q.AND)
+    like_subquery = DeckLike.objects.filter(
+        deck=OuterRef('pk'),
+        like=True
+    ).values('deck').annotate(
+        cnt=Count('id')
+    ).values('cnt')
+    
     data = Deck.objects.filter(q).annotate(
-        cardcount = Count('cids', distinct=True),
-    )
-        
-    data = data.annotate(
-        likecount=Count('deck_like', filter=Q(deck_like__like=True)))
+        cardcount=Count('cids', distinct=True),
+        likecount=Subquery(like_subquery, output_field=models.IntegerField())
+        )
         
     data = data.filter(cardcount__gte=15)
     
