@@ -48,7 +48,7 @@
                         <a href="{% url "deck:detail" deck.id %}" class="w-100 덱이름 t-left">{{ deck.name }}</a>
                     </td>
                     <td><a href="{% url "card:character" %}?id={{deck.character.id}}">{{ deck.character.name }}</a></td>
-                    <td>{{ deck.likecount }}</td>
+                    <td>{{ deck.likecount|default_if_none:0 }}</td>
                     <td class="모바일비표시"><a href="{% url "common:userpage" deck.author.id %}">{{ deck.author.username }}</a></td>
                     <td class="모바일비표시">{{ deck.version }}</td>
                 </tr>
