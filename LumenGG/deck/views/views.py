@@ -42,7 +42,7 @@ def index(req):
     
     q.add(~Q(private=True), q.AND)
     data = Deck.objects.filter(q).annotate(
-        cardcount = Count('cids'), 
+        cardcount = Count('cids').annotate(
         likecount=Count('deck_like', filter=Q(deck_like__like=True)))
         
     data = data.filter(cardcount__gte=15)
