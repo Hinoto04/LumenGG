@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect
 from django.db.models import OuterRef, Subquery, Q, Count
+from django.db import models
 from django.urls import reverse
 from django.core import serializers
 from django.core.paginator import Paginator
