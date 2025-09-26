@@ -11,4 +11,4 @@ class QnaSearchForm(forms.Form):
 class QnaForm(forms.ModelForm):
     class Meta:
         model = QNA
-        fields = ['title', 'question', 'answer', 'faq']
+        fields = ['title', 'question', 'answer', 'faq', 'tags']
