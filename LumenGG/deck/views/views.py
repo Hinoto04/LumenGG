@@ -175,7 +175,13 @@ def createSearch(req):
     c = Q()
     if neutral != '':
         c.add(Q(character__id=1), c.OR)
-    if char != '':
+    if char == '15':
+        for i in range(2, Character.objects.count()+1):
+            if i != 15:
+                c.add(Q(character__id=i)&Q(ultimate=False)&Q(type='공격'), c.OR)
+            else:
+                c.add(Q(character__id=i), c.OR)
+    elif char != '':
         c.add(Q(character__id=int(char)), c.OR)
     q.add(c, q.AND)
     if framenum != '':

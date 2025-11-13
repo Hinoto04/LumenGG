@@ -4,6 +4,18 @@ from django_summernote.widgets import SummernoteWidget
 from card.models import Character
 from .models import Deck
 
+packs = [
+            ('ST', 'ST'),
+            ('AWL', 'AWL'),
+            ('UNC', 'UNC'),
+            ('LMI', 'LMI'),
+            ('CRS', 'CRS'),
+            ('PMP', 'PMP'),
+            ('CB01', 'CB01'),
+            ('CB02', 'CB02'),
+            ('N/A', 'N/A'),
+        ]
+
 class DeckSearchForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
         label = "캐릭터",
@@ -48,16 +60,7 @@ class DeckMakeForm(forms.ModelForm):
     )
     version = forms.ChoiceField(
         label = "버전",
-        choices = [
-            ('ST', 'ST'),
-            ('AWL', 'AWL'),
-            ('UNC', 'UNC'),
-            ('LMI', 'LMI'),
-            ('CRS', 'CRS'),
-            ('PMP', 'PMP'),
-            ('CB01', 'CB01'),
-            ('N/A', 'N/A'),
-        ],
+        choices = packs,
         initial = 'N/A',
         widget = forms.Select(attrs={'class': 'btn border 배경색1'})
     )
@@ -101,16 +104,7 @@ class DeckImportForm(forms.Form):
     )
     version = forms.ChoiceField(
         label = "버전",
-        choices = [
-            ('ST', 'ST'),
-            ('AWL', 'AWL'),
-            ('UNC', 'UNC'),
-            ('LMI', 'LMI'),
-            ('CRS', 'CRS'),
-            ('PMP', 'PMP'),
-            ('CB01', 'CB01'),
-            ('N/A', 'N/A'),
-        ],
+        choices = packs,
         initial = 'N/A',
         widget = forms.Select(attrs={'class': 'btn border 배경색1'})
     )
