@@ -8,7 +8,7 @@ class CharacterAdmin(admin.ModelAdmin):
 class CardAdmin(admin.ModelAdmin):
     list_display = ('name', 'character', 'type')
     list_filter = ('character', 'type')
-    search_fields = ('name', 'character', 'pos', 'body', 'special', 'frame', 'code')
+    search_fields = ('name', 'pos', 'body', 'special', 'frame', 'code')
 
 class CharCommentAdmin(admin.ModelAdmin):
     list_display = ('author', 'character', 'power', 'combo', 'reversal', 'safety', 'tempo')
