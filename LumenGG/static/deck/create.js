@@ -35,6 +35,9 @@ function textToggle() {
 function charChange() {
     var selectedLabel = $(this).parent().text();
     if($(this).val() == 5) maxDeckSize = 24;
+    else if($(this).val() == 5) maxDeckSize = 22;
+    else if($(this).val() == 16) maxDeckSize = 26;
+    else if($(this).val() == 17) maxDeckSize = 25;
     else maxDeckSize = 21;
     $("input#char_main").attr('value', $(this).val());
     $("#char_main_box > label").text(selectedLabel);
