@@ -129,7 +129,7 @@ def create(req):
         if data['char'] == '' or data['name'] == '':
             errorContent['msg'] =  '존재하지 않는 데이터가 있습니다.'
             return JsonResponse(errorContent)
-        if len(data['deck']) < 5 or len(data['deck']) > 30:
+        if len(data['deck']) < 5 or len(data['deck']) > 40:
             errorContent['msg'] =  '덱 매수가 너무 적거나 너무 많습니다.'
             return JsonResponse(errorContent)
         
@@ -235,7 +235,7 @@ def update(req, id=0):
         if data['char'] == '' or data['name'] == '':
             errorContent['msg'] =  '존재하지 않는 데이터가 있습니다.'
             return JsonResponse(errorContent)
-        if len(data['deck']) < 5 or len(data['deck']) > 24:
+        if len(data['deck']) < 5 or len(data['deck']) > 40:
             errorContent['msg'] =  '덱 매수가 너무 적거나 너무 많습니다.'
             return JsonResponse(errorContent)
         
