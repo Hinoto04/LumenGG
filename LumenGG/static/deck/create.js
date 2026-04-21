@@ -166,6 +166,22 @@ function CountCheck() {
     $("#SideCount").text(sideCount);
 }
 
+function sortList() {
+    let tempList = Object.keys(deckList);
+    for(let i=0;i<tempList.length;i++) {
+        tempList[i] = [tempList[i], listSearch(tempList[i])]
+    }
+    tempList = tempList.sort((a, b) => {
+        return b[1].frame == a[1].frame ? (a[1].name > b[1].name?1:-1) : (a[1].frame - b[1].frame)
+    });
+    
+    console.log(tempList);
+    for(let t of tempList) {
+        let obj = $(`#MainDeckList #in_deck_${t[0]}`);
+        $("#MainDeckList").append(obj);
+    }
+}
+
 function Increase(pk) {
     if(listCount>=maxDeckSize) {
         alert(`덱 매수는 최대 ${maxDeckSize}장입니다.`);
@@ -187,6 +203,7 @@ function Increase(pk) {
         }
         listCount++;
         $("#MainDeckList").append(getTemplate(pk));
+        sortList()
     }
     CountCheck();
 }
