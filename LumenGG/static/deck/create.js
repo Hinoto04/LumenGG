@@ -175,7 +175,6 @@ function sortList() {
         return b[1].frame == a[1].frame ? (a[1].name > b[1].name?1:-1) : (a[1].frame - b[1].frame)
     });
     
-    console.log(tempList);
     for(let t of tempList) {
         let obj = $(`#MainDeckList #in_deck_${t[0]}`);
         $("#MainDeckList").append(obj);
