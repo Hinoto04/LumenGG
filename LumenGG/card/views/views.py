@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponse, Http404, JsonResponse
 from django.core.paginator import Paginator
 from django.db.models import Q, Case, When, IntegerField, Avg, BooleanField
+from django.db.models.functions import Cast
 from django.conf import settings
 from django.utils import timezone
 
@@ -102,17 +103,17 @@ def index(req):
         elif sort == "+평점":
             data = data.order_by('avgscore')
         elif sort == '-히트':
-            data = data.order_by('-hit')
+            data = data.order_by(Cast('hit', IntegerField()).desc())
         elif sort == '+히트':
-            data = data.order_by('hit')
+            data = data.order_by(Cast('hit', IntegerField()))
         elif sort == '-카운터':
-            data = data.order_by('-counter')
+            data = data.order_by(Cast('counter', IntegerField()).desc())
         elif sort == '+카운터':
-            data = data.order_by('counter')
+            data = data.order_by(Cast('counter', IntegerField()))
         elif sort == '-가드':
-            data = data.order_by('-guard')
+            data = data.order_by(Cast('guard', IntegerField()).desc())
         elif sort == '+가드':
-            data = data.order_by('guard')
+            data = data.order_by(Cast('guard', IntegerField()))
     else:
         data = data.order_by('id')
     
