@@ -82,6 +82,13 @@ def index(req):
     data = Card.objects.filter(q).annotate(avgscore=Avg('comments__score'))
     
     if sort:
+        if '히트' in sort:
+            data = data.filter(Q(type='공격') & ~Q(hit='콤보'))
+        elif '카운터' in sort:
+            data = data.filter(Q(type='공격') & ~Q(counter='콤보'))
+        elif '가드' in sort:
+            data = data.filter(Q(type='공격') & ~Q(guard='X'))
+        
         if sort == '-속도':
             data = data.order_by('-frame')
         elif sort == '+속도':
@@ -94,6 +101,18 @@ def index(req):
             data = data.order_by('-avgscore')
         elif sort == "+평점":
             data = data.order_by('avgscore')
+        elif sort == '-히트':
+            data = data.order_by('-hit')
+        elif sort == '+히트':
+            data = data.order_by('hit')
+        elif sort == '-카운터':
+            data = data.order_by('-counter')
+        elif sort == '+카운터':
+            data = data.order_by('counter')
+        elif sort == '-가드':
+            data = data.order_by('-guard')
+        elif sort == '+가드':
+            data = data.order_by('guard')
     else:
         data = data.order_by('id')
     
