@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, Http404, JsonResponse
 from django.core.paginator import Paginator
-from django.db.models import Q, Case, When, IntegerField, Avg, BooleanField
+from django.db.models import Q, Case, When, IntegerField, Avg, BooleanField, Min
 from django.db.models.functions import Cast
 from django.conf import settings
 from django.utils import timezone
@@ -114,6 +114,10 @@ def index(req):
             data = data.order_by(Cast('guard', IntegerField()).desc())
         elif sort == '+가드':
             data = data.order_by(Cast('guard', IntegerField()))
+        elif sort == '출시일':
+            data = data.annotate(earliest_release=Min('collection_card__pack__released')).order_by('-earliest_release')
+        elif sort == '+출시일':
+            data = data.annotate(earliest_release=Min('collection_card__pack__released')).order_by('earliest_release')
     else:
         data = data.order_by('id')
     
