@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}캐릭터 목록{% endblock title %}
+{% block v2_href %}{% url "card:characterV2" %}?id={{ id }}{% endblock v2_href %}
 {% block style %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="{% static "character/index.css" %}">

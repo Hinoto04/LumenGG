@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect
-from django.db.models import OuterRef, Subquery, Q, Count
+from django.db.models import OuterRef, Subquery, Q, Count, Prefetch
 from django.db import models
 from django.urls import reverse
 from django.core import serializers
@@ -13,6 +13,7 @@ from django.db.models import Case, When
 from card.models import Card, Character
 from ..models import Deck, CardInDeck, DeckLike, DeckComment
 from ..forms import DeckSearchForm, DeckMakeForm
+from ..utils import normalize_deck_version
 from collection.models import Pack
 from statistic.models import CSDeck
 from common.models import SiteSettings
@@ -20,7 +21,7 @@ from common.models import SiteSettings
 import json
 
 # Create your views here.
-def index(req):
+def index(req, template_name='deck/list.html'):
     page = req.GET.get('page', '1')
     form = DeckSearchForm(req.GET)
     
@@ -49,9 +50,17 @@ def index(req):
         cnt=Count('id')
     ).values('cnt')
     
-    data = Deck.objects.filter(q).annotate(
+    data = Deck.objects.filter(q).select_related('author', 'character').annotate(
         cardcount=Count('cids', distinct=True),
-        likecount=Subquery(like_subquery, output_field=models.IntegerField())
+        likecount=Subquery(like_subquery, output_field=models.IntegerField()),
+        )
+    
+    if template_name == 'deck/list_v2.html':
+        ultimate_cards = CardInDeck.objects.select_related('card').filter(
+            card__ultimate=True
+        ).order_by('card__name')
+        data = data.prefetch_related(
+            Prefetch('cids', queryset=ultimate_cards, to_attr='ultimate_cards')
         )
         
     data = data.filter(cardcount__gte=15)
@@ -63,16 +72,20 @@ def index(req):
     else:
         data = data.order_by('-created')
     
-    paginator = Paginator(data, 20)
+    per_page = 18 if template_name == 'deck/list_v2.html' else 20
+    paginator = Paginator(data, per_page)
     page_data = paginator.get_page(page)
     
     context = {
         'form': form,
         'decks': page_data,
     }
-    return render(req, 'deck/list.html', context=context)
+    return render(req, template_name, context=context)
 
-def detail(req, id=0):
+def indexV2(req):
+    return index(req, 'deck/list_v2.html')
+
+def detail(req, id=0, template_name='deck/detail.html'):
     try:
         deck = Deck.objects.get(id=id)
     except Deck.DoesNotExist:
@@ -83,7 +96,7 @@ def detail(req, id=0):
     
     likecount = DeckLike.objects.filter(deck=deck, like=True).count()
     bookmarkcount = DeckLike.objects.filter(deck=deck, bookmark=True).count()
-    cards = CardInDeck.objects.filter(deck=deck).order_by('-card__type', 'card__frame')
+    cards = CardInDeck.objects.filter(deck=deck).select_related('card', 'card__character').order_by('-card__type', 'card__frame')
     
     codes = Pack.objects.filter(released__gt=timezone.now())
     for code in codes:
@@ -91,8 +104,13 @@ def detail(req, id=0):
             unReleased = Case(When(card__code__contains=code.code, then=True), default=False)
         )
         
-    hands = cards.filter(hand__gte=1)
-    sides = cards.filter(side__gte=1)
+    main_cards = cards.filter(card__ultimate=False)
+    hands = main_cards.filter(hand__gte=1)
+    sides = main_cards.filter(side__gte=1)
+    ultimate_cards = cards.filter(card__ultimate=True)
+    main_list_count = sum(max(card.count - card.hand - card.side, 0) for card in main_cards)
+    hand_count = sum(card.hand for card in hands)
+    side_count = sum(card.side for card in sides)
     if req.user.is_authenticated:
         liked = DeckLike.objects.filter(deck=deck, author=req.user, like=True).exists()
         bookmarked = DeckLike.objects.filter(deck=deck, author=req.user, bookmark=True).exists()
@@ -103,23 +121,77 @@ def detail(req, id=0):
     context = {
         'deck': deck,
         'cards': cards,
+        'main_cards': main_cards,
         'hands': hands,
         'sides': sides,
+        'ultimate_cards': ultimate_cards,
+        'main_list_count': main_list_count,
+        'hand_count': hand_count,
+        'side_count': side_count,
         'likecount': likecount,
         'bookmarkcount': bookmarkcount,
         'liked': liked,
         'bookmarked': bookmarked,
     }
-    return render(req, 'deck/detail.html', context=context)
+    return render(req, template_name, context=context)
+
+def detailV2(req, id=0):
+    return detail(req, id, 'deck/detail_v2.html')
+
+def normalize_submitted_deck(deck_data):
+    card_ids = []
+    for item in deck_data:
+        try:
+            card_ids.append(int(item[0]))
+        except (IndexError, TypeError, ValueError):
+            return None, '존재하지 않는 카드가 있습니다.'
+    
+    cards = Card.objects.in_bulk(card_ids)
+    normalized = []
+    ultimate_count = 0
+    
+    for item in deck_data:
+        card_id = int(item[0])
+        if card_id not in cards:
+            return None, '존재하지 않는 카드가 있습니다.'
+        
+        card = cards[card_id]
+        values = item[1]
+        try:
+            count = int(values.get('count', 0))
+            hand = int(values.get('hand', 0))
+            side = int(values.get('side', 0))
+        except (AttributeError, TypeError, ValueError):
+            return None, '덱 데이터가 올바르지 않습니다.'
+        
+        if count <= 0:
+            continue
+        
+        if card.ultimate:
+            ultimate_count += count
+            hand = 0
+            side = 0
+        elif hand + side > count:
+            return None, '손패와 사이드의 카드 갯수가 덱에 들어간 카드보다 많을 수 없습니다.'
+        
+        normalized.append((card_id, count, hand, side))
+    
+    if ultimate_count > 1:
+        return None, '얼티밋 카드는 1장까지만 넣을 수 있습니다.'
+    
+    return normalized, None
 
 @login_required(login_url='common:login', redirect_field_name='next')
-def create(req):
+def create(req, template_name='deck/create.html', detail_route='deck:detail'):
     if req.method == "GET":
         form = DeckMakeForm()
         exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
-        return render(req, 'deck/create.html', context={
+        return render(req, template_name, context={
             'form': form,
-            'exceptList': exceptList})
+            'exceptList': exceptList,
+            'initial_cards': [],
+            'is_update': False,
+        })
     else:
         data = json.loads(req.body)
         errorContent = { 'status': 200 }
@@ -132,14 +204,19 @@ def create(req):
         if len(data['deck']) < 5 or len(data['deck']) > 40:
             errorContent['msg'] =  '덱 매수가 너무 적거나 너무 많습니다.'
             return JsonResponse(errorContent)
+        normalized_deck, error_msg = normalize_submitted_deck(data['deck'])
+        if error_msg:
+            errorContent['msg'] = error_msg
+            return JsonResponse(errorContent)
         
         try:
+            version = normalize_deck_version(data.get('version'))
             newDeck = Deck(
                 name=data['name'],
                 character_id=int(data['char']),
                 description=data['description'], 
                 keyword=data['keyword'], 
-                version=data['version'],
+                version=version,
                 author=req.user,
                 private=('private' in data.keys()),
             )
@@ -148,21 +225,24 @@ def create(req):
             errorContent['msg'] =  '올바르지 않은 데이터가 있습니다.'
             return JsonResponse(errorContent)
         
-        for cards in data['deck']:
+        for card_id, count, hand, side in normalized_deck:
             cid = CardInDeck(
-                card_id = cards[0],
+                card_id = card_id,
                 deck = newDeck,
-                count = cards[1]['count'],
-                hand = cards[1]['hand'],
-                side = cards[1]['side'],
+                count = count,
+                hand = hand,
+                side = side,
             )
             cid.save()
         
         content = {
             'status': 100,
-            'url': reverse('deck:detail', kwargs={'id': newDeck.id})
+            'url': reverse(detail_route, kwargs={'id': newDeck.id})
         }
         return JsonResponse(content)
+
+def createV2(req):
+    return create(req, 'deck/create_v2.html', 'deck:detailV2')
 
 def createSearch(req):
     neutral = req.GET.get('neutral', '')
@@ -198,12 +278,28 @@ def createSearch(req):
     q.add(~Q(type="특성"), q.AND)
     q.add(~Q(type="토큰"), q.AND)
     
-    data = list(Card.objects.filter(q).values('pk', 'name', 'frame', 'img_sm', 'character'))
+    data = list(Card.objects.filter(q).values('pk', 'name', 'frame', 'img_sm', 'character', 'ultimate'))
     #sdata = serializers.serialize('json', data)
     return JsonResponse(data, safe=False)
 
+def get_initial_cards(card_in_deck):
+    return [
+        {
+            'pk': cid.card.id,
+            'name': cid.card.name,
+            'frame': cid.card.frame,
+            'img_sm': cid.card.img_sm,
+            'character': cid.card.character_id,
+            'ultimate': cid.card.ultimate,
+            'count': cid.count,
+            'hand': cid.hand,
+            'side': cid.side,
+        }
+        for cid in card_in_deck
+    ]
+
 @login_required(login_url='common:login', redirect_field_name='next')
-def update(req, id=0):
+def update(req, id=0, template_name='deck/update.html', detail_route='deck:detail'):
     try:
         deck = Deck.objects.get(id=id)
     except Deck.DoesNotExist:
@@ -219,13 +315,17 @@ def update(req, id=0):
     if req.method == "GET":
         form = DeckMakeForm(instance=deck)
         form['version'].initial = deck.version
-        cid = CardInDeck.objects.filter(deck=deck)
+        cid = CardInDeck.objects.filter(deck=deck).select_related('card', 'card__character')
         exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
-        return render(req, 'deck/update.html', context=
+        return render(req, template_name, context=
                     {'form': form, 
                      'cid': cid, 
                      'char': deck.character.name, 
-                     'exceptList': exceptList})
+                     'deck': deck,
+                     'selected_character_id': deck.character_id,
+                     'exceptList': exceptList,
+                     'initial_cards': get_initial_cards(cid),
+                     'is_update': True})
     else:
         data = json.loads(req.body)
         errorContent = { 'status': 200 }
@@ -238,31 +338,38 @@ def update(req, id=0):
         if len(data['deck']) < 5 or len(data['deck']) > 40:
             errorContent['msg'] =  '덱 매수가 너무 적거나 너무 많습니다.'
             return JsonResponse(errorContent)
+        normalized_deck, error_msg = normalize_submitted_deck(data['deck'])
+        if error_msg:
+            errorContent['msg'] = error_msg
+            return JsonResponse(errorContent)
         
         deck.name = data['name']
         deck.character_id = int(data['char'])
-        deck.version = data['version']
+        deck.version = normalize_deck_version(data.get('version'))
         deck.keyword = data['keyword']
         deck.private = 'private' in data.keys()
         deck.description = data['description']
         deck.save()
         
         CardInDeck.objects.filter(deck=deck).delete()
-        for cards in data['deck']:
+        for card_id, count, hand, side in normalized_deck:
             cid = CardInDeck(
-                card_id = cards[0],
+                card_id = card_id,
                 deck = deck,
-                count = cards[1]['count'],
-                hand = cards[1]['hand'],
-                side = cards[1]['side'],
+                count = count,
+                hand = hand,
+                side = side,
             )
             cid.save()
         
         content = {
             'status': 100,
-            'url': reverse('deck:detail', kwargs={'id': deck.id})
+            'url': reverse(detail_route, kwargs={'id': deck.id})
         }
         return JsonResponse(content)
+
+def updateV2(req, id=0):
+    return update(req, id, 'deck/create_v2.html', 'deck:detailV2')
 
 @login_required(login_url='common:login', redirect_field_name='next')
 def delete(req, id):

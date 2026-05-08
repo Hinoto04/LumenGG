@@ -1,0 +1,135 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% block title %}캐릭터 - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "card:character" %}?id={{ id }}{% endblock legacy_href %}
+{% block style %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    #픽창 {
+        grid-template-columns: repeat({{ charnum }}, var(--size));
+    }
+    #픽창 div:nth-child({{ charnum2 }}n-1) {
+        grid-column: 2 / span 2;
+    }
+</style>
+<script src="{% static "character/comment.js" %}"></script>
+{% endblock style %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">CHARACTERS</div>
+        <h1 class="v2-title">캐릭터</h1>
+        <p class="v2-subtitle">캐릭터별 성향, 대표 카드, 코멘트를 한 화면에서 확인합니다.</p>
+    </div>
+    <div class="v2-chip-row">
+        <span class="v2-chip">총 {{ chars|length }}명</span>
+    </div>
+</section>
+
+<section class="v2-character-page">
+    <div id="순서변경용" class="v2-character-shell">
+        <div id="정보" class="v2-character-layout">
+            <div class="v2-character-left">
+                <div id="캐릭터카드" class="v2-character-card-frame">
+                    <img src="" alt="">
+                </div>
+                <div class="v2-character-control-box">
+                    <button class="v2-button" id="passiveChange" type="button">패시브</button>
+                    <div class="v2-character-name-box">
+                        <strong id="캐릭터이름">캐릭터</strong>
+                        <span id="캐릭터그룹"></span>
+                    </div>
+                    <button class="v2-button" id="skinChange" type="button">스킨</button>
+                    <button class="v2-button" id="tokenChange" type="button">토큰</button>
+                </div>
+            </div>
+            <div id="캐릭터정보" class="v2-character-info-panel v2-panel">
+                <div id="페이지전환" class="v2-character-page-switch">
+                    <button class="v2-button" id="previousPage" type="button">&lt;</button>
+                    <strong id="페이지명">그래프</strong>
+                    <button class="v2-button" id="nextPage" type="button">&gt;</button>
+                </div>
+                <div id="그래프" class="v2-character-graph">
+                    <canvas id="캐릭터그래프" width="420" height="420"></canvas>
+                </div>
+                <div id="상징카드정보" class="v2-character-identity-grid">
+                    <div id="상징1" class="v2-character-identity-card">
+                        <img src="" alt="">
+                        <p>초반 심리전</p>
+                    </div>
+                    <div id="상징2" class="v2-character-identity-card">
+                        <img src="" alt="">
+                        <p>강력한 콤보용</p>
+                    </div>
+                    <div id="상징3" class="v2-character-identity-card">
+                        <img src="" alt="">
+                        <p>압박 주축 카드</p>
+                    </div>
+                </div>
+                <div id="특징" class="v2-character-feature"></div>
+            </div>
+        </div>
+        <div id="픽창위치" class="v2-character-picker-wrap">
+            <div id="픽창" class="v2-character-picker">
+                {% for char in chars %}
+                <div>
+                    <img class="pickImg" src="{{ char.icon_img }}" alt="{{ char.id }}">
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="v2-section">
+    <h2 class="v2-section-title">캐릭터 코멘트</h2>
+    {% if user.is_authenticated %}
+    <form action="{% url "card:writeCharComment" %}" method="post" class="v2-panel v2-character-comment-form" id="코멘트작성">
+        {% csrf_token %}
+        {% include "form_errors.html" %}
+        {{ form.character }}
+        <div id="캐릭터수치평가창" class="v2-character-score-grid">
+            <div>
+                <label for="id_power" data-bs-toggle="tooltip" title="공격력, 한 방의 위력과 평균적인 데미지 기대치">화력</label>
+                {{ form.power }}
+            </div>
+            <div>
+                <label for="id_combo" data-bs-toggle="tooltip" title="연속 공격이나 캐치, 콤보의 용이함/데미지">연계</label>
+                {{ form.combo }}
+            </div>
+            <div>
+                <label for="id_reversal" data-bs-toggle="tooltip" title="불리한 상황에서 역전할 수 있는 능력">변수창출</label>
+                {{ form.reversal }}
+            </div>
+            <div>
+                <label for="id_safety" data-bs-toggle="tooltip" title="플레이의 안정성, 리스크 관리 능력. 높을 수록 안정적임">안정성</label>
+                {{ form.safety }}
+            </div>
+            <div>
+                <label for="id_tempo" data-bs-toggle="tooltip" title="메인 플레이를 펼치기 위한 시간. 높을 수록 빠름을 의미">템포</label>
+                {{ form.tempo }}
+            </div>
+        </div>
+        <div class="v2-admin-field">
+            <label for="id_comment">코멘트</label>
+            {{ form.comment }}
+        </div>
+        <div class="v2-admin-actions">
+            <button class="v2-button v2-button-primary" type="submit">작성</button>
+        </div>
+    </form>
+    {% endif %}
+    <div id="댓글목록" class="v2-character-comments"></div>
+</section>
+
+<script src="{% static "character/index.js" %}"></script>
+<script>
+    dataLoad({{ id }});
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+            new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
+{% endblock content %}

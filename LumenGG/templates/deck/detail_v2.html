@@ -1,0 +1,198 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% load deck_tags %}
+{% block title %}{{ deck.name }} - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "deck:detail" deck.id %}{% endblock legacy_href %}
+{% block meta %}
+<meta content="{{ deck.name }}" property="og:title" />
+<meta content="캐릭터 : {{ deck.character.name }}&#10;작성자 : {{ deck.author.username }}" property="og:description" />
+<meta content="https://images.hinoto.kr/lumendb/루멘DB로고.webp" property="og:image" />
+{% endblock meta %}
+{% block content %}
+<div id="v2DeckCaptureArea" class="v2-deck-capture-area">
+<section class="v2-deck-detail-head v2-panel {% if ultimate_cards %}has-ultimate{% endif %}">
+    {% firstof deck.character.body_img deck.character.sd_img deck.character.img as deck_character_image %}
+    {% if deck_character_image %}
+    <img class="v2-deck-detail-bg" src="{{ deck_character_image }}" alt="">
+    {% endif %}
+    <div class="v2-deck-detail-info">
+        <div class="v2-deck-detail-title">
+            <div class="v2-kicker">
+                <a href="{% url "card:characterV2" %}?id={{ deck.character.id }}">{{ deck.character.name }}</a>
+            </div>
+            <h1 class="v2-title">{{ deck.name }}</h1>
+        </div>
+        <div class="v2-deck-detail-bottom">
+            <div class="v2-deck-detail-tags">
+                {% firstof deck.keyword deck.tags as deck_tag_text %}
+                {{ deck_tag_text|deckkeywords }}
+            </div>
+            <div class="v2-chip-row">
+                <span class="v2-chip">추천 {{ likecount }}</span>
+                <span class="v2-chip">ver. {{ deck.version }}</span>
+                <a class="v2-chip" href="{% url "common:userpageV2" deck.author.id %}">{{ deck.author.username }}</a>
+                <span class="v2-chip">{{ deck.created|date:"Y-m-d" }}</span>
+            </div>
+            <div class="v2-deck-detail-actions">
+                <button id="displayToggleBtn" class="v2-button" onclick="deckToggle();" type="button">텍스트로 보기</button>
+                <button class="v2-button" type="button" onclick="deckCopy()">텍스트 덱 복사</button>
+                <button class="v2-button" type="button" onclick="deckCapture()">덱 캡쳐</button>
+                {% if user == deck.author %}
+                <a class="v2-button" href="{% url "deck:updateV2" deck.id %}">덱 수정</a>
+                <a class="v2-button v2-danger-button" href="{% url "deck:delete" deck.id %}">덱 삭제</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% if ultimate_cards %}
+    <aside class="v2-deck-detail-ultimate">
+        <h2>얼티밋 카드</h2>
+        {% for card in ultimate_cards %}
+        <a class="v2-deck-ultimate-card" href="{% url "card:detailV2" card.card.id %}">
+            <div class="v2-deck-image-tile">
+                <img src="{{ card.card.img_mid }}" alt="{{ card.card.name }}">
+                {% if card.unReleased %}<span class="v2-unreleased">미발매</span>{% endif %}
+            </div>
+            <div>
+                <strong>{{ card.card.name }}</strong>
+                <span>{{ card.card.character.name }}</span>
+            </div>
+        </a>
+        {% endfor %}
+    </aside>
+    {% endif %}
+</section>
+
+<section class="v2-section" id="ImageDisplay">
+    <div class="v2-deck-board" id="ImageDeck">
+        <div class="v2-deck-zone v2-deck-zone-list" id="List">
+            <div class="v2-deck-zone-head">
+                <h2>리스트</h2>
+                <span>{{ main_list_count }}장</span>
+            </div>
+            <div class="v2-deck-card-grid" id="original">
+                {% for card in main_cards %}
+                {% for _ in card|listcard %}
+                <div class="v2-deck-image-tile imgBox">
+                    <a href="{% url "card:detailV2" card.card.id %}">
+                        <img class="cardImg" src="{{ card.card.img_mid }}" alt="{{ card.card.name }}">
+                    </a>
+                    {% if card.unReleased %}<span class="v2-unreleased">미발매</span>{% endif %}
+                </div>
+                {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+        <div class="v2-deck-zone v2-deck-zone-hand" id="Hand">
+            <div class="v2-deck-zone-head">
+                <h2>손패</h2>
+                <span>{{ hand_count }}장</span>
+            </div>
+            <div class="v2-deck-card-grid v2-deck-hand-grid">
+                {% for card in hands %}
+                {% for _ in card.hand|times %}
+                <div class="v2-deck-image-tile imgBox">
+                    <a href="{% url "card:detailV2" card.card.id %}">
+                        <img class="cardImg" src="{{ card.card.img_mid }}" alt="{{ card.card.name }}">
+                    </a>
+                    {% if card.unReleased %}<span class="v2-unreleased">미발매</span>{% endif %}
+                </div>
+                {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+        <div class="v2-deck-zone v2-deck-zone-side" id="Side">
+            <div class="v2-deck-zone-head">
+                <h2>사이드</h2>
+                <span>{{ side_count }}장</span>
+            </div>
+            <div class="v2-deck-side-grid">
+                {% for card in sides %}
+                {% for _ in card.side|times %}
+                <div class="v2-deck-image-tile v2-deck-side-item imgBox">
+                    <a href="{% url "card:detailV2" card.card.id %}">
+                        <img class="cardImg sideImg" src="{{ card.card.img_mid }}" alt="{{ card.card.name }}">
+                    </a>
+                    {% if card.unReleased %}<span class="v2-unreleased">미발매</span>{% endif %}
+                </div>
+                {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+</div>
+
+<section class="v2-section" id="TextDisplay" style="display:none;">
+    <div class="v2-deck-text-grid" id="텍스트리스트">
+        <div class="v2-text-panel">
+            <h2 class="v2-section-title">덱 리스트</h2>
+            <table id="텍스트리스트전체" class="v2-deck-text-table">
+                <tbody>
+                    {% for card in main_cards %}
+                    {% for _ in card|listcard %}
+                    <tr><th><a href="{% url "card:detailV2" card.card.id %}">{{ card.card.name }}</a></th></tr>
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="v2-deck-text-side">
+            <div class="v2-text-panel">
+                <h2 class="v2-section-title">손패</h2>
+                <table class="v2-deck-text-table">
+                    <tbody>
+                        {% for card in hands %}
+                        {% for _ in card.hand|times %}
+                        <tr><th><a href="{% url "card:detailV2" card.card.id %}">{{ card.card.name }}</a></th></tr>
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="v2-text-panel">
+                <h2 class="v2-section-title">사이드</h2>
+                <table class="v2-deck-text-table">
+                    <tbody>
+                        {% for card in sides %}
+                        {% for _ in card.side|times %}
+                        <tr><th><a href="{% url "card:detailV2" card.card.id %}">{{ card.card.name }}</a></th></tr>
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="v2-section">
+    <h2 class="v2-section-title">덱 설명</h2>
+    <div id="덱설명" class="v2-text-panel v2-deck-description">
+        {{ deck.description|safe }}
+    </div>
+</section>
+
+{% if user.is_authenticated %}
+<section class="v2-deck-social">
+    <form method="POST" action="{% url "deck:like" deck.id %}">
+        {% csrf_token %}
+        <button class="v2-deck-social-button {% if liked %}is-pressed{% endif %}" type="submit">
+            <img src="{% static "thumbs-up.png" %}" alt="">
+            <span>{{ likecount }}</span>
+        </button>
+    </form>
+    <form method="POST" action="{% url "deck:bookmark" deck.id %}">
+        {% csrf_token %}
+        <button class="v2-deck-social-button {% if bookmarked %}is-pressed{% endif %}" type="submit">
+            <img src="{% static "bookmark.png" %}" alt="">
+            <span>{{ bookmarkcount }}</span>
+        </button>
+    </form>
+</section>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="{% static "deck/detail.js" %}"></script>
+<script src="{% static "imgloading.js" %}"></script>
+{% endblock content %}

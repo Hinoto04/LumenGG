@@ -13,7 +13,7 @@ from decorators import permission_required
 import openpyxl, json
 
 # Create your views here.
-def index(req):
+def index(req, template_name='qna/index.html'):
     page = req.GET.get('page', 1)
     
     form = QnaSearchForm(req.GET)
@@ -41,9 +41,12 @@ def index(req):
         'data': page_data
     }
     
-    return render(req, 'qna/index.html', context=context)
+    return render(req, template_name, context=context)
 
-def detail(req, id=0):
+def indexV2(req):
+    return index(req, 'qna/index_v2.html')
+
+def detail(req, id=0, template_name='qna/detail.html'):
     try:
         qna = QNA.objects.get(id=id)
     except QNA.DoesNotExist:
@@ -53,7 +56,10 @@ def detail(req, id=0):
         'qna': qna
     }
     
-    return render(req, 'qna/detail.html', context=context)
+    return render(req, template_name, context=context)
+
+def detailV2(req, id=0):
+    return detail(req, id, 'qna/detail_v2.html')
 
 def qnaPreprocess(string: str):
     text = string.lstrip("Q").lstrip('A').\
@@ -70,12 +76,12 @@ def qnaPreprocess(string: str):
     return text
 
 @permission_required('qna.manage')
-def create(req):
+def create(req, template_name='qna/create.html', detail_route='qna:detail'):
     if req.method == 'GET':
         form = QnaForm()
         
         print(form.fields['question'].widget)
-        return render(req, 'qna/create.html', {'form': form})
+        return render(req, template_name, {'form': form})
     else:
         data = json.loads(req.body)
         errorContent = {'status': 200}
@@ -101,9 +107,12 @@ def create(req):
             
             content = {
                 'status': 100,
-                'url': reverse('qna:detail', kwargs={'id': newQNA.id})
+                'url': reverse(detail_route, kwargs={'id': newQNA.id})
             }
             return JsonResponse(content)
+
+def createV2(req):
+    return create(req, 'qna/create_v2.html', 'qna:detailV2')
 
 def createSearch(req):
     keyword = req.GET.get('keyword', '')
@@ -120,7 +129,7 @@ def createSearch(req):
         return JsonResponse([], safe=False)
 
 @permission_required('qna.manage')
-def update(req, id=0):
+def update(req, id=0, template_name='qna/update.html', detail_route='qna:detail'):
     try:
         qna = QNA.objects.get(id=id)
     except QNA.DoesNotExist:
@@ -129,7 +138,7 @@ def update(req, id=0):
     if req.method == 'GET':
         form = QnaForm(instance=qna)
         related = QNARelation.objects.filter(qna=qna)
-        return render(req, 'qna/update.html', {'form': form, 'related': related})
+        return render(req, template_name, {'form': form, 'related': related, 'qna': qna})
     else:
         data = json.loads(req.body)
         errorContent = {'status': 200}
@@ -154,9 +163,12 @@ def update(req, id=0):
             
             content = {
                 'status': 100,
-                'url': reverse('qna:detail', kwargs={'id': qna.id})
+                'url': reverse(detail_route, kwargs={'id': qna.id})
             }
             return JsonResponse(content)
+
+def updateV2(req, id=0):
+    return update(req, id, 'qna/update_v2.html', 'qna:detailV2')
 
 @permission_required('qna.manage')
 def delete(req, id=0):

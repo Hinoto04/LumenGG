@@ -16,7 +16,7 @@ from PIL import Image
 
 
 # Create your views here.
-def index(req):
+def index(req, template_name='collection/index.html'):
     page_number = req.GET.get('page', 1)
     
     form = CollectionForm(req.GET)
@@ -82,14 +82,17 @@ def index(req):
         'form': form,
     }
     
-    return render(req, 'collection/index.html', context=context)
+    return render(req, template_name, context=context)
+
+def indexV2(req):
+    return index(req, 'collection/index_v2.html')
 
 @permission_required('card.add_card')
-def create(req):
+def create(req, template_name='collection/create.html', success_route='collection:index'):
     if req.method == 'GET':
         form = CollectionCreateForm()
         
-        return render(req,'collection/create.html', context={'form': form})
+        return render(req, template_name, context={'form': form})
     else:
         form = CollectionCreateForm(req.POST, req.FILES)
         if form.is_valid():
@@ -114,9 +117,12 @@ def create(req):
                     img_sm = 'https://images.hinoto.kr/lumendb/webpsm/' + form.cleaned_data['code'] + '.webp',
                 )
                 newCC.save()
-            return redirect('collection:index')
+            return redirect(success_route)
         else:
-            return render(req, 'collection/create.html', context={'form': form})
+            return render(req, template_name, context={'form': form})
+
+def createV2(req):
+    return create(req, 'collection/create_v2.html', 'collection:indexV2')
             
 def handle_uploaded_file(f, filePath):
     print(filePath)

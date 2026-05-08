@@ -5,6 +5,7 @@
 {% block title %}
 {{ qna.title }}
 {% endblock title %}
+{% block v2_href %}{% url "qna:detailV2" qna.id %}{% endblock v2_href %}
 {% block meta %}
 <meta content="{{ qna.title }}" property="og:title" />
 <meta content="{{ qna.question }} - {{ qna.answer }}" property="og:description" />

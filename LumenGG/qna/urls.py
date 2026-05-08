@@ -5,6 +5,10 @@ app_name = 'qna'
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('v2/', views.indexV2, name='indexV2'),
+    path('v2/detail/<int:id>/', views.detailV2, name='detailV2'),
+    path('v2/create/', views.createV2, name='createV2'),
+    path('v2/update/<int:id>/', views.updateV2, name='updateV2'),
     path('detail/<int:id>/', views.detail, name='detail'),
     path('detail/', views.detail, name='detailEmpty'),
     path('create/', views.create, name='create'),

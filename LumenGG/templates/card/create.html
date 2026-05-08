@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}카드 추가{% endblock title %}
+{% block v2_href %}{% url "card:createV2" %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "card/create.css" %}">
 {% endblock style %}

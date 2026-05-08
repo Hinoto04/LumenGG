@@ -1,0 +1,191 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% load card_tags %}
+{% block title %}{{ card.name }} - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "card:detail" card.id %}{% endblock legacy_href %}
+{% block meta %}
+<meta content="{{ card.name }}" property="og:title" />
+<meta content="{{ card.text }}" property="og:description" />
+<meta content="{{ card.img_mid }}" property="og:image" />
+<meta content="#111111" data-react-helmet="true" name="theme-color" />
+{% endblock meta %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">{{ card.character.name }} / {{ card.code }}</div>
+        <h1 class="v2-title">{{ card.name }}</h1>
+        <p class="v2-subtitle">{{ card.keyword|keywords }}</p>
+    </div>
+    <div class="v2-chip-row">
+        <a class="v2-button" href="{% url "card:indexV2" %}">목록</a>
+        <a class="v2-button v2-button-primary" href="{% url "card:comment" card.id %}">평점 {{ card.score|floatformat:1|default_if_none:"미평가" }}</a>
+    </div>
+</section>
+
+<section class="v2-detail-grid">
+    <article class="v2-panel v2-detail-card">
+        <div class="v2-detail-image">
+            <img id="v2CardImage" src="{{ card.img }}" alt="{{ card.name }}">
+            {% if unReleased %}
+            <span class="v2-unreleased">미발매</span>
+            {% endif %}
+            <button class="v2-image-action" type="button" id="v2ImageButton">판본 변경</button>
+        </div>
+        <div class="v2-detail-summary">
+            <div class="v2-chip-row">
+                <span class="v2-chip v2-type-{{ card.type }}">{{ card.type }}</span>
+                {% if card.ultimate %}<span class="v2-chip">ULTIMATE</span>{% endif %}
+                {% if card.special %}<span class="v2-chip">{{ card.special }}</span>{% endif %}
+            </div>
+        </div>
+    </article>
+
+    <div>
+        {% if card.type == "공격" %}
+        <section class="v2-stat-grid">
+            <div class="v2-stat"><span>판정</span><strong>{{ card.pos|default_if_none:"-" }} {{ card.body|default_if_none:"" }}</strong></div>
+            <div class="v2-stat"><span>속도</span><strong>{{ card.frame|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>대미지</span><strong>{{ card.damage|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>특수 판정</span><strong>{{ card.special|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>히트</span><strong>{{ card.hit|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>가드</span><strong>{{ card.guard|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>카운터</span><strong>{{ card.counter|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>평점</span><strong>{{ card.score|floatformat:1|default_if_none:"-" }}</strong></div>
+        </section>
+        {% elif card.type == "수비" %}
+        <section class="v2-stat-grid">
+            <div class="v2-stat"><span>상단</span><strong>{{ card.g_top|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>중단</span><strong>{{ card.g_mid|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>하단</span><strong>{{ card.g_bot|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>평점</span><strong>{{ card.score|floatformat:1|default_if_none:"-" }}</strong></div>
+        </section>
+        {% else %}
+        <section class="v2-stat-grid">
+            <div class="v2-stat"><span>분류</span><strong>{{ card.type }}</strong></div>
+            <div class="v2-stat"><span>속도</span><strong>{{ card.frame|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>평점</span><strong>{{ card.score|floatformat:1|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>최초 수록</span><strong>{{ card.code }}</strong></div>
+        </section>
+        {% endif %}
+
+        <section class="v2-section">
+            <h2 class="v2-section-title">효과</h2>
+            <div class="v2-text-panel">{{ card.text|linebreaks }}</div>
+        </section>
+
+    </div>
+</section>
+
+{% if perms.card.tag_update %}
+<section class="v2-section">
+    <h2 class="v2-section-title">태그 업데이트</h2>
+    <form action="{% url "card:editCardTag" card.id %}" method="post" class="v2-panel v2-tag-form">
+        {% csrf_token %}
+        <div>
+            <label for="keyword">이 카드가 가진 태그</label>
+            <input type="text" name="keyword" id="keyword" value="{{ card.keyword }}">
+        </div>
+        <div>
+            <label for="search">이 카드가 찾는 태그</label>
+            <input type="text" name="search" id="search" value="{{ card.search }}">
+        </div>
+        <div>
+            <label for="hidden">숨겨진 검색어</label>
+            <input type="text" name="hidden" id="hidden" value="{{ card.hiddenKeyword }}">
+        </div>
+        <div>
+            <button class="v2-button v2-button-primary" type="submit">수정</button>
+        </div>
+    </form>
+</section>
+{% endif %}
+
+<section class="v2-section">
+    <h2 class="v2-section-title">수록 정보</h2>
+    <div class="v2-release-list">
+        {% regroup cc by code as release_groups %}
+        {% for release in release_groups %}
+        {% with first=release.list.0 %}
+        <div class="v2-release-row">
+            <span class="v2-release-date">{% if first.isReleased %}{{ first.pack.released|date:"y-m-d" }}{% else %}미발매{% endif %}</span>
+            <strong class="v2-release-code">{{ release.grouper }}</strong>
+            <span class="v2-release-pack">{{ first.pack.name }}</span>
+            <span class="v2-rare-list">
+                {% for ccc in release.list %}
+                <span class="v2-rare {{ ccc.rare }}">{{ ccc.rare }}</span>
+                {% endfor %}
+            </span>
+        </div>
+        {% endwith %}
+        {% empty %}
+        <div class="v2-text-panel">수록 정보가 없습니다.</div>
+        {% endfor %}
+    </div>
+</section>
+
+{% if relation|length != 0 %}
+<section class="v2-section">
+    <h2 class="v2-section-title">관련 카드</h2>
+    {% for kw, vs in relation.items %}
+    <div class="v2-section">
+        <div class="v2-kicker">{{ kw }}</div>
+        <div class="v2-related-grid mt-2">
+            {% for v in vs %}
+            <a class="v2-related-card" href="{% url "card:detailV2" v.id %}">
+                <div class="v2-related-image">
+                    <img src="{{ v.img_mid }}" alt="{{ v.name }}">
+                </div>
+                <div class="v2-related-body">
+                    <p class="v2-kicker">{{ v.character.name }}</p>
+                    <strong>{{ v.name }}</strong>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+{% if card.qna.all %}
+<section class="v2-section">
+    <h2 class="v2-section-title">관련 Q&A</h2>
+    <div class="v2-qna-list">
+        {% for qna in card.qna.all %}
+        <a class="v2-qna-item" href="{% url "qna:detail" qna.id %}">
+            <h3>{{ qna.title }}</h3>
+            <p>{{ qna.question|truncatechars:120 }}</p>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<script>
+    const imgList = [];
+    let nowImage = 0;
+    {% for ccc in cc %}
+        {% if ccc.image %}
+        imgList.push("{{ ccc.image }}");
+        {% endif %}
+    {% endfor %}
+    if (imgList.length === 0) {
+        imgList.push("{{ card.img }}");
+    }
+
+    const imageButton = document.getElementById("v2ImageButton");
+    const cardImage = document.getElementById("v2CardImage");
+    const uniqueImages = [...new Set(imgList)];
+
+    if (uniqueImages.length <= 1 && imageButton) {
+        imageButton.style.display = "none";
+    }
+
+    if (imageButton && cardImage) {
+        imageButton.addEventListener("click", () => {
+            nowImage = (nowImage + 1) % uniqueImages.length;
+            cardImage.src = uniqueImages[nowImage];
+        });
+    }
+</script>
+{% endblock content %}

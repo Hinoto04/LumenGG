@@ -11,6 +11,7 @@ class Character(models.Model):
     img = models.URLField() #이미지 URL
     sd_img = models.URLField(default='', blank=True, null=True)
     icon_img = models.URLField(default='', blank=True, null=True)
+    body_img = models.URLField(default='', blank=True, null=True)
     color = models.CharField(max_length=12, default="#ffffff")
     pack = models.ForeignKey('collection.Pack', on_delete=models.SET_NULL, null=True, default=None)
     

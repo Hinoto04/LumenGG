@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}{{ target.username }}님의 프로필{% endblock title %}
+{% block v2_href %}{% url "common:userpageV2" target.id %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "common/profile.css" %}">
 {% endblock style %}

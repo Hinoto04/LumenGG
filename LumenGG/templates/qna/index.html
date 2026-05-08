@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}QNA{% endblock title %}
+{% block v2_href %}{% url "qna:indexV2" %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "qna/index.css" %}">
 {% endblock style %}

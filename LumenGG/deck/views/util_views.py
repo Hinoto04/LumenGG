@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from ..models import Deck, CardInDeck
 from card.models import Card
 from ..forms import DeckSearchForm, DeckImportForm
+from ..utils import normalize_deck_version
 
 def deckMake(req):
     deckList = ['스탠딩 가드', '다운 가드', '구르기', '세츠메이 킥',
@@ -49,13 +50,16 @@ def deckImport(req):
                 else:
                     deckList.append(card_obj)
             char = form.cleaned_data['char']
+            if sum(1 for card in deckList if card.ultimate) > 1:
+                form.add_error('deck', '얼티밋 카드는 1장까지만 넣을 수 있습니다.')
+                return render(req, 'deck/importForm.html', context={'form': form})
             if (char.name == '키스' and len(deckList) == 23) \
                 or (char.name != '키스' and len(deckList) == 20):
                 deck = Deck(
                     name = form.cleaned_data['name'],
                     author = req.user,
                     character = char,
-                    version = form.cleaned_data['version'],
+                    version = normalize_deck_version(form.cleaned_data['version']),
                     private = form.cleaned_data['private'],
                 )
                 deck.save()

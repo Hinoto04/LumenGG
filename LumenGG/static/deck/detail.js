@@ -70,11 +70,73 @@ function deckCapture() {
     if (deckDisplay != 'image') {
         deckToggle();
     }
-    const captureArea = document.getElementById('ImageDisplay');
+    const captureArea = document.getElementById('v2DeckCaptureArea') || document.getElementById('ImageDisplay');
+    const isV2Capture = captureArea && captureArea.id === 'v2DeckCaptureArea';
     html2canvas(captureArea, {
         useCORS: true,
         allowTaint: true,
         scale: 2,
+        backgroundColor: isV2Capture ? '#111111' : '#ffffff',
+        onclone: function(clonedDocument) {
+            if (!isV2Capture) return;
+            const clonedArea = clonedDocument.getElementById('v2DeckCaptureArea');
+            if (clonedArea) {
+                clonedArea.classList.add('is-capturing');
+                clonedArea.style.background = '#111111';
+                clonedArea.style.padding = '16px';
+                const captureStyle = clonedDocument.createElement('style');
+                captureStyle.textContent = `
+                    .v2-deck-capture-area.is-capturing .v2-capture-text {
+                        display: inline-flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        gap: 4px !important;
+                        position: relative !important;
+                        top: -2px !important;
+                        line-height: 1 !important;
+                    }
+                    .v2-deck-capture-area.is-capturing .v2-capture-text strong {
+                        line-height: 1 !important;
+                    }
+                `;
+                clonedDocument.head.appendChild(captureStyle);
+
+                const textTargets = clonedArea.querySelectorAll([
+                    '.v2-chip',
+                    '.v2-metric',
+                    '.v2-deck-metric',
+                    '.v2-unreleased',
+                    '.v2-button',
+                    '.v2-deck-version',
+                    '.v2-deck-zone-head span'
+                ].join(','));
+
+                textTargets.forEach((element) => {
+                    const wrapper = clonedDocument.createElement('span');
+                    wrapper.className = 'v2-capture-text';
+                    while (element.firstChild) {
+                        wrapper.appendChild(element.firstChild);
+                    }
+                    element.appendChild(wrapper);
+
+                    let height = 28;
+                    if (element.classList.contains('v2-deck-metric')) height = 30;
+                    if (element.classList.contains('v2-unreleased')) height = 24;
+                    if (element.classList.contains('v2-button')) height = 36;
+                    if (element.classList.contains('v2-deck-version')) height = 24;
+
+                    element.style.display = 'inline-block';
+                    element.style.boxSizing = 'border-box';
+                    element.style.minHeight = '0';
+                    element.style.height = `${height}px`;
+                    element.style.paddingTop = '0';
+                    element.style.paddingBottom = '0';
+                    element.style.lineHeight = `${height - 2}px`;
+                    element.style.textAlign = 'center';
+                    element.style.verticalAlign = 'middle';
+                });
+            }
+        },
     }).then(canvas => {
         // 캔버스를 이미지로 변환
         const image = canvas.toDataURL('image/png');
@@ -135,3 +197,22 @@ $(document).ready(function () {
         $imgTooltip.find('img').attr('src', '');
     });
 });
+
+function setV2SideZoneHeight() {
+    const board = document.querySelector(".v2-deck-board");
+    const list = document.querySelector(".v2-deck-zone-list");
+    const hand = document.querySelector(".v2-deck-zone-hand");
+    const side = document.querySelector(".v2-deck-zone-side");
+    if (!board || !list || !hand || !side || window.innerWidth <= 980) {
+        if (side) side.style.maxHeight = "";
+        return;
+    }
+
+    const styles = window.getComputedStyle(board);
+    const gap = parseFloat(styles.rowGap || styles.gap || "0") || 0;
+    side.style.maxHeight = `${list.offsetHeight + hand.offsetHeight + gap}px`;
+}
+
+window.addEventListener("load", setV2SideZoneHeight);
+window.addEventListener("resize", setV2SideZoneHeight);
+document.addEventListener("DOMContentLoaded", setV2SideZoneHeight);

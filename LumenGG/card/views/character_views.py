@@ -10,7 +10,7 @@ from ..forms import CharacterCommentForm
 
 import json, math
 
-def index(req):
+def index(req, template_name='character/index.html'):
     id = req.GET.get('id', '2')
     chars = Character.objects.filter(Q(pack__released__lte=timezone.now())).order_by('pack__released')
     charnum = len(chars)+1
@@ -24,7 +24,10 @@ def index(req):
         'id': id,
         'form': form,
     }
-    return render(req, 'character/index.html', context=context)
+    return render(req, template_name, context=context)
+
+def indexV2(req):
+    return index(req, 'character/index_v2.html')
 
 def character(req):
     
@@ -45,7 +48,17 @@ def detail(req, id):
     for i in data['identity']:
         i['card'] = list(Card.objects.only('img_mid').filter(id=i['card']).values('id', 'name', 'img_mid'))
     
-    skinImgs = CollectionCard.objects.filter(Q(name__contains=char.name)&Q(card_id=None)&(~Q(rare="N"))).order_by('pack__released')
+    skinImgs = CollectionCard.objects.filter(
+        Q(name__contains=char.name)
+        & Q(card_id=None)
+        & ~Q(rare="N")
+        & ~Q(name__contains="토큰")
+    ).order_by('pack__released')
+    tokenImgs = CollectionCard.objects.filter(
+        Q(name__contains=char.name)
+        & Q(card_id=None)
+        & Q(name__contains="토큰")
+    ).order_by('pack__released')
     passive = list(Card.objects.filter(type="특성", character=char).values('id', 'name', 'img'))
     selfComment = None
     if req.user.is_authenticated:
@@ -62,6 +75,7 @@ def detail(req, id):
         'char': model_to_dict(char),
         "passive": passive,
         "skin": [char.img] + [i.image for i in skinImgs],
+        "token": [i.image for i in tokenImgs],
         "selfComment": selfComment,
         "comments": comments,
     }

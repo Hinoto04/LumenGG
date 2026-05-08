@@ -24,6 +24,7 @@ function pickDisplaySet(windowSize) {
         $("#픽창").css("--size", (768-5*11)/12 + 'px');
 }
 
+const isV2CharacterPage = document.querySelector(".v2-character-page") !== null;
 const ctx = $("#캐릭터그래프")[0].getContext('2d');
 const graph = new Chart(ctx, {
     type: 'radar',
@@ -43,10 +44,19 @@ const graph = new Chart(ctx, {
             r: {
                 suggestedMin: 0,
                 suggestedMax: 10,
+                grid: {
+                    color: isV2CharacterPage ? 'rgba(244, 241, 234, .16)' : undefined,
+                },
+                angleLines: {
+                    color: isV2CharacterPage ? 'rgba(244, 241, 234, .16)' : undefined,
+                },
                 ticks: {
                     stepSize: 2,
+                    color: isV2CharacterPage ? '#b8b0a4' : undefined,
+                    backdropColor: isV2CharacterPage ? 'transparent' : undefined,
                 },
                 pointLabels: {
+                    color: isV2CharacterPage ? '#f4f1ea' : undefined,
                     font: {
                         size: 16,
                     }
@@ -65,20 +75,38 @@ const graph = new Chart(ctx, {
 var passiveOn = false;
 var skinIndex = 0;
 var skinList = [];
+var tokenIndex = -1;
+var tokenList = [];
 var passiveImg = "";
 
 function skinChange(change) {
+    if (!skinList.length)
+        return;
+    passiveOn = false;
     if(change)
         skinIndex = (skinIndex+1)%skinList.length;
     $("#캐릭터카드 > img").attr("src", skinList[skinIndex]);
 }
 
+function tokenChange(change) {
+    if (!tokenList.length)
+        return;
+    passiveOn = false;
+    if(change || tokenIndex < 0)
+        tokenIndex = (tokenIndex+1)%tokenList.length;
+    $("#캐릭터카드 > img").attr("src", tokenList[tokenIndex]);
+}
+
 function passiveChange() {
-    if(passiveOn)
+    if(!passiveImg)
+        return;
+    if(passiveOn) {
+        passiveOn = false;
         skinChange(0);
-    else 
+    } else {
+        passiveOn = true;
         $("#캐릭터카드 > img").attr("src", passiveImg);
-    passiveOn = !passiveOn
+    }
 }
 
 //페이지 변경용
@@ -101,23 +129,42 @@ function previousPage() {
 
 function commentLoad(commentList) {
     $("#댓글목록").empty();
+    const isV2 = $("#댓글목록").hasClass("v2-character-comments");
     $.each(commentList, function(index, item) {
-        $("#댓글목록").append(`
-            <div class="댓글 배경색1 mb-2">
-                <div class="d-flex flex-wrap">
-                    <div class="me-2"><a href="/common/profile/${item.author_name}">
-                        ${item.author_name} | </a></div>
-                    <div class="점수 flex-grow-1">
-                        <div>화력 : ${item.power?item.power:'미평가'}</div>
-                        <div>연계 : ${item.combo?item.combo:'미평가'}</div>
-                        <div>변수<span class="모바일비표시">창출</span> : ${item.reversal?item.reversal:'미평가'}</div>
-                        <div>안정<span class="모바일비표시">성</span> : ${item.safety?item.safety:'미평가'}</div>
-                        <div>템포 : ${item.tempo?item.tempo:'미평가'}</div>
+        if (isV2) {
+            $("#댓글목록").append(`
+                <div class="v2-character-comment v2-panel">
+                    <div class="v2-character-comment-head">
+                        <a href="/common/v2/profile/${encodeURIComponent(item.author_name)}/">${item.author_name}</a>
+                        <div class="v2-character-comment-scores">
+                            <span>화력 ${item.power?item.power:'미평가'}</span>
+                            <span>연계 ${item.combo?item.combo:'미평가'}</span>
+                            <span>변수 ${item.reversal?item.reversal:'미평가'}</span>
+                            <span>안정 ${item.safety?item.safety:'미평가'}</span>
+                            <span>템포 ${item.tempo?item.tempo:'미평가'}</span>
+                        </div>
                     </div>
+                    <p>${item.comment.replace('\n', '<br>')}</p>
                 </div>
-                <div class="ms-2">${item.comment.replace('\n', '<br>')}</div>
-            </div>
-        `)
+            `)
+        } else {
+            $("#댓글목록").append(`
+                <div class="댓글 배경색1 mb-2">
+                    <div class="d-flex flex-wrap">
+                        <div class="me-2"><a href="/common/profile/${item.author_name}">
+                            ${item.author_name} | </a></div>
+                        <div class="점수 flex-grow-1">
+                            <div>화력 : ${item.power?item.power:'미평가'}</div>
+                            <div>연계 : ${item.combo?item.combo:'미평가'}</div>
+                            <div>변수<span class="모바일비표시">창출</span> : ${item.reversal?item.reversal:'미평가'}</div>
+                            <div>안정<span class="모바일비표시">성</span> : ${item.safety?item.safety:'미평가'}</div>
+                            <div>템포 : ${item.tempo?item.tempo:'미평가'}</div>
+                        </div>
+                    </div>
+                    <div class="ms-2">${item.comment.replace('\n', '<br>')}</div>
+                </div>
+            `)
+        }
     })
     
 }
@@ -131,10 +178,17 @@ function dataSet(id) {
 
     skinIndex = 0;
     skinList = charDatas[id].skin;
+    tokenIndex = -1;
+    tokenList = charDatas[id].token || [];
     passiveOn = false;
-    passiveImg = charDatas[id].passive[0].img
+    passiveImg = charDatas[id].passive.length ? charDatas[id].passive[0].img : "";
+    $("#passiveChange").prop("disabled", !passiveImg);
+    $("#skinChange").prop("disabled", skinList.length <= 1);
+    $("#tokenChange").prop("disabled", tokenList.length < 1);
 
     skinChange(0);
+    $("#캐릭터이름").text(charDatas[id].char.name);
+    $("#캐릭터그룹").text(charDatas[id].char.group);
     $("#id_character").val(id);
     if(charDatas[id].selfComment) {
         let sc = charDatas[id].selfComment;
@@ -163,6 +217,10 @@ function dataSet(id) {
 
     $("#특징").text("");
     $("#특징").append(charDatas[id].char.datas.playing);
+    $(".pickImg").removeClass('selected');
+    $(".pickImg").filter(function() {
+        return $(this).attr("alt") == String(id);
+    }).addClass('selected');
 }
 
 function dataLoad(id) {
@@ -204,6 +262,9 @@ $(document).ready(function() {
     });
     $("#skinChange").click(function() {
         skinChange(1)
+    });
+    $("#tokenChange").click(function() {
+        tokenChange(1)
     });
     $("#previousPage").click(function() {
         previousPage();

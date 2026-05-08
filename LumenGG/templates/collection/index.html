@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}카드 컬렉션{% endblock %}
+{% block v2_href %}{% url "collection:indexV2" %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "collection/index.css" %}">
 <style>

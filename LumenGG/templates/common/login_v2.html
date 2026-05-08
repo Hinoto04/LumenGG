@@ -1,0 +1,31 @@
+{% extends "base_v2.html" %}
+{% block title %}로그인 - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "common:login" %}{% endblock legacy_href %}
+{% block content %}
+<section class="v2-auth-wrap">
+    <form method="post" action="" class="v2-panel v2-auth-panel">
+        {% csrf_token %}
+        <div>
+            <div class="v2-kicker">ACCOUNT</div>
+            <h1 class="v2-title">로그인</h1>
+            <p class="v2-subtitle">덱 작성, 컬렉션 관리, 프로필 기능을 사용합니다.</p>
+        </div>
+        {% include "form_errors.html" %}
+        <div class="v2-admin-field">
+            <label for="username">사용자 ID</label>
+            <input type="text" name="username" id="username" autocomplete="username" value="{{ form.username.value|default_if_none:'' }}">
+        </div>
+        <div class="v2-admin-field">
+            <label for="password">비밀번호</label>
+            <input type="password" name="password" id="password" autocomplete="current-password">
+        </div>
+        <div class="v2-auth-links">
+            <a href="{% url "common:signupV2" %}">회원가입</a>
+            <a href="{% url "password_resetV2" %}">비밀번호 재설정</a>
+        </div>
+        <div class="v2-admin-actions">
+            <button type="submit" class="v2-button v2-button-primary">로그인</button>
+        </div>
+    </form>
+</section>
+{% endblock content %}

@@ -1,0 +1,61 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% load card_tags %}
+{% load qna_tags %}
+{% block title %}{{ qna.title }} - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "qna:detail" qna.id %}{% endblock legacy_href %}
+{% block meta %}
+<meta content="{{ qna.title }}" property="og:title" />
+<meta content="{{ qna.question }} - {{ qna.answer }}" property="og:description" />
+<meta content="https://images.hinoto.kr/lumendb/루멘DB로고.webp" property="og:image" />
+<meta content="#111111" data-react-helmet="true" name="theme-color" />
+{% endblock meta %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">Q&A #{{ qna.id }}</div>
+        <h1 class="v2-title">{{ qna.title }}</h1>
+        <p class="v2-subtitle">{{ qna.tags|keywords }}</p>
+    </div>
+    <div class="v2-chip-row">
+        <a class="v2-button" href="{% url "qna:indexV2" %}">목록</a>
+        {% if qna.faq %}<span class="v2-qna-faq-badge">FAQ</span>{% endif %}
+        {% if perms.qna.manage %}
+        <a class="v2-button" href="{% url "qna:updateV2" qna.id %}">수정</a>
+        <a class="v2-button" href="{% url "qna:delete" qna.id %}">삭제</a>
+        {% endif %}
+    </div>
+</section>
+
+<section class="v2-qna-detail-grid">
+    <article class="v2-qna-content">
+        <section class="v2-qna-block">
+            <div class="v2-qna-mark">Q</div>
+            <div class="v2-qna-markdown">{{ qna.question|mark }}</div>
+        </section>
+        <section class="v2-qna-block">
+            <div class="v2-qna-mark">A</div>
+            <div class="v2-qna-markdown">{{ qna.answer|mark }}</div>
+        </section>
+    </article>
+
+    <aside class="v2-qna-side">
+        <h2 class="v2-section-title">관련 카드</h2>
+        <div class="v2-qna-related-grid">
+            {% for card in qna.cards.all %}
+            <a class="v2-qna-related-card" href="{% url "card:detailV2" card.id %}">
+                <div class="v2-qna-related-image">
+                    <img src="{{ card.img_mid }}" alt="{{ card.name }}">
+                </div>
+                <div class="v2-qna-related-body">
+                    <p>{{ card.character.name }}</p>
+                    <strong>{{ card.name }}</strong>
+                </div>
+            </a>
+            {% empty %}
+            <div class="v2-text-panel">관련 카드가 없습니다.</div>
+            {% endfor %}
+        </div>
+    </aside>
+</section>
+{% endblock content %}

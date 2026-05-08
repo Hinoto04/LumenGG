@@ -1,0 +1,88 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% load deck_tags %}
+{% block title %}덱 검색 - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "deck:index" %}{% endblock legacy_href %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">USER DECKS</div>
+        <h1 class="v2-title">덱 검색</h1>
+        <p class="v2-subtitle">덱 이름, 캐릭터, 태그와 작성 정보를 직사각형 카드 안에서 빠르게 훑어봅니다.</p>
+    </div>
+    <div class="v2-chip-row">
+        <span class="v2-chip">총 {{ decks.paginator.count }}개</span>
+        <span class="v2-chip">{{ decks.number }} / {{ decks.paginator.num_pages }} 페이지</span>
+        <a class="v2-button v2-button-primary" href="{% url "deck:createV2" %}">덱 만들기</a>
+    </div>
+</section>
+
+<form action="{% url "deck:indexV2" %}" method="get" class="v2-panel v2-search-panel">
+    <div class="v2-search-row v2-deck-search-row">
+        {{ form.keyword }}
+        {{ form.sort }}
+        <a class="v2-button" href="{% url "stat:index" %}">통계</a>
+        <button class="v2-button" type="button" id="v2FilterToggle">캐릭터</button>
+        <button class="v2-button v2-button-primary" type="submit">검색</button>
+    </div>
+    <div class="v2-filter-grid v2-deck-filter-grid" id="v2FilterGrid">
+        <div class="v2-filter-box v2-filter-wide">
+            <label for="id_char">캐릭터</label>
+            {{ form.char }}
+        </div>
+    </div>
+</form>
+
+<section class="v2-deck-grid">
+    {% for deck in decks %}
+    <article class="v2-deck-card v2-clickable-card" data-href="{% url "deck:detailV2" deck.id %}" role="link" tabindex="0" aria-label="{{ deck.name }} 상세 보기">
+        {% firstof deck.character.body_img deck.character.sd_img deck.character.img as deck_character_image %}
+        {% if deck_character_image %}
+        <img class="v2-deck-bg" src="{{ deck_character_image }}" alt="">
+        {% endif %}
+        <div class="v2-deck-author">
+            <a href="{% url "common:userpageV2" deck.author.id %}">{{ deck.author.username }}</a>
+        </div>
+        <div class="v2-deck-main">
+            <div class="v2-deck-kicker-line">
+                <a href="{% url "card:characterV2" %}?id={{ deck.character.id }}">{{ deck.character.name }}</a>
+                {% if deck.ultimate_cards %}
+                <span class="v2-deck-dot">/</span>
+                {% for cid in deck.ultimate_cards %}
+                <span>{{ cid.card.name }}</span>{% if not forloop.last %}<span class="v2-deck-dot">,</span>{% endif %}
+                {% endfor %}
+                {% endif %}
+            </div>
+            <div class="v2-deck-title-row">
+                <a class="v2-deck-title" href="{% url "deck:detailV2" deck.id %}">{{ deck.name }}</a>
+                <span class="v2-deck-version">{{ deck.version }}</span>
+            </div>
+            <div class="v2-deck-tags">
+                {% firstof deck.keyword deck.tags as deck_tag_text %}
+                {{ deck_tag_text|deckkeywords }}
+            </div>
+        </div>
+        <div class="v2-deck-bottom">
+            <div class="v2-deck-metrics">
+                <span class="v2-deck-metric">추천 <strong>{{ deck.likecount|default_if_none:0 }}</strong></span>
+            </div>
+            <time class="v2-deck-date" datetime="{{ deck.created|date:"Y-m-d" }}">{{ deck.created|date:"Y-m-d" }}</time>
+        </div>
+    </article>
+    {% empty %}
+    <div class="v2-panel v2-text-panel">검색 결과가 없습니다.</div>
+    {% endfor %}
+</section>
+
+<ul class="v2-pagination">
+    {% for page_number in decks.paginator.page_range %}
+    {% if page_number >= decks.number|add:-5 and page_number <= decks.number|add:5 %}
+    <li class="{% if page_number == decks.number %}active{% endif %}">
+        <a class="dynamicLink" href="#" data-page="{{ page_number }}">{{ page_number }}</a>
+    </li>
+    {% endif %}
+    {% endfor %}
+</ul>
+
+<script src="{% static "v2/card-list.js" %}"></script>
+{% endblock content %}

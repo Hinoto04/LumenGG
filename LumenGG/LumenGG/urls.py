@@ -19,7 +19,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
 from django.contrib.sitemaps.views import sitemap
-from django.urls import path, include
+from django.urls import path, include, reverse_lazy
 
 from card.sitemaps import StaticSitemap as CardStaticSitemap, CardSitemap
 from collection.sitemaps import CollectionSitemap
@@ -57,6 +57,33 @@ urlpatterns = [
     path('password_reset_done/', auth_views.PasswordResetDoneView.as_view(), name="password_reset_done"),
     path('password_reset_confirm/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(), name="password_reset_confirm"),
     path('password_reset_complete/', auth_views.PasswordResetCompleteView.as_view(), name="password_reset_complete"),
+    path(
+        'v2/password_reset/',
+        auth_views.PasswordResetView.as_view(
+            template_name='registration/password_reset_form_v2.html',
+            email_template_name='registration/password_reset_email_v2.html',
+            success_url=reverse_lazy('password_reset_doneV2'),
+        ),
+        name="password_resetV2",
+    ),
+    path(
+        'v2/password_reset_done/',
+        auth_views.PasswordResetDoneView.as_view(template_name='registration/password_reset_done_v2.html'),
+        name="password_reset_doneV2",
+    ),
+    path(
+        'v2/password_reset_confirm/<uidb64>/<token>/',
+        auth_views.PasswordResetConfirmView.as_view(
+            template_name='registration/password_reset_confirm_v2.html',
+            success_url=reverse_lazy('password_reset_completeV2'),
+        ),
+        name="password_reset_confirmV2",
+    ),
+    path(
+        'v2/password_reset_complete/',
+        auth_views.PasswordResetCompleteView.as_view(template_name='registration/password_reset_complete_v2.html'),
+        name="password_reset_completeV2",
+    ),
     
     path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="sitemap",),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

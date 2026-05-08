@@ -1,0 +1,122 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% block title %}카드 추가 - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "card:create" %}{% endblock legacy_href %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">CARD ADMIN</div>
+        <h1 class="v2-title">카드 추가</h1>
+        <p class="v2-subtitle">카드 기본 정보와 수록 정보를 함께 등록합니다.</p>
+    </div>
+    <div class="v2-chip-row">
+        <a class="v2-button" href="{% url "card:indexV2" %}">목록</a>
+    </div>
+</section>
+
+<form action="{% url "card:createV2" %}" method="post" enctype="multipart/form-data" class="v2-panel v2-admin-form">
+    {% include "form_errors.html" %}
+    {% csrf_token %}
+    <div class="v2-admin-grid">
+        <div class="v2-admin-field">
+            <label for="{{ form.name.id_for_label }}">카드명</label>
+            {{ form.name }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.ruby.id_for_label }}">루비</label>
+            {{ form.ruby }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.character.id_for_label }}">캐릭터</label>
+            {{ form.character }}
+        </div>
+        <div class="v2-admin-field v2-admin-combo v2-admin-combo-type">
+            <div>
+                <label for="{{ form.type.id_for_label }}">타입</label>
+                {{ form.type }}
+            </div>
+            <div class="v2-admin-inline-check">
+                <label for="{{ form.ultimate.id_for_label }}">얼티밋</label>
+                {{ form.ultimate }}
+            </div>
+        </div>
+        <div class="v2-admin-field v2-admin-combo v2-admin-combo-2">
+            <div>
+                <label for="{{ form.frame.id_for_label }}">속도</label>
+                {{ form.frame }}
+            </div>
+            <div>
+                <label for="{{ form.damage.id_for_label }}">대미지</label>
+                {{ form.damage }}
+            </div>
+        </div>
+        <div class="v2-admin-field v2-admin-combo v2-admin-combo-2">
+            <div>
+                <label for="{{ form.pos.id_for_label }}">판정</label>
+                {{ form.pos }}
+            </div>
+            <div>
+                <label for="{{ form.body.id_for_label }}">부위</label>
+                {{ form.body }}
+            </div>
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.special.id_for_label }}">특수 판정</label>
+            {{ form.special }}
+        </div>
+        <div class="v2-admin-field v2-admin-combo v2-admin-combo-3">
+            <div>
+                <label for="{{ form.hit.id_for_label }}">히트</label>
+                {{ form.hit }}
+            </div>
+            <div>
+                <label for="{{ form.guard.id_for_label }}">가드</label>
+                {{ form.guard }}
+            </div>
+            <div>
+                <label for="{{ form.counter.id_for_label }}">카운터</label>
+                {{ form.counter }}
+            </div>
+        </div>
+        <div class="v2-admin-field v2-admin-combo v2-admin-combo-3">
+            <div>
+                <label for="{{ form.g_top.id_for_label }}">상단</label>
+                {{ form.g_top }}
+            </div>
+            <div>
+                <label for="{{ form.g_mid.id_for_label }}">중단</label>
+                {{ form.g_mid }}
+            </div>
+            <div>
+                <label for="{{ form.g_bot.id_for_label }}">하단</label>
+                {{ form.g_bot }}
+            </div>
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.code.id_for_label }}">최초 수록</label>
+            {{ form.code }}
+        </div>
+        <div class="v2-admin-field v2-admin-combo v2-admin-combo-2 v2-admin-wide">
+            <div>
+                <label for="{{ form.pack.id_for_label }}">수록 팩</label>
+                {{ form.pack }}
+            </div>
+            <div>
+                <label for="{{ form.imageFile.id_for_label }}">이미지(webp)</label>
+                {{ form.imageFile }}
+            </div>
+        </div>
+    </div>
+    <div class="v2-admin-field">
+        <label>레어도</label>
+        {{ form.rare }}
+    </div>
+    <div class="v2-admin-field">
+        <label for="{{ form.text.id_for_label }}">효과</label>
+        {{ form.text }}
+    </div>
+    <div class="v2-admin-actions">
+        <button class="v2-button v2-button-primary" type="submit">저장</button>
+    </div>
+</form>
+{% endblock content %}

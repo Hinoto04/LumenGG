@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}덱 목록{% endblock title %}
+{% block v2_href %}{% url "deck:indexV2" %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "deck/list.css" %}">
 {% endblock style %}

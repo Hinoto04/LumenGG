@@ -15,7 +15,7 @@ import re, random, os, json
 from PIL import Image
 
 # Create your views here.
-def index(req):
+def index(req, template_name='card/list.html'):
     page = req.GET.get('page', '1')
     
     form = CardForm(req.GET)
@@ -140,9 +140,12 @@ def index(req):
         'form': form,
         'cards': page_data
     }
-    return render(req, 'card/list.html', context=context)
+    return render(req, template_name, context=context)
 
-def detail(req, id=0):
+def indexV2(req):
+    return index(req, 'card/list_v2.html')
+
+def detail(req, id=0, template_name='card/detail.html'):
     try:
         card = Card.objects.get(id = id)
     except Card.DoesNotExist:
@@ -171,7 +174,7 @@ def detail(req, id=0):
     )
     cc = cc.order_by('pack__released', 'code', 'custom_order')
     
-    if cc[0].pack.released > timezone.now().date():
+    if cc.exists() and cc[0].pack.released > timezone.now().date():
         unReleased = True
     else:
         unReleased = False
@@ -182,7 +185,10 @@ def detail(req, id=0):
         'cc': cc,
         'unReleased': unReleased,
     }
-    return render(req, 'card/detail.html', context=context)
+    return render(req, template_name, context=context)
+
+def detailV2(req, id=0):
+    return detail(req, id, 'card/detail_v2.html')
 
 def detailName(req, name):
     try:
@@ -197,11 +203,11 @@ def detailName(req, name):
         return detail(req, card.id)
 
 @permission_required('card.add_card')
-def create(req):
+def create(req, template_name='card/create.html', detail_route='card:detail'):
     if req.method == 'GET':
         form = CardCreateForm()
         
-        return render(req, 'card/create.html', context={'form': form})
+        return render(req, template_name, context={'form': form})
     else:
         form = CardCreateForm(req.POST, req.FILES)
         if form.is_valid():
@@ -218,7 +224,7 @@ def create(req):
             
             try:
                 card = Card.objects.get(name = form.cleaned_data['name'])
-                return redirect('card:detail', card.id)
+                return redirect(detail_route, card.id)
             except:
                 card = form.save(commit=False)
                 card.img = 'https://images.hinoto.kr/lumendb/webp/' + card.code + '.webp'
@@ -237,9 +243,12 @@ def create(req):
                     rare = r)
                 #print(newCC.__dict__)
                 newCC.save()
-            return redirect('card:detail', card.id)
+            return redirect(detail_route, card.id)
         else:
-            return render(req, 'card/create.html', context={'form': form})
+            return render(req, template_name, context={'form': form})
+
+def createV2(req):
+    return create(req, 'card/create_v2.html', 'card:detailV2')
 
 def handle_uploaded_file(f, filePath):
     print(filePath)

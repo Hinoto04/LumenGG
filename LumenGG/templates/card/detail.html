@@ -4,6 +4,7 @@
 {% block title %}
 {{ card.name }}
 {% endblock title %}
+{% block v2_href %}{% url "card:detailV2" card.id %}{% endblock v2_href %}
 {% block meta %}
 <meta content="{{ card.name }}" property="og:title" />
 <meta content="{{ card.text }}" property="og:description" />

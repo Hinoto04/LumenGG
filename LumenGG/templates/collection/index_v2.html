@@ -1,0 +1,132 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% block title %}컬렉션 - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "collection:index" %}{% endblock legacy_href %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">COLLECTION</div>
+        <h1 class="v2-title">컬렉션</h1>
+        <p class="v2-subtitle">수록 카드, 레어도, 보유 수량을 한 화면에서 확인하고 정리합니다.</p>
+    </div>
+    <div class="v2-chip-row">
+        <span class="v2-chip">총 {{ data.paginator.count }}종</span>
+        <span class="v2-chip">{{ data.number }} / {{ data.paginator.num_pages }} 페이지</span>
+        {% if perms.card.add_card %}
+        <a class="v2-button v2-button-primary" href="{% url "collection:createV2" %}">카드 추가</a>
+        {% endif %}
+    </div>
+</section>
+
+<form action="{% url "collection:indexV2" %}" method="get" class="v2-panel v2-search-panel" id="검색폼">
+    <div class="v2-collection-filter-grid">
+        <div class="v2-filter-box v2-filter-wide">
+            <label for="id_char">캐릭터</label>
+            {{ form.char }}
+        </div>
+        <div class="v2-filter-box v2-filter-wide">
+            <label for="id_rare">레어도</label>
+            {{ form.rare }}
+        </div>
+        <div class="v2-filter-box v2-collection-pack-filter {% if not user.is_authenticated %}v2-collection-pack-filter-full{% endif %}">
+            <label for="id_code">출신 팩</label>
+            {{ form.code }}
+        </div>
+        <div class="v2-filter-box v2-collection-hidden-sort">
+            <label for="id_sortValue">정렬</label>
+            {{ form.sortValue }}
+        </div>
+        {% if user.is_authenticated %}
+        <div class="v2-filter-box v2-collection-toggle-box">
+            <label for="id_onlyZero" class="v2-collection-zero-toggle">
+                {{ form.onlyZero }}
+                <span>미보유만 보기</span>
+            </label>
+        </div>
+        {% endif %}
+    </div>
+    <div class="v2-collection-filter-actions">
+        <button class="v2-button v2-button-primary" type="submit">검색</button>
+    </div>
+</form>
+
+<form action="{% url "collection:update_collected" %}" method="post" id="컬렉션업데이트">{% csrf_token %}</form>
+
+{% if user.is_authenticated %}
+<div class="v2-collection-notice">
+    수량을 변경한 뒤 저장 버튼을 눌러주세요. 카드명 또는 코드를 누르면 정렬 기준이 바뀝니다.
+</div>
+{% endif %}
+
+<section class="v2-collection-table {% if user.is_authenticated %}is-login{% endif %}">
+    <div class="v2-collection-header">
+        <div>이미지</div>
+        <button type="button" id="정렬카드명">카드명</button>
+        <button type="button" id="정렬코드">코드</button>
+        <div class="v2-collection-pack-head">팩</div>
+        <div>{% if user.is_authenticated %}레어도 / 보유{% else %}레어도{% endif %}</div>
+    </div>
+    {% regroup data by img_sm as collection_groups %}
+    {% for group in collection_groups %}
+    {% with first=group.list.0 %}
+    <article class="v2-collection-row">
+        <div class="v2-collection-image">
+            {% if first.card %}
+            <a href="{% url "card:detailV2" first.card.id %}">
+                <img src="{{ first.img_sm }}" alt="{{ first.name }}">
+            </a>
+            {% else %}
+            <img src="{{ first.img_sm }}" alt="{{ first.name }}">
+            {% endif %}
+        </div>
+        <div class="v2-collection-name">
+            {% if first.card %}
+            <a href="{% url "card:detailV2" first.card.id %}">{{ first.name }}</a>
+            {% else %}
+            <span>{{ first.name }}</span>
+            {% endif %}
+            {% if first.card %}
+            <small>{{ first.card.character.name }}</small>
+            {% endif %}
+        </div>
+        <div class="v2-collection-code">{{ first.code }}</div>
+        <div class="v2-collection-pack">{{ first.pack.name }}</div>
+        <div class="v2-collection-prints">
+            {% for c in group.list %}
+            <div class="v2-collection-print">
+                <span class="v2-rare {{ c.rare }}">{{ c.rare }}</span>
+                {% if user.is_authenticated %}
+                <div class="v2-collection-count">
+                    <button type="button" class="v2-count-button" onclick="dec({{ c.id }})">-</button>
+                    <input type="number" name="{{ c.id }}" id="cc_input_{{ c.id }}" class="cc_input" value="{{ c.amount|default_if_none:0 }}" min="0" max="99">
+                    <button type="button" class="v2-count-button" onclick="inc({{ c.id }})">+</button>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </article>
+    {% endwith %}
+    {% empty %}
+    <div class="v2-text-panel">검색 결과가 없습니다.</div>
+    {% endfor %}
+</section>
+
+{% if user.is_authenticated %}
+<div class="v2-collection-savebar">
+    <button class="v2-button v2-button-primary" type="button" id="컬렉션수정버튼">저장</button>
+</div>
+{% endif %}
+
+<ul class="v2-pagination">
+    {% for page_number in data.paginator.page_range %}
+    {% if page_number >= data.number|add:-5 and page_number <= data.number|add:5 %}
+    <li class="{% if page_number == data.number %}active{% endif %}">
+        <a class="dynamicLink" href="#" data-page="{{ page_number }}">{{ page_number }}</a>
+    </li>
+    {% endif %}
+    {% endfor %}
+</ul>
+
+<script src="{% static "v2/collection.js" %}"></script>
+{% endblock content %}

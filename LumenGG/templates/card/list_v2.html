@@ -1,0 +1,100 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% load card_tags %}
+{% block title %}카드 검색 - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "card:index" %}{% endblock legacy_href %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">CARD DATABASE</div>
+        <h1 class="v2-title">카드 검색</h1>
+        <p class="v2-subtitle">카드 이미지와 속도, 판정, 처리값, 태그를 한 번에 훑을 수 있는 새 목록 화면입니다.</p>
+    </div>
+    <div class="v2-chip-row">
+        <span class="v2-chip">총 {{ cards.paginator.count }}장</span>
+        <span class="v2-chip">{{ cards.number }} / {{ cards.paginator.num_pages }} 페이지</span>
+        {% if perms.card.add_card %}
+        <a class="v2-button v2-button-primary" href="{% url "card:createV2" %}">카드 추가</a>
+        {% endif %}
+    </div>
+</section>
+
+<form action="{% url "card:indexV2" %}" method="get" class="v2-panel v2-search-panel" id="v2SearchForm">
+    <div class="v2-search-row">
+        {{ form.keyword }}
+        {{ form.sort }}
+        <button class="v2-button" type="button" id="v2FilterToggle">필터</button>
+        <button class="v2-button v2-button-primary" type="submit">검색</button>
+    </div>
+    <div class="v2-filter-grid" id="v2FilterGrid">
+        <div class="v2-filter-box v2-filter-wide">
+            <label for="id_char">캐릭터</label>
+            {{ form.char }}
+        </div>
+        <div class="v2-filter-box">
+            <span class="v2-filter-label">분류</span>
+            {{ form.type }}
+            <label class="v2-check-label mt-2" for="id_ultimate">{{ form.ultimate }} 얼티밋</label>
+        </div>
+        <div class="v2-filter-box">
+            <label for="id_pos">판정</label>
+            {{ form.pos }}
+        </div>
+        <div class="v2-filter-box">
+            <label for="id_body">부위</label>
+            {{ form.body }}
+        </div>
+        <div class="v2-filter-box">
+            <span class="v2-filter-label">특수 판정</span>
+            {{ form.specialpos }}
+            {{ form.specialtype }}
+        </div>
+        <div class="v2-filter-box">
+            <span class="v2-filter-label">속도</span>
+            {{ form.frametype }}
+            {{ form.framenum }}
+        </div>
+        <div class="v2-filter-box">
+            <label for="id_pack">출신 팩</label>
+            {{ form.pack }}
+        </div>
+        {% if perms.card.tag_update %}
+        <div class="v2-filter-box">
+            <span class="v2-filter-label">관리</span>
+            <a href="{% url "card:tagList" %}" class="v2-button">태그 목록</a>
+        </div>
+        {% endif %}
+    </div>
+</form>
+
+<section class="v2-card-grid">
+    {% for card in cards %}
+    <a class="v2-card-tile" href="{% url "card:detailV2" card.id %}">
+        <div class="v2-card-img">
+            <img src="{{ card.img_mid }}" alt="{{ card.name }}">
+            {% if card.unReleased %}
+            <span class="v2-unreleased">미발매</span>
+            {% endif %}
+        </div>
+        <div class="v2-card-body">
+            <p class="v2-card-character">{{ card.character.name }}</p>
+            <h2 class="v2-card-name">{{ card.name }}</h2>
+        </div>
+    </a>
+    {% empty %}
+    <div class="v2-panel v2-text-panel">검색 결과가 없습니다.</div>
+    {% endfor %}
+</section>
+
+<ul class="v2-pagination">
+    {% for page_number in cards.paginator.page_range %}
+    {% if page_number >= cards.number|add:-5 and page_number <= cards.number|add:5 %}
+    <li class="{% if page_number == cards.number %}active{% endif %}">
+        <a class="dynamicLink" href="#" data-page="{{ page_number }}">{{ page_number }}</a>
+    </li>
+    {% endif %}
+    {% endfor %}
+</ul>
+
+<script src="{% static "v2/card-list.js" %}"></script>
+{% endblock content %}
