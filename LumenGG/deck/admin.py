@@ -9,7 +9,6 @@ class DeckAdmin(admin.ModelAdmin):
 
 class CardInDeckAdmin(admin.ModelAdmin):
     list_display = ('deck', 'card', 'count')
-    list_filter = ('deck', 'card')
     search_fields = ('deck__name', 'card__name')
 
 # Register your models here.

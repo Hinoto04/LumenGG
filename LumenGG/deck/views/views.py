@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.db.models import OuterRef, Subquery, Q, Count, Prefetch
-from django.db import models
+from django.db import models, transaction
 from django.urls import reverse
 from django.core import serializers
 from django.core.paginator import Paginator
@@ -181,8 +181,42 @@ def normalize_submitted_deck(deck_data):
     
     return normalized, None
 
-@login_required(login_url='common:login', redirect_field_name='next')
-def create(req, template_name='deck/create.html', detail_route='deck:detail'):
+def merge_deck_entries(deck_entries):
+    merged = {}
+    for card_id, count, hand, side in deck_entries:
+        if card_id not in merged:
+            merged[card_id] = {'count': 0, 'hand': 0, 'side': 0}
+        merged[card_id]['count'] += count
+        merged[card_id]['hand'] += hand
+        merged[card_id]['side'] += side
+
+    result = []
+    for card_id, values in merged.items():
+        count = values['count']
+        hand = values['hand']
+        side = values['side']
+        if hand + side > count:
+            return None, '손패와 사이드의 카드 갯수가 덱에 들어간 카드보다 많을 수 없습니다.'
+        result.append((card_id, count, hand, side))
+    return result, None
+
+def build_card_in_deck(deck, deck_entries):
+    return [
+        CardInDeck(
+            card_id=card_id,
+            deck=deck,
+            count=count,
+            hand=hand,
+            side=side,
+        )
+        for card_id, count, hand, side in deck_entries
+    ]
+
+def replace_deck_cards(deck, deck_entries):
+    CardInDeck.objects.filter(deck_id=deck.id).delete()
+    CardInDeck.objects.bulk_create(build_card_in_deck(deck, deck_entries))
+
+def _create(req, template_name='deck/create.html', detail_route='deck:detail'):
     if req.method == "GET":
         form = DeckMakeForm()
         exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
@@ -208,32 +242,28 @@ def create(req, template_name='deck/create.html', detail_route='deck:detail'):
         if error_msg:
             errorContent['msg'] = error_msg
             return JsonResponse(errorContent)
+        normalized_deck, error_msg = merge_deck_entries(normalized_deck)
+        if error_msg:
+            errorContent['msg'] = error_msg
+            return JsonResponse(errorContent)
         
         try:
-            version = normalize_deck_version(data.get('version'))
-            newDeck = Deck(
-                name=data['name'],
-                character_id=int(data['char']),
-                description=data['description'], 
-                keyword=data['keyword'], 
-                version=version,
-                author=req.user,
-                private=('private' in data.keys()),
-            )
-            newDeck.save()
+            with transaction.atomic():
+                version = normalize_deck_version(data.get('version'))
+                newDeck = Deck(
+                    name=data['name'],
+                    character_id=int(data['char']),
+                    description=data['description'], 
+                    keyword=data['keyword'], 
+                    version=version,
+                    author=req.user,
+                    private=('private' in data.keys()),
+                )
+                newDeck.save()
+                CardInDeck.objects.bulk_create(build_card_in_deck(newDeck, normalized_deck))
         except:
             errorContent['msg'] =  '올바르지 않은 데이터가 있습니다.'
             return JsonResponse(errorContent)
-        
-        for card_id, count, hand, side in normalized_deck:
-            cid = CardInDeck(
-                card_id = card_id,
-                deck = newDeck,
-                count = count,
-                hand = hand,
-                side = side,
-            )
-            cid.save()
         
         content = {
             'status': 100,
@@ -241,8 +271,13 @@ def create(req, template_name='deck/create.html', detail_route='deck:detail'):
         }
         return JsonResponse(content)
 
+@login_required(login_url='common:login', redirect_field_name='next')
+def create(req):
+    return _create(req)
+
+@login_required(login_url='common:loginV2', redirect_field_name='next')
 def createV2(req):
-    return create(req, 'deck/create_v2.html', 'deck:detailV2')
+    return _create(req, 'deck/create_v2.html', 'deck:detailV2')
 
 def createSearch(req):
     neutral = req.GET.get('neutral', '')
@@ -283,23 +318,27 @@ def createSearch(req):
     return JsonResponse(data, safe=False)
 
 def get_initial_cards(card_in_deck):
-    return [
-        {
-            'pk': cid.card.id,
-            'name': cid.card.name,
-            'frame': cid.card.frame,
-            'img_sm': cid.card.img_sm,
-            'character': cid.card.character_id,
-            'ultimate': cid.card.ultimate,
-            'count': cid.count,
-            'hand': cid.hand,
-            'side': cid.side,
-        }
-        for cid in card_in_deck
-    ]
+    cards = {}
+    for cid in card_in_deck:
+        key = cid.card.id
+        if key not in cards:
+            cards[key] = {
+                'pk': cid.card.id,
+                'name': cid.card.name,
+                'frame': cid.card.frame,
+                'img_sm': cid.card.img_sm,
+                'character': cid.card.character_id,
+                'ultimate': cid.card.ultimate,
+                'count': 0,
+                'hand': 0,
+                'side': 0,
+            }
+        cards[key]['count'] += cid.count
+        cards[key]['hand'] += cid.hand
+        cards[key]['side'] += cid.side
+    return list(cards.values())
 
-@login_required(login_url='common:login', redirect_field_name='next')
-def update(req, id=0, template_name='deck/update.html', detail_route='deck:detail'):
+def _update(req, id=0, template_name='deck/update.html', detail_route='deck:detail'):
     try:
         deck = Deck.objects.get(id=id)
     except Deck.DoesNotExist:
@@ -342,25 +381,20 @@ def update(req, id=0, template_name='deck/update.html', detail_route='deck:detai
         if error_msg:
             errorContent['msg'] = error_msg
             return JsonResponse(errorContent)
+        normalized_deck, error_msg = merge_deck_entries(normalized_deck)
+        if error_msg:
+            errorContent['msg'] = error_msg
+            return JsonResponse(errorContent)
         
-        deck.name = data['name']
-        deck.character_id = int(data['char'])
-        deck.version = normalize_deck_version(data.get('version'))
-        deck.keyword = data['keyword']
-        deck.private = 'private' in data.keys()
-        deck.description = data['description']
-        deck.save()
-        
-        CardInDeck.objects.filter(deck=deck).delete()
-        for card_id, count, hand, side in normalized_deck:
-            cid = CardInDeck(
-                card_id = card_id,
-                deck = deck,
-                count = count,
-                hand = hand,
-                side = side,
-            )
-            cid.save()
+        with transaction.atomic():
+            deck.name = data['name']
+            deck.character_id = int(data['char'])
+            deck.version = normalize_deck_version(data.get('version'))
+            deck.keyword = data['keyword']
+            deck.private = 'private' in data.keys()
+            deck.description = data['description']
+            deck.save()
+            replace_deck_cards(deck, normalized_deck)
         
         content = {
             'status': 100,
@@ -368,8 +402,13 @@ def update(req, id=0, template_name='deck/update.html', detail_route='deck:detai
         }
         return JsonResponse(content)
 
+@login_required(login_url='common:login', redirect_field_name='next')
+def update(req, id=0):
+    return _update(req, id)
+
+@login_required(login_url='common:loginV2', redirect_field_name='next')
 def updateV2(req, id=0):
-    return update(req, id, 'deck/create_v2.html', 'deck:detailV2')
+    return _update(req, id, 'deck/create_v2.html', 'deck:detailV2')
 
 @login_required(login_url='common:login', redirect_field_name='next')
 def delete(req, id):
