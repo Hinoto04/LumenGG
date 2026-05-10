@@ -324,16 +324,18 @@ img {
 }
 
 .v2-button:disabled,
-.v2-button[disabled] {
+.v2-button[disabled],
+.v2-button[aria-busy="true"] {
     border-color: rgba(133, 125, 115, .35);
     color: var(--v2-faint);
     background: rgba(255, 255, 255, .035);
-    cursor: not-allowed;
+    cursor: wait;
     opacity: .72;
 }
 
 .v2-button:disabled:hover,
-.v2-button[disabled]:hover {
+.v2-button[disabled]:hover,
+.v2-button[aria-busy="true"]:hover {
     border-color: rgba(133, 125, 115, .35);
     color: var(--v2-faint);
     background: rgba(255, 255, 255, .035);
@@ -1012,69 +1014,6 @@ label:has(> input.검색체크:checked) {
 
 .v2-deck-capture-area > .v2-section {
     margin-top: 18px;
-}
-
-.v2-deck-capture-area.is-capturing .v2-chip,
-.v2-deck-capture-area.is-capturing .v2-metric,
-.v2-deck-capture-area.is-capturing .v2-deck-metric,
-.v2-deck-capture-area.is-capturing .v2-unreleased,
-.v2-deck-capture-area.is-capturing .v2-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.v2-deck-capture-area.is-capturing .v2-chip,
-.v2-deck-capture-area.is-capturing .v2-metric {
-    min-height: 0;
-    height: 28px;
-    padding-top: 0;
-    padding-bottom: 0;
-    line-height: 26px;
-}
-
-.v2-deck-capture-area.is-capturing .v2-deck-metric {
-    min-height: 0;
-    height: 30px;
-    padding-top: 0;
-    padding-bottom: 0;
-    line-height: 28px;
-}
-
-.v2-deck-capture-area.is-capturing .v2-unreleased {
-    min-height: 24px;
-    height: 24px;
-    padding-top: 0;
-    padding-bottom: 0;
-    line-height: 22px;
-}
-
-.v2-deck-capture-area.is-capturing .v2-button {
-    min-height: 0;
-    height: 36px;
-    padding-top: 0;
-    padding-bottom: 0;
-    line-height: 34px;
-}
-
-.v2-deck-capture-area.is-capturing .v2-capture-text {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    position: relative;
-    top: -2px;
-    line-height: 1;
-}
-
-.v2-deck-capture-area.is-capturing .v2-capture-text strong {
-    line-height: 1;
-}
-
-.v2-deck-capture-area.is-capturing .v2-deck-zone-head span {
-    display: inline-flex;
-    align-items: center;
-    line-height: 1;
 }
 
 .v2-deck-detail-head {
