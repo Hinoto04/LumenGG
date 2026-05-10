@@ -38,6 +38,8 @@
     --v2-red: #b24141;
     --v2-purple: #8052a4;
     --v2-control-scheme: light;
+    --v2-list-card-gradient: linear-gradient(105deg, rgba(255, 250, 242, .98) 0%, rgba(255, 250, 242, .94) 58%, rgba(224, 180, 91, .18) 100%);
+    --v2-tournament-card-gradient: linear-gradient(125deg, rgba(255, 250, 242, .98), rgba(255, 250, 242, .93) 62%, rgba(91, 190, 176, .16));
 }
 
 * {
@@ -829,7 +831,7 @@ label:has(> input.검색체크:checked) {
     border: 1px solid var(--v2-line);
     border-radius: 8px;
     background:
-        linear-gradient(105deg, rgba(27, 27, 27, .98) 0%, rgba(27, 27, 27, .94) 56%, rgba(36, 36, 36, .74) 100%),
+        var(--v2-list-card-gradient, linear-gradient(105deg, rgba(27, 27, 27, .98) 0%, rgba(27, 27, 27, .94) 56%, rgba(36, 36, 36, .74) 100%)),
         var(--v2-surface);
 }
 
@@ -922,6 +924,12 @@ label:has(> input.검색체크:checked) {
     font-size: 1.28rem;
     font-weight: 900;
     line-height: 1.28;
+}
+
+:root[data-theme="light"] .v2-deck-title,
+:root[data-theme="light"] .v2-tournament-card h2 {
+    color: #1d1710;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .5);
 }
 
 .v2-deck-version {
@@ -2953,7 +2961,7 @@ label:has(> input.검색체크:checked) {
     border: 1px solid var(--v2-line);
     border-radius: 8px;
     background:
-        linear-gradient(125deg, rgba(27, 27, 27, .98), rgba(27, 27, 27, .9) 62%, rgba(91, 190, 176, .12)),
+        var(--v2-tournament-card-gradient, linear-gradient(125deg, rgba(27, 27, 27, .98), rgba(27, 27, 27, .9) 62%, rgba(91, 190, 176, .12))),
         var(--v2-surface);
 }
 
