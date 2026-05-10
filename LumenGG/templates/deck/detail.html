@@ -18,6 +18,7 @@
         <div id="위쪽정보">
             <p>{{deck.name}}</p>
             <p>ver.{{deck.version}}</p>
+            <p>{{ deck.get_visibility_display }}</p>
         </div>
         <div id="아래쪽정보">
             <p>캐릭터 : <a href="{% url "card:character" %}?id={{deck.character.id}}">{{deck.character.name}}</a></p>
@@ -32,10 +33,14 @@
                 <button type="button" class="btn btn-sm btn-dark" 
                 onclick="deckCapture()">덱 캡쳐</button>
             </div>
-            {% if user == deck.author %}
+            {% if user == deck.author and not deck_tournament_locked %}
             <div class="d-flex flex-row">
                 <a class="btn btn-sm btn-warning me-2" href="{% url "deck:update" deck.id %}">덱 수정 </a>
                 <a class="btn btn-sm btn-danger" href="{% url "deck:delete" deck.id %}">덱 삭제 </a>
+            </div>
+            {% elif user == deck.author and deck_tournament_locked %}
+            <div class="d-flex flex-row">
+                <span class="badge text-bg-secondary">대회 제출 덱 잠금</span>
             </div>
             {% else %}
             <div></div>

@@ -13,7 +13,7 @@ from django.db.models import Case, When
 from card.models import Card, Character
 from ..models import Deck, CardInDeck, DeckLike, DeckComment
 from ..forms import DeckSearchForm, DeckMakeForm
-from ..utils import normalize_deck_version
+from ..utils import get_deck_version_from_entries
 from collection.models import Pack
 from statistic.models import CSDeck
 from common.models import SiteSettings
@@ -42,7 +42,16 @@ def index(req, template_name='deck/list.html'):
         qq.add(Q(author__username=keyword), qq.OR)
         q.add(qq, q.AND)
     
-    q.add(~Q(private=True), q.AND)
+    visible_q = Q(visibility=Deck.VISIBILITY_PUBLIC)
+    if req.user.is_authenticated:
+        visible_q.add(
+            Q(
+                author=req.user,
+                visibility__in=[Deck.VISIBILITY_UNLISTED, Deck.VISIBILITY_PRIVATE],
+            ),
+            Q.OR,
+        )
+    q.add(visible_q, q.AND)
     like_subquery = DeckLike.objects.filter(
         deck=OuterRef('pk'),
         like=True
@@ -93,6 +102,8 @@ def detail(req, id=0, template_name='deck/detail.html'):
     
     if deck.deleted:
         raise Http404()
+    if not can_view_deck(req.user, deck):
+        raise PermissionDenied()
     
     likecount = DeckLike.objects.filter(deck=deck, like=True).count()
     bookmarkcount = DeckLike.objects.filter(deck=deck, bookmark=True).count()
@@ -117,6 +128,7 @@ def detail(req, id=0, template_name='deck/detail.html'):
     else:
         liked = False
         bookmarked = False
+    deck_tournament_locked = is_deck_locked_by_tournament(deck)
     
     context = {
         'deck': deck,
@@ -132,11 +144,59 @@ def detail(req, id=0, template_name='deck/detail.html'):
         'bookmarkcount': bookmarkcount,
         'liked': liked,
         'bookmarked': bookmarked,
+        'deck_tournament_locked': deck_tournament_locked,
     }
     return render(req, template_name, context=context)
 
 def detailV2(req, id=0):
     return detail(req, id, 'deck/detail_v2.html')
+
+def can_view_deck(user, deck):
+    visibility = Deck.VISIBILITY_PRIVATE if deck.private else deck.visibility
+    if visibility in (Deck.VISIBILITY_PUBLIC, Deck.VISIBILITY_UNLISTED):
+        return True
+    if not user.is_authenticated:
+        return False
+    if deck.author_id == user.id:
+        return True
+    if user.is_staff:
+        return True
+    try:
+        from tournament.models import Tournament, TournamentDeckSubmission
+    except ImportError:
+        return False
+    return TournamentDeckSubmission.objects.filter(
+        deck=deck,
+        participant__tournament__organizer=user,
+    ).exists() or Tournament.objects.filter(
+        organizer=user,
+        participants__deck=deck,
+    ).exists()
+
+
+def is_deck_locked_by_tournament(deck):
+    if deck.locked:
+        return True
+    try:
+        from tournament.models import Tournament, TournamentDeckSubmission
+    except ImportError:
+        return False
+    return TournamentDeckSubmission.objects.filter(
+        deck=deck,
+        participant__tournament__status__in=[
+            Tournament.STATUS_RUNNING,
+            Tournament.STATUS_FINISHED,
+        ],
+    ).exists()
+
+
+def normalize_deck_visibility(value):
+    valid_values = {choice[0] for choice in Deck.VISIBILITY_CHOICES}
+    if value in valid_values:
+        return value
+    if value in (True, 'true', 'True', '1', 1):
+        return Deck.VISIBILITY_PRIVATE
+    return Deck.VISIBILITY_PUBLIC
 
 def normalize_submitted_deck(deck_data):
     card_ids = []
@@ -249,7 +309,8 @@ def _create(req, template_name='deck/create.html', detail_route='deck:detail'):
         
         try:
             with transaction.atomic():
-                version = normalize_deck_version(data.get('version'))
+                version = get_deck_version_from_entries(normalized_deck)
+                visibility = normalize_deck_visibility(data.get('visibility', data.get('private')))
                 newDeck = Deck(
                     name=data['name'],
                     character_id=int(data['char']),
@@ -257,7 +318,8 @@ def _create(req, template_name='deck/create.html', detail_route='deck:detail'):
                     keyword=data['keyword'], 
                     version=version,
                     author=req.user,
-                    private=('private' in data.keys()),
+                    visibility=visibility,
+                    private=(visibility == Deck.VISIBILITY_PRIVATE),
                 )
                 newDeck.save()
                 CardInDeck.objects.bulk_create(build_card_in_deck(newDeck, normalized_deck))
@@ -350,10 +412,11 @@ def _update(req, id=0, template_name='deck/update.html', detail_route='deck:deta
     csd = CSDeck.objects.filter(deck=deck)
     if len(csd) > 0:
         return render(req, 'error.html', context={'error':'대회에 사용된 덱은 수정하실 수 없습니다.'})
+    if is_deck_locked_by_tournament(deck):
+        return render(req, 'error.html', context={'error':'진행 중이거나 종료된 대회에 제출된 덱은 수정하실 수 없습니다.'})
     
     if req.method == "GET":
         form = DeckMakeForm(instance=deck)
-        form['version'].initial = deck.version
         cid = CardInDeck.objects.filter(deck=deck).select_related('card', 'card__character')
         exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
         return render(req, template_name, context=
@@ -389,9 +452,10 @@ def _update(req, id=0, template_name='deck/update.html', detail_route='deck:deta
         with transaction.atomic():
             deck.name = data['name']
             deck.character_id = int(data['char'])
-            deck.version = normalize_deck_version(data.get('version'))
+            deck.version = get_deck_version_from_entries(normalized_deck)
             deck.keyword = data['keyword']
-            deck.private = 'private' in data.keys()
+            deck.visibility = normalize_deck_visibility(data.get('visibility', data.get('private')))
+            deck.private = deck.visibility == Deck.VISIBILITY_PRIVATE
             deck.description = data['description']
             deck.save()
             replace_deck_cards(deck, normalized_deck)
@@ -420,6 +484,8 @@ def delete(req, id):
     csd = CSDeck.objects.filter(deck=deck)
     if len(csd) > 0:
         return render(req, 'error.html', context={'error':'대회에 사용된 덱은 삭제하실 수 없습니다.'})
+    if is_deck_locked_by_tournament(deck):
+        return render(req, 'error.html', context={'error':'진행 중이거나 종료된 대회에 제출된 덱은 삭제하실 수 없습니다.'})
     
     if deck.author == req.user:
         deck.deleted = True
@@ -434,6 +500,8 @@ def like(req, id):
         deck = Deck.objects.get(id=id)
     except Deck.DoesNotExist:
         raise Http404()
+    if not can_view_deck(req.user, deck):
+        raise PermissionDenied()
     
     if req.method == "POST":
         try:
@@ -452,6 +520,8 @@ def bookmark(req, id):
         deck = Deck.objects.get(id=id)
     except Deck.DoesNotExist:
         raise Http404()
+    if not can_view_deck(req.user, deck):
+        raise PermissionDenied()
     
     if req.method == "POST":
         try:

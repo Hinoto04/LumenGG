@@ -8,7 +8,7 @@
     <div>
         <div class="v2-kicker">USER DECKS</div>
         <h1 class="v2-title">덱 검색</h1>
-        <p class="v2-subtitle">덱 이름, 캐릭터, 태그와 작성 정보를 직사각형 카드 안에서 빠르게 훑어봅니다.</p>
+        <p class="v2-subtitle">덱 이름, 캐릭터, 태그를 바탕으로 덱을 검색합니다.</p>
     </div>
     <div class="v2-chip-row">
         <span class="v2-chip">총 {{ decks.paginator.count }}개</span>
@@ -56,6 +56,9 @@
             <div class="v2-deck-title-row">
                 <a class="v2-deck-title" href="{% url "deck:detailV2" deck.id %}">{{ deck.name }}</a>
                 <span class="v2-deck-version">{{ deck.version }}</span>
+                {% if deck.visibility != "public" %}
+                <span class="v2-deck-version">{{ deck.get_visibility_display }}</span>
+                {% endif %}
             </div>
             <div class="v2-deck-tags">
                 {% firstof deck.keyword deck.tags as deck_tag_text %}

@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'collection.apps.CollectionConfig',
     'statistic.apps.StatisticConfig',
     'battlelog.apps.BattlelogConfig',
+    'tournament.apps.TournamentConfig',
     'django_summernote',
     'martor',
     'django.contrib.admin',

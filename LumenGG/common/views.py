@@ -70,7 +70,7 @@ def profile(req, id=0, template_name='common/userpage.html'):
     if req.user == target:
         decks = Deck.objects.filter(author=target, deleted=False)
     else:
-        decks = Deck.objects.filter(author=target, private=False, deleted=False)
+        decks = Deck.objects.filter(author=target, visibility=Deck.VISIBILITY_PUBLIC, deleted=False)
     decks = decks.select_related('author', 'character').annotate(likecount = Count('deck_like', filter=Q(deck_like__like=True))).order_by('-created')
     if template_name == 'common/userpage_v2.html':
         ultimate_cards = CardInDeck.objects.select_related('card').filter(

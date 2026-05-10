@@ -1,13 +1,37 @@
+:root {
+    color-scheme: light;
+    --legacy-bg: #ffffff;
+    --legacy-surface: #f2f2f2;
+    --legacy-surface-2: #d9d9d9;
+    --legacy-line: #000000;
+    --legacy-text: #111111;
+    --legacy-muted: #777777;
+    --legacy-button-bg: #ffffff;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --legacy-bg: #111111;
+    --legacy-surface: #1b1b1b;
+    --legacy-surface-2: #242424;
+    --legacy-line: #3b3b3b;
+    --legacy-text: #f4f1ea;
+    --legacy-muted: #b8b0a4;
+    --legacy-button-bg: #242424;
+}
+
 body {
     word-break: keep-all;
     font-family: "Pretendard Variable", "Noto Sans KR";
     font-weight: 500;
     box-sizing: border-box;
+    color: var(--legacy-text);
+    background: var(--legacy-bg);
 }
 
 a {
     text-decoration: none;
-    color: black;
+    color: var(--legacy-text);
 }
 
 #홈버튼 {
@@ -38,7 +62,7 @@ a {
 }
 
 #footer {
-    border-top: 1px solid #000;
+    border-top: 1px solid var(--legacy-line);
     text-align: center;
 }
 
@@ -66,9 +90,9 @@ p { margin: 0;}
     display: flex;
     flex-direction: row;
     justify-content: center;
-    color: #777;
+    color: var(--legacy-muted);
 }
-.페이지.활성화 > a { color: #000; }
+.페이지.활성화 > a { color: var(--legacy-text); }
 
 .페이지:nth-child(1) {
     border-radius: 0.5em 0 0 0.5em;
@@ -77,8 +101,54 @@ p { margin: 0;}
     border-radius: 0 0.5em 0.5em 0;
 }
 
-.배경색1 { background-color: #F2F2F2; }
-.배경색2 { background-color: #D9D9D9; }
+.배경색1 { background-color: var(--legacy-surface); }
+.배경색2 { background-color: var(--legacy-surface-2); }
+
+#header,
+#header .nav-link,
+#홈버튼 {
+    color: var(--legacy-text);
+}
+
+.theme-toggle {
+    border: 0;
+    color: var(--legacy-text);
+    background: transparent;
+    cursor: pointer;
+}
+
+.theme-toggle:hover,
+.theme-toggle:focus {
+    color: var(--legacy-muted);
+}
+
+.form-control,
+.form-select,
+select,
+input,
+textarea,
+table {
+    color: var(--legacy-text);
+    border-color: var(--legacy-line);
+    background-color: var(--legacy-button-bg);
+}
+
+select option {
+    color: var(--legacy-text);
+    background-color: var(--legacy-button-bg);
+}
+
+:root[data-theme="dark"] .btn-light {
+    border-color: var(--legacy-line);
+    color: var(--legacy-text);
+    background-color: var(--legacy-button-bg);
+}
+
+:root[data-theme="dark"] .btn-dark {
+    border-color: #5a5a5a;
+    color: #111111;
+    background-color: #e0b45b;
+}
 
 .sectionName {
     font-size: 1.5em;

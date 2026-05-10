@@ -1,18 +1,21 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, Http404, JsonResponse
 from django.core.paginator import Paginator
-from django.db.models import Q, Case, When, IntegerField, Avg, BooleanField, Min
+from django.db.models import Q, Case, When, IntegerField, Avg, BooleanField, Min, Count
 from django.db.models.functions import Cast
 from django.conf import settings
 from django.utils import timezone
 
 from ..models import Card, Character, Tag, CardComment
 from collection.models import CollectionCard, Pack
+from deck.models import Deck
 from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm, CardCommentForm
 from decorators import permission_required
 import re, random, os, json
 
 from PIL import Image
+
+NEUTRAL_CHARACTER_ID = 1
 
 # Create your views here.
 def index(req, template_name='card/list.html'):
@@ -145,6 +148,34 @@ def index(req, template_name='card/list.html'):
 def indexV2(req):
     return index(req, 'card/list_v2.html')
 
+def get_card_adoption_stats(card):
+    deck_scope = Deck.objects.filter(
+        deleted=False,
+    ).annotate(
+        card_entry_count=Count('cids', distinct=True),
+    ).filter(
+        card_entry_count__gte=15,
+    )
+
+    is_neutral_card = card.character_id == NEUTRAL_CHARACTER_ID
+    if is_neutral_card:
+        scope_label = '전체 덱'
+    else:
+        deck_scope = deck_scope.filter(character_id=card.character_id)
+        scope_label = f'{card.character.name} 덱'
+
+    total_decks = deck_scope.count()
+    adopted_decks = deck_scope.filter(cids__card_id=card.id).distinct().count()
+    adoption_rate = adopted_decks / total_decks * 100 if total_decks else 0
+
+    return {
+        'is_neutral_card': is_neutral_card,
+        'scope_label': scope_label,
+        'total_decks': total_decks,
+        'adopted_decks': adopted_decks,
+        'adoption_rate': adoption_rate,
+    }
+
 def detail(req, id=0, template_name='card/detail.html'):
     try:
         card = Card.objects.get(id = id)
@@ -184,6 +215,7 @@ def detail(req, id=0, template_name='card/detail.html'):
         'relation': relation,
         'cc': cc,
         'unReleased': unReleased,
+        'adoption_stats': get_card_adoption_stats(card),
     }
     return render(req, template_name, context=context)
 

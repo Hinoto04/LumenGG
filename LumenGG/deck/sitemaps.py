@@ -18,7 +18,7 @@ class DeckSitemap(sitemaps.Sitemap):
     priority = 0.8
 
     def items(self):
-        return Deck.objects.filter(private=False, deleted=False)
+        return Deck.objects.filter(visibility=Deck.VISIBILITY_PUBLIC, deleted=False)
 
     def location(self, item):
         return reverse("deck:detail", args=[item.id])

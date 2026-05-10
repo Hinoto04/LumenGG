@@ -34,6 +34,7 @@
             <tr class="덱정보 배경색1">
                 <td class="t-left">
                     <a href="{% url "deck:detail" deck.id %}" class="w-100 덱이름 t-left">{{ deck.name }}</a>
+                    {% if deck.visibility != "public" %}<small>{{ deck.get_visibility_display }}</small>{% endif %}
                 </td>
                 <td><a href="{% url "card:character" %}?id={{ deck.character.id }}">{{ deck.character.name }}</a></td>
                 <td class="모바일비표시">{{ deck.likecount }}</td>

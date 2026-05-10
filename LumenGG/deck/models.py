@@ -5,14 +5,24 @@ from card.models import Character, Card
 
 # Create your models here.
 class Deck(models.Model):
-    name = models.CharField(max_length=50, null=False)
+    VISIBILITY_PUBLIC = 'public'
+    VISIBILITY_UNLISTED = 'unlisted'
+    VISIBILITY_PRIVATE = 'private'
+    VISIBILITY_CHOICES = [
+        (VISIBILITY_PUBLIC, '공개'),
+        (VISIBILITY_UNLISTED, '일부 공개'),
+        (VISIBILITY_PRIVATE, '비공개'),
+    ]
+
+    name = models.CharField(max_length=255, null=False)
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='decks')
     character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='decks')
     card = models.ManyToManyField(Card, through="CardInDeck")
-    version = models.CharField(max_length=5, default='LMI')
+    version = models.CharField(max_length=20, default='LMI')
     keyword = models.CharField(max_length=255, default='', blank=True)
     description = models.TextField(blank=True, default="", null=False)
     private = models.BooleanField(default=False)
+    visibility = models.CharField(max_length=12, choices=VISIBILITY_CHOICES, default=VISIBILITY_PUBLIC)
     locked = models.BooleanField(default=False)
     deleted = models.BooleanField(default=False)
     tags = models.CharField(max_length=255, default='', blank=True)
@@ -20,6 +30,13 @@ class Deck(models.Model):
     
     def __str__(self):
         return f"{self.name} by {self.author.username}"
+
+    def save(self, *args, **kwargs):
+        self.private = self.visibility == self.VISIBILITY_PRIVATE
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'visibility' in update_fields:
+            kwargs['update_fields'] = set(update_fields) | {'private'}
+        super().save(*args, **kwargs)
     
     def add_card(self, card:Card):
         card_in_deck, created = CardInDeck.objects.get_or_create(

@@ -1,0 +1,396 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% block title %}{{ tournament.name }} - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "tournament:indexV2" %}{% endblock legacy_href %}
+{% block content %}
+<section class="v2-tournament-hero v2-panel">
+    <div>
+        <div class="v2-kicker">{{ tournament.get_status_display }} / {{ tournament.get_format_display }}</div>
+        <h1 class="v2-title">{{ tournament.name }}</h1>
+        <p class="v2-subtitle">{{ tournament.description|default:"대회 설명이 없습니다."|linebreaksbr }}</p>
+    </div>
+    <div class="v2-tournament-hero-meta">
+        <span class="v2-chip">{{ tournament.event_date|date:"Y-m-d H:i" }}</span>
+        {% if tournament.venue %}<span class="v2-chip">{{ tournament.venue }}</span>{% endif %}
+        <span class="v2-chip">운영자 {{ tournament.organizer.username }}</span>
+        <span class="v2-chip">{{ tournament.get_visibility_display }}</span>
+        {% for tag in tournament.tag_list %}
+        <a class="v2-chip" href="{% url "tournament:tagStatsV2" %}?tag={{ tag|urlencode }}">#{{ tag }}</a>
+        {% endfor %}
+        <span class="v2-chip">{% if tournament.decklist_required_count %}덱 리스트 {{ tournament.decklist_required_count }}개{% else %}덱 리스트 미요구{% endif %}</span>
+        {% if tournament.swiss_round_count %}<span class="v2-chip">스위스 {{ tournament.swiss_round_count }}라운드</span>{% endif %}
+        {% if tournament.format == "hybrid" and tournament.top_cut_count %}<span class="v2-chip">TOP {{ tournament.top_cut_count }}</span>{% endif %}
+        {% if tournament.format != "swiss" %}<span class="v2-chip">{{ tournament.get_elimination_mode_display }}</span>{% endif %}
+        <span class="v2-chip">동률 {{ tournament.get_tiebreaker_display }}</span>
+        <span class="v2-chip">{{ tournament.round_set_count }}세트 / {{ tournament.win_points }}-{{ tournament.draw_points }}-{{ tournament.loss_points }}점</span>
+        {% if elimination_winner %}<span class="v2-chip">우승 {{ elimination_winner.name }}</span>{% endif %}
+        {% if is_operator and tournament.visibility == "unlisted" %}
+        <span class="v2-chip">참가 코드 {{ tournament.join_code }}</span>
+        {% endif %}
+        {% if is_operator %}
+        <a class="v2-chip" href="{% url "tournament:editV2" tournament.id %}">설정 편집</a>
+        {% endif %}
+    </div>
+</section>
+
+{% if messages %}
+<div class="v2-message-list">
+    {% for message in messages %}
+    <div class="v2-message {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<section class="v2-tournament-dashboard">
+    <aside class="v2-tournament-side">
+        {% if user.is_authenticated %}
+        <form action="{% url "tournament:joinV2" tournament.id %}" method="post" class="v2-panel v2-tournament-join" data-tournament-join-form>
+            {% csrf_token %}
+            <h2>{% if participant %}참가 정보{% else %}대회 참가{% endif %}</h2>
+            {{ join_form.non_field_errors }}
+            {% if join_form_disabled and tournament.status == "registration" %}
+            <p class="v2-tournament-note">현재 참가 접수가 닫혀 있습니다.</p>
+            {% elif participant and participant.dropped %}
+            <p class="v2-tournament-note">참가 취소된 상태입니다. 다시 저장하면 참가 상태로 돌아갑니다.</p>
+            {% endif %}
+            {% if tournament.status != "registration" %}
+            <p class="v2-tournament-note">대회가 시작된 뒤에는 참가 정보와 제출 덱을 수정할 수 없습니다.</p>
+            {% endif %}
+            <fieldset class="v2-tournament-join-fields" {% if join_form_disabled %}disabled{% endif %}>
+            <div class="v2-admin-field">
+                <label for="{{ join_form.display_name.id_for_label }}">{{ join_form.display_name.label }}</label>
+                {{ join_form.display_name }}
+            </div>
+            {% if join_form.join_code %}
+            <div class="v2-admin-field">
+                <label for="{{ join_form.join_code.id_for_label }}">{{ join_form.join_code.label }}</label>
+                {{ join_form.join_code.errors }}
+                {{ join_form.join_code }}
+            </div>
+            <p class="v2-tournament-note">일부 공개 대회는 참가 코드가 있어야 참가 신청이 가능합니다.</p>
+            {% endif %}
+            {% if tournament.decklist_required_count %}
+            <p class="v2-tournament-note">이 대회는 덱 리스트 {{ tournament.decklist_required_count }}개 제출이 필요합니다.</p>
+            <p class="v2-tournament-note">공개 덱은 유저명이나 덱 이름으로 검색할 수 있고, 일부 공개 덱은 덱 ID를 입력하면 선택할 수 있습니다. 타인의 덱은 내 덱으로 복사된 뒤 제출됩니다.</p>
+            {% for deck_slot in join_deck_slots %}
+            <div class="v2-admin-field v2-tournament-deck-picker" data-deck-picker {% if deck_slot.deck %}data-selected-owner="{% if deck_slot.deck.author_id == user.id %}self{% else %}other{% endif %}"{% endif %}>
+                <label for="deck_search_{{ deck_slot.slot }}">{{ deck_slot.field.label }}</label>
+                {{ deck_slot.field.errors }}
+                {{ deck_slot.field }}
+                <input class="v2-tournament-input" type="search" id="deck_search_{{ deck_slot.slot }}" data-deck-search-input placeholder="유저명, 덱 이름, 일부 공개 덱 ID">
+                <div class="v2-tournament-selected-deck" data-deck-selected>
+                    {% if deck_slot.deck %}
+                    <strong>#{{ deck_slot.deck.id }} {{ deck_slot.deck.name }}</strong>
+                    <span>{{ deck_slot.deck.author.username }} / {{ deck_slot.deck.character.name }} / {{ deck_slot.deck.get_visibility_display }}</span>
+                    {% else %}
+                    <span>선택된 덱이 없습니다.</span>
+                    {% endif %}
+                </div>
+                <div class="v2-tournament-deck-results" data-deck-search-results></div>
+            </div>
+            {% endfor %}
+            {% endif %}
+            </fieldset>
+            <button class="v2-button v2-button-primary" type="submit" {% if join_form_disabled %}disabled{% endif %}>
+                {% if participant %}참가 정보 저장{% else %}참가 신청{% endif %}
+            </button>
+        </form>
+        {% if participant and not participant.dropped and tournament.status == "registration" %}
+        <form action="{% url "tournament:dropV2" tournament.id %}" method="post" class="v2-tournament-drop-form">
+            {% csrf_token %}
+            <button class="v2-button v2-danger-button" type="submit">참가 취소</button>
+        </form>
+        {% endif %}
+        {% else %}
+        <div class="v2-panel v2-tournament-join">
+            <h2>대회 참가</h2>
+            <p class="v2-tournament-note">로그인 후 참가할 수 있습니다.</p>
+            <a class="v2-button v2-button-primary" href="{% url "common:loginV2" %}?next={{ request.get_full_path|urlencode }}">로그인</a>
+        </div>
+        {% endif %}
+
+        {% if is_operator %}
+        {% if tournament.visibility == "unlisted" and join_code_url %}
+        <div class="v2-panel v2-tournament-join">
+            <h2>참가 링크</h2>
+            <p class="v2-tournament-note">참가 코드 {{ tournament.join_code }}로 바로 이 대회에 접근할 수 있습니다. QR 이미지는 QR 이미지 열기에서 확인할 수 있습니다.</p>
+            <a class="v2-button" href="{{ join_code_url }}">참가 링크 열기</a>
+            <a class="v2-button" href="{% url "tournament:joinQrV2" tournament.id %}" target="_blank" rel="noopener">QR 이미지 열기</a>
+        </div>
+        {% endif %}
+        {% if elimination_winner %}
+        <div class="v2-panel v2-tournament-join">
+            <h2>라운드 시작</h2>
+            <p class="v2-tournament-note">우승자가 결정되어 더 이상 라운드를 생성할 수 없습니다.</p>
+        </div>
+        {% else %}
+        <form action="{% url "tournament:startRoundV2" tournament.id %}" method="post" class="v2-panel v2-tournament-join">
+            {% csrf_token %}
+            <h2>라운드 시작</h2>
+            <div class="v2-admin-field">
+                <label for="{{ round_form.stage.id_for_label }}">{{ round_form.stage.label }}</label>
+                {{ round_form.stage }}
+            </div>
+            <div class="v2-admin-field">
+                <label for="{{ round_form.duration_minutes.id_for_label }}">{{ round_form.duration_minutes.label }}</label>
+                {{ round_form.duration_minutes }}
+            </div>
+            <div class="v2-tournament-round-rule-grid">
+                <div class="v2-admin-field">
+                    <label for="{{ round_form.set_count.id_for_label }}">{{ round_form.set_count.label }}</label>
+                    {{ round_form.set_count }}
+                </div>
+                <div class="v2-admin-field">
+                    <label for="{{ round_form.win_points.id_for_label }}">{{ round_form.win_points.label }}</label>
+                    {{ round_form.win_points }}
+                </div>
+                <div class="v2-admin-field">
+                    <label for="{{ round_form.draw_points.id_for_label }}">{{ round_form.draw_points.label }}</label>
+                    {{ round_form.draw_points }}
+                </div>
+                <div class="v2-admin-field">
+                    <label for="{{ round_form.loss_points.id_for_label }}">{{ round_form.loss_points.label }}</label>
+                    {{ round_form.loss_points }}
+                </div>
+            </div>
+            <button class="v2-button v2-button-primary" type="submit">일괄 매칭 및 시작</button>
+        </form>
+        {% endif %}
+        {% if tournament.status != "finished" %}
+        <form action="{% url "tournament:finishV2" tournament.id %}" method="post" class="v2-tournament-drop-form">
+            {% csrf_token %}
+            <button class="v2-button v2-danger-button" type="submit">대회 종료</button>
+        </form>
+        {% endif %}
+        <form action="{% url "tournament:deleteV2" tournament.id %}" method="post" class="v2-tournament-drop-form" onsubmit="return confirm('이 대회를 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.');">
+            {% csrf_token %}
+            {% if delete_requires_superuser and not can_delete_tournament %}
+            <p class="v2-tournament-note">종료되었거나 2라운드 이상 진행된 대회는 슈퍼유저만 삭제할 수 있습니다.</p>
+            {% endif %}
+            <button class="v2-button v2-danger-button" type="submit" {% if not can_delete_tournament %}disabled{% endif %}>대회 삭제</button>
+        </form>
+        {% endif %}
+    </aside>
+
+    <div class="v2-tournament-main">
+        {% if current_round %}
+        <section class="v2-panel v2-tournament-timer-panel">
+            <div>
+                <div class="v2-kicker">CURRENT ROUND</div>
+                <h2>{{ current_round.number }}라운드 / {{ current_round.get_stage_display }}</h2>
+                <p class="v2-tournament-note">{{ current_round.set_count }}세트 / 승 {{ current_round.win_points }}점 · 무 {{ current_round.draw_points }}점 · 패 {{ current_round.loss_points }}점</p>
+            </div>
+            <div class="v2-tournament-timer" data-round-timer data-ends-at="{{ current_round.ends_at|date:"c" }}">
+                --:--
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="v2-section">
+            <div class="v2-section-head-line">
+                <h2 class="v2-section-title">순위표</h2>
+                <div class="v2-chip-row">
+                    <span class="v2-chip">참가 {{ standings|length }}명</span>
+                    {% if show_top_cut_line %}<span class="v2-chip">토너먼트 진출 TOP {{ tournament.top_cut_count }}</span>{% endif %}
+                </div>
+            </div>
+            <div class="v2-panel v2-tournament-table-wrap">
+                <table class="v2-tournament-table">
+                    <thead>
+                        <tr>
+                            <th>순위</th>
+                            <th>참가자</th>
+                            <th>덱 제출</th>
+                            <th>점수</th>
+                            <th>{{ tournament.get_tiebreaker_display }}</th>
+                            <th>전적</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in standings %}
+                        <tr class="{% if row.in_top_cut %}v2-tournament-top-cut-row{% endif %}">
+                            <td>{{ row.rank }}</td>
+                            <td>{{ row.participant.name }}</td>
+                            <td>
+                                {% if tournament.decklist_required_count %}
+                                {% if show_decklists %}
+                                <div class="v2-tournament-deck-list">
+                                    {% for submission in row.deck_submissions %}
+                                    {% if submission.can_view %}
+                                    <a href="{% url "deck:detailV2" submission.deck.id %}">#{{ submission.slot }} {{ submission.deck.name }}</a>
+                                    <span>{{ submission.deck.character.name }}</span>
+                                    {% else %}
+                                    <span>#{{ submission.slot }} 비공개 덱</span>
+                                    {% endif %}
+                                    {% empty %}
+                                    <span>미제출</span>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <span>{{ row.submitted_deck_count }} / {{ tournament.decklist_required_count }} 제출</span>
+                                {% endif %}
+                                {% else %}
+                                <span>미요구</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ row.points }}</strong></td>
+                            <td>{{ row.tiebreaker_display }}</td>
+                            <td>{{ row.wins }}승 {{ row.draws }}무 {{ row.losses }}패{% if row.byes %} / BYE {{ row.byes }}{% endif %}</td>
+                        </tr>
+                        {% if row.is_cut_line %}
+                        <tr class="v2-tournament-cut-line">
+                            <td colspan="6">토너먼트 진출 기준선</td>
+                        </tr>
+                        {% endif %}
+                        {% empty %}
+                        <tr><td colspan="6">아직 참가자가 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="v2-section">
+            <h2 class="v2-section-title">라운드</h2>
+            <div class="v2-tournament-round-list">
+                {% for round in rounds %}
+                <article class="v2-panel v2-tournament-round">
+                    <div class="v2-tournament-round-head">
+                        <div>
+                            <strong>{{ round.number }}라운드</strong>
+                            <span>{{ round.get_stage_display }} / {{ round.get_status_display }} / {{ round.set_count }}세트 / {{ round.win_points }}-{{ round.draw_points }}-{{ round.loss_points }}점</span>
+                        </div>
+                        <span class="v2-chip">{{ round.started_at|date:"H:i" }} 시작</span>
+                    </div>
+                    {% if round.can_report %}
+                    <form action="{% url "tournament:reportRoundV2" tournament.id round.id %}" method="post" class="v2-tournament-round-result-form">
+                        {% csrf_token %}
+                    {% endif %}
+                    <div class="v2-tournament-match-list">
+                        {% for match in round.matches.all %}
+                        <div class="v2-tournament-match">
+                            <div class="v2-tournament-table-no">T{{ match.table_no }}</div>
+                            <div class="v2-tournament-players">
+                                <span class="{% if match.winner_id == match.player1_id %}is-winner{% endif %}">{{ match.player1.name }}</span>
+                                <em>vs</em>
+                                <span class="{% if match.winner_id == match.player2_id %}is-winner{% endif %}">{% if match.player2 %}{{ match.player2.name }}{% else %}BYE{% endif %}</span>
+                            </div>
+                            {% if match.is_bye %}
+                            <div class="v2-chip">BYE 승</div>
+                            {% elif match.can_report %}
+                            <div class="v2-tournament-result-form">
+                                <input type="hidden" name="match_ids" value="{{ match.id }}">
+                                <input type="number" name="match_{{ match.id }}_player1_score" value="{{ match.player1_score }}" min="0" max="{{ round.set_count }}" aria-label="{{ match.player1.name }} 점수">
+                                <span>:</span>
+                                <input type="number" name="match_{{ match.id }}_player2_score" value="{{ match.player2_score }}" min="0" max="{{ round.set_count }}" aria-label="{{ match.player2.name }} 점수">
+                                <select name="match_{{ match.id }}_winner" aria-label="승자">
+                                    <option value="">승자</option>
+                                    <option value="{{ match.player1.id }}" {% if match.winner_id == match.player1_id %}selected{% endif %}>{{ match.player1.name }}</option>
+                                    <option value="{{ match.player2.id }}" {% if match.winner_id == match.player2_id %}selected{% endif %}>{{ match.player2.name }}</option>
+                                    {% if round.stage != "elimination" %}
+                                    <option value="draw" {% if match.is_draw %}selected{% endif %}>무승부</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                            {% else %}
+                            <div class="v2-chip">
+                                {% if match.status == "reported" %}
+                                {{ match.player1_score }} : {{ match.player2_score }}
+                                {% if match.is_draw %}무승부{% else %}{{ match.winner.name }} 승{% endif %}
+                                {% else %}
+                                결과 대기
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if round.can_report %}
+                    <div class="v2-tournament-round-actions">
+                        <button class="v2-button v2-button-primary" type="submit">{% if is_operator %}라운드 결과 저장{% else %}내 결과 제출{% endif %}</button>
+                    </div>
+                    </form>
+                    {% endif %}
+                </article>
+                {% empty %}
+                <div class="v2-panel v2-text-panel">아직 시작된 라운드가 없습니다.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        {% if tournament.decklist_required_count %}
+        <section class="v2-section">
+            <h2 class="v2-section-title">제출 덱 리스트</h2>
+            {% if show_decklists %}
+            <div class="v2-panel v2-tournament-submission-panel">
+                {% for row in standings %}
+                <div class="v2-tournament-submission-row">
+                    <strong>{{ row.participant.name }}</strong>
+                    <div class="v2-tournament-deck-list">
+                        {% for submission in row.deck_submissions %}
+                        {% if submission.can_view %}
+                        <a href="{% url "deck:detailV2" submission.deck.id %}">#{{ submission.slot }} {{ submission.deck.name }}</a>
+                        <span>{{ submission.deck.character.name }}</span>
+                        {% else %}
+                        <span>#{{ submission.slot }} 비공개 덱</span>
+                        {% endif %}
+                        {% empty %}
+                        <span>미제출</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="v2-panel v2-text-panel">제출 덱 리스트와 캐릭터 분포는 대회 종료 후 공개됩니다.</div>
+            {% endif %}
+        </section>
+
+        {% if show_deck_stats %}
+        <section class="v2-section">
+            <h2 class="v2-section-title">캐릭터 분포</h2>
+            <p class="v2-tournament-note">비공개 덱은 작성자와 대회 운영자에게만 통계에 포함되어 표시됩니다.</p>
+            <div class="v2-tournament-stats-grid">
+                <div class="v2-panel v2-tournament-stat-panel">
+                    <h3>전체 제출 덱</h3>
+                    {% for stat in character_stats %}
+                    <div class="v2-tournament-stat-row">
+                        <span>{{ stat.deck__character__name|default:"미상" }}</span>
+                        <strong>{{ stat.count }}덱 / {{ stat.player_count }}명</strong>
+                    </div>
+                    {% empty %}
+                    <p class="v2-tournament-note">제출된 덱이 없습니다.</p>
+                    {% endfor %}
+                </div>
+                <div class="v2-panel v2-tournament-stat-panel">
+                    <h3>라운드별 분포</h3>
+                    {% for round_stat in round_character_stats %}
+                    <div class="v2-tournament-round-stat">
+                        <strong>{{ round_stat.round.number }}라운드</strong>
+                        {% for stat in round_stat.stats %}
+                        <div class="v2-tournament-stat-row">
+                            <span>{{ stat.deck__character__name|default:"미상" }}</span>
+                            <strong>{{ stat.count }}덱</strong>
+                        </div>
+                        {% empty %}
+                        <p class="v2-tournament-note">매칭 데이터가 없습니다.</p>
+                        {% endfor %}
+                    </div>
+                    {% empty %}
+                    <p class="v2-tournament-note">시작된 라운드가 없습니다.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+        {% endif %}
+    </div>
+</section>
+
+<script>
+    window.v2TournamentConfig = {
+        deckSearchUrl: "{% url "tournament:deckSearchV2" %}"
+    };
+</script>
+<script src="{% static "v2/tournament.js" %}"></script>
+{% endblock content %}

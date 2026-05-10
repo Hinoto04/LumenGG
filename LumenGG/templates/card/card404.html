@@ -1,18 +1,24 @@
-{% extends "base.html" %}
-{% block title %}Not Found 404{% endblock title %}
+{% extends "base_v2.html" %}
+{% block title %}카드 없음 - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "card:index" %}{% endblock legacy_href %}
 {% block content %}
-<div id="최상단" class="d-flex flex-column mb-1">
-    <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">카드가 존재하지 않습니다.</div>
-</div>
-<div>
-    <p>혹시 아래 카드를 찾고 계시진 않은가요?</p>
-    <ul>
-        {% for card in cards %}
-        <li><a href="{% url "card:detail" card.id %}">{{ card.name }}</a></li>
-        {% endfor %}
-    </ul>
-</div>
-<div>
-    <a id="돌아가기" href="javascript:history.back()">[ 이전 페이지로 돌아가기 ]</a>
-</div>
+<section class="v2-error-wrap">
+    <div class="v2-error-code">CARD</div>
+    <div class="v2-panel v2-error-panel">
+        <div class="v2-kicker">CARD NOT FOUND</div>
+        <h1 class="v2-title">카드를 찾을 수 없습니다.</h1>
+        <p class="v2-subtitle">입력한 카드명과 가까운 항목을 아래에서 확인해보세요.</p>
+        {% if cards %}
+        <div class="v2-error-suggestions">
+            {% for card in cards %}
+            <a href="{% url "card:detailV2" card.id %}">{{ card.name }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <div class="v2-error-actions">
+            <a class="v2-button v2-button-primary" href="{% url "card:indexV2" %}">카드 검색</a>
+            <a class="v2-button" href="javascript:history.back()">이전 페이지</a>
+        </div>
+    </div>
+</section>
 {% endblock content %}

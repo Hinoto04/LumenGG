@@ -15,6 +15,16 @@
     <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+    (function() {
+        try {
+            var theme = window.localStorage.getItem("lumendb-theme");
+            if (theme === "light" || theme === "dark") {
+                document.documentElement.dataset.theme = theme;
+            }
+        } catch (error) {}
+    })();
+    </script>
     <title>{% block title %}LumenDB{% endblock title %}</title>
     <script type="application/ld+json">
     {
@@ -42,10 +52,11 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-LLJ26ZET9L"></script>
     <link rel="stylesheet" href="{% static "base.css" %}">
+    <script defer src="{% static "theme.js" %}"></script>
     {% block style %}
     {% endblock style %}
 </head>
-<body class="d-flex flex-column justify-content-center">
+<body class="d-flex flex-column justify-content-center" data-default-theme="light">
     <nav class="navbar navbar-expand-md" id="header">
         <a href="{% url "card:index" %}" id="홈버튼" class="me-2">LumenDB</a>
         {% comment %} 버거버튼 {% endcomment %}
@@ -69,6 +80,11 @@
                 </li>
             </ul>
             <ul class="navbar-nav">
+                <li class="nav-item">
+                    <button type="button" class="nav-link theme-toggle" data-theme-toggle>
+                        <span data-theme-toggle-label>라이트</span>
+                    </button>
+                </li>
                 <li class="nav-item">
                     <a href="{% block v2_href %}{% url "card:indexV2" %}{% endblock v2_href %}" class="nav-link">새 UI</a>
                 </li>

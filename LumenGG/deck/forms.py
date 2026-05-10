@@ -1,21 +1,7 @@
 from django import forms
-from django_summernote.widgets import SummernoteWidget
 
 from card.models import Character
 from .models import Deck
-
-packs = [
-            ('ST', 'ST'),
-            ('AWL', 'AWL'),
-            ('UNC', 'UNC'),
-            ('LMI', 'LMI'),
-            ('CRS', 'CRS'),
-            ('PMP', 'PMP'),
-            ('CB01', 'CB01'),
-            ('CB02', 'CB02'),
-            ('RFS', 'RFS'),
-            ('N/A', 'N/A'),
-        ]
 
 class DeckSearchForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
@@ -59,12 +45,6 @@ class DeckMakeForm(forms.ModelForm):
         required = False,
         initial = 1,
     )
-    version = forms.ChoiceField(
-        label = "버전",
-        choices = packs,
-        initial = 'N/A',
-        widget = forms.Select(attrs={'class': 'btn border 배경색1'})
-    )
     keyword = forms.CharField(
         label = "태그",
         max_length = 255,
@@ -74,16 +54,16 @@ class DeckMakeForm(forms.ModelForm):
                 'class': 'form-control 배경색1',
                 'placeholder': '검색 키워드 목록'}),
     )
-    private = forms.BooleanField(
-        label = "비공개",
-        required = False,
-        initial = False,
-        widget = forms.CheckboxInput(attrs={'class': 'form-check-input mt-auto mb-auto'}),
+    visibility = forms.ChoiceField(
+        label = "공개 범위",
+        choices = Deck.VISIBILITY_CHOICES,
+        initial = Deck.VISIBILITY_PUBLIC,
+        widget = forms.Select(attrs={'class': 'btn border 배경색1'})
     )
     
     class Meta:
         model = Deck
-        fields = ['name', 'description', 'char', 'keyword', 'private']
+        fields = ['name', 'description', 'char', 'keyword', 'visibility']
         # widgets = {
         #     'description': SummernoteWidget(attrs={'class': 'w-100', 'rows':''}),
         # }
@@ -103,17 +83,11 @@ class DeckImportForm(forms.Form):
         required = False,
         initial = 1,
     )
-    version = forms.ChoiceField(
-        label = "버전",
-        choices = packs,
-        initial = 'N/A',
+    visibility = forms.ChoiceField(
+        label = "공개 범위",
+        choices = Deck.VISIBILITY_CHOICES,
+        initial = Deck.VISIBILITY_PUBLIC,
         widget = forms.Select(attrs={'class': 'btn border 배경색1'})
-    )
-    private = forms.BooleanField(
-        label = "비공개",
-        required = False,
-        initial = False,
-        widget = forms.CheckboxInput(attrs={'class': 'form-check-input mt-auto mb-auto'}),
     )
     deck = forms.CharField(widget=forms.Textarea(
         attrs = {

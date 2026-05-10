@@ -1,0 +1,120 @@
+{% extends "base_v2.html" %}
+{% block title %}대회 설정 - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "tournament:indexV2" %}{% endblock legacy_href %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">TOURNAMENT SETTINGS</div>
+        <h1 class="v2-title">대회 설정</h1>
+        <p class="v2-subtitle">대회 진행 중에도 공개 범위, 참가 코드, 라운드 수, 토너먼트 컷, 세트/점수 규칙을 조정할 수 있습니다.</p>
+    </div>
+    <div class="v2-chip-row">
+        <a class="v2-button" href="{% url "tournament:detailV2" tournament.id %}">상세</a>
+    </div>
+</section>
+
+<form action="{% url "tournament:editV2" tournament.id %}" method="post" class="v2-panel v2-admin-form v2-tournament-form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="v2-admin-grid v2-tournament-create-grid">
+        <div class="v2-admin-field v2-admin-wide">
+            <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+            {{ form.name.errors }}
+            {{ form.name }}
+        </div>
+        <div class="v2-admin-field v2-admin-wide">
+            <label for="{{ form.tags.id_for_label }}">{{ form.tags.label }}</label>
+            {{ form.tags.errors }}
+            {{ form.tags }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.event_date.id_for_label }}">{{ form.event_date.label }}</label>
+            {{ form.event_date.errors }}
+            {{ form.event_date }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.venue.id_for_label }}">{{ form.venue.label }}</label>
+            {{ form.venue.errors }}
+            {{ form.venue }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.format.id_for_label }}">{{ form.format.label }}</label>
+            {{ form.format.errors }}
+            {{ form.format }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.elimination_mode.id_for_label }}">{{ form.elimination_mode.label }}</label>
+            {{ form.elimination_mode.errors }}
+            {{ form.elimination_mode }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.visibility.id_for_label }}">{{ form.visibility.label }}</label>
+            {{ form.visibility.errors }}
+            {{ form.visibility }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.join_code.id_for_label }}">{{ form.join_code.label }}</label>
+            {{ form.join_code.errors }}
+            {{ form.join_code }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.round_duration_minutes.id_for_label }}">{{ form.round_duration_minutes.label }}</label>
+            {{ form.round_duration_minutes.errors }}
+            {{ form.round_duration_minutes }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.round_set_count.id_for_label }}">{{ form.round_set_count.label }}</label>
+            {{ form.round_set_count.errors }}
+            {{ form.round_set_count }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.swiss_round_count.id_for_label }}">{{ form.swiss_round_count.label }}</label>
+            {{ form.swiss_round_count.errors }}
+            {{ form.swiss_round_count }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.top_cut_count.id_for_label }}">{{ form.top_cut_count.label }}</label>
+            {{ form.top_cut_count.errors }}
+            {{ form.top_cut_count }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.tiebreaker.id_for_label }}">{{ form.tiebreaker.label }}</label>
+            {{ form.tiebreaker.errors }}
+            {{ form.tiebreaker }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.win_points.id_for_label }}">{{ form.win_points.label }}</label>
+            {{ form.win_points.errors }}
+            {{ form.win_points }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.draw_points.id_for_label }}">{{ form.draw_points.label }}</label>
+            {{ form.draw_points.errors }}
+            {{ form.draw_points }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.loss_points.id_for_label }}">{{ form.loss_points.label }}</label>
+            {{ form.loss_points.errors }}
+            {{ form.loss_points }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.max_players.id_for_label }}">{{ form.max_players.label }}</label>
+            {{ form.max_players.errors }}
+            {{ form.max_players }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.decklist_required_count.id_for_label }}">{{ form.decklist_required_count.label }}</label>
+            {{ form.decklist_required_count.errors }}
+            {{ form.decklist_required_count }}
+        </div>
+        <div class="v2-admin-field v2-admin-wide">
+            <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+            {{ form.description.errors }}
+            {{ form.description }}
+        </div>
+    </div>
+    <div class="v2-admin-actions">
+        <button class="v2-button v2-button-primary" type="submit">저장</button>
+    </div>
+</form>
+{% endblock content %}
