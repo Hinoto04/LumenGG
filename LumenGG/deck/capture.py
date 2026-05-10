@@ -4,6 +4,7 @@ import re
 import time
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import urljoin
 
 import requests
 from django.conf import settings
@@ -136,6 +137,19 @@ def generate_deck_capture(deck):
     draw.text((PAGE_PAD, total_h - PAGE_PAD), footer, fill=COLORS['faint'], font=fonts['footer'])
     canvas.save(output_path, 'PNG', optimize=True)
     return output_path
+
+
+def get_deck_capture_public_url(capture_path):
+    custom_base_url = getattr(settings, 'DECK_CAPTURE_PUBLIC_BASE_URL', '')
+    if custom_base_url:
+        return urljoin(custom_base_url.rstrip('/') + '/', capture_path.name)
+
+    media_url = settings.MEDIA_URL.rstrip('/') + '/'
+    media_root_name = Path(settings.MEDIA_ROOT).name
+    public_prefix = 'generated/deck_captures/'
+    if media_url.startswith(('http://', 'https://')) and media_root_name == 'lumendb' and not media_url.rstrip('/').endswith('/lumendb'):
+        public_prefix = f'{media_root_name}/{public_prefix}'
+    return urljoin(media_url, public_prefix + capture_path.name)
 
 
 def cleanup_old_captures(output_dir):
