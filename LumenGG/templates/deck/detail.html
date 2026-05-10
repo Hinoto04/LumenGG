@@ -30,8 +30,7 @@
                 onclick="deckToggle();" type="button">텍스트로 보기</button>
                 <button type="button" class="btn btn-sm btn-dark me-2" 
                 onclick="deckCopy()">텍스트 덱 복사</button>
-                <button type="button" class="btn btn-sm btn-dark" 
-                onclick="deckCapture()">덱 캡쳐</button>
+                <a class="btn btn-sm btn-dark" href="{% url "deck:capture" deck.id %}" data-deck-capture-download>덱 캡쳐</a>
             </div>
             {% if user == deck.author and not deck_tournament_locked %}
             <div class="d-flex flex-row">
@@ -187,7 +186,6 @@
     </div>
     {% endif %}
 </div>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="{% static "deck/detail.js" %}"></script>
 <script src="{% static "imgloading.js" %}"></script>
 {% endblock content %}

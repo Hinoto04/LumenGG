@@ -66,85 +66,92 @@ function deckCopy() {
     });
 }
 
-function deckCapture() {
-    if (deckDisplay != 'image') {
-        deckToggle();
+function parseDownloadFilename(contentDisposition, fallback) {
+    if (!contentDisposition) return fallback;
+
+    const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (encodedMatch) {
+        try {
+            return decodeURIComponent(encodedMatch[1].replace(/["]/g, ""));
+        } catch (error) {
+            return fallback;
+        }
     }
-    const captureArea = document.getElementById('v2DeckCaptureArea') || document.getElementById('ImageDisplay');
-    const isV2Capture = captureArea && captureArea.id === 'v2DeckCaptureArea';
-    html2canvas(captureArea, {
-        useCORS: true,
-        allowTaint: true,
-        scale: 2,
-        backgroundColor: isV2Capture ? '#111111' : '#ffffff',
-        onclone: function(clonedDocument) {
-            if (!isV2Capture) return;
-            const clonedArea = clonedDocument.getElementById('v2DeckCaptureArea');
-            if (clonedArea) {
-                clonedArea.classList.add('is-capturing');
-                clonedArea.style.background = '#111111';
-                clonedArea.style.padding = '16px';
-                const captureStyle = clonedDocument.createElement('style');
-                captureStyle.textContent = `
-                    .v2-deck-capture-area.is-capturing .v2-capture-text {
-                        display: inline-flex !important;
-                        align-items: center !important;
-                        justify-content: center !important;
-                        gap: 4px !important;
-                        position: relative !important;
-                        top: -2px !important;
-                        line-height: 1 !important;
-                    }
-                    .v2-deck-capture-area.is-capturing .v2-capture-text strong {
-                        line-height: 1 !important;
-                    }
-                `;
-                clonedDocument.head.appendChild(captureStyle);
 
-                const textTargets = clonedArea.querySelectorAll([
-                    '.v2-chip',
-                    '.v2-metric',
-                    '.v2-deck-metric',
-                    '.v2-unreleased',
-                    '.v2-button',
-                    '.v2-deck-version',
-                    '.v2-deck-zone-head span'
-                ].join(','));
+    const match = contentDisposition.match(/filename="?([^"]+)"?/i);
+    return match ? match[1] : fallback;
+}
 
-                textTargets.forEach((element) => {
-                    const wrapper = clonedDocument.createElement('span');
-                    wrapper.className = 'v2-capture-text';
-                    while (element.firstChild) {
-                        wrapper.appendChild(element.firstChild);
-                    }
-                    element.appendChild(wrapper);
+function setDeckCaptureLoading(link, isLoading) {
+    const loadingText = "이미지 생성 중...";
+    if (isLoading) {
+        link.dataset.originalText = link.textContent;
+        link.textContent = loadingText;
+        link.dataset.captureLoading = "true";
+        link.setAttribute("aria-busy", "true");
+        link.setAttribute("aria-disabled", "true");
+        link.classList.add("is-loading", "disabled");
+    } else {
+        link.textContent = link.dataset.originalText || "덱 캡쳐";
+        delete link.dataset.captureLoading;
+        link.removeAttribute("aria-busy");
+        link.removeAttribute("aria-disabled");
+        link.classList.remove("is-loading", "disabled");
+    }
+}
 
-                    let height = 28;
-                    if (element.classList.contains('v2-deck-metric')) height = 30;
-                    if (element.classList.contains('v2-unreleased')) height = 24;
-                    if (element.classList.contains('v2-button')) height = 36;
-                    if (element.classList.contains('v2-deck-version')) height = 24;
-
-                    element.style.display = 'inline-block';
-                    element.style.boxSizing = 'border-box';
-                    element.style.minHeight = '0';
-                    element.style.height = `${height}px`;
-                    element.style.paddingTop = '0';
-                    element.style.paddingBottom = '0';
-                    element.style.lineHeight = `${height - 2}px`;
-                    element.style.textAlign = 'center';
-                    element.style.verticalAlign = 'middle';
-                });
-            }
+async function downloadDeckCapture(link) {
+    const response = await fetch(link.href, {
+        method: "GET",
+        credentials: "same-origin",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
         },
-    }).then(canvas => {
-        // 캔버스를 이미지로 변환
-        const image = canvas.toDataURL('image/png');
-        // 이미지 다운로드 링크 생성
-        const link = document.createElement('a');
-        link.href = image;
-        link.download = 'captured-image.png';
-        link.click();
+    });
+
+    if (!response.ok) {
+        throw new Error(`capture failed: ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const filename = parseDownloadFilename(
+        response.headers.get("Content-Disposition"),
+        "lumen-deck.png"
+    );
+    const objectUrl = URL.createObjectURL(blob);
+    const downloadLink = document.createElement("a");
+    downloadLink.href = objectUrl;
+    downloadLink.download = filename;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+function setupDeckCaptureDownloads() {
+    document.querySelectorAll("[data-deck-capture-download]").forEach((link) => {
+        link.addEventListener("click", async (event) => {
+            if (link.dataset.captureLoading === "true") {
+                event.preventDefault();
+                return;
+            }
+
+            if (!window.fetch || !window.URL || !window.URL.createObjectURL) {
+                alert("덱 캡쳐 이미지를 생성합니다. 잠시만 기다려주세요.");
+                return;
+            }
+
+            event.preventDefault();
+            setDeckCaptureLoading(link, true);
+
+            try {
+                await downloadDeckCapture(link);
+            } catch (error) {
+                alert("덱 캡쳐 이미지 생성에 실패했습니다. 잠시 후 다시 시도해주세요.");
+            } finally {
+                setDeckCaptureLoading(link, false);
+            }
+        });
     });
 }
 
@@ -216,3 +223,4 @@ function setV2SideZoneHeight() {
 window.addEventListener("load", setV2SideZoneHeight);
 window.addEventListener("resize", setV2SideZoneHeight);
 document.addEventListener("DOMContentLoaded", setV2SideZoneHeight);
+document.addEventListener("DOMContentLoaded", setupDeckCaptureDownloads);
