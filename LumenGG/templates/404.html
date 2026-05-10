@@ -1,8 +1,17 @@
-{% extends 'base.html' %}
+{% extends "base_v2.html" %}
+{% block title %}404 Not Found - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "card:index" %}{% endblock legacy_href %}
 {% block content %}
-    <div class="d-flex flex-column justify-content-center" style="text-align:center;">
-        <h3>ERROR 404</h3>
-        <h4>존재하지 않는 페이지입니다.</h4>
-        <h4>Not Found</h4>
+<section class="v2-error-wrap">
+    <div class="v2-error-code">404</div>
+    <div class="v2-panel v2-error-panel">
+        <div class="v2-kicker">NOT FOUND</div>
+        <h1 class="v2-title">페이지를 찾을 수 없습니다.</h1>
+        <p class="v2-subtitle">주소가 바뀌었거나, 아직 새 UI에 연결되지 않은 페이지일 수 있습니다.</p>
+        <div class="v2-error-actions">
+            <a class="v2-button v2-button-primary" href="{% url "card:indexV2" %}">카드 DB로 이동</a>
+            <a class="v2-button" href="javascript:history.back()">이전 페이지</a>
+        </div>
     </div>
-{% endblock %}
+</section>
+{% endblock content %}

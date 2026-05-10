@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from ..models import Deck, CardInDeck
 from card.models import Card
 from ..forms import DeckSearchForm, DeckImportForm
-from ..utils import normalize_deck_version
+from ..utils import get_deck_version_from_cards
 
 def deckMake(req):
     deckList = ['스탠딩 가드', '다운 가드', '구르기', '세츠메이 킥',
@@ -59,8 +59,9 @@ def deckImport(req):
                     name = form.cleaned_data['name'],
                     author = req.user,
                     character = char,
-                    version = normalize_deck_version(form.cleaned_data['version']),
-                    private = form.cleaned_data['private'],
+                    version = get_deck_version_from_cards(deckList),
+                    visibility = form.cleaned_data['visibility'],
+                    private = form.cleaned_data['visibility'] == Deck.VISIBILITY_PRIVATE,
                 )
                 deck.save()
                 for card in deckList:

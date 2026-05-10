@@ -104,6 +104,10 @@
                     <p>{{ card.code }}</p>
                 </div>
                 <div class="배경색1">
+                    <p>덱 채용률</p>
+                    <p>{{ adoption_stats.adoption_rate|floatformat:1 }}%</p>
+                </div>
+                <div class="배경색1">
                     <p>태그</p>
                     <p>{{ card.keyword|keywords }}</p>
                 </div>

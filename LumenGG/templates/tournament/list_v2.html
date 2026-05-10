@@ -1,0 +1,108 @@
+{% extends "base_v2.html" %}
+{% block title %}대회 운영 - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% url "card:index" %}{% endblock legacy_href %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">TOURNAMENT</div>
+        <h1 class="v2-title">대회 검색</h1>
+        <p class="v2-subtitle">루멘콘덴서 대회를 생성하거나, 대회 목록을 확인합니다.</p>
+    </div>
+    <div class="v2-chip-row">
+        <span class="v2-chip">총 {{ tournaments.paginator.count }}개</span>
+        <a class="v2-button" href="{% url "tournament:statsV2" %}">통계</a>
+        <a class="v2-button v2-button-primary" href="{% url "tournament:createV2" %}">대회 생성</a>
+    </div>
+</section>
+
+{% if messages %}
+<div class="v2-message-list">
+    {% for message in messages %}
+    <div class="v2-message {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<form action="{% url "tournament:joinCodeV2" %}" method="post" class="v2-panel v2-tournament-code-panel">
+    {% csrf_token %}
+    <div>
+        <strong>참가 코드로 참가</strong>
+        <p class="v2-tournament-note">일부 공개 대회는 운영자가 공유한 참가 코드나 QR 링크로 입장할 수 있습니다.</p>
+    </div>
+    <div class="v2-tournament-code-row">
+        <input class="v2-tournament-input" type="text" name="join_code" placeholder="참가 코드" autocomplete="off">
+        <button class="v2-button v2-button-primary" type="submit">대회 찾기</button>
+    </div>
+</form>
+
+<form action="{% url "tournament:indexV2" %}" method="get" class="v2-panel v2-search-panel">
+    <div class="v2-tournament-filter-row">
+        <select name="status">
+            <option value="">전체 상태</option>
+            {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button class="v2-button v2-button-primary" type="submit">보기</button>
+    </div>
+</form>
+
+<section class="v2-tournament-grid">
+    {% for tournament in tournaments %}
+    <article class="v2-tournament-card v2-clickable-card" data-href="{% url "tournament:detailV2" tournament.id %}" role="link" tabindex="0" aria-label="{{ tournament.name }} 상세 보기">
+        <div class="v2-tournament-card-top">
+            <span class="v2-tournament-status status-{{ tournament.status }}">{{ tournament.get_status_display }}</span>
+            <span>{{ tournament.get_format_display }}</span>
+            {% if tournament.format != "swiss" %}<span>{{ tournament.get_elimination_mode_display }}</span>{% endif %}
+            {% if tournament.visibility == "unlisted" %}<span>{{ tournament.get_visibility_display }}</span>{% endif %}
+        </div>
+        <h2>{{ tournament.name }}</h2>
+        {% if tournament.tag_list %}
+        <div class="v2-chip-row v2-tournament-tag-row">
+            {% for tag in tournament.tag_list %}
+            <a class="v2-chip" href="{% url "tournament:tagStatsV2" %}?tag={{ tag|urlencode }}">#{{ tag }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <p>{{ tournament.description|default:"대회 설명이 없습니다."|striptags|truncatechars:96 }}</p>
+        <div class="v2-tournament-meta">
+            <span>참가 {{ tournament.participant_count }}명{% if tournament.max_players %} / {{ tournament.max_players }}명{% endif %}</span>
+            <span>{% if tournament.decklist_required_count %}덱 리스트 {{ tournament.decklist_required_count }}개{% else %}덱 리스트 미요구{% endif %}</span>
+            {% if tournament.swiss_round_count %}<span>스위스 {{ tournament.swiss_round_count }}R</span>{% endif %}
+            {% if tournament.format == "hybrid" and tournament.top_cut_count %}<span>TOP {{ tournament.top_cut_count }}</span>{% endif %}
+            <span>동률 {{ tournament.get_tiebreaker_display }}</span>
+            <span>{{ tournament.round_set_count }}세트 / {{ tournament.win_points }}-{{ tournament.draw_points }}-{{ tournament.loss_points }}점</span>
+            <span>{{ tournament.event_date|date:"Y-m-d H:i" }}</span>
+        </div>
+        <div class="v2-tournament-card-bottom">
+            <span>{{ tournament.organizer.username }}</span>
+            <span>{{ tournament.round_count }}라운드</span>
+        </div>
+    </article>
+    {% empty %}
+    <div class="v2-panel v2-text-panel">아직 등록된 대회가 없습니다.</div>
+    {% endfor %}
+</section>
+
+<ul class="v2-pagination">
+    {% for page_number in tournaments.paginator.page_range %}
+    {% if page_number >= tournaments.number|add:-5 and page_number <= tournaments.number|add:5 %}
+    <li class="{% if page_number == tournaments.number %}active{% endif %}">
+        <a href="?page={{ page_number }}{% if status %}&status={{ status }}{% endif %}">{{ page_number }}</a>
+    </li>
+    {% endif %}
+    {% endfor %}
+</ul>
+
+<script>
+document.querySelectorAll('.v2-clickable-card').forEach((card) => {
+    card.addEventListener('click', (event) => {
+        if (event.target.closest('a, button, input, select, textarea')) return;
+        window.location.href = card.dataset.href;
+    });
+    card.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') window.location.href = card.dataset.href;
+    });
+});
+</script>
+{% endblock content %}

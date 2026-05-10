@@ -56,6 +56,9 @@
                 <div class="v2-deck-title-row">
                     <a class="v2-deck-title" href="{% url "deck:detailV2" deck.id %}">{{ deck.name }}</a>
                     <span class="v2-deck-version">{{ deck.version }}</span>
+                    {% if deck.visibility != "public" %}
+                    <span class="v2-deck-version">{{ deck.get_visibility_display }}</span>
+                    {% endif %}
                 </div>
                 <div class="v2-deck-tags">
                     {% firstof deck.keyword deck.tags as deck_tag_text %}

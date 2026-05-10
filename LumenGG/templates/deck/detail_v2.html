@@ -30,6 +30,7 @@
             <div class="v2-chip-row">
                 <span class="v2-chip">추천 {{ likecount }}</span>
                 <span class="v2-chip">ver. {{ deck.version }}</span>
+                <span class="v2-chip">{{ deck.get_visibility_display }}</span>
                 <a class="v2-chip" href="{% url "common:userpageV2" deck.author.id %}">{{ deck.author.username }}</a>
                 <span class="v2-chip">{{ deck.created|date:"Y-m-d" }}</span>
             </div>
@@ -37,9 +38,11 @@
                 <button id="displayToggleBtn" class="v2-button" onclick="deckToggle();" type="button">텍스트로 보기</button>
                 <button class="v2-button" type="button" onclick="deckCopy()">텍스트 덱 복사</button>
                 <button class="v2-button" type="button" onclick="deckCapture()">덱 캡쳐</button>
-                {% if user == deck.author %}
+                {% if user == deck.author and not deck_tournament_locked %}
                 <a class="v2-button" href="{% url "deck:updateV2" deck.id %}">덱 수정</a>
                 <a class="v2-button v2-danger-button" href="{% url "deck:delete" deck.id %}">덱 삭제</a>
+                {% elif user == deck.author and deck_tournament_locked %}
+                <span class="v2-chip">대회 제출 덱 잠금</span>
                 {% endif %}
             </div>
         </div>

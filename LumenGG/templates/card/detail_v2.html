@@ -29,13 +29,14 @@
             {% if unReleased %}
             <span class="v2-unreleased">미발매</span>
             {% endif %}
-            <button class="v2-image-action" type="button" id="v2ImageButton">판본 변경</button>
         </div>
         <div class="v2-detail-summary">
             <div class="v2-chip-row">
                 <span class="v2-chip v2-type-{{ card.type }}">{{ card.type }}</span>
                 {% if card.ultimate %}<span class="v2-chip">ULTIMATE</span>{% endif %}
                 {% if card.special %}<span class="v2-chip">{{ card.special }}</span>{% endif %}
+                <span class="v2-chip v2-adoption-chip">채용률 {{ adoption_stats.adoption_rate|floatformat:1 }}%</span>
+                <button class="v2-image-action" type="button" id="v2ImageButton">판본 변경</button>
             </div>
         </div>
     </article>
