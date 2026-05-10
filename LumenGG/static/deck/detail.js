@@ -82,26 +82,33 @@ function parseDownloadFilename(contentDisposition, fallback) {
     return match ? match[1] : fallback;
 }
 
-function setDeckCaptureLoading(link, isLoading) {
+function setDeckCaptureLoading(control, isLoading) {
     const loadingText = "이미지 생성 중...";
     if (isLoading) {
-        link.dataset.originalText = link.textContent;
-        link.textContent = loadingText;
-        link.dataset.captureLoading = "true";
-        link.setAttribute("aria-busy", "true");
-        link.setAttribute("aria-disabled", "true");
-        link.classList.add("is-loading", "disabled");
+        control.dataset.originalText = control.textContent;
+        control.textContent = loadingText;
+        control.dataset.captureLoading = "true";
+        control.setAttribute("aria-busy", "true");
+        control.setAttribute("aria-disabled", "true");
+        control.disabled = true;
+        control.classList.add("is-loading", "disabled");
     } else {
-        link.textContent = link.dataset.originalText || "덱 캡쳐";
-        delete link.dataset.captureLoading;
-        link.removeAttribute("aria-busy");
-        link.removeAttribute("aria-disabled");
-        link.classList.remove("is-loading", "disabled");
+        control.textContent = control.dataset.originalText || "덱 캡쳐";
+        delete control.dataset.captureLoading;
+        control.removeAttribute("aria-busy");
+        control.removeAttribute("aria-disabled");
+        control.disabled = false;
+        control.classList.remove("is-loading", "disabled");
     }
 }
 
-async function downloadDeckCapture(link) {
-    const response = await fetch(link.href, {
+async function downloadDeckCapture(control) {
+    const captureUrl = control.dataset.deckCaptureUrl || control.href;
+    if (!captureUrl) {
+        throw new Error("capture url is missing");
+    }
+
+    const response = await fetch(captureUrl, {
         method: "GET",
         credentials: "same-origin",
         headers: {
@@ -129,27 +136,27 @@ async function downloadDeckCapture(link) {
 }
 
 function setupDeckCaptureDownloads() {
-    document.querySelectorAll("[data-deck-capture-download]").forEach((link) => {
-        link.addEventListener("click", async (event) => {
-            if (link.dataset.captureLoading === "true") {
-                event.preventDefault();
+    document.querySelectorAll("[data-deck-capture-download]").forEach((control) => {
+        control.addEventListener("click", async (event) => {
+            event.preventDefault();
+
+            if (control.dataset.captureLoading === "true") {
                 return;
             }
 
             if (!window.fetch || !window.URL || !window.URL.createObjectURL) {
-                alert("덱 캡쳐 이미지를 생성합니다. 잠시만 기다려주세요.");
+                alert("현재 브라우저에서는 덱 캡쳐 다운로드를 시작할 수 없습니다.");
                 return;
             }
 
-            event.preventDefault();
-            setDeckCaptureLoading(link, true);
+            setDeckCaptureLoading(control, true);
 
             try {
-                await downloadDeckCapture(link);
+                await downloadDeckCapture(control);
             } catch (error) {
                 alert("덱 캡쳐 이미지 생성에 실패했습니다. 잠시 후 다시 시도해주세요.");
             } finally {
-                setDeckCaptureLoading(link, false);
+                setDeckCaptureLoading(control, false);
             }
         });
     });

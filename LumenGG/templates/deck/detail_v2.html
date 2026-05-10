@@ -37,7 +37,7 @@
             <div class="v2-deck-detail-actions">
                 <button id="displayToggleBtn" class="v2-button" onclick="deckToggle();" type="button">텍스트로 보기</button>
                 <button class="v2-button" type="button" onclick="deckCopy()">텍스트 덱 복사</button>
-                <a class="v2-button" href="{% url "deck:captureV2" deck.id %}" data-deck-capture-download>덱 캡쳐</a>
+                <button class="v2-button" type="button" data-deck-capture-download data-deck-capture-url="{% url "deck:captureV2" deck.id %}">덱 캡쳐</button>
                 {% if user == deck.author and not deck_tournament_locked %}
                 <a class="v2-button" href="{% url "deck:updateV2" deck.id %}">덱 수정</a>
                 <a class="v2-button v2-danger-button" href="{% url "deck:delete" deck.id %}">덱 삭제</a>
@@ -195,6 +195,6 @@
 </section>
 {% endif %}
 
-<script src="{% static "deck/detail.js" %}"></script>
+<script src="{% static "deck/detail.js" %}?v=20260510-capture-button"></script>
 <script src="{% static "imgloading.js" %}"></script>
 {% endblock content %}
