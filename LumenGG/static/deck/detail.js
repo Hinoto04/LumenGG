@@ -66,22 +66,6 @@ function deckCopy() {
     });
 }
 
-function parseDownloadFilename(contentDisposition, fallback) {
-    if (!contentDisposition) return fallback;
-
-    const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-    if (encodedMatch) {
-        try {
-            return decodeURIComponent(encodedMatch[1].replace(/["]/g, ""));
-        } catch (error) {
-            return fallback;
-        }
-    }
-
-    const match = contentDisposition.match(/filename="?([^"]+)"?/i);
-    return match ? match[1] : fallback;
-}
-
 function setDeckCaptureLoading(control, isLoading) {
     const loadingText = "이미지 생성 중...";
     if (isLoading) {
@@ -90,74 +74,30 @@ function setDeckCaptureLoading(control, isLoading) {
         control.dataset.captureLoading = "true";
         control.setAttribute("aria-busy", "true");
         control.setAttribute("aria-disabled", "true");
-        control.disabled = true;
+        if ("disabled" in control) control.disabled = true;
         control.classList.add("is-loading", "disabled");
     } else {
         control.textContent = control.dataset.originalText || "덱 캡쳐";
         delete control.dataset.captureLoading;
         control.removeAttribute("aria-busy");
         control.removeAttribute("aria-disabled");
-        control.disabled = false;
+        if ("disabled" in control) control.disabled = false;
         control.classList.remove("is-loading", "disabled");
     }
 }
 
-async function downloadDeckCapture(control) {
-    const captureUrl = control.dataset.deckCaptureUrl || control.href;
-    if (!captureUrl) {
-        throw new Error("capture url is missing");
-    }
-
-    const response = await fetch(captureUrl, {
-        method: "GET",
-        credentials: "same-origin",
-        headers: {
-            "X-Requested-With": "XMLHttpRequest",
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error(`capture failed: ${response.status}`);
-    }
-
-    const blob = await response.blob();
-    const filename = parseDownloadFilename(
-        response.headers.get("Content-Disposition"),
-        "lumen-deck.png"
-    );
-    const objectUrl = URL.createObjectURL(blob);
-    const downloadLink = document.createElement("a");
-    downloadLink.href = objectUrl;
-    downloadLink.download = filename;
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    downloadLink.remove();
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-}
-
-function setupDeckCaptureDownloads() {
-    document.querySelectorAll("[data-deck-capture-download]").forEach((control) => {
-        control.addEventListener("click", async (event) => {
-            event.preventDefault();
-
+function setupDeckCaptureOpenLinks() {
+    document.querySelectorAll("[data-deck-capture-open]").forEach((control) => {
+        control.addEventListener("click", (event) => {
             if (control.dataset.captureLoading === "true") {
-                return;
-            }
-
-            if (!window.fetch || !window.URL || !window.URL.createObjectURL) {
-                alert("현재 브라우저에서는 덱 캡쳐 다운로드를 시작할 수 없습니다.");
+                event.preventDefault();
                 return;
             }
 
             setDeckCaptureLoading(control, true);
-
-            try {
-                await downloadDeckCapture(control);
-            } catch (error) {
-                alert("덱 캡쳐 이미지 생성에 실패했습니다. 잠시 후 다시 시도해주세요.");
-            } finally {
+            setTimeout(() => {
                 setDeckCaptureLoading(control, false);
-            }
+            }, 8000);
         });
     });
 }
@@ -230,4 +170,4 @@ function setV2SideZoneHeight() {
 window.addEventListener("load", setV2SideZoneHeight);
 window.addEventListener("resize", setV2SideZoneHeight);
 document.addEventListener("DOMContentLoaded", setV2SideZoneHeight);
-document.addEventListener("DOMContentLoaded", setupDeckCaptureDownloads);
+document.addEventListener("DOMContentLoaded", setupDeckCaptureOpenLinks);

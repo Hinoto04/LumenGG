@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.core import serializers
 from django.core.paginator import Paginator
 from django.core.exceptions import PermissionDenied
-from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.db.models import Case, When
@@ -13,7 +13,7 @@ from django.db.models import Case, When
 from card.models import Card, Character
 from ..models import Deck, CardInDeck, DeckLike, DeckComment
 from ..forms import DeckSearchForm, DeckMakeForm
-from ..capture import generate_deck_capture
+from ..capture import generate_deck_capture, get_deck_capture_public_url
 from ..utils import get_deck_version_from_entries
 from collection.models import Pack
 from statistic.models import CSDeck
@@ -164,8 +164,7 @@ def capture(req, id=0):
         raise PermissionDenied()
     
     capture_path = generate_deck_capture(deck)
-    filename = f'lumen-deck-{deck.id}.png'
-    return FileResponse(open(capture_path, 'rb'), as_attachment=True, filename=filename)
+    return redirect(get_deck_capture_public_url(capture_path))
 
 def captureV2(req, id=0):
     return capture(req, id)
