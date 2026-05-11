@@ -1086,6 +1086,11 @@ label:has(> input.검색체크:checked) {
     gap: 8px;
 }
 
+.v2-deck-detail-actions form {
+    display: inline-flex;
+    margin: 0;
+}
+
 .v2-deck-detail-ultimate {
     display: grid;
     align-content: start;

@@ -37,6 +37,14 @@
             <div class="v2-deck-detail-actions">
                 <button id="displayToggleBtn" class="v2-button" onclick="deckToggle();" type="button">텍스트로 보기</button>
                 <button class="v2-button" type="button" onclick="deckCopy()">텍스트 덱 복사</button>
+                {% if user.is_authenticated %}
+                <form method="POST" action="{% url "deck:copyV2" deck.id %}">
+                    {% csrf_token %}
+                    <button class="v2-button" type="submit">덱 복사</button>
+                </form>
+                {% else %}
+                <a class="v2-button" href="{% url "common:loginV2" %}?next={{ request.path|urlencode }}">덱 복사</a>
+                {% endif %}
                 <a class="v2-button" href="{% url "deck:captureV2" deck.id %}" target="_blank" rel="noopener" data-deck-capture-open>덱 캡쳐</a>
                 {% if user == deck.author and not deck_tournament_locked %}
                 <a class="v2-button" href="{% url "deck:updateV2" deck.id %}">덱 수정</a>
