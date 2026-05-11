@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
             panel.hidden = !shouldOpen;
             toggle.classList.toggle("is-active", shouldOpen);
             toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-            toggle.textContent = shouldOpen ? "-상세 정보" : "+상세 정보";
+            toggle.textContent = shouldOpen ? "-보충 설명" : "+보충 설명";
         });
     });
 });

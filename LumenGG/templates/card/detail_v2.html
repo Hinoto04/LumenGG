@@ -76,7 +76,7 @@
             <div class="v2-section-title-row">
                 <h2 class="v2-section-title">효과</h2>
                 {% if card.detail_text %}
-                <button class="v2-card-info-toggle" type="button" data-card-detail-toggle aria-expanded="false">+상세 정보</button>
+                <button class="v2-card-info-toggle" type="button" data-card-detail-toggle aria-expanded="false">+보충 설명</button>
                 {% endif %}
             </div>
             <div class="v2-text-panel">{{ card.text|linebreaks }}</div>
@@ -173,7 +173,7 @@
 </section>
 {% endif %}
 
-<script src="{% static "card/detail_tabs.js" %}?v=20260512-detail-toggle"></script>
+<script src="{% static "card/detail_tabs.js" %}?v=20260512-extra-note-toggle"></script>
 <script>
     const imgList = [];
     let nowImage = 0;
