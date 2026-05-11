@@ -28,6 +28,9 @@
 <div>
     <div>
         <a id="돌아가기" href="javascript:history.back()">← 돌아가기</a>
+        {% if perms.card.change_card %}
+        <a class="btn btn-sm btn-dark ms-2" href="{% url "card:update" card.id %}">카드 수정</a>
+        {% endif %}
     </div>
     <div id="섹션1">
         <div id="카드" class="배경색1">
@@ -96,9 +99,20 @@
             {% endif %}
             <div id="섹션2">
                 <div id="효과" class="배경색1">
-                    <p>효과</p>
-                    <p>{{ card.text|linebreaks }}</p>
+                    <div class="카드텍스트헤더">
+                        <p>효과</p>
+                        {% if card.detail_text %}
+                        <button class="btn btn-sm btn-dark" type="button" data-card-detail-toggle aria-expanded="false">+상세 정보</button>
+                        {% endif %}
+                    </div>
+                    <div>{{ card.text|linebreaks }}</div>
                 </div>
+                {% if card.detail_text %}
+                <div class="배경색1 카드상세정보" data-card-detail-panel hidden>
+                    <p>상세 정보</p>
+                    <div>{{ card.detail_text|linebreaks }}</div>
+                </div>
+                {% endif %}
                 <div class="배경색1">
                     <p>최초 수록</p>
                     <p>{{ card.code }}</p>
@@ -207,6 +221,7 @@
     </div>
 </div>
 <script src="{% static "card/detail.js" %}"></script>
+<script src="{% static "card/detail_tabs.js" %}?v=20260512-detail-toggle"></script>
 <script>
     {% for ccc in cc %}
         {% if ccc.image %}

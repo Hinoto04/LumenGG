@@ -165,7 +165,7 @@ class CardCreateForm(forms.ModelForm):
                   'damage', 'pos', 'body', 'special', 'code',
                   'hit', 'guard', 'counter', 
                   'g_top', 'g_mid', 'g_bot', 
-                  'character', 'text']
+                  'character', 'text', 'detail_text']
         widgets = {
             "pos": forms.Select(choices = [
                 ('', ''), ('상단', '상단'), ('중단', '중단'), ('하단', '하단')]),
@@ -184,6 +184,7 @@ class CardCreateForm(forms.ModelForm):
             "special": "특수", "code": "최초 수록", "hit": "히트",
             "guard": "가드", "counter": "카운터",
             "character": "캐릭터", "img": "이미지(링크)", "text": "텍스트",
+            "detail_text": "보충 설명",
             "g_top": "상단 방어", "g_mid": "중단 방어", "g_bot": "하단 방어",
         }
     
@@ -194,6 +195,13 @@ class CardCreateForm(forms.ModelForm):
             self.fields['body'].choices = site_setting.setting["data"]
         except SiteSettings.DoesNotExist:
             self.fields['pack'].choices = []
+
+
+class CardUpdateForm(CardCreateForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields.pop('pack', None)
+        self.fields.pop('rare', None)
 
 class CardCommentForm(forms.ModelForm):
     class Meta:

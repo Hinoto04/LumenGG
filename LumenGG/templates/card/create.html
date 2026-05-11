@@ -1,13 +1,16 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}카드 추가{% endblock title %}
-{% block v2_href %}{% url "card:createV2" %}{% endblock v2_href %}
+{% block title %}{% if is_update %}카드 수정{% else %}카드 추가{% endif %}{% endblock title %}
+{% block v2_href %}{% if is_update %}{% url "card:updateV2" card.id %}{% else %}{% url "card:createV2" %}{% endif %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "card/create.css" %}">
 {% endblock style %}
 {% block content %}
 <div id="최상단" class="d-flex flex-column mb-1">
-    <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">카드 추가</div>
+    <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">{% if is_update %}카드 수정{% else %}카드 추가{% endif %}</div>
+    {% if is_update %}
+    <a class="btn btn-sm btn-dark ms-1" href="{% url "card:detail" card.id %}">상세</a>
+    {% endif %}
 </div>
 <form action="" method="post" enctype="multipart/form-data">
     {% include "form_errors.html" %}
@@ -90,22 +93,30 @@
             {{ form.code }}
         </div>
         <div class="option">
-            <label for="img">이미지(webp)</label>
+            <label for="img">{% if is_update %}이미지 교체{% else %}이미지{% endif %}(webp)</label>
             {{ form.imageFile }}
         </div>
+        {% if not is_update %}
         <div class="option">
             <label for="pack">수록 팩</label>
             {{ form.pack }}
         </div>
+        {% endif %}
     </div>
+    {% if not is_update %}
     <div class="option">
         <label for="rare">레어도</label>
         {{ form.rare }}
     </div>
+    {% endif %}
     <div class="option">
         <label for="text">효과</label>
         {{ form.text }}
     </div>
-    <button class="w-100 border btn btn-light" type="submit">저장</button>
+    <div class="option">
+        <label for="detail_text">보충 설명</label>
+        {{ form.detail_text }}
+    </div>
+    <button class="w-100 border btn btn-light" type="submit">{% if is_update %}수정 저장{% else %}저장{% endif %}</button>
 </form>
 {% endblock content %}

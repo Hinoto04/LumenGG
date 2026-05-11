@@ -40,6 +40,7 @@ class Card(models.Model):
     pos = models.CharField(max_length=3, null=True, blank=True) #판정 (상단, 중단, 하단)
     body = models.CharField(default='', max_length=10, null=True, blank=True) #부위 (손, 발)
     text = models.TextField(blank=True) #카드 효과
+    detail_text = models.TextField(blank=True, default='') #보충 설명
     hit = models.CharField(default=0, max_length=4, null=True, blank=True) #히트 시 프레임
     guard = models.CharField(default=0, max_length=4, null=True, blank=True) #가드 시
     counter = models.CharField(default=0, max_length=4, null=True, blank=True) #카운터 시

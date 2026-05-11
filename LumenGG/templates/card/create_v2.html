@@ -1,20 +1,23 @@
 {% extends "base_v2.html" %}
 {% load static %}
-{% block title %}카드 추가 - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "card:create" %}{% endblock legacy_href %}
+{% block title %}{% if is_update %}카드 수정{% else %}카드 추가{% endif %} - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% if is_update %}{% url "card:update" card.id %}{% else %}{% url "card:create" %}{% endif %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-page-head">
     <div>
         <div class="v2-kicker">CARD ADMIN</div>
-        <h1 class="v2-title">카드 추가</h1>
-        <p class="v2-subtitle">카드 기본 정보와 수록 정보를 함께 등록합니다.</p>
+        <h1 class="v2-title">{% if is_update %}카드 수정{% else %}카드 추가{% endif %}</h1>
+        <p class="v2-subtitle">{% if is_update %}카드 기본 정보와 보충 설명을 수정합니다.{% else %}카드 기본 정보와 수록 정보를 함께 등록합니다.{% endif %}</p>
     </div>
     <div class="v2-chip-row">
         <a class="v2-button" href="{% url "card:indexV2" %}">목록</a>
+        {% if is_update %}
+        <a class="v2-button" href="{% url "card:detailV2" card.id %}">상세</a>
+        {% endif %}
     </div>
 </section>
 
-<form action="{% url "card:createV2" %}" method="post" enctype="multipart/form-data" class="v2-panel v2-admin-form">
+<form action="{% if is_update %}{% url "card:updateV2" card.id %}{% else %}{% url "card:createV2" %}{% endif %}" method="post" enctype="multipart/form-data" class="v2-panel v2-admin-form">
     {% include "form_errors.html" %}
     {% csrf_token %}
     <div class="v2-admin-grid">
@@ -96,6 +99,12 @@
             <label for="{{ form.code.id_for_label }}">최초 수록</label>
             {{ form.code }}
         </div>
+        {% if is_update %}
+        <div class="v2-admin-field v2-admin-wide">
+            <label for="{{ form.imageFile.id_for_label }}">이미지 교체(webp)</label>
+            {{ form.imageFile }}
+        </div>
+        {% else %}
         <div class="v2-admin-field v2-admin-combo v2-admin-combo-2 v2-admin-wide">
             <div>
                 <label for="{{ form.pack.id_for_label }}">수록 팩</label>
@@ -106,17 +115,24 @@
                 {{ form.imageFile }}
             </div>
         </div>
+        {% endif %}
     </div>
+    {% if not is_update %}
     <div class="v2-admin-field">
         <label>레어도</label>
         {{ form.rare }}
     </div>
+    {% endif %}
     <div class="v2-admin-field">
         <label for="{{ form.text.id_for_label }}">효과</label>
         {{ form.text }}
     </div>
+    <div class="v2-admin-field">
+        <label for="{{ form.detail_text.id_for_label }}">보충 설명</label>
+        {{ form.detail_text }}
+    </div>
     <div class="v2-admin-actions">
-        <button class="v2-button v2-button-primary" type="submit">저장</button>
+        <button class="v2-button v2-button-primary" type="submit">{% if is_update %}수정 저장{% else %}저장{% endif %}</button>
     </div>
 </form>
 {% endblock content %}
