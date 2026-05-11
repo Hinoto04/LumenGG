@@ -9,7 +9,7 @@ from django.utils import timezone
 from ..models import Card, Character, Tag, CardComment
 from collection.models import CollectionCard, Pack
 from deck.models import Deck
-from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm, CardCommentForm
+from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm, CardUpdateForm, CardCommentForm
 from decorators import permission_required
 import re, random, os, json
 
@@ -239,29 +239,18 @@ def create(req, template_name='card/create.html', detail_route='card:detail'):
     if req.method == 'GET':
         form = CardCreateForm()
         
-        return render(req, template_name, context={'form': form})
+        return render(req, template_name, context={'form': form, 'is_update': False})
     else:
         form = CardCreateForm(req.POST, req.FILES)
         if form.is_valid():
-            path = os.path.join(settings.MEDIA_ROOT, 'webp', (form.cleaned_data['code']+'.webp'))
-            handle_uploaded_file(req.FILES['imageFile'], 
-                path)
-            
-            compress_image(path, os.path.join(settings.MEDIA_ROOT, 
-                                            'webpsm', 
-                                            (form.cleaned_data['code']+'.webp')), 319, 100)
-            compress_image(path, os.path.join(settings.MEDIA_ROOT, 
-                                            'webpmin', 
-                                            (form.cleaned_data['code']+'.webp')), 213, 100)
-            
             try:
                 card = Card.objects.get(name = form.cleaned_data['name'])
                 return redirect(detail_route, card.id)
             except:
                 card = form.save(commit=False)
-                card.img = 'https://images.hinoto.kr/lumendb/webp/' + card.code + '.webp'
-                card.img_mid = 'https://images.hinoto.kr/lumendb/webpsm/' + card.code + '.webp'
-                card.img_sm = 'https://images.hinoto.kr/lumendb/webpmin/' + card.code + '.webp'
+                uploaded_image = req.FILES.get('imageFile')
+                if uploaded_image:
+                    save_card_image_files(card, uploaded_image)
                 card.save()
                 
             for r in form.data.getlist('rare'):
@@ -277,13 +266,54 @@ def create(req, template_name='card/create.html', detail_route='card:detail'):
                 newCC.save()
             return redirect(detail_route, card.id)
         else:
-            return render(req, template_name, context={'form': form})
+            return render(req, template_name, context={'form': form, 'is_update': False})
 
 def createV2(req):
     return create(req, 'card/create_v2.html', 'card:detailV2')
 
+@permission_required('card.change_card')
+def update(req, id=0, template_name='card/create.html', detail_route='card:detail'):
+    try:
+        card = Card.objects.get(id=id)
+    except Card.DoesNotExist:
+        raise Http404("카드가 존재하지 않습니다.")
+    
+    if req.method == 'GET':
+        form = CardUpdateForm(instance=card)
+        return render(req, template_name, context={'form': form, 'card': card, 'is_update': True})
+    
+    form = CardUpdateForm(req.POST, req.FILES, instance=card)
+    if form.is_valid():
+        card = form.save(commit=False)
+        uploaded_image = req.FILES.get('imageFile')
+        if uploaded_image:
+            save_card_image_files(card, uploaded_image)
+        card.save()
+        CollectionCard.objects.filter(card=card).update(name=card.name)
+        return redirect(detail_route, card.id)
+    return render(req, template_name, context={'form': form, 'card': card, 'is_update': True})
+
+def updateV2(req, id=0):
+    return update(req, id, 'card/create_v2.html', 'card:detailV2')
+
+
+def save_card_image_files(card, uploaded_image):
+    path = os.path.join(settings.MEDIA_ROOT, 'webp', (card.code+'.webp'))
+    handle_uploaded_file(uploaded_image, path)
+    
+    compress_image(path, os.path.join(settings.MEDIA_ROOT, 
+                                    'webpsm', 
+                                    (card.code+'.webp')), 319, 100)
+    compress_image(path, os.path.join(settings.MEDIA_ROOT, 
+                                    'webpmin', 
+                                    (card.code+'.webp')), 213, 100)
+    card.img = 'https://images.hinoto.kr/lumendb/webp/' + card.code + '.webp'
+    card.img_mid = 'https://images.hinoto.kr/lumendb/webpsm/' + card.code + '.webp'
+    card.img_sm = 'https://images.hinoto.kr/lumendb/webpmin/' + card.code + '.webp'
+
 def handle_uploaded_file(f, filePath):
     print(filePath)
+    os.makedirs(os.path.dirname(filePath), exist_ok=True)
     with open(filePath, "wb+") as destination:
         for chunk in f.chunks():
             destination.write(chunk)

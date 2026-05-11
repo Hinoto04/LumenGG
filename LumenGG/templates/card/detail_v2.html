@@ -18,6 +18,9 @@
     </div>
     <div class="v2-chip-row">
         <a class="v2-button" href="{% url "card:indexV2" %}">목록</a>
+        {% if perms.card.change_card %}
+        <a class="v2-button" href="{% url "card:updateV2" card.id %}">카드 수정</a>
+        {% endif %}
         <a class="v2-button v2-button-primary" href="{% url "card:comment" card.id %}">평점 {{ card.score|floatformat:1|default_if_none:"미평가" }}</a>
     </div>
 </section>
@@ -70,8 +73,16 @@
         {% endif %}
 
         <section class="v2-section">
-            <h2 class="v2-section-title">효과</h2>
+            <div class="v2-section-title-row">
+                <h2 class="v2-section-title">효과</h2>
+                {% if card.detail_text %}
+                <button class="v2-card-info-toggle" type="button" data-card-detail-toggle aria-expanded="false">+상세 정보</button>
+                {% endif %}
+            </div>
             <div class="v2-text-panel">{{ card.text|linebreaks }}</div>
+            {% if card.detail_text %}
+            <div class="v2-text-panel v2-card-detail-panel" data-card-detail-panel hidden>{{ card.detail_text|linebreaks }}</div>
+            {% endif %}
         </section>
 
     </div>
@@ -162,6 +173,7 @@
 </section>
 {% endif %}
 
+<script src="{% static "card/detail_tabs.js" %}?v=20260512-detail-toggle"></script>
 <script>
     const imgList = [];
     let nowImage = 0;

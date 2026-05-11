@@ -11,10 +11,12 @@ urlpatterns = [
     path('v2/', views.indexV2, name='indexV2'),
     path('v2/detail/<int:id>/', views.detailV2, name='detailV2'),
     path('v2/create/', views.createV2, name='createV2'),
+    path('v2/update/<int:id>/', views.updateV2, name='updateV2'),
     path('detail/', views.detail, name='detailNone'),
     path('detail/<int:id>/', views.detail, name='detail'),
     path('detail/<str:name>/', views.detailName, name='detailName'),
     path('create/', views.create, name='create'),
+    path('update/<int:id>/', views.update, name='update'),
     
     path('comment/<int:id>/', views.comment, name='comment'),
     path('commentList/', views.commentList, name='commentList'),

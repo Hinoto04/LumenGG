@@ -649,6 +649,39 @@ label:has(> input.검색체크:checked) {
     font-weight: 900;
 }
 
+.v2-section-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.v2-section-title-row .v2-section-title {
+    margin-bottom: 0;
+}
+
+.v2-card-info-toggle {
+    min-height: 32px;
+    padding: 5px 10px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-muted);
+    background: var(--v2-soft-bg);
+    cursor: pointer;
+}
+
+.v2-card-info-toggle.is-active {
+    border-color: rgba(224, 180, 91, .72);
+    color: var(--v2-accent);
+    background: rgba(224, 180, 91, .1);
+}
+
+.v2-card-detail-panel {
+    margin-top: 10px;
+}
+
 .v2-stat-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
