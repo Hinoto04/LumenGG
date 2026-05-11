@@ -1040,6 +1040,18 @@ label:has(> input.검색체크:checked) {
     background: rgba(217, 105, 105, .18);
 }
 
+:root[data-theme="light"] .v2-danger-button {
+    border-color: rgba(178, 65, 65, .5);
+    color: #8f2424;
+    background: rgba(178, 65, 65, .08);
+}
+
+:root[data-theme="light"] .v2-danger-button:hover {
+    border-color: #8f2424;
+    color: #fff;
+    background: var(--v2-red);
+}
+
 .v2-deck-capture-area {
     background: var(--v2-bg);
     color: var(--v2-text);
