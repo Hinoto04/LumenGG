@@ -30,6 +30,14 @@
                 onclick="deckToggle();" type="button">텍스트로 보기</button>
                 <button type="button" class="btn btn-sm btn-dark me-2" 
                 onclick="deckCopy()">텍스트 덱 복사</button>
+                {% if user.is_authenticated %}
+                <form method="POST" action="{% url "deck:copy" deck.id %}" class="d-inline me-2">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-dark" type="submit">덱 복사</button>
+                </form>
+                {% else %}
+                <a class="btn btn-sm btn-dark me-2" href="{% url "common:login" %}?next={{ request.path|urlencode }}">덱 복사</a>
+                {% endif %}
                 <a class="btn btn-sm btn-dark" href="{% url "deck:capture" deck.id %}" target="_blank" rel="noopener" data-deck-capture-open>덱 캡쳐</a>
             </div>
             {% if user == deck.author and not deck_tournament_locked %}

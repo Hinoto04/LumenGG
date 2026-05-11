@@ -169,6 +169,56 @@ def capture(req, id=0):
 def captureV2(req, id=0):
     return capture(req, id)
 
+def copy_deck_instance(deck, user):
+    with transaction.atomic():
+        copied_deck = Deck.objects.create(
+            name=f'{deck.name} 복사본'[:255],
+            author=user,
+            character=deck.character,
+            version=deck.version,
+            keyword=deck.keyword,
+            description=deck.description,
+            visibility=Deck.VISIBILITY_PRIVATE,
+            private=True,
+            tags=deck.tags,
+        )
+        CardInDeck.objects.bulk_create([
+            CardInDeck(
+                deck=copied_deck,
+                card_id=card_in_deck.card_id,
+                count=card_in_deck.count,
+                hand=card_in_deck.hand,
+                side=card_in_deck.side,
+            )
+            for card_in_deck in CardInDeck.objects.filter(deck=deck)
+        ])
+    return copied_deck
+
+def _copy(req, id=0, update_route='deck:update'):
+    if req.method != 'POST':
+        raise Http404()
+    
+    try:
+        deck = Deck.objects.select_related('author', 'character').get(id=id)
+    except Deck.DoesNotExist:
+        raise Http404()
+    
+    if deck.deleted:
+        raise Http404()
+    if not can_view_deck(req.user, deck):
+        raise PermissionDenied()
+    
+    copied_deck = copy_deck_instance(deck, req.user)
+    return redirect(reverse(update_route, kwargs={'id': copied_deck.id}))
+
+@login_required(login_url='common:login', redirect_field_name='next')
+def copy(req, id=0):
+    return _copy(req, id)
+
+@login_required(login_url='common:loginV2', redirect_field_name='next')
+def copyV2(req, id=0):
+    return _copy(req, id, 'deck:updateV2')
+
 def can_view_deck(user, deck):
     visibility = Deck.VISIBILITY_PRIVATE if deck.private else deck.visibility
     if visibility in (Deck.VISIBILITY_PUBLIC, Deck.VISIBILITY_UNLISTED):
