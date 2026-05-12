@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}QNA 생성{% endblock title %}
-{% block v2_href %}{% url "qna:createV2" %}{% endblock v2_href %}
+{% block v2_href %}{% url "qna:create" %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "qna/create.css" %}">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
@@ -12,7 +12,7 @@
     <div style="font-size: 2em; font-weight: 900;">
         QNA 생성
     </div>
-    <form action="{% url "qna:create" %}" method="post" class="mt-2 p-2" id="submitForm">
+    <form action="{% url "qna:legacyCreate" %}" method="post" class="mt-2 p-2" id="submitForm">
         {% include "form_errors.html" %}
         {% csrf_token %}
         <div class="form-group mb-2" id="큰상자">

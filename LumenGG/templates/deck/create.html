@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}덱 만들기{% endblock title %}
-{% block v2_href %}{% url "deck:createV2" %}{% endblock v2_href %}
+{% block v2_href %}{% url "deck:create" %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "deck/create.css" %}">
 <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.15/dist/summernote-bs4.min.css" rel="stylesheet">
@@ -13,7 +13,7 @@
         유저 덱 생성
     </div>
     <div id="덱정보입력">
-        <form action="{% url "deck:create" %}" method="post" class="" id="submitForm">
+        <form action="{% url "deck:legacyCreate" %}" method="post" class="" id="submitForm">
         {% csrf_token %}
         <div id="캐릭" class="필터세부 배경색1 mt-2">
             <label for="char">캐릭터</label>

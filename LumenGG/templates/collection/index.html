@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}카드 컬렉션{% endblock %}
-{% block v2_href %}{% url "collection:indexV2" %}{% endblock v2_href %}
+{% block v2_href %}{% url "collection:index" %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "collection/index.css" %}">
 <style>
@@ -75,7 +75,7 @@
 </div>
 {% if perms.card.add_card %}
 <div class="d-flex flex-row justify-content-end mb-2">
-    <a href="{% url "collection:create" %}" class="btn btn-light border">카드 추가</a>
+    <a href="{% url "collection:legacyCreate" %}" class="btn btn-light border">카드 추가</a>
 </div>
 {% endif %}
 <div id="너무크면줄임">
@@ -101,7 +101,7 @@
             {% if c.card %}
             <div class="merging">
                 <div>
-                    <a href="{% url "card:detail" c.card.id %}" class="hoverImage">
+                    <a href="{% url "card:legacyDetail" c.card.id %}" class="hoverImage">
                         {{ c.name }}
                         <span><img src="{{ c.img_sm }}" alt="카드이미지"></span>
                     </a>

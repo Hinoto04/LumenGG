@@ -1,7 +1,7 @@
 {% extends "base_v2.html" %}
 {% load static %}
 {% block title %}{% if is_update %}카드 수정{% else %}카드 추가{% endif %} - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% if is_update %}{% url "card:update" card.id %}{% else %}{% url "card:create" %}{% endif %}{% endblock legacy_href %}
+{% block legacy_href %}{% if is_update %}{% url "card:legacyUpdate" card.id %}{% else %}{% url "card:legacyCreate" %}{% endif %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-page-head">
     <div>
@@ -10,14 +10,14 @@
         <p class="v2-subtitle">{% if is_update %}카드 기본 정보와 보충 설명을 수정합니다.{% else %}카드 기본 정보와 수록 정보를 함께 등록합니다.{% endif %}</p>
     </div>
     <div class="v2-chip-row">
-        <a class="v2-button" href="{% url "card:indexV2" %}">목록</a>
+        <a class="v2-button" href="{% url "card:index" %}">목록</a>
         {% if is_update %}
-        <a class="v2-button" href="{% url "card:detailV2" card.id %}">상세</a>
+        <a class="v2-button" href="{% url "card:detail" card.id %}">상세</a>
         {% endif %}
     </div>
 </section>
 
-<form action="{% if is_update %}{% url "card:updateV2" card.id %}{% else %}{% url "card:createV2" %}{% endif %}" method="post" enctype="multipart/form-data" class="v2-panel v2-admin-form">
+<form action="{% if is_update %}{% url "card:update" card.id %}{% else %}{% url "card:create" %}{% endif %}" method="post" enctype="multipart/form-data" class="v2-panel v2-admin-form">
     {% include "form_errors.html" %}
     {% csrf_token %}
     <div class="v2-admin-grid">

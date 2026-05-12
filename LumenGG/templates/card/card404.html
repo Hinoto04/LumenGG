@@ -1,6 +1,6 @@
 {% extends "base_v2.html" %}
 {% block title %}카드 없음 - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "card:index" %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "card:legacyIndex" %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-error-wrap">
     <div class="v2-error-code">CARD</div>
@@ -11,12 +11,12 @@
         {% if cards %}
         <div class="v2-error-suggestions">
             {% for card in cards %}
-            <a href="{% url "card:detailV2" card.id %}">{{ card.name }}</a>
+            <a href="{% url "card:detail" card.id %}">{{ card.name }}</a>
             {% endfor %}
         </div>
         {% endif %}
         <div class="v2-error-actions">
-            <a class="v2-button v2-button-primary" href="{% url "card:indexV2" %}">카드 검색</a>
+            <a class="v2-button v2-button-primary" href="{% url "card:index" %}">카드 검색</a>
             <a class="v2-button" href="javascript:history.back()">이전 페이지</a>
         </div>
     </div>

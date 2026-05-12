@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}QNA{% endblock title %}
-{% block v2_href %}{% url "qna:indexV2" %}{% endblock v2_href %}
+{% block v2_href %}{% url "qna:index" %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "qna/index.css" %}">
 {% endblock style %}
@@ -27,7 +27,7 @@
 </div>
 {% if perms.qna.manage %}
 <div class="d-flex flex-row justify-content-end">
-    <a href="{% url "qna:create" %}" class="btn btn-sm btn-dark">Q&A추가</a>
+    <a href="{% url "qna:legacyCreate" %}" class="btn btn-sm btn-dark">Q&A추가</a>
 </div>
 {% endif %}
 <table id="QNA목록" class="w-100">
@@ -42,7 +42,7 @@
         {% for qna in data %}
         <tr class="QNA정보 배경색1">
             <td>{{ qna.id }}</td>
-            <td><a href="{% url "qna:detail" qna.id %}">{{ qna.title }}</a></td>
+            <td><a href="{% url "qna:legacyDetail" qna.id %}">{{ qna.title }}</a></td>
             {% if qna.faq %}
             <td>★</td>
             {% else %}
@@ -54,7 +54,7 @@
 </table>
 {% if perms.qna.manage %}
 <div class="d-flex flex-row justify-content-end">
-    <a href="{% url "qna:create" %}" class="btn btn-sm btn-dark">Q&A추가</a>
+    <a href="{% url "qna:legacyCreate" %}" class="btn btn-sm btn-dark">Q&A추가</a>
 </div>
 {% endif %}
 <div class="paginator d-flex justify-content-center">

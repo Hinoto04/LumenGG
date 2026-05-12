@@ -148,7 +148,7 @@ class Command(BaseCommand):
             f'운영자: {organizer.username} / 참가자: {len(players)}명 / 제출 덱 수: {deck_count} / '
             f'스위스 {options["swiss_rounds"]}R / TOP {options["top_cut"]} / {options["elimination_mode"]}'
         )
-        self.stdout.write(f'URL: {reverse("tournament:detailV2", kwargs={"id": tournament.id})}')
+        self.stdout.write(f'URL: {reverse("tournament:detail", kwargs={"id": tournament.id})}')
         if round_obj:
             self.stdout.write(self.style.SUCCESS(f'스위스 {round_obj.number}라운드 시작됨'))
 

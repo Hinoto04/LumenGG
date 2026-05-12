@@ -5,7 +5,7 @@
 {% block title %}
 {{ qna.title }}
 {% endblock title %}
-{% block v2_href %}{% url "qna:detailV2" qna.id %}{% endblock v2_href %}
+{% block v2_href %}{% url "qna:detail" qna.id %}{% endblock v2_href %}
 {% block meta %}
 <meta content="{{ qna.title }}" property="og:title" />
 <meta content="{{ qna.question }} - {{ qna.answer }}" property="og:description" />
@@ -22,7 +22,7 @@
     </div>
     {% if perms.qna.manage %}
     <div class="d-flex flex-row justify-content-end mb-2">
-        <a href="{% url "qna:update" qna.id %}" class="btn btn-sm btn-warning me-2">QNA 수정</a>
+        <a href="{% url "qna:legacyUpdate" qna.id %}" class="btn btn-sm btn-warning me-2">QNA 수정</a>
         <a href="{% url "qna:delete" qna.id %}" class="btn btn-sm btn-danger">QNA 삭제</a>
     </div>
     {% endif %}
@@ -40,7 +40,7 @@
         <div class="관련상자">
             {% for card in qna.cards.all %}
             <div class="관련카드 배경색1">
-                <a href="{% url 'card:detail' card.id %}">
+                <a href="{% url 'card:legacyDetail' card.id %}">
                     <div class="w-100 d-flex flex-column justify-content-center hoverBig">
                         <img class="w-100" src="{{ card.img_mid }}" alt="{{ card.name }}">
                         <div class="카드정보">

@@ -1,6 +1,6 @@
 {% extends "base_v2.html" %}
 {% block title %}대회 생성 - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "tournament:indexV2" %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "card:legacyIndex" %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-page-head">
     <div>
@@ -9,11 +9,11 @@
         <p class="v2-subtitle">공개 범위, 요구 덱 리스트 수, 기본 라운드 시간과 세트/점수 규칙을 설정합니다. 덱 리스트 수가 0이면 제출을 요구하지 않습니다.</p>
     </div>
     <div class="v2-chip-row">
-        <a class="v2-button" href="{% url "tournament:indexV2" %}">목록</a>
+        <a class="v2-button" href="{% url "tournament:index" %}">목록</a>
     </div>
 </section>
 
-<form action="{% url "tournament:createV2" %}" method="post" class="v2-panel v2-admin-form v2-tournament-form">
+<form action="{% url "tournament:create" %}" method="post" class="v2-panel v2-admin-form v2-tournament-form">
     {% csrf_token %}
     {{ form.non_field_errors }}
     <div class="v2-admin-grid v2-tournament-create-grid">

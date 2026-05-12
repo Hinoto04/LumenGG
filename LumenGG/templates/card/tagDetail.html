@@ -31,7 +31,7 @@
             <tbody>
                 {% for card in keyword %}
                 <tr>
-                    <td><a href="{% url "card:detail" card.id %}">{{ card.name }}</a></td>
+                    <td><a href="{% url "card:legacyDetail" card.id %}">{{ card.name }}</a></td>
                     <td>{{ card.character.name }}</td>
                     <td>{{ card.text|linebreaks }}</td>
                     <td>{{ card.keyword }}</td>
@@ -54,7 +54,7 @@
             <tbody>
                 {% for card in search %}
                 <tr>
-                    <td><a href="{% url "card:detail" card.id %}">{{ card.name }}</a></td>
+                    <td><a href="{% url "card:legacyDetail" card.id %}">{{ card.name }}</a></td>
                     <td>{{ card.character.name }}</td>
                     <td>{{ card.text|linebreaks }}</td>
                     <td>{{ card.search }}</td>

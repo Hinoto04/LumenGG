@@ -83,7 +83,7 @@ def _join_code_url(request, tournament):
     if not tournament.join_code:
         return ''
     return request.build_absolute_uri(
-        reverse('tournament:joinCodeLinkV2', kwargs={'code': tournament.join_code})
+        reverse('tournament:joinCodeLink', kwargs={'code': tournament.join_code})
     )
 
 
@@ -239,7 +239,7 @@ def indexV2(req):
     return render(req, 'tournament/list_v2.html', context)
 
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:login', redirect_field_name='next')
 def createV2(req):
     if req.method == 'POST':
         form = TournamentForm(req.POST)
@@ -248,13 +248,13 @@ def createV2(req):
             tournament.organizer = req.user
             tournament.save()
             messages.success(req, '대회를 생성했습니다.')
-            return redirect('tournament:detailV2', id=tournament.id)
+            return redirect('tournament:detail', id=tournament.id)
     else:
         form = TournamentForm(initial={'event_date': timezone.now().strftime('%Y-%m-%dT%H:%M')})
     return render(req, 'tournament/create_v2.html', {'form': form})
 
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:login', redirect_field_name='next')
 def editV2(req, id):
     tournament = get_object_or_404(Tournament.objects.select_related('organizer'), id=id)
     if not _is_operator(req.user, tournament):
@@ -265,7 +265,7 @@ def editV2(req, id):
         if form.is_valid():
             form.save()
             messages.success(req, '대회 설정을 저장했습니다.')
-            return redirect('tournament:detailV2', id=tournament.id)
+            return redirect('tournament:detail', id=tournament.id)
     else:
         form = TournamentForm(instance=tournament)
     return render(req, 'tournament/edit_v2.html', {'form': form, 'tournament': tournament})
@@ -278,7 +278,7 @@ def joinCodeV2(req, code=''):
 
     if not code:
         messages.error(req, '참가 코드를 입력해주세요.')
-        return redirect('tournament:indexV2')
+        return redirect('tournament:index')
 
     tournament = (
         Tournament.objects.filter(
@@ -290,13 +290,13 @@ def joinCodeV2(req, code=''):
     )
     if not tournament:
         messages.error(req, '해당 참가 코드의 대회를 찾을 수 없습니다.')
-        return redirect('tournament:indexV2')
+        return redirect('tournament:index')
 
-    detail_url = reverse('tournament:detailV2', kwargs={'id': tournament.id})
+    detail_url = reverse('tournament:detail', kwargs={'id': tournament.id})
     return redirect(f'{detail_url}?{urlencode({"join_code": code})}')
 
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:login', redirect_field_name='next')
 def joinQrV2(req, id):
     tournament = get_object_or_404(Tournament.objects.select_related('organizer'), id=id)
     if not _is_operator(req.user, tournament):
@@ -421,7 +421,7 @@ def detailV2(req, id):
     return render(req, 'tournament/detail_v2.html', context)
 
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:login', redirect_field_name='next')
 def deckSearchV2(req):
     query = req.GET.get('q', '').strip()
     query_is_id = query.isdigit()
@@ -462,7 +462,7 @@ def tagStatsV2(req):
     tag = _normalize_tournament_tag(req.GET.get('tag', ''))
     if not tag:
         messages.error(req, '통계를 확인할 대회 태그를 선택해주세요.')
-        return redirect('tournament:indexV2')
+        return redirect('tournament:index')
 
     visible_tournaments = _apply_visible_tournament_filter(
         Tournament.objects.select_related('organizer').order_by('-event_date', '-created_at'),
@@ -606,20 +606,20 @@ def statsV2(req):
     return render(req, 'tournament/stats_v2.html', context)
 
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:login', redirect_field_name='next')
 def joinV2(req, id):
     tournament = get_object_or_404(Tournament, id=id)
     participant = TournamentParticipant.objects.filter(tournament=tournament, user=req.user).first()
     active_participant = participant and not participant.dropped
     if tournament.status != Tournament.STATUS_REGISTRATION:
         messages.error(req, '참가 접수 중인 대회만 참가 정보를 수정할 수 있습니다.')
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
     if not tournament.can_join and not active_participant:
         messages.error(req, '현재 참가할 수 없는 대회입니다.')
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
 
     if req.method != 'POST':
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
 
     form = TournamentJoinForm(req.POST, user=req.user, tournament=tournament, instance=participant)
     if form.is_valid():
@@ -651,30 +651,30 @@ def joinV2(req, id):
             messages.success(req, '참가 정보를 저장했습니다.')
     else:
         messages.error(req, '참가 정보를 확인해주세요.')
-    return redirect('tournament:detailV2', id=tournament.id)
+    return redirect('tournament:detail', id=tournament.id)
 
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:login', redirect_field_name='next')
 def dropV2(req, id):
     tournament = get_object_or_404(Tournament, id=id)
     participant = get_object_or_404(TournamentParticipant, tournament=tournament, user=req.user)
     if req.method == 'POST':
         if tournament.status != Tournament.STATUS_REGISTRATION:
             messages.error(req, '대회 시작 후에는 참가를 취소할 수 없습니다.')
-            return redirect('tournament:detailV2', id=tournament.id)
+            return redirect('tournament:detail', id=tournament.id)
         participant.dropped = True
         participant.save(update_fields=['dropped'])
         messages.success(req, '대회 참가를 취소했습니다.')
-    return redirect('tournament:detailV2', id=tournament.id)
+    return redirect('tournament:detail', id=tournament.id)
 
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:login', redirect_field_name='next')
 def startRoundV2(req, id):
     tournament = get_object_or_404(Tournament, id=id)
     if not _is_operator(req.user, tournament):
         raise PermissionDenied()
     if req.method != 'POST':
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
 
     form = RoundStartForm(req.POST, tournament=tournament)
     if form.is_valid():
@@ -693,10 +693,10 @@ def startRoundV2(req, id):
             messages.error(req, str(exc))
     else:
         messages.error(req, '라운드 시작 설정을 확인해주세요.')
-    return redirect('tournament:detailV2', id=tournament.id)
+    return redirect('tournament:detail', id=tournament.id)
 
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:login', redirect_field_name='next')
 def reportMatchV2(req, id, match_id):
     tournament = get_object_or_404(Tournament, id=id)
     match = get_object_or_404(
@@ -708,33 +708,33 @@ def reportMatchV2(req, id, match_id):
         raise PermissionDenied()
     if match.round.status != TournamentRound.STATUS_RUNNING:
         messages.error(req, '이미 종료된 라운드는 결과를 수정할 수 없습니다.')
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
     if req.method != 'POST' or match.is_bye:
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
 
     try:
         _read_match_result(req.POST, match)
     except ValueError as exc:
         messages.error(req, str(exc))
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
 
     match.status = TournamentMatch.STATUS_REPORTED
     match.reported_at = timezone.now()
     match.save(update_fields=['player1_score', 'player2_score', 'is_draw', 'winner', 'status', 'reported_at'])
     complete_round_if_ready(match.round)
     messages.success(req, '매치 결과를 저장했습니다.')
-    return redirect('tournament:detailV2', id=tournament.id)
+    return redirect('tournament:detail', id=tournament.id)
 
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:login', redirect_field_name='next')
 def reportRoundV2(req, id, round_id):
     tournament = get_object_or_404(Tournament, id=id)
     round_obj = get_object_or_404(TournamentRound, id=round_id, tournament=tournament)
     if round_obj.status != TournamentRound.STATUS_RUNNING:
         messages.error(req, '이미 종료된 라운드는 결과를 수정할 수 없습니다.')
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
     if req.method != 'POST':
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
 
     posted_match_ids = {
         int(match_id)
@@ -754,7 +754,7 @@ def reportRoundV2(req, id, round_id):
 
     if not matches:
         messages.error(req, '저장할 수 있는 매치 결과가 없습니다.')
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
 
     reported_at = timezone.now()
     try:
@@ -769,7 +769,7 @@ def reportRoundV2(req, id, round_id):
             match.reported_at = reported_at
     except ValueError as exc:
         messages.error(req, str(exc))
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
 
     with transaction.atomic():
         for match in matches:
@@ -777,10 +777,10 @@ def reportRoundV2(req, id, round_id):
         complete_round_if_ready(round_obj)
 
     messages.success(req, f'{round_obj.number}라운드 결과를 저장했습니다.')
-    return redirect('tournament:detailV2', id=tournament.id)
+    return redirect('tournament:detail', id=tournament.id)
 
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:login', redirect_field_name='next')
 def finishV2(req, id):
     tournament = get_object_or_404(Tournament, id=id)
     if not _is_operator(req.user, tournament):
@@ -792,21 +792,21 @@ def finishV2(req, id):
             lock_submitted_decks(tournament)
             tag_submitted_decks(tournament)
         messages.success(req, '대회를 종료했습니다.')
-    return redirect('tournament:detailV2', id=tournament.id)
+    return redirect('tournament:detail', id=tournament.id)
 
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:login', redirect_field_name='next')
 def deleteV2(req, id):
     tournament = get_object_or_404(Tournament.objects.select_related('organizer'), id=id)
     if not _is_operator(req.user, tournament):
         raise PermissionDenied()
     if req.method != 'POST':
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
     if not _can_delete_tournament(req.user, tournament):
         messages.error(req, '종료되었거나 2라운드 이상 진행된 대회는 슈퍼유저만 삭제할 수 있습니다.')
-        return redirect('tournament:detailV2', id=tournament.id)
+        return redirect('tournament:detail', id=tournament.id)
 
     tournament_name = tournament.name
     tournament.delete()
     messages.success(req, f'{tournament_name} 대회를 삭제했습니다.')
-    return redirect('tournament:indexV2')
+    return redirect('tournament:index')

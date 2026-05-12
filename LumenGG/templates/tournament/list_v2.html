@@ -1,6 +1,6 @@
 {% extends "base_v2.html" %}
 {% block title %}대회 운영 - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "card:index" %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "card:legacyIndex" %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-page-head">
     <div>
@@ -10,8 +10,8 @@
     </div>
     <div class="v2-chip-row">
         <span class="v2-chip">총 {{ tournaments.paginator.count }}개</span>
-        <a class="v2-button" href="{% url "tournament:statsV2" %}">통계</a>
-        <a class="v2-button v2-button-primary" href="{% url "tournament:createV2" %}">대회 생성</a>
+        <a class="v2-button" href="{% url "tournament:stats" %}">통계</a>
+        <a class="v2-button v2-button-primary" href="{% url "tournament:create" %}">대회 생성</a>
     </div>
 </section>
 
@@ -23,7 +23,7 @@
 </div>
 {% endif %}
 
-<form action="{% url "tournament:joinCodeV2" %}" method="post" class="v2-panel v2-tournament-code-panel">
+<form action="{% url "tournament:joinCode" %}" method="post" class="v2-panel v2-tournament-code-panel">
     {% csrf_token %}
     <div>
         <strong>참가 코드로 참가</strong>
@@ -35,7 +35,7 @@
     </div>
 </form>
 
-<form action="{% url "tournament:indexV2" %}" method="get" class="v2-panel v2-search-panel">
+<form action="{% url "tournament:index" %}" method="get" class="v2-panel v2-search-panel">
     <div class="v2-tournament-filter-row">
         <select name="status">
             <option value="">전체 상태</option>
@@ -49,7 +49,7 @@
 
 <section class="v2-tournament-grid">
     {% for tournament in tournaments %}
-    <article class="v2-tournament-card v2-clickable-card" data-href="{% url "tournament:detailV2" tournament.id %}" role="link" tabindex="0" aria-label="{{ tournament.name }} 상세 보기">
+    <article class="v2-tournament-card v2-clickable-card" data-href="{% url "tournament:detail" tournament.id %}" role="link" tabindex="0" aria-label="{{ tournament.name }} 상세 보기">
         <div class="v2-tournament-card-top">
             <span class="v2-tournament-status status-{{ tournament.status }}">{{ tournament.get_status_display }}</span>
             <span>{{ tournament.get_format_display }}</span>
@@ -60,7 +60,7 @@
         {% if tournament.tag_list %}
         <div class="v2-chip-row v2-tournament-tag-row">
             {% for tag in tournament.tag_list %}
-            <a class="v2-chip" href="{% url "tournament:tagStatsV2" %}?tag={{ tag|urlencode }}">#{{ tag }}</a>
+            <a class="v2-chip" href="{% url "tournament:tagStats" %}?tag={{ tag|urlencode }}">#{{ tag }}</a>
             {% endfor %}
         </div>
         {% endif %}

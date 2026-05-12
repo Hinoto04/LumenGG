@@ -112,7 +112,7 @@ def create(req, template_name='qna/create.html', detail_route='qna:detail'):
             return JsonResponse(content)
 
 def createV2(req):
-    return create(req, 'qna/create_v2.html', 'qna:detailV2')
+    return create(req, 'qna/create_v2.html', 'qna:detail')
 
 def createSearch(req):
     keyword = req.GET.get('keyword', '')
@@ -168,7 +168,7 @@ def update(req, id=0, template_name='qna/update.html', detail_route='qna:detail'
             return JsonResponse(content)
 
 def updateV2(req, id=0):
-    return update(req, id, 'qna/update_v2.html', 'qna:detailV2')
+    return update(req, id, 'qna/update_v2.html', 'qna:detail')
 
 @permission_required('qna.manage')
 def delete(req, id=0):

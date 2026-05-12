@@ -1,7 +1,7 @@
 {% extends "base_v2.html" %}
 {% load static %}
 {% block title %}{{ tournament.name }} - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "tournament:indexV2" %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "card:legacyIndex" %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-tournament-hero v2-panel">
     <div>
@@ -15,7 +15,7 @@
         <span class="v2-chip">운영자 {{ tournament.organizer.username }}</span>
         <span class="v2-chip">{{ tournament.get_visibility_display }}</span>
         {% for tag in tournament.tag_list %}
-        <a class="v2-chip" href="{% url "tournament:tagStatsV2" %}?tag={{ tag|urlencode }}">#{{ tag }}</a>
+        <a class="v2-chip" href="{% url "tournament:tagStats" %}?tag={{ tag|urlencode }}">#{{ tag }}</a>
         {% endfor %}
         <span class="v2-chip">{% if tournament.decklist_required_count %}덱 리스트 {{ tournament.decklist_required_count }}개{% else %}덱 리스트 미요구{% endif %}</span>
         {% if tournament.swiss_round_count %}<span class="v2-chip">스위스 {{ tournament.swiss_round_count }}라운드</span>{% endif %}
@@ -28,7 +28,7 @@
         <span class="v2-chip">참가 코드 {{ tournament.join_code }}</span>
         {% endif %}
         {% if is_operator %}
-        <a class="v2-chip" href="{% url "tournament:editV2" tournament.id %}">설정 편집</a>
+        <a class="v2-chip" href="{% url "tournament:edit" tournament.id %}">설정 편집</a>
         {% endif %}
     </div>
 </section>
@@ -44,7 +44,7 @@
 <section class="v2-tournament-dashboard">
     <aside class="v2-tournament-side">
         {% if user.is_authenticated %}
-        <form action="{% url "tournament:joinV2" tournament.id %}" method="post" class="v2-panel v2-tournament-join" data-tournament-join-form>
+        <form action="{% url "tournament:join" tournament.id %}" method="post" class="v2-panel v2-tournament-join" data-tournament-join-form>
             {% csrf_token %}
             <h2>{% if participant %}참가 정보{% else %}대회 참가{% endif %}</h2>
             {{ join_form.non_field_errors }}
@@ -96,7 +96,7 @@
             </button>
         </form>
         {% if participant and not participant.dropped and tournament.status == "registration" %}
-        <form action="{% url "tournament:dropV2" tournament.id %}" method="post" class="v2-tournament-drop-form">
+        <form action="{% url "tournament:drop" tournament.id %}" method="post" class="v2-tournament-drop-form">
             {% csrf_token %}
             <button class="v2-button v2-danger-button" type="submit">참가 취소</button>
         </form>
@@ -105,7 +105,7 @@
         <div class="v2-panel v2-tournament-join">
             <h2>대회 참가</h2>
             <p class="v2-tournament-note">로그인 후 참가할 수 있습니다.</p>
-            <a class="v2-button v2-button-primary" href="{% url "common:loginV2" %}?next={{ request.get_full_path|urlencode }}">로그인</a>
+            <a class="v2-button v2-button-primary" href="{% url "common:login" %}?next={{ request.get_full_path|urlencode }}">로그인</a>
         </div>
         {% endif %}
 
@@ -115,7 +115,7 @@
             <h2>참가 링크</h2>
             <p class="v2-tournament-note">참가 코드 {{ tournament.join_code }}로 바로 이 대회에 접근할 수 있습니다. QR 이미지는 QR 이미지 열기에서 확인할 수 있습니다.</p>
             <a class="v2-button" href="{{ join_code_url }}">참가 링크 열기</a>
-            <a class="v2-button" href="{% url "tournament:joinQrV2" tournament.id %}" target="_blank" rel="noopener">QR 이미지 열기</a>
+            <a class="v2-button" href="{% url "tournament:joinQr" tournament.id %}" target="_blank" rel="noopener">QR 이미지 열기</a>
         </div>
         {% endif %}
         {% if elimination_winner %}
@@ -124,7 +124,7 @@
             <p class="v2-tournament-note">우승자가 결정되어 더 이상 라운드를 생성할 수 없습니다.</p>
         </div>
         {% else %}
-        <form action="{% url "tournament:startRoundV2" tournament.id %}" method="post" class="v2-panel v2-tournament-join">
+        <form action="{% url "tournament:startRound" tournament.id %}" method="post" class="v2-panel v2-tournament-join">
             {% csrf_token %}
             <h2>라운드 시작</h2>
             <div class="v2-admin-field">
@@ -157,12 +157,12 @@
         </form>
         {% endif %}
         {% if tournament.status != "finished" %}
-        <form action="{% url "tournament:finishV2" tournament.id %}" method="post" class="v2-tournament-drop-form">
+        <form action="{% url "tournament:finish" tournament.id %}" method="post" class="v2-tournament-drop-form">
             {% csrf_token %}
             <button class="v2-button v2-danger-button" type="submit">대회 종료</button>
         </form>
         {% endif %}
-        <form action="{% url "tournament:deleteV2" tournament.id %}" method="post" class="v2-tournament-drop-form" onsubmit="return confirm('이 대회를 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.');">
+        <form action="{% url "tournament:delete" tournament.id %}" method="post" class="v2-tournament-drop-form" onsubmit="return confirm('이 대회를 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.');">
             {% csrf_token %}
             {% if delete_requires_superuser and not can_delete_tournament %}
             <p class="v2-tournament-note">종료되었거나 2라운드 이상 진행된 대회는 슈퍼유저만 삭제할 수 있습니다.</p>
@@ -217,7 +217,7 @@
                                 <div class="v2-tournament-deck-list">
                                     {% for submission in row.deck_submissions %}
                                     {% if submission.can_view %}
-                                    <a href="{% url "deck:detailV2" submission.deck.id %}">#{{ submission.slot }} {{ submission.deck.name }}</a>
+                                    <a href="{% url "deck:detail" submission.deck.id %}">#{{ submission.slot }} {{ submission.deck.name }}</a>
                                     <span>{{ submission.deck.character.name }}</span>
                                     {% else %}
                                     <span>#{{ submission.slot }} 비공개 덱</span>
@@ -263,7 +263,7 @@
                         <span class="v2-chip">{{ round.started_at|date:"H:i" }} 시작</span>
                     </div>
                     {% if round.can_report %}
-                    <form action="{% url "tournament:reportRoundV2" tournament.id round.id %}" method="post" class="v2-tournament-round-result-form">
+                    <form action="{% url "tournament:reportRound" tournament.id round.id %}" method="post" class="v2-tournament-round-result-form">
                         {% csrf_token %}
                     {% endif %}
                     <div class="v2-tournament-match-list">
@@ -329,7 +329,7 @@
                     <div class="v2-tournament-deck-list">
                         {% for submission in row.deck_submissions %}
                         {% if submission.can_view %}
-                        <a href="{% url "deck:detailV2" submission.deck.id %}">#{{ submission.slot }} {{ submission.deck.name }}</a>
+                        <a href="{% url "deck:detail" submission.deck.id %}">#{{ submission.slot }} {{ submission.deck.name }}</a>
                         <span>{{ submission.deck.character.name }}</span>
                         {% else %}
                         <span>#{{ submission.slot }} 비공개 덱</span>
@@ -389,7 +389,7 @@
 
 <script>
     window.v2TournamentConfig = {
-        deckSearchUrl: "{% url "tournament:deckSearchV2" %}"
+        deckSearchUrl: "{% url "tournament:deckSearch" %}"
     };
 </script>
 <script src="{% static "v2/tournament.js" %}"></script>

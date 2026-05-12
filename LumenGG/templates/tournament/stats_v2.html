@@ -1,6 +1,6 @@
 {% extends "base_v2.html" %}
 {% block title %}대회 통계 - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "tournament:indexV2" %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "card:legacyIndex" %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-page-head">
     <div>
@@ -9,7 +9,7 @@
         <p class="v2-subtitle">대회 운영 데이터와 종료된 대회의 덱 제출 데이터를 모아서 확인합니다.</p>
     </div>
     <div class="v2-chip-row">
-        <a class="v2-button" href="{% url "tournament:indexV2" %}">대회 목록</a>
+        <a class="v2-button" href="{% url "tournament:index" %}">대회 목록</a>
     </div>
 </section>
 
@@ -65,7 +65,7 @@
         <p class="v2-tournament-note">태그를 선택하면 해당 태그가 붙은 대회만 모아 상세 통계를 확인합니다.</p>
         <div class="v2-chip-row v2-tournament-stat-chip-row">
             {% for tag in popular_tags %}
-            <a class="v2-chip" href="{% url "tournament:tagStatsV2" %}?tag={{ tag.name|urlencode }}">#{{ tag.name }} {{ tag.count }}</a>
+            <a class="v2-chip" href="{% url "tournament:tagStats" %}?tag={{ tag.name|urlencode }}">#{{ tag.name }} {{ tag.count }}</a>
             {% empty %}
             <span class="v2-chip">태그 없음</span>
             {% endfor %}

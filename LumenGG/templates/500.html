@@ -1,6 +1,6 @@
 {% extends "base_v2.html" %}
 {% block title %}500 Server Error - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "card:index" %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "card:legacyIndex" %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-error-wrap">
     <div class="v2-error-code">500</div>
@@ -9,7 +9,7 @@
         <h1 class="v2-title">서버에서 문제가 발생했습니다.</h1>
         <p class="v2-subtitle">잠시 후 다시 시도해주세요. 같은 문제가 계속되면 디스코드 doublejung04 로 문의해주세요.</p>
         <div class="v2-error-actions">
-            <a class="v2-button v2-button-primary" href="{% url "card:indexV2" %}">메인으로 이동</a>
+            <a class="v2-button v2-button-primary" href="{% url "card:index" %}">메인으로 이동</a>
             <a class="v2-button" href="javascript:location.reload()">다시 시도</a>
         </div>
     </div>

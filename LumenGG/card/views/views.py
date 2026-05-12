@@ -232,6 +232,18 @@ def detailName(req, name):
         }
         return render(req, 'card/card404.html', context=context)
     else:
+        return detailV2(req, card.id)
+
+def detailNameLegacy(req, name):
+    try:
+        card = Card.objects.get(name=name)
+    except Card.DoesNotExist:
+        cards = Card.objects.filter(Q(name__contains=name)|Q(keyword__contains=name)|Q(hiddenKeyword__contains=name))
+        context = {
+            'cards': cards
+        }
+        return render(req, 'card/card404.html', context=context)
+    else:
         return detail(req, card.id)
 
 @permission_required('card.add_card')
@@ -269,7 +281,7 @@ def create(req, template_name='card/create.html', detail_route='card:detail'):
             return render(req, template_name, context={'form': form, 'is_update': False})
 
 def createV2(req):
-    return create(req, 'card/create_v2.html', 'card:detailV2')
+    return create(req, 'card/create_v2.html', 'card:detail')
 
 @permission_required('card.change_card')
 def update(req, id=0, template_name='card/create.html', detail_route='card:detail'):
@@ -294,7 +306,7 @@ def update(req, id=0, template_name='card/create.html', detail_route='card:detai
     return render(req, template_name, context={'form': form, 'card': card, 'is_update': True})
 
 def updateV2(req, id=0):
-    return update(req, id, 'card/create_v2.html', 'card:detailV2')
+    return update(req, id, 'card/create_v2.html', 'card:detail')
 
 
 def save_card_image_files(card, uploaded_image):

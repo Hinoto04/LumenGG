@@ -110,7 +110,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f'참가자 추가 완료: #{tournament.id} {tournament.name}'))
         self.stdout.write(f'추가 참가자: {len(assignments)}명 / 제출 덱 수: {deck_count}')
-        self.stdout.write(f'URL: {reverse("tournament:detailV2", kwargs={"id": tournament.id})}')
+        self.stdout.write(f'URL: {reverse("tournament:detail", kwargs={"id": tournament.id})}')
 
         self.stdout.write('')
         self.stdout.write('추가된 참가자 / 제출 덱')

@@ -122,7 +122,7 @@ def create(req, template_name='collection/create.html', success_route='collectio
             return render(req, template_name, context={'form': form})
 
 def createV2(req):
-    return create(req, 'collection/create_v2.html', 'collection:indexV2')
+    return create(req, 'collection/create_v2.html', 'collection:index')
             
 def handle_uploaded_file(f, filePath):
     print(filePath)

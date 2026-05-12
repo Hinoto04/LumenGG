@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}{% if is_update %}카드 수정{% else %}카드 추가{% endif %}{% endblock title %}
-{% block v2_href %}{% if is_update %}{% url "card:updateV2" card.id %}{% else %}{% url "card:createV2" %}{% endif %}{% endblock v2_href %}
+{% block v2_href %}{% if is_update %}{% url "card:update" card.id %}{% else %}{% url "card:create" %}{% endif %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "card/create.css" %}">
 {% endblock style %}
@@ -9,7 +9,7 @@
 <div id="최상단" class="d-flex flex-column mb-1">
     <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">{% if is_update %}카드 수정{% else %}카드 추가{% endif %}</div>
     {% if is_update %}
-    <a class="btn btn-sm btn-dark ms-1" href="{% url "card:detail" card.id %}">상세</a>
+    <a class="btn btn-sm btn-dark ms-1" href="{% url "card:legacyDetail" card.id %}">상세</a>
     {% endif %}
 </div>
 <form action="" method="post" enctype="multipart/form-data">

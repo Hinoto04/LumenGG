@@ -32,7 +32,10 @@ def login_view(req, template_name='common/login.html', default_redirect='card:in
         return render(req, template_name, context={'form': LoginForm()})
 
 def loginV2(req):
-    return login_view(req, 'common/login_v2.html', 'card:indexV2')
+    return login_view(req, 'common/login_v2.html', 'card:index')
+
+def loginLegacy(req):
+    return login_view(req, 'common/login.html', 'card:legacyIndex')
 
 # Create your views here.
 @login_required(login_url='common:login')
@@ -57,7 +60,10 @@ def signup(req, template_name='common/signup.html', success_route='card:index'):
         return render(req, template_name, {'form': form})
 
 def signupV2(req):
-    return signup(req, 'common/signup_v2.html', 'card:indexV2')
+    return signup(req, 'common/signup_v2.html', 'card:index')
+
+def signupLegacy(req):
+    return signup(req, 'common/signup.html', 'card:legacyIndex')
 
 def profile(req, id=0, template_name='common/userpage.html'):
     if id==0 and req.user.is_authenticated:

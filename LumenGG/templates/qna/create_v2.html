@@ -1,7 +1,7 @@
 {% extends "base_v2.html" %}
 {% load static %}
 {% block title %}Q&A 추가 - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "qna:create" %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "qna:legacyCreate" %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-page-head">
     <div>
@@ -10,11 +10,11 @@
         <p class="v2-subtitle">질문과 답변을 작성하고 관련 카드를 연결합니다.</p>
     </div>
     <div class="v2-chip-row">
-        <a class="v2-button" href="{% url "qna:indexV2" %}">목록</a>
+        <a class="v2-button" href="{% url "qna:index" %}">목록</a>
     </div>
 </section>
 
-<form action="{% url "qna:createV2" %}" method="post" class="v2-panel v2-admin-form" id="submitForm">
+<form action="{% url "qna:create" %}" method="post" class="v2-panel v2-admin-form" id="submitForm">
     {% include "form_errors.html" %}
     {% csrf_token %}
     <div class="v2-admin-field">
