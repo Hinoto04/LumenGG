@@ -1663,13 +1663,19 @@ label:has(> input.검색체크:checked) {
 }
 
 .v2-builder-card-actions button {
+    display: grid;
+    place-items: center;
+    width: 100%;
     min-height: 30px;
+    padding: 0 4px;
     border: 1px solid rgba(244, 241, 234, .28);
     border-radius: 8px;
-    color: var(--v2-text);
+    color: #f4f1ea;
     background: rgba(27, 27, 27, .86);
     font-size: .78rem;
     font-weight: 900;
+    line-height: 1;
+    text-align: center;
 }
 
 .v2-builder-ultimate-badge {
