@@ -535,6 +535,25 @@ label:has(> input.검색체크:checked) {
     color: #efd9ff;
 }
 
+:root[data-theme="light"] .v2-type-공격 {
+    border-color: rgba(178, 65, 65, .5);
+    color: #872424;
+    background: rgba(217, 105, 105, .16);
+}
+
+:root[data-theme="light"] .v2-type-수비 {
+    border-color: rgba(36, 125, 115, .5);
+    color: #145f58;
+    background: rgba(91, 190, 176, .16);
+}
+
+:root[data-theme="light"] .v2-type-특수,
+:root[data-theme="light"] .v2-type-특성 {
+    border-color: rgba(128, 82, 164, .5);
+    color: #5f367e;
+    background: rgba(185, 137, 214, .16);
+}
+
 .v2-card-text {
     display: -webkit-box;
     overflow: hidden;
