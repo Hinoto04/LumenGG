@@ -231,9 +231,7 @@ function makeSearchCard(card) {
     const body = document.createElement("div");
     const name = document.createElement("strong");
     name.textContent = card.name;
-    const frame = document.createElement("span");
-    frame.textContent = isUltimateCard(card) ? "얼티밋" : `${card.frame || "-"}F`;
-    body.append(name, frame);
+    body.append(name);
     tile.appendChild(body);
 
     tile.addEventListener("click", () => addCard(card, "list"));
