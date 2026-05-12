@@ -4,7 +4,7 @@
 {% block title %}
 {{ card.name }}
 {% endblock title %}
-{% block v2_href %}{% url "card:detailV2" card.id %}{% endblock v2_href %}
+{% block v2_href %}{% url "card:detail" card.id %}{% endblock v2_href %}
 {% block meta %}
 <meta content="{{ card.name }}" property="og:title" />
 <meta content="{{ card.text }}" property="og:description" />
@@ -29,7 +29,7 @@
     <div>
         <a id="돌아가기" href="javascript:history.back()">← 돌아가기</a>
         {% if perms.card.change_card %}
-        <a class="btn btn-sm btn-dark ms-2" href="{% url "card:update" card.id %}">카드 수정</a>
+        <a class="btn btn-sm btn-dark ms-2" href="{% url "card:legacyUpdate" card.id %}">카드 수정</a>
         {% endif %}
     </div>
     <div id="섹션1">
@@ -189,11 +189,11 @@
             <div id="{{ kw|cut:" " }}" class="관련상자">
                 {% for v in vs %}
                 <div class="관련카드 배경색1">
-                    <a href="{% url 'card:detail' v.id %}">
+                    <a href="{% url 'card:legacyDetail' v.id %}">
                         <div class="w-100 d-flex flex-column justify-content-center hoverBig">
                             <img class="w-100" src="{{ v.img_mid }}" alt="{{ v.name }}">
                             <div class="카드정보">
-                                <a class="캐릭터명2" href="{% url "card:character" %}?id={{v.character.id}}">
+                                <a class="캐릭터명2" href="{% url "card:legacyCharacter" %}?id={{v.character.id}}">
                                     {{ v.character.name }}</a>
                                 <p class="카드명2">{{ v.name }}</p>
                             </div>
@@ -210,7 +210,7 @@
     <div id="qna" class="mt-2 mb-3">
         <div class="w-100 sectionName">관련 Q&A</div>
         {% for qna in card.qna.all %}
-        <a href="{% url "qna:detail" qna.id %}">
+        <a href="{% url "qna:legacyDetail" qna.id %}">
             <div class="질문답변 배경색1">
                 <h4 class="mb-0">{{ qna.title }}</h4>
                 <p class="mb-0"><b>Q: </b>{{ qna.question }}</p>

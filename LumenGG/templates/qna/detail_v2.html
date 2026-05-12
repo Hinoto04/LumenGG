@@ -3,7 +3,7 @@
 {% load card_tags %}
 {% load qna_tags %}
 {% block title %}{{ qna.title }} - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "qna:detail" qna.id %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "qna:legacyDetail" qna.id %}{% endblock legacy_href %}
 {% block meta %}
 <meta content="{{ qna.title }}" property="og:title" />
 <meta content="{{ qna.question }} - {{ qna.answer }}" property="og:description" />
@@ -18,10 +18,10 @@
         <p class="v2-subtitle">{{ qna.tags|keywords }}</p>
     </div>
     <div class="v2-chip-row">
-        <a class="v2-button" href="{% url "qna:indexV2" %}">목록</a>
+        <a class="v2-button" href="{% url "qna:index" %}">목록</a>
         {% if qna.faq %}<span class="v2-qna-faq-badge">FAQ</span>{% endif %}
         {% if perms.qna.manage %}
-        <a class="v2-button" href="{% url "qna:updateV2" qna.id %}">수정</a>
+        <a class="v2-button" href="{% url "qna:update" qna.id %}">수정</a>
         <a class="v2-button" href="{% url "qna:delete" qna.id %}">삭제</a>
         {% endif %}
     </div>
@@ -43,7 +43,7 @@
         <h2 class="v2-section-title">관련 카드</h2>
         <div class="v2-qna-related-grid">
             {% for card in qna.cards.all %}
-            <a class="v2-qna-related-card" href="{% url "card:detailV2" card.id %}">
+            <a class="v2-qna-related-card" href="{% url "card:detail" card.id %}">
                 <div class="v2-qna-related-image">
                     <img src="{{ card.img_mid }}" alt="{{ card.name }}">
                 </div>

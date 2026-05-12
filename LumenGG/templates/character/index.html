@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}캐릭터 목록{% endblock title %}
-{% block v2_href %}{% url "card:characterV2" %}?id={{ id }}{% endblock v2_href %}
+{% block v2_href %}{% url "card:character" %}?id={{ id }}{% endblock v2_href %}
 {% block style %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="{% static "character/index.css" %}">
@@ -107,7 +107,7 @@
     {% for comment in comments %}
         <div class="댓글 배경색1 mb-2">
             <div class="d-flex flex-row flex-wrap">
-                <div class="me-2"><a href="{% url "common:userpage" comment.author.id %}">
+                <div class="me-2"><a href="{% url "common:legacyUserpage" comment.author.id %}">
                     {{comment.author.username}} 테스트|</a></div>
                 <div class="별점">{{comment.score}}</div>
             </div>

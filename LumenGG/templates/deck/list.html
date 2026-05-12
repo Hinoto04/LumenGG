@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}덱 목록{% endblock title %}
-{% block v2_href %}{% url "deck:indexV2" %}{% endblock v2_href %}
+{% block v2_href %}{% url "deck:index" %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "deck/list.css" %}">
 {% endblock style %}
@@ -27,7 +27,7 @@
     </form>
     <hr class="my-4">
     <div class="d-flex justify-content-end">
-        <a class="btn btn-dark btn-sm" href="{% url "deck:create" %}">덱 만들기</a>
+        <a class="btn btn-dark btn-sm" href="{% url "deck:legacyCreate" %}">덱 만들기</a>
     </div>
     <div class="d-flex">
         <table id="덱목록" class="w-100">
@@ -46,12 +46,12 @@
                 <tr class="덱정보 배경색1">
                     <td class="모바일비표시">{{ deck.id }}</td>
                     <td class="t-left">
-                        <a href="{% url "deck:detail" deck.id %}" class="w-100 덱이름 t-left">{{ deck.name }}</a>
+                        <a href="{% url "deck:legacyDetail" deck.id %}" class="w-100 덱이름 t-left">{{ deck.name }}</a>
                         {% if deck.visibility != "public" %}<small>{{ deck.get_visibility_display }}</small>{% endif %}
                     </td>
-                    <td><a href="{% url "card:character" %}?id={{deck.character.id}}">{{ deck.character.name }}</a></td>
+                    <td><a href="{% url "card:legacyCharacter" %}?id={{deck.character.id}}">{{ deck.character.name }}</a></td>
                     <td>{{ deck.likecount|default_if_none:0 }}</td>
-                    <td class="모바일비표시"><a href="{% url "common:userpage" deck.author.id %}">{{ deck.author.username }}</a></td>
+                    <td class="모바일비표시"><a href="{% url "common:legacyUserpage" deck.author.id %}">{{ deck.author.username }}</a></td>
                     <td class="모바일비표시">{{ deck.version }}</td>
                 </tr>
                 {% endfor %}
@@ -59,7 +59,7 @@
         </table>
     </div>
     <div class="d-flex justify-content-end">
-        <a class="btn btn-dark btn-sm" href="{% url "deck:create" %}">덱 만들기</a>
+        <a class="btn btn-dark btn-sm" href="{% url "deck:legacyCreate" %}">덱 만들기</a>
     </div>
     <div class="paginator d-flex justify-content-center">
         <ul class="pagination">

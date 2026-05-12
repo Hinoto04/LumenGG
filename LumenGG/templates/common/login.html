@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}로그인{% endblock title %}
-{% block v2_href %}{% url "common:loginV2" %}{% endblock v2_href %}
+{% block v2_href %}{% url "common:login" %}{% endblock v2_href %}
 {% block content %}
 <div class="container my-3">
     <form method="post" action="">
@@ -19,8 +19,8 @@
                        value="{{ form.password.value|default_if_none:'' }}">
             </div>
             <div class="d-flex flex-column">
-                <a href="{% url "common:signup" %}">계정을 생성하시겠습니까? 회원가입</a>
-                <a href="{% url "password_reset" %}">비밀번호를 잊으셨습니까?</a>
+                <a href="{% url "common:legacySignup" %}">계정을 생성하시겠습니까? 회원가입</a>
+                <a href="{% url "password_resetLegacy" %}">비밀번호를 잊으셨습니까?</a>
                 <button type="submit" class="btn btn-primary w-25 ms-auto">로그인</button>
             </div>
         </div>

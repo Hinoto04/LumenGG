@@ -54,16 +54,51 @@ urlpatterns = [
     path('tournament/', include('tournament.urls'), name='tournament'),
     path('summernote/', include('django_summernote.urls')),
     
-    path('password_reset/', auth_views.PasswordResetView.as_view(), name="password_reset"),
-    path('password_reset_done/', auth_views.PasswordResetDoneView.as_view(), name="password_reset_done"),
-    path('password_reset_confirm/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(), name="password_reset_confirm"),
-    path('password_reset_complete/', auth_views.PasswordResetCompleteView.as_view(), name="password_reset_complete"),
+    path(
+        'legacy/password_reset/',
+        auth_views.PasswordResetView.as_view(success_url=reverse_lazy('password_reset_doneLegacy')),
+        name="password_resetLegacy",
+    ),
+    path('legacy/password_reset_done/', auth_views.PasswordResetDoneView.as_view(), name="password_reset_doneLegacy"),
+    path(
+        'legacy/password_reset_confirm/<uidb64>/<token>/',
+        auth_views.PasswordResetConfirmView.as_view(success_url=reverse_lazy('password_reset_completeLegacy')),
+        name="password_reset_confirmLegacy",
+    ),
+    path('legacy/password_reset_complete/', auth_views.PasswordResetCompleteView.as_view(), name="password_reset_completeLegacy"),
+    path(
+        'password_reset/',
+        auth_views.PasswordResetView.as_view(
+            template_name='registration/password_reset_form_v2.html',
+            email_template_name='registration/password_reset_email_v2.html',
+            success_url=reverse_lazy('password_reset_done'),
+        ),
+        name="password_reset",
+    ),
+    path(
+        'password_reset_done/',
+        auth_views.PasswordResetDoneView.as_view(template_name='registration/password_reset_done_v2.html'),
+        name="password_reset_done",
+    ),
+    path(
+        'password_reset_confirm/<uidb64>/<token>/',
+        auth_views.PasswordResetConfirmView.as_view(
+            template_name='registration/password_reset_confirm_v2.html',
+            success_url=reverse_lazy('password_reset_complete'),
+        ),
+        name="password_reset_confirm",
+    ),
+    path(
+        'password_reset_complete/',
+        auth_views.PasswordResetCompleteView.as_view(template_name='registration/password_reset_complete_v2.html'),
+        name="password_reset_complete",
+    ),
     path(
         'v2/password_reset/',
         auth_views.PasswordResetView.as_view(
             template_name='registration/password_reset_form_v2.html',
             email_template_name='registration/password_reset_email_v2.html',
-            success_url=reverse_lazy('password_reset_doneV2'),
+            success_url=reverse_lazy('password_reset_done'),
         ),
         name="password_resetV2",
     ),
@@ -76,7 +111,7 @@ urlpatterns = [
         'v2/password_reset_confirm/<uidb64>/<token>/',
         auth_views.PasswordResetConfirmView.as_view(
             template_name='registration/password_reset_confirm_v2.html',
-            success_url=reverse_lazy('password_reset_completeV2'),
+            success_url=reverse_lazy('password_reset_complete'),
         ),
         name="password_reset_confirmV2",
     ),

@@ -1,6 +1,6 @@
 {% extends "base_v2.html" %}
 {% block title %}대회 설정 - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "tournament:indexV2" %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "card:legacyIndex" %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-page-head">
     <div>
@@ -9,11 +9,11 @@
         <p class="v2-subtitle">대회 진행 중에도 공개 범위, 참가 코드, 라운드 수, 토너먼트 컷, 세트/점수 규칙을 조정할 수 있습니다.</p>
     </div>
     <div class="v2-chip-row">
-        <a class="v2-button" href="{% url "tournament:detailV2" tournament.id %}">상세</a>
+        <a class="v2-button" href="{% url "tournament:detail" tournament.id %}">상세</a>
     </div>
 </section>
 
-<form action="{% url "tournament:editV2" tournament.id %}" method="post" class="v2-panel v2-admin-form v2-tournament-form">
+<form action="{% url "tournament:edit" tournament.id %}" method="post" class="v2-panel v2-admin-form v2-tournament-form">
     {% csrf_token %}
     {{ form.non_field_errors }}
     <div class="v2-admin-grid v2-tournament-create-grid">

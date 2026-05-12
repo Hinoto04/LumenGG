@@ -215,9 +215,13 @@ def _copy(req, id=0, update_route='deck:update'):
 def copy(req, id=0):
     return _copy(req, id)
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:legacyLogin', redirect_field_name='next')
+def copyLegacy(req, id=0):
+    return _copy(req, id, 'deck:legacyUpdate')
+
+@login_required(login_url='common:login', redirect_field_name='next')
 def copyV2(req, id=0):
-    return _copy(req, id, 'deck:updateV2')
+    return _copy(req, id, 'deck:update')
 
 def can_view_deck(user, deck):
     visibility = Deck.VISIBILITY_PRIVATE if deck.private else deck.visibility
@@ -405,9 +409,13 @@ def _create(req, template_name='deck/create.html', detail_route='deck:detail'):
 def create(req):
     return _create(req)
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:legacyLogin', redirect_field_name='next')
+def createLegacy(req):
+    return _create(req, 'deck/create.html', 'deck:legacyDetail')
+
+@login_required(login_url='common:login', redirect_field_name='next')
 def createV2(req):
-    return _create(req, 'deck/create_v2.html', 'deck:detailV2')
+    return _create(req, 'deck/create_v2.html', 'deck:detail')
 
 def createSearch(req):
     neutral = req.GET.get('neutral', '')
@@ -538,9 +546,13 @@ def _update(req, id=0, template_name='deck/update.html', detail_route='deck:deta
 def update(req, id=0):
     return _update(req, id)
 
-@login_required(login_url='common:loginV2', redirect_field_name='next')
+@login_required(login_url='common:legacyLogin', redirect_field_name='next')
+def updateLegacy(req, id=0):
+    return _update(req, id, 'deck/update.html', 'deck:legacyDetail')
+
+@login_required(login_url='common:login', redirect_field_name='next')
 def updateV2(req, id=0):
-    return _update(req, id, 'deck/create_v2.html', 'deck:detailV2')
+    return _update(req, id, 'deck/create_v2.html', 'deck:detail')
 
 @login_required(login_url='common:login', redirect_field_name='next')
 def delete(req, id):

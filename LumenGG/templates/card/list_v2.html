@@ -2,7 +2,7 @@
 {% load static %}
 {% load card_tags %}
 {% block title %}카드 검색 - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "card:index" %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "card:legacyIndex" %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-page-head">
     <div>
@@ -14,12 +14,12 @@
         <span class="v2-chip">총 {{ cards.paginator.count }}장</span>
         <span class="v2-chip">{{ cards.number }} / {{ cards.paginator.num_pages }} 페이지</span>
         {% if perms.card.add_card %}
-        <a class="v2-button v2-button-primary" href="{% url "card:createV2" %}">카드 추가</a>
+        <a class="v2-button v2-button-primary" href="{% url "card:create" %}">카드 추가</a>
         {% endif %}
     </div>
 </section>
 
-<form action="{% url "card:indexV2" %}" method="get" class="v2-panel v2-search-panel" id="v2SearchForm">
+<form action="{% url "card:index" %}" method="get" class="v2-panel v2-search-panel" id="v2SearchForm">
     <div class="v2-search-row">
         {{ form.keyword }}
         {{ form.sort }}
@@ -69,7 +69,7 @@
 
 <section class="v2-card-grid">
     {% for card in cards %}
-    <a class="v2-card-tile" href="{% url "card:detailV2" card.id %}">
+    <a class="v2-card-tile" href="{% url "card:detail" card.id %}">
         <div class="v2-card-img">
             <img src="{{ card.img_mid }}" alt="{{ card.name }}">
             {% if card.unReleased %}

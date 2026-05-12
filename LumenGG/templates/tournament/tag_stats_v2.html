@@ -1,6 +1,6 @@
 {% extends "base_v2.html" %}
 {% block title %}#{{ tag }} 대회 통계 - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "tournament:indexV2" %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "card:legacyIndex" %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-page-head">
     <div>
@@ -9,7 +9,7 @@
         <p class="v2-subtitle">같은 태그가 붙은 대회들의 운영 결과를 모아서 확인합니다. 덱 제출과 캐릭터 분포는 종료된 대회만 집계합니다.</p>
     </div>
     <div class="v2-chip-row">
-        <a class="v2-button" href="{% url "tournament:indexV2" %}">대회 목록</a>
+        <a class="v2-button" href="{% url "tournament:index" %}">대회 목록</a>
     </div>
 </section>
 
@@ -18,7 +18,7 @@
     <strong>다른 태그</strong>
     <div class="v2-chip-row">
         {% for tag_item in tag_summaries %}
-        <a class="v2-chip" href="{% url "tournament:tagStatsV2" %}?tag={{ tag_item.name|urlencode }}">#{{ tag_item.name }} {{ tag_item.count }}</a>
+        <a class="v2-chip" href="{% url "tournament:tagStats" %}?tag={{ tag_item.name|urlencode }}">#{{ tag_item.name }} {{ tag_item.count }}</a>
         {% endfor %}
     </div>
 </section>
@@ -100,7 +100,7 @@
     <h2 class="v2-section-title">대회 목록</h2>
     <div class="v2-tournament-grid">
         {% for tournament in tournaments %}
-        <article class="v2-tournament-card v2-clickable-card" data-href="{% url "tournament:detailV2" tournament.id %}" role="link" tabindex="0" aria-label="{{ tournament.name }} 상세 보기">
+        <article class="v2-tournament-card v2-clickable-card" data-href="{% url "tournament:detail" tournament.id %}" role="link" tabindex="0" aria-label="{{ tournament.name }} 상세 보기">
             <div class="v2-tournament-card-top">
                 <span class="v2-tournament-status status-{{ tournament.status }}">{{ tournament.get_status_display }}</span>
                 <span>{{ tournament.get_format_display }}</span>
@@ -110,7 +110,7 @@
             {% if tournament.tag_list %}
             <div class="v2-chip-row v2-tournament-tag-row">
                 {% for tournament_tag in tournament.tag_list %}
-                <a class="v2-chip" href="{% url "tournament:tagStatsV2" %}?tag={{ tournament_tag|urlencode }}">#{{ tournament_tag }}</a>
+                <a class="v2-chip" href="{% url "tournament:tagStats" %}?tag={{ tournament_tag|urlencode }}">#{{ tournament_tag }}</a>
                 {% endfor %}
             </div>
             {% endif %}

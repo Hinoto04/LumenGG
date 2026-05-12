@@ -2,7 +2,7 @@
 {% load static %}
 {% load card_tags %}
 {% block title %}{{ card.name }} - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "card:detail" card.id %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "card:legacyDetail" card.id %}{% endblock legacy_href %}
 {% block meta %}
 <meta content="{{ card.name }}" property="og:title" />
 <meta content="{{ card.text }}" property="og:description" />
@@ -17,9 +17,9 @@
         <p class="v2-subtitle">{{ card.keyword|keywords }}</p>
     </div>
     <div class="v2-chip-row">
-        <a class="v2-button" href="{% url "card:indexV2" %}">목록</a>
+        <a class="v2-button" href="{% url "card:index" %}">목록</a>
         {% if perms.card.change_card %}
-        <a class="v2-button" href="{% url "card:updateV2" card.id %}">카드 수정</a>
+        <a class="v2-button" href="{% url "card:update" card.id %}">카드 수정</a>
         {% endif %}
         <a class="v2-button v2-button-primary" href="{% url "card:comment" card.id %}">평점 {{ card.score|floatformat:1|default_if_none:"미평가" }}</a>
     </div>
@@ -143,7 +143,7 @@
         <div class="v2-kicker">{{ kw }}</div>
         <div class="v2-related-grid mt-2">
             {% for v in vs %}
-            <a class="v2-related-card" href="{% url "card:detailV2" v.id %}">
+            <a class="v2-related-card" href="{% url "card:detail" v.id %}">
                 <div class="v2-related-image">
                     <img src="{{ v.img_mid }}" alt="{{ v.name }}">
                 </div>

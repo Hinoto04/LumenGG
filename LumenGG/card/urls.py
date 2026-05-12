@@ -7,22 +7,29 @@ from .views import util_views
 app_name = 'card'
 
 urlpatterns = [
-    path('', views.index, name='index'),
+    path('', views.indexV2, name='index'),
     path('v2/', views.indexV2, name='indexV2'),
+    path('legacy/', views.index, name='legacyIndex'),
+    path('legacy/detail/', views.detail, name='legacyDetailNone'),
+    path('legacy/detail/<int:id>/', views.detail, name='legacyDetail'),
+    path('legacy/detail/<str:name>/', views.detailNameLegacy, name='legacyDetailName'),
+    path('legacy/create/', views.create, name='legacyCreate'),
+    path('legacy/update/<int:id>/', views.update, name='legacyUpdate'),
     path('v2/detail/<int:id>/', views.detailV2, name='detailV2'),
     path('v2/create/', views.createV2, name='createV2'),
     path('v2/update/<int:id>/', views.updateV2, name='updateV2'),
-    path('detail/', views.detail, name='detailNone'),
-    path('detail/<int:id>/', views.detail, name='detail'),
+    path('detail/', views.detailV2, name='detailNone'),
+    path('detail/<int:id>/', views.detailV2, name='detail'),
     path('detail/<str:name>/', views.detailName, name='detailName'),
-    path('create/', views.create, name='create'),
-    path('update/<int:id>/', views.update, name='update'),
+    path('create/', views.createV2, name='create'),
+    path('update/<int:id>/', views.updateV2, name='update'),
     
     path('comment/<int:id>/', views.comment, name='comment'),
     path('commentList/', views.commentList, name='commentList'),
     
-    path('character/', character_views.index, name='character'),
+    path('character/', character_views.indexV2, name='character'),
     path('v2/character/', character_views.indexV2, name='characterV2'),
+    path('legacy/character/', character_views.index, name='legacyCharacter'),
     path('character/<int:id>', character_views.detail, name='charDetail'),
     path('writeCharComment/', character_views.writeComment, name='writeCharComment'),
     

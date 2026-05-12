@@ -2,7 +2,7 @@
 {% load static %}
 {% load deck_tags %}
 {% block title %}{{ target.username }}님의 프로필 - LumenDB V2{% endblock title %}
-{% block legacy_href %}{% url "common:userpage" target.id %}{% endblock legacy_href %}
+{% block legacy_href %}{% url "common:legacyUserpage" target.id %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-profile-head v2-panel">
     {% if target_data.character.sd_img %}
@@ -15,7 +15,7 @@
             <span class="v2-chip">덱 {{ decks|length }}개</span>
             <span class="v2-chip">대회 {{ csds|length }}건</span>
             {% if target_data.character %}
-            <a class="v2-chip" href="{% url "card:characterV2" %}?id={{ target_data.character.id }}">{{ target_data.character.name }}</a>
+            <a class="v2-chip" href="{% url "card:character" %}?id={{ target_data.character.id }}">{{ target_data.character.name }}</a>
             {% endif %}
         </div>
     </div>
@@ -35,17 +35,17 @@
     </div>
     <div class="v2-deck-grid">
         {% for deck in decks %}
-        <article class="v2-deck-card v2-clickable-card" data-href="{% url "deck:detailV2" deck.id %}" role="link" tabindex="0" aria-label="{{ deck.name }} 상세 보기">
+        <article class="v2-deck-card v2-clickable-card" data-href="{% url "deck:detail" deck.id %}" role="link" tabindex="0" aria-label="{{ deck.name }} 상세 보기">
             {% firstof deck.character.body_img deck.character.sd_img deck.character.img as deck_character_image %}
             {% if deck_character_image %}
             <img class="v2-deck-bg" src="{{ deck_character_image }}" alt="">
             {% endif %}
             <div class="v2-deck-author">
-                <a href="{% url "common:userpageV2" deck.author.id %}">{{ deck.author.username }}</a>
+                <a href="{% url "common:userpage" deck.author.id %}">{{ deck.author.username }}</a>
             </div>
             <div class="v2-deck-main">
                 <div class="v2-deck-kicker-line">
-                    <a href="{% url "card:characterV2" %}?id={{ deck.character.id }}">{{ deck.character.name }}</a>
+                    <a href="{% url "card:character" %}?id={{ deck.character.id }}">{{ deck.character.name }}</a>
                     {% if deck.ultimate_cards %}
                     <span class="v2-deck-dot">/</span>
                     {% for cid in deck.ultimate_cards %}
@@ -54,7 +54,7 @@
                     {% endif %}
                 </div>
                 <div class="v2-deck-title-row">
-                    <a class="v2-deck-title" href="{% url "deck:detailV2" deck.id %}">{{ deck.name }}</a>
+                    <a class="v2-deck-title" href="{% url "deck:detail" deck.id %}">{{ deck.name }}</a>
                     <span class="v2-deck-version">{{ deck.version }}</span>
                     {% if deck.visibility != "public" %}
                     <span class="v2-deck-version">{{ deck.get_visibility_display }}</span>

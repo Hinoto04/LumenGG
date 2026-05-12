@@ -5,6 +5,23 @@ from . import views
 app_name = 'tournament'
 
 urlpatterns = [
+    path('', views.indexV2, name='index'),
+    path('create/', views.createV2, name='create'),
+    path('deck-search/', views.deckSearchV2, name='deckSearch'),
+    path('join-code/', views.joinCodeV2, name='joinCode'),
+    path('join-code/<str:code>/', views.joinCodeV2, name='joinCodeLink'),
+    path('stats/', views.statsV2, name='stats'),
+    path('tag-stats/', views.tagStatsV2, name='tagStats'),
+    path('<int:id>/', views.detailV2, name='detail'),
+    path('<int:id>/edit/', views.editV2, name='edit'),
+    path('<int:id>/join/', views.joinV2, name='join'),
+    path('<int:id>/join-qr.png', views.joinQrV2, name='joinQr'),
+    path('<int:id>/drop/', views.dropV2, name='drop'),
+    path('<int:id>/delete/', views.deleteV2, name='delete'),
+    path('<int:id>/start-round/', views.startRoundV2, name='startRound'),
+    path('<int:id>/round/<int:round_id>/report/', views.reportRoundV2, name='reportRound'),
+    path('<int:id>/match/<int:match_id>/report/', views.reportMatchV2, name='reportMatch'),
+    path('<int:id>/finish/', views.finishV2, name='finish'),
     path('v2/', views.indexV2, name='indexV2'),
     path('v2/create/', views.createV2, name='createV2'),
     path('v2/deck-search/', views.deckSearchV2, name='deckSearchV2'),

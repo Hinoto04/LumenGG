@@ -34,7 +34,7 @@
 </head>
 <body data-default-theme="dark">
     <header class="v2-shell v2-header">
-        <a class="v2-brand" href="{% url "card:indexV2" %}">
+        <a class="v2-brand" href="{% url "card:index" %}">
             <span class="v2-brand-mark">L</span>
             <span>
                 <strong>LumenDB</strong>
@@ -42,23 +42,23 @@
             </span>
         </a>
         <nav class="v2-nav" aria-label="주 메뉴">
-            <a href="{% url "card:indexV2" %}">카드</a>
-            <a href="{% url "card:characterV2" %}">캐릭터</a>
-            <a href="{% url "deck:indexV2" %}">덱</a>
-            <a href="{% url "tournament:indexV2" %}">대회</a>
-            <a href="{% url "collection:indexV2" %}">컬렉션</a>
-            <a href="{% url "qna:indexV2" %}">Q&A</a>
+            <a href="{% url "card:index" %}">카드</a>
+            <a href="{% url "card:character" %}">캐릭터</a>
+            <a href="{% url "deck:index" %}">덱</a>
+            <a href="{% url "tournament:index" %}">대회</a>
+            <a href="{% url "collection:index" %}">컬렉션</a>
+            <a href="{% url "qna:index" %}">Q&A</a>
         </nav>
         <div class="v2-account">
             <button class="v2-theme-toggle" type="button" data-theme-toggle>
                 <span data-theme-toggle-label>라이트</span>
             </button>
-            <a href="{% block legacy_href %}{% url "card:index" %}{% endblock legacy_href %}" class="v2-soft-link">기존 UI</a>
+            <a href="{% block legacy_href %}{% url "card:legacyIndex" %}{% endblock legacy_href %}" class="v2-soft-link">기존 UI</a>
             {% if user.is_authenticated %}
-            <a href="{% url "common:mypageV2" %}">{{ user.username }}</a>
-            <a href="{% url "common:logout" %}?next={% url "card:indexV2" %}">로그아웃</a>
+            <a href="{% url "common:mypage" %}">{{ user.username }}</a>
+            <a href="{% url "common:logout" %}?next={% url "card:index" %}">로그아웃</a>
             {% else %}
-            <a href="{% url "common:loginV2" %}?next={{ request.get_full_path|urlencode }}">로그인</a>
+            <a href="{% url "common:login" %}?next={{ request.get_full_path|urlencode }}">로그인</a>
             {% endif %}
         </div>
     </header>

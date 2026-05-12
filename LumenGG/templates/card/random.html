@@ -69,13 +69,13 @@
     </form>
     {% if perms.card.add_card %}
     <div class="d-flex flex-row justify-content-end mb-2">
-        <a href="{% url "card:create" %}" class="btn btn-light border">카드 추가</a>
+        <a href="{% url "card:legacyCreate" %}" class="btn btn-light border">카드 추가</a>
     </div>
     {% endif %}
     <div id="카드리스트">
         {% for card in cards %}
         <div class="카드 배경색1">
-            <a class="w-100" href="{% url "card:detail" card.id %}">
+            <a class="w-100" href="{% url "card:legacyDetail" card.id %}">
                 <div class="w-100">
                     <img class="w-100" src="{{ card.img_mid }}" alt="{{ card.name }}">
                 </div>
