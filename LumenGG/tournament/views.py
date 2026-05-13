@@ -13,6 +13,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from battlelog.services import (
+    battle_summary_for_match,
+    get_or_create_tournament_session,
+    serialize_tournament_battle_state,
+)
 from deck.models import Deck
 
 from .forms import RoundStartForm, TournamentForm, TournamentJoinForm
@@ -342,6 +347,9 @@ def detailV2(req, id):
     _attach_standing_submissions(tournament, standings, req.user)
     rounds = list(tournament.rounds.prefetch_related(
         'matches',
+        'matches__battle_session',
+        'matches__battle_session__player1_character',
+        'matches__battle_session__player2_character',
         'matches__player1',
         'matches__player1__user',
         'matches__player2',
@@ -355,6 +363,8 @@ def detailV2(req, id):
                 round_obj.status == TournamentRound.STATUS_RUNNING
                 and _can_report_match(req.user, tournament, match)
             )
+            match.can_open_battle = round_obj.status == TournamentRound.STATUS_RUNNING and not match.is_bye
+            match.battle_summary = battle_summary_for_match(match) if not match.is_bye else None
             round_obj.can_report = round_obj.can_report or match.can_report
     current_round = next((round_obj for round_obj in rounds if round_obj.status == TournamentRound.STATUS_RUNNING), None)
     elimination_winner = get_elimination_winner(tournament)
@@ -419,6 +429,37 @@ def detailV2(req, id):
         'now': timezone.now(),
     }
     return render(req, 'tournament/detail_v2.html', context)
+
+
+def battleEntryV2(req, id, match_id):
+    tournament = get_object_or_404(Tournament.objects.select_related('organizer'), id=id)
+    match = get_object_or_404(
+        TournamentMatch.objects.select_related(
+            'round',
+            'round__tournament',
+            'round__tournament__organizer',
+            'player1',
+            'player1__user',
+            'player1__deck',
+            'player1__deck__character',
+            'player2',
+            'player2__user',
+            'player2__deck',
+            'player2__deck__character',
+        ).prefetch_related('player1__deck_submissions__deck__character', 'player2__deck_submissions__deck__character'),
+        id=match_id,
+        round__tournament=tournament,
+    )
+    if match.is_bye:
+        messages.error(req, 'BYE 매치는 계산기를 사용할 수 없습니다.')
+        return redirect('tournament:detail', id=tournament.id)
+    session = get_or_create_tournament_session(match, req.user)
+    return redirect('battlelog:sessionDetail', view_token=session.view_token)
+
+
+def battleStateV2(req, id):
+    tournament = get_object_or_404(Tournament.objects.select_related('organizer'), id=id)
+    return JsonResponse(serialize_tournament_battle_state(tournament))
 
 
 @login_required(login_url='common:login', redirect_field_name='next')
