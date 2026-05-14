@@ -32,7 +32,7 @@
     <script defer src="{% static "theme.js" %}"></script>
     {% block style %}{% endblock style %}
 </head>
-<body data-default-theme="dark">
+<body data-default-theme="dark" class="{% block body_class %}{% endblock body_class %}">
     <header class="v2-shell v2-header">
         <a class="v2-brand" href="{% url "card:index" %}">
             <span class="v2-brand-mark">L</span>
@@ -46,6 +46,7 @@
             <a href="{% url "card:character" %}">캐릭터</a>
             <a href="{% url "deck:index" %}">덱</a>
             <a href="{% url "tournament:index" %}">대회</a>
+            <a href="{% url "battlelog:sim" %}">계산기</a>
             <a href="{% url "collection:index" %}">컬렉션</a>
             <a href="{% url "qna:index" %}">Q&A</a>
         </nav>

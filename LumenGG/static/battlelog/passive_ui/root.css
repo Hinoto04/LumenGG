@@ -1,0 +1,68 @@
+:host .root-charge-panel {
+    display: grid;
+    gap: 0;
+    padding: 0;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(91, 190, 176, .13), var(--v2-soft-bg));
+}
+
+:host .root-charge-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+}
+
+:host .root-charge-head span,
+:host .root-charge-panel p {
+    color: var(--v2-muted);
+    font-size: .8rem;
+}
+
+:host .root-charge-head strong {
+    display: block;
+    color: var(--v2-text);
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+:host .root-charge-head b {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 4px 9px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-muted);
+    background: var(--v2-surface-2);
+    font-size: .85rem;
+}
+
+:host .root-charge-panel.is-charged .root-charge-head b {
+    border-color: rgba(91, 190, 176, .7);
+    color: var(--v2-teal);
+    background: rgba(91, 190, 176, .12);
+}
+
+:host .root-charge-panel button {
+    min-height: 38px;
+    border: 1px solid rgba(91, 190, 176, .65);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-soft-bg);
+    font-weight: 900;
+}
+
+:host .root-charge-panel button:disabled {
+    color: var(--v2-faint);
+    cursor: not-allowed;
+    opacity: .6;
+}
+
+@media screen and (max-width: 760px) {
+    :host .root-charge-panel button {
+        min-height: 30px;
+        font-size: .82rem;
+    }
+}

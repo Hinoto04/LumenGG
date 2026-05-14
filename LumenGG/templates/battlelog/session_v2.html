@@ -1,0 +1,130 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% block title %}{{ session.player1_name }} vs {{ session.player2_name }} - 대전 계산기{% endblock title %}
+{% block body_class %}v2-battle-mode{% endblock body_class %}
+{% block content %}
+<section class="v2-battle-page" data-battle-session>
+    {% csrf_token %}
+    <div class="v2-page-head">
+        <div>
+            <div class="v2-kicker">BATTLE CALCULATOR</div>
+            <h1 class="v2-title">{{ session.player1_name }} vs {{ session.player2_name }}</h1>
+            {% if session.tournament_match %}
+            <p class="v2-subtitle">
+                {{ session.tournament_match.round.tournament.name }} / T{{ session.tournament_match.table_no }}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="v2-battle-status-bar v2-panel">
+        <span data-battle-set-status>세트 대기</span>
+        <span data-battle-suggestion></span>
+    </div>
+
+    <button class="v2-battle-history-backdrop" type="button" data-history-backdrop aria-label="로그 닫기"></button>
+    <button class="v2-battle-share-backdrop" type="button" data-share-close aria-label="공유 닫기"></button>
+    <div class="v2-battle-share-modal" data-share-modal role="dialog" aria-modal="true" aria-label="링크 공유">
+        <div class="v2-battle-share-head">
+            <strong>링크 공유</strong>
+            <button class="v2-button" type="button" data-share-close>닫기</button>
+        </div>
+        <button class="v2-button" type="button" data-copy-link="{{ view_url }}" data-copy-kind="view">관전 링크 복사</button>
+        {% if control_token %}
+        <button class="v2-button" type="button" data-copy-link="{{ control_url }}" data-copy-kind="control">조작 링크 복사</button>
+        {% endif %}
+    </div>
+
+    <div class="v2-battle-layout">
+        <article class="v2-panel v2-battle-player v2-battle-player-p1" data-player-panel="p1">
+            <div class="v2-battle-player-head">
+                <div>
+                    <h2 data-player-name="p1">{{ session.player1_name }}</h2>
+                </div>
+                <strong data-player-hand="p1">손패 -</strong>
+            </div>
+            <div class="v2-battle-hp">
+                <button class="v2-battle-hp-button is-damage" type="button" data-hp-target="p1" data-hp-step="-100">-</button>
+                <div>
+                    <strong data-player-hp="p1">0</strong>
+                </div>
+                <button class="v2-battle-hp-button is-heal" type="button" data-hp-target="p1" data-hp-step="100">+</button>
+            </div>
+            <div class="v2-battle-fp">
+                <button class="v2-battle-fp-button" type="button" data-fp-target="p1" data-fp-step="-1">-</button>
+                <button class="v2-battle-fp-value" type="button" data-player-fp="p1" data-fp-reset="p1">0</button>
+                <button class="v2-battle-fp-button" type="button" data-fp-target="p1" data-fp-step="1">+</button>
+            </div>
+            <div class="v2-battle-passives" data-player-passives="p1"></div>
+        </article>
+
+        <section class="v2-panel v2-battle-center">
+            <div class="v2-battle-round-clock">
+                <span>게임 시간</span>
+                <strong data-battle-round-time-large>--:--</strong>
+            </div>
+            <button class="v2-battle-big-timer" type="button" data-battle-action="timer">
+                <span>10초 타이머</span>
+                <strong data-battle-short-timer>10</strong>
+            </button>
+            <div class="v2-battle-set-panel" data-battle-set-panel></div>
+            <div class="v2-battle-report-actions">
+                <button class="v2-button v2-button-primary" type="button" data-report-set>결과 보고</button>
+            </div>
+            <div class="v2-battle-center-actions">
+                <button class="v2-button" type="button" data-battle-action="undo">되돌리기</button>
+                <button class="v2-button v2-danger-button" type="button" data-battle-action="sudden">서든 데스</button>
+                <button class="v2-button" type="button" data-history-toggle>로그 확인</button>
+                <button class="v2-button" type="button" data-share-toggle>링크 공유</button>
+            </div>
+            <div class="v2-battle-extra-time" data-extra-time-panel>
+                <button class="v2-button" type="button" data-extra-time="60">+1분</button>
+                <button class="v2-button" type="button" data-extra-time="180">+3분</button>
+                <button class="v2-button" type="button" data-extra-time="300">+5분</button>
+            </div>
+            <div class="v2-battle-character-selectors" data-character-selectors></div>
+            <div class="v2-battle-history-head" data-history-panel>
+                <strong>기록</strong>
+                <button class="v2-button" type="button" data-history-toggle>닫기</button>
+                <button class="v2-button" type="button" data-history-target="all">전체</button>
+            </div>
+            <div class="v2-battle-history" data-battle-history data-history-panel></div>
+        </section>
+
+        <article class="v2-panel v2-battle-player v2-battle-player-p2" data-player-panel="p2">
+            <div class="v2-battle-player-head">
+                <div>
+                    <h2 data-player-name="p2">{{ session.player2_name }}</h2>
+                </div>
+                <strong data-player-hand="p2">손패 -</strong>
+            </div>
+            <div class="v2-battle-hp">
+                <button class="v2-battle-hp-button is-damage" type="button" data-hp-target="p2" data-hp-step="-100">-</button>
+                <div>
+                    <strong data-player-hp="p2">0</strong>
+                </div>
+                <button class="v2-battle-hp-button is-heal" type="button" data-hp-target="p2" data-hp-step="100">+</button>
+            </div>
+            <div class="v2-battle-fp">
+                <button class="v2-battle-fp-button" type="button" data-fp-target="p2" data-fp-step="-1">-</button>
+                <button class="v2-battle-fp-value" type="button" data-player-fp="p2" data-fp-reset="p2">0</button>
+                <button class="v2-battle-fp-button" type="button" data-fp-target="p2" data-fp-step="1">+</button>
+            </div>
+            <div class="v2-battle-passives" data-player-passives="p2"></div>
+        </article>
+    </div>
+</section>
+
+{{ state|json_script:"battle-initial-state" }}
+{{ character_options|json_script:"battle-character-options" }}
+<script>
+    window.v2BattleConfig = {
+        stateUrl: "{% url "battlelog:sessionState" session.view_token %}",
+        eventsUrl: "{% url "battlelog:sessionEvents" session.view_token %}",
+        actionUrl: "{% url "battlelog:sessionAction" session.view_token %}",
+        wsPath: "/ws/battlelog/session/{{ session.view_token|escapejs }}/",
+        controlToken: "{{ control_token|escapejs }}",
+    };
+</script>
+<script src="{% static "v2/battle-calculator.js" %}"></script>
+{% endblock content %}

@@ -1,0 +1,44 @@
+{% extends "base_v2.html" %}
+{% block title %}대전 계산기 - LumenDB{% endblock title %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">BATTLE CALCULATOR</div>
+        <h1 class="v2-title">대전 계산기</h1>
+        <p class="v2-subtitle">두 플레이어의 캐릭터를 선택해 체력, 손패 제한, 패시브 기록을 관리합니다.</p>
+    </div>
+</section>
+
+<form class="v2-panel v2-battle-start" action="{% url "battlelog:sim" %}" method="post">
+    {% csrf_token %}
+    <div class="v2-battle-start-grid">
+        <div class="v2-admin-field">
+            <label for="player1_name">플레이어1 이름</label>
+            <input id="player1_name" name="player1_name" type="text" value="플레이어1" maxlength="60">
+        </div>
+        <div class="v2-admin-field">
+            <label for="player1_character">플레이어1 캐릭터</label>
+            <select id="player1_character" name="player1_character" required>
+                {% for character in characters %}
+                <option value="{{ character.id }}">{{ character.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="v2-admin-field">
+            <label for="player2_name">플레이어2 이름</label>
+            <input id="player2_name" name="player2_name" type="text" value="플레이어2" maxlength="60">
+        </div>
+        <div class="v2-admin-field">
+            <label for="player2_character">플레이어2 캐릭터</label>
+            <select id="player2_character" name="player2_character" required>
+                {% for character in characters %}
+                <option value="{{ character.id }}">{{ character.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <div class="v2-battle-start-actions">
+        <button class="v2-button v2-button-primary" type="submit">계산기 시작</button>
+    </div>
+</form>
+{% endblock content %}
