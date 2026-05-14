@@ -268,13 +268,57 @@
                     {% endif %}
                     <div class="v2-tournament-match-list">
                         {% for match in round.matches.all %}
-                        <div class="v2-tournament-match">
+                        <div class="v2-tournament-match"
+                            data-battle-match-id="{{ match.id }}"
+                            {% if match.battle_summary %}
+                            data-battle-p1-hp="{{ match.battle_summary.p1_hp|default_if_none:"" }}"
+                            data-battle-p1-initial-hp="{{ match.battle_summary.p1_initial_hp|default_if_none:"" }}"
+                            data-battle-p1-character-img="{{ match.battle_summary.p1_character_img|default_if_none:"" }}"
+                            data-battle-p2-hp="{{ match.battle_summary.p2_hp|default_if_none:"" }}"
+                            data-battle-p2-initial-hp="{{ match.battle_summary.p2_initial_hp|default_if_none:"" }}"
+                            data-battle-p2-character-img="{{ match.battle_summary.p2_character_img|default_if_none:"" }}"
+                            {% endif %}>
                             <div class="v2-tournament-table-no">T{{ match.table_no }}</div>
                             <div class="v2-tournament-players">
-                                <span class="{% if match.winner_id == match.player1_id %}is-winner{% endif %}">{{ match.player1.name }}</span>
+                                <span class="{% if match.winner_id == match.player1_id %}is-winner{% endif %}">
+                                    <strong>{{ match.player1.name }}</strong>
+                                    {% if match.battle_summary %}
+                                    {% if match.battle_summary.p1_ready %}
+                                    <small data-battle-hp="p1">{{ match.battle_summary.p1_hp }} HP / FP {{ match.battle_summary.p1_fp }}{% if match.battle_summary.p1_hand_limit %} / 손패 {{ match.battle_summary.p1_hand_limit }}{% endif %}</small>
+                                    {% else %}
+                                    <small data-battle-hp="p1">캐릭터 선택 필요</small>
+                                    {% endif %}
+                                    {% else %}
+                                    <small data-battle-hp="p1">계산기 대기</small>
+                                    {% endif %}
+                                </span>
                                 <em>vs</em>
-                                <span class="{% if match.winner_id == match.player2_id %}is-winner{% endif %}">{% if match.player2 %}{{ match.player2.name }}{% else %}BYE{% endif %}</span>
+                                <span class="{% if match.winner_id == match.player2_id %}is-winner{% endif %}">
+                                    <strong>{% if match.player2 %}{{ match.player2.name }}{% else %}BYE{% endif %}</strong>
+                                    {% if match.player2 %}
+                                    {% if match.battle_summary %}
+                                    {% if match.battle_summary.p2_ready %}
+                                    <small data-battle-hp="p2">{{ match.battle_summary.p2_hp }} HP / FP {{ match.battle_summary.p2_fp }}{% if match.battle_summary.p2_hand_limit %} / 손패 {{ match.battle_summary.p2_hand_limit }}{% endif %}</small>
+                                    {% else %}
+                                    <small data-battle-hp="p2">캐릭터 선택 필요</small>
+                                    {% endif %}
+                                    {% else %}
+                                    <small data-battle-hp="p2">계산기 대기</small>
+                                    {% endif %}
+                                    {% endif %}
+                                </span>
                             </div>
+                            <div class="v2-tournament-match-actions">
+                            {% if match.can_open_battle %}
+                            <a class="v2-button" href="{% url "tournament:battleEntry" tournament.id match.id %}">계산기</a>
+                            {% if match.battle_summary %}
+                            <span class="v2-chip" data-battle-set>
+                                {% if match.battle_summary.set_number %}{{ match.battle_summary.set_number }}세트 / {% endif %}
+                                {{ match.battle_summary.p1_set_score }}:{{ match.battle_summary.p2_set_score }}
+                            </span>
+                            {% endif %}
+                            <span class="v2-chip v2-battle-match-sudden" data-battle-sudden hidden>서든 데스</span>
+                            {% endif %}
                             {% if match.is_bye %}
                             <div class="v2-chip">BYE 승</div>
                             {% elif match.can_report %}
@@ -302,6 +346,7 @@
                                 {% endif %}
                             </div>
                             {% endif %}
+                            </div>
                         </div>
                         {% endfor %}
                     </div>
@@ -389,7 +434,9 @@
 
 <script>
     window.v2TournamentConfig = {
-        deckSearchUrl: "{% url "tournament:deckSearch" %}"
+        deckSearchUrl: "{% url "tournament:deckSearch" %}",
+        battleStateUrl: "{% url "tournament:battleState" tournament.id %}",
+        battleStateWsPath: "/ws/tournament/{{ tournament.id }}/battle-state/"
     };
 </script>
 <script src="{% static "v2/tournament.js" %}"></script>

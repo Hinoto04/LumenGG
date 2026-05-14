@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 import SECRET_KEYS
 
@@ -28,12 +29,14 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     'localhost',
+    '127.0.0.1',
     'lumen.hinoto.kr',
 ]
 
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'card.apps.CardConfig',
     'common.apps.CommonConfig',
     'deck.apps.DeckConfig',
@@ -82,6 +85,37 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'LumenGG.wsgi.application'
+ASGI_APPLICATION = 'LumenGG.asgi.application'
+
+CHANNEL_LAYER_MODE = os.environ.get('LUMENGG_CHANNEL_LAYER', '').lower()
+CHANNEL_REDIS_URL = os.environ.get('LUMENGG_REDIS_URL', '').strip()
+BATTLELOG_REDIS_URL = os.environ.get('LUMENGG_BATTLELOG_REDIS_URL', '').strip()
+USE_IN_MEMORY_CHANNEL_LAYER = (
+    CHANNEL_LAYER_MODE == 'memory'
+    or (
+        os.name == 'nt'
+        and DEBUG
+        and CHANNEL_LAYER_MODE != 'redis'
+        and not CHANNEL_REDIS_URL
+    )
+)
+
+if USE_IN_MEMORY_CHANNEL_LAYER:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [CHANNEL_REDIS_URL or 'redis://127.0.0.1:6379/0'],
+                'prefix': 'lumengg',
+            },
+        },
+    }
 
 
 # Database

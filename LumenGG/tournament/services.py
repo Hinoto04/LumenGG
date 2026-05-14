@@ -490,6 +490,9 @@ def create_round(
 
     tournament.status = Tournament.STATUS_RUNNING
     tournament.save(update_fields=['status', 'updated_at'])
+    from battlelog.services import ensure_tournament_sessions_for_round
+
+    ensure_tournament_sessions_for_round(round_obj)
     return round_obj
 
 

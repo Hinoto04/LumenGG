@@ -112,6 +112,146 @@ function setupTournamentDeckSearch() {
 
 setupTournamentDeckSearch();
 
+function tournamentHpRatio(hp, initialHp) {
+    const current = Number(hp);
+    const initial = Number(initialHp);
+    if (!Number.isFinite(current) || !Number.isFinite(initial) || initial <= 0) return null;
+    return Math.max(0, Math.min(1, current / initial));
+}
+
+function tournamentHpColor(hp, initialHp) {
+    const ratio = tournamentHpRatio(hp, initialHp);
+    if (ratio === null) return "transparent";
+    const hue = Math.round(4 + (ratio * 136));
+    return `hsl(${hue} 58% 52%)`;
+}
+
+function safeCssUrl(value) {
+    const url = String(value || "").trim();
+    return url ? `url("${url.replaceAll('"', "%22")}")` : "none";
+}
+
+function applyTournamentMatchVisual(matchRow, summary) {
+    const p1Hp = summary ? summary.p1_hp : matchRow.dataset.battleP1Hp;
+    const p1InitialHp = summary ? summary.p1_initial_hp : matchRow.dataset.battleP1InitialHp;
+    const p1CharacterImg = summary ? summary.p1_character_img : matchRow.dataset.battleP1CharacterImg;
+    const p2Hp = summary ? summary.p2_hp : matchRow.dataset.battleP2Hp;
+    const p2InitialHp = summary ? summary.p2_initial_hp : matchRow.dataset.battleP2InitialHp;
+    const p2CharacterImg = summary ? summary.p2_character_img : matchRow.dataset.battleP2CharacterImg;
+
+    matchRow.style.setProperty("--tournament-p1-hp-color", tournamentHpColor(p1Hp, p1InitialHp));
+    matchRow.style.setProperty("--tournament-p2-hp-color", tournamentHpColor(p2Hp, p2InitialHp));
+    matchRow.style.setProperty("--tournament-p1-character-img", safeCssUrl(p1CharacterImg));
+    matchRow.style.setProperty("--tournament-p2-character-img", safeCssUrl(p2CharacterImg));
+
+    if (summary) {
+        matchRow.dataset.battleP1Hp = summary.p1_hp ?? "";
+        matchRow.dataset.battleP1InitialHp = summary.p1_initial_hp ?? "";
+        matchRow.dataset.battleP1CharacterImg = summary.p1_character_img || "";
+        matchRow.dataset.battleP2Hp = summary.p2_hp ?? "";
+        matchRow.dataset.battleP2InitialHp = summary.p2_initial_hp ?? "";
+        matchRow.dataset.battleP2CharacterImg = summary.p2_character_img || "";
+    }
+}
+
+function renderTournamentBattleState(data) {
+    document.querySelectorAll("[data-battle-match-id]").forEach((matchRow) => {
+        const summary = data[String(matchRow.dataset.battleMatchId)];
+        if (!summary) return;
+        const p1 = matchRow.querySelector('[data-battle-hp="p1"]');
+        const p2 = matchRow.querySelector('[data-battle-hp="p2"]');
+        const sudden = matchRow.querySelector("[data-battle-sudden]");
+        if (p1) {
+            p1.textContent = summary.p1_ready
+                ? `${summary.p1_hp} HP / FP ${summary.p1_fp}${summary.p1_hand_limit ? ` / 손패 ${summary.p1_hand_limit}` : ""}`
+                : "캐릭터 선택 필요";
+        }
+        if (p2) {
+            p2.textContent = summary.p2_ready
+                ? `${summary.p2_hp} HP / FP ${summary.p2_fp}${summary.p2_hand_limit ? ` / 손패 ${summary.p2_hand_limit}` : ""}`
+                : "캐릭터 선택 필요";
+        }
+        const setInfo = matchRow.querySelector("[data-battle-set]");
+        if (setInfo) {
+            setInfo.textContent = summary.set_number
+                ? `${summary.set_number}세트 / ${summary.p1_set_score}:${summary.p2_set_score} / 확인 ${summary.p1_confirmed ? "P1" : "-"} ${summary.p2_confirmed ? "P2" : "-"}`
+                : `${summary.p1_set_score}:${summary.p2_set_score}`;
+        }
+        if (sudden) {
+            sudden.hidden = !summary.sudden_death;
+        }
+        applyTournamentMatchVisual(matchRow, summary);
+    });
+}
+
+function buildTournamentWebSocketUrl(path) {
+    const url = new URL(path, window.location.href);
+    url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return url.toString();
+}
+
+function setupTournamentBattleState() {
+    if (!document.querySelector("[data-battle-match-id]")) return;
+
+    document.querySelectorAll("[data-battle-match-id]").forEach((matchRow) => {
+        applyTournamentMatchVisual(matchRow, null);
+    });
+
+    let reconnectAttempts = 0;
+    let reconnectTimer = null;
+    let socket = null;
+
+    const fetchOnceFallback = () => {
+        if (!tournamentConfig.battleStateUrl) return;
+        fetch(tournamentConfig.battleStateUrl)
+            .then((response) => response.json())
+            .then(renderTournamentBattleState)
+            .catch(() => {});
+    };
+
+    const connectSocket = () => {
+        if (!tournamentConfig.battleStateWsPath || !("WebSocket" in window)) {
+            fetchOnceFallback();
+            return;
+        }
+
+        window.clearTimeout(reconnectTimer);
+        socket = new WebSocket(buildTournamentWebSocketUrl(tournamentConfig.battleStateWsPath));
+
+        socket.addEventListener("open", () => {
+            reconnectAttempts = 0;
+        });
+
+        socket.addEventListener("message", (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                if (message.type === "state") {
+                    renderTournamentBattleState(message.state || {});
+                }
+            } catch (error) {
+                // Ignore malformed realtime payloads and keep the current display.
+            }
+        });
+
+        socket.addEventListener("close", () => {
+            const delay = Math.min(15000, 1000 * (2 ** reconnectAttempts));
+            reconnectAttempts += 1;
+            reconnectTimer = window.setTimeout(connectSocket, delay);
+        });
+
+        socket.addEventListener("error", () => {});
+    };
+
+    connectSocket();
+
+    window.addEventListener("beforeunload", () => {
+        window.clearTimeout(reconnectTimer);
+        if (socket) socket.close();
+    });
+}
+
+setupTournamentBattleState();
+
 document.querySelectorAll("[data-tournament-join-form]").forEach((form) => {
     form.addEventListener("submit", () => {
         const hasExternalDeck = Array.from(form.querySelectorAll("[data-deck-picker]"))
