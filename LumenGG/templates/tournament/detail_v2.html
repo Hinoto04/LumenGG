@@ -28,8 +28,9 @@
         <span class="v2-chip">참가 코드 {{ tournament.join_code }}</span>
         {% endif %}
         {% if is_operator %}
-        <a class="v2-chip" href="{% url "tournament:edit" tournament.id %}">설정 편집</a>
+        <a class="v2-chip v2-tournament-action-chip is-settings" href="{% url "tournament:edit" tournament.id %}">설정 편집</a>
         {% endif %}
+        <a class="v2-chip v2-tournament-action-chip is-board" href="{% url "tournament:tableBoard" tournament.id %}" target="_blank" rel="noopener">테이블 보드</a>
     </div>
 </section>
 
@@ -41,7 +42,14 @@
 </div>
 {% endif %}
 
-<section class="v2-tournament-dashboard">
+<nav class="v2-tournament-section-tabs v2-panel" data-tournament-tabs aria-label="대회 상세 본문 영역">
+    <button type="button" data-tournament-tab="standings">순위표</button>
+    <button type="button" data-tournament-tab="rounds">라운드</button>
+    {% if tournament.decklist_required_count %}<button type="button" data-tournament-tab="submissions">제출 덱</button>{% endif %}
+    {% if show_deck_stats %}<button type="button" data-tournament-tab="stats">통계</button>{% endif %}
+</nav>
+
+<section class="v2-tournament-dashboard v2-tournament-tabbed">
     <aside class="v2-tournament-side">
         {% if user.is_authenticated %}
         <form action="{% url "tournament:join" tournament.id %}" method="post" class="v2-panel v2-tournament-join" data-tournament-join-form>
@@ -186,7 +194,7 @@
         </section>
         {% endif %}
 
-        <section class="v2-section">
+        <section class="v2-section" data-tournament-panel="standings">
             <div class="v2-section-head-line">
                 <h2 class="v2-section-title">순위표</h2>
                 <div class="v2-chip-row">
@@ -250,11 +258,20 @@
             </div>
         </section>
 
-        <section class="v2-section">
-            <h2 class="v2-section-title">라운드</h2>
+        <section class="v2-section" data-tournament-panel="rounds">
+            <div class="v2-section-title-row">
+                <h2 class="v2-section-title">라운드</h2>
+                {% if rounds %}
+                <div class="v2-round-switcher" data-round-tabs aria-label="라운드 선택">
+                    {% for round in rounds %}
+                    <button type="button" data-round-tab="{{ round.id }}">{{ round.number }}R</button>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
             <div class="v2-tournament-round-list">
                 {% for round in rounds %}
-                <article class="v2-panel v2-tournament-round">
+                <article class="v2-panel v2-tournament-round" data-round-panel="{{ round.id }}" {% if round.status == "running" %}data-round-default="true"{% endif %}>
                     <div class="v2-tournament-round-head">
                         <div>
                             <strong>{{ round.number }}라운드</strong>
@@ -364,7 +381,7 @@
         </section>
 
         {% if tournament.decklist_required_count %}
-        <section class="v2-section">
+        <section class="v2-section" data-tournament-panel="submissions">
             <h2 class="v2-section-title">제출 덱 리스트</h2>
             {% if show_decklists %}
             <div class="v2-panel v2-tournament-submission-panel">
@@ -392,7 +409,7 @@
         </section>
 
         {% if show_deck_stats %}
-        <section class="v2-section">
+        <section class="v2-section" data-tournament-panel="stats">
             <h2 class="v2-section-title">캐릭터 분포</h2>
             <p class="v2-tournament-note">비공개 덱은 작성자와 대회 운영자에게만 통계에 포함되어 표시됩니다.</p>
             <div class="v2-tournament-stats-grid">

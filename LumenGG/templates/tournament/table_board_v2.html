@@ -1,0 +1,103 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% block title %}{{ tournament.name }} 테이블 보드 - LumenDB V2{% endblock title %}
+{% block content %}
+<section class="v2-table-board-head v2-panel">
+    <div>
+        <div class="v2-kicker">TABLE BOARD</div>
+        <h1 class="v2-title">{{ tournament.name }}</h1>
+        {% if round %}
+        <p class="v2-subtitle">{{ round.number }}라운드 / {{ round.get_stage_display }} / {{ round.get_status_display }}</p>
+        {% else %}
+        <p class="v2-subtitle">아직 시작된 라운드가 없습니다.</p>
+        {% endif %}
+    </div>
+    <div class="v2-chip-row">
+        <a class="v2-chip" href="{% url "tournament:detail" tournament.id %}">대회 상세</a>
+        {% if round %}
+        <span class="v2-chip">{{ round.set_count }}세트</span>
+        <span class="v2-chip">{{ round.win_points }}-{{ round.draw_points }}-{{ round.loss_points }}점</span>
+        <span class="v2-chip" data-round-timer data-ends-at="{{ round.ends_at|date:"c" }}">--:--</span>
+        {% endif %}
+    </div>
+</section>
+
+{% if round %}
+<section class="v2-table-board-grid">
+    {% for match in round.matches.all %}
+    <article class="v2-table-board-card"
+        data-battle-match-id="{{ match.id }}"
+        {% if match.battle_summary %}
+        data-battle-p1-hp="{{ match.battle_summary.p1_hp|default_if_none:"" }}"
+        data-battle-p1-initial-hp="{{ match.battle_summary.p1_initial_hp|default_if_none:"" }}"
+        data-battle-p1-character-img="{{ match.battle_summary.p1_character_img|default_if_none:"" }}"
+        data-battle-p2-hp="{{ match.battle_summary.p2_hp|default_if_none:"" }}"
+        data-battle-p2-initial-hp="{{ match.battle_summary.p2_initial_hp|default_if_none:"" }}"
+        data-battle-p2-character-img="{{ match.battle_summary.p2_character_img|default_if_none:"" }}"
+        {% endif %}>
+        <div class="v2-table-board-number">T{{ match.table_no }}</div>
+        <div class="v2-table-board-players">
+            <div class="{% if match.winner_id == match.player1_id %}is-winner{% endif %}">
+                <strong>{{ match.player1.name }}</strong>
+                {% if match.battle_summary %}
+                {% if match.battle_summary.p1_ready %}
+                <span data-battle-hp="p1">{{ match.battle_summary.p1_hp }} HP / FP {{ match.battle_summary.p1_fp }}{% if match.battle_summary.p1_hand_limit %} / 손패 {{ match.battle_summary.p1_hand_limit }}{% endif %}</span>
+                {% else %}
+                <span data-battle-hp="p1">캐릭터 선택 필요</span>
+                {% endif %}
+                {% else %}
+                <span data-battle-hp="p1">계산기 대기</span>
+                {% endif %}
+            </div>
+            <em>vs</em>
+            <div class="{% if match.winner_id == match.player2_id %}is-winner{% endif %}">
+                <strong>{% if match.player2 %}{{ match.player2.name }}{% else %}BYE{% endif %}</strong>
+                {% if match.player2 %}
+                {% if match.battle_summary %}
+                {% if match.battle_summary.p2_ready %}
+                <span data-battle-hp="p2">{{ match.battle_summary.p2_hp }} HP / FP {{ match.battle_summary.p2_fp }}{% if match.battle_summary.p2_hand_limit %} / 손패 {{ match.battle_summary.p2_hand_limit }}{% endif %}</span>
+                {% else %}
+                <span data-battle-hp="p2">캐릭터 선택 필요</span>
+                {% endif %}
+                {% else %}
+                <span data-battle-hp="p2">계산기 대기</span>
+                {% endif %}
+                {% else %}
+                <span data-battle-hp="p2">BYE</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="v2-table-board-bottom">
+            {% if match.can_open_battle %}
+            <a class="v2-button" href="{% url "tournament:battleEntry" tournament.id match.id %}" target="_blank" rel="noopener">계산기</a>
+            {% endif %}
+            {% if match.is_bye %}
+            <span class="v2-chip">BYE 승</span>
+            {% elif match.battle_summary %}
+            <span class="v2-chip" data-battle-set>
+                {% if match.battle_summary.set_number %}{{ match.battle_summary.set_number }}세트 / {% endif %}
+                {{ match.battle_summary.p1_set_score }}:{{ match.battle_summary.p2_set_score }}
+            </span>
+            <span class="v2-chip v2-battle-match-sudden" data-battle-sudden {% if not match.battle_summary.sudden_death %}hidden{% endif %}>서든 데스</span>
+            {% elif match.status == "reported" %}
+            <span class="v2-chip">{{ match.player1_score }} : {{ match.player2_score }}{% if match.is_draw %} / 무승부{% elif match.winner %} / {{ match.winner.name }} 승{% endif %}</span>
+            {% else %}
+            <span class="v2-chip" data-battle-set>계산기 대기</span>
+            <span class="v2-chip v2-battle-match-sudden" data-battle-sudden hidden>서든 데스</span>
+            {% endif %}
+        </div>
+    </article>
+    {% endfor %}
+</section>
+{% else %}
+<div class="v2-panel v2-text-panel">테이블 보드는 라운드가 시작된 뒤 표시됩니다.</div>
+{% endif %}
+
+<script>
+    window.v2TournamentConfig = {
+        battleStateUrl: "{% url "tournament:battleState" tournament.id %}",
+        battleStateWsPath: "/ws/tournament/{{ tournament.id }}/battle-state/"
+    };
+</script>
+<script src="{% static "v2/tournament.js" %}"></script>
+{% endblock content %}

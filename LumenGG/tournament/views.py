@@ -431,6 +431,38 @@ def detailV2(req, id):
     return render(req, 'tournament/detail_v2.html', context)
 
 
+def tableBoardV2(req, id):
+    tournament = get_object_or_404(Tournament.objects.select_related('organizer'), id=id)
+    rounds = (
+        tournament.rounds.prefetch_related(
+            'matches',
+            'matches__battle_session',
+            'matches__battle_session__player1_character',
+            'matches__battle_session__player2_character',
+            'matches__player1',
+            'matches__player1__user',
+            'matches__player2',
+            'matches__player2__user',
+            'matches__winner',
+        )
+        .order_by('-number')
+    )
+    round_obj = next((round_item for round_item in rounds if round_item.status == TournamentRound.STATUS_RUNNING), None)
+    if round_obj is None:
+        round_obj = next(iter(rounds), None)
+
+    if round_obj:
+        for match in round_obj.matches.all():
+            match.can_open_battle = round_obj.status == TournamentRound.STATUS_RUNNING and not match.is_bye
+            match.battle_summary = battle_summary_for_match(match) if not match.is_bye else None
+
+    return render(req, 'tournament/table_board_v2.html', {
+        'tournament': tournament,
+        'round': round_obj,
+        'now': timezone.now(),
+    })
+
+
 def battleEntryV2(req, id, match_id):
     tournament = get_object_or_404(Tournament.objects.select_related('organizer'), id=id)
     match = get_object_or_404(

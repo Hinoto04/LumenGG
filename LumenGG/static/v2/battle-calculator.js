@@ -21,7 +21,7 @@
     let reconnectTimer = null;
     let pollingTimer = null;
     let nextRequestId = 1;
-    const TIMER_DISPLAY_GRACE_MS = 1500;
+    let activeTimerSourceKey = null;
 
     const csrfInput = document.querySelector("[name=csrfmiddlewaretoken]");
     const csrfToken = csrfInput ? csrfInput.value : "";
@@ -51,20 +51,54 @@
 
     function keepEventsAndApplyState(nextState) {
         const previousEvents = state.events || [];
+        applyLocalTimerBaseline(nextState);
         state = nextState;
         if (!state.events) state.events = previousEvents;
     }
 
-    function timerRemainingSeconds() {
-        const timer = state.timer || {};
+    function timerRemainingSeconds(timerOverride) {
+        const timer = timerOverride || state.timer || {};
         const duration = Number(timer.duration_seconds || 10);
         if (timer.is_running && timer.ends_at) {
             const endsAt = new Date(timer.ends_at).getTime();
             if (!Number.isNaN(endsAt)) {
-                return Math.max(0, Math.min(duration, Math.ceil((endsAt - Date.now() + TIMER_DISPLAY_GRACE_MS) / 1000)));
+                return Math.max(0, Math.min(duration, Math.ceil((endsAt - Date.now()) / 1000)));
             }
         }
         return Math.max(0, Math.min(duration, Number(timer.remaining_seconds ?? duration) || 0));
+    }
+
+    function applyLocalTimerBaseline(nextState) {
+        const nextTimer = nextState && nextState.timer;
+        if (!nextTimer) return;
+        if (!nextTimer.is_running) {
+            activeTimerSourceKey = null;
+            return;
+        }
+
+        const sourceKey = nextTimer.started_at || nextTimer.ends_at || "running";
+        const currentTimer = state.timer || {};
+        const canKeepLocalTimer = (
+            currentTimer.is_running
+            && currentTimer.ends_at
+            && (activeTimerSourceKey === sourceKey || activeTimerSourceKey === "local-pending")
+        );
+
+        if (canKeepLocalTimer) {
+            nextTimer.started_at = currentTimer.started_at;
+            nextTimer.ends_at = currentTimer.ends_at;
+            nextTimer.remaining_seconds = timerRemainingSeconds(currentTimer);
+            activeTimerSourceKey = sourceKey;
+            return;
+        }
+
+        const duration = Number(nextTimer.duration_seconds || 10);
+        const startedAt = new Date();
+        const endsAt = new Date(startedAt.getTime() + duration * 1000);
+        nextTimer.started_at = startedAt.toISOString();
+        nextTimer.ends_at = endsAt.toISOString();
+        nextTimer.remaining_seconds = duration;
+        activeTimerSourceKey = sourceKey;
     }
 
     function setShortTimerDisplay() {
@@ -351,6 +385,13 @@
         events.forEach((event) => {
             const row = document.createElement("div");
             row.className = "v2-battle-history-row";
+            if (event.target === "p1") {
+                row.classList.add("is-p1");
+            } else if (event.target === "p2") {
+                row.classList.add("is-p2");
+            } else {
+                row.classList.add("is-global");
+            }
             if (event.undone) row.classList.add("is-undone");
             const label = document.createElement("strong");
             label.textContent = actionLabel(event);
@@ -399,22 +440,12 @@
             roundTimeLarge.classList.toggle("is-danger", !!state.round_timer.is_over);
         }
         setShortTimerDisplay();
-        const suggestion = document.querySelector("[data-battle-suggestion]");
-        if (suggestion) {
-            suggestion.textContent = state.set && state.set.ambiguous_result
-                ? "운영자 판정 또는 서든 데스 필요"
-                : (state.suggested_winner ? `${playerLabel(state.suggested_winner)} 승자 후보` : "");
-            suggestion.hidden = !suggestion.textContent;
-        }
         const setStatus = document.querySelector("[data-battle-set-status]");
         if (setStatus) {
             const setState = state.set || {};
-            setStatus.hidden = state.type !== "tournament";
-            setStatus.textContent = `${setState.current_number || 1}세트 / ${setState.score ? setState.score.p1 : 0}:${setState.score ? setState.score.p2 : 0}`;
-        }
-        const statusBar = document.querySelector(".v2-battle-status-bar");
-        if (statusBar) {
-            statusBar.hidden = state.type !== "tournament" && !(suggestion && suggestion.textContent);
+            setStatus.textContent = state.type === "tournament"
+                ? `${setState.current_number || 1}세트 / ${setState.score ? setState.score.p1 : 0}:${setState.score ? setState.score.p2 : 0}`
+                : "게임 시간";
         }
         const extraTimePanel = document.querySelector("[data-extra-time-panel]");
         if (extraTimePanel) {
@@ -433,38 +464,21 @@
         const panel = document.querySelector("[data-battle-set-panel]");
         if (!panel) return;
         panel.replaceChildren();
-        panel.hidden = state.type !== "tournament";
+        panel.hidden = true;
         if (state.type !== "tournament") {
             return;
         }
         const setState = state.set || {};
-        const title = document.createElement("strong");
-        title.textContent = `${setState.current_number || 1}세트`;
-        const score = document.createElement("span");
-        score.textContent = `${state.players.p1.name} ${setState.score ? setState.score.p1 : 0} : ${setState.score ? setState.score.p2 : 0} ${state.players.p2.name}`;
-        panel.append(title, score);
-
-        const report = document.createElement("span");
-        if (setState.ambiguous_result) {
-            report.textContent = "양쪽 HP가 0 이하입니다. 운영자 판정 또는 서든 데스를 진행하세요.";
-        } else if (setState.winner_candidate) {
-            report.textContent = `${playerLabel(setState.winner_candidate)} 승자 후보 / 확인 ${setState.player1_confirmed ? "P1 완료" : "P1 대기"} · ${setState.player2_confirmed ? "P2 완료" : "P2 대기"}`;
-        } else {
-            report.textContent = "세트 진행 중";
-        }
-        panel.appendChild(report);
-
-        if (setState.can_force) {
+        if (setState.can_force && setState.winner_candidate && !setState.ambiguous_result) {
+            panel.hidden = false;
             const actions = document.createElement("div");
             actions.className = "v2-battle-force-actions";
             const button = document.createElement("button");
             button.type = "button";
             button.className = "v2-button v2-button-primary";
             button.textContent = "결과 확정";
-            button.disabled = !setState.winner_candidate || setState.ambiguous_result;
-            button.title = button.disabled ? "승자 후보가 있을 때 확정할 수 있습니다." : `${playerLabel(setState.winner_candidate)} 승으로 확정`;
+            button.title = `${playerLabel(setState.winner_candidate)} 승으로 확정`;
             button.addEventListener("click", () => {
-                if (!setState.winner_candidate || setState.ambiguous_result) return;
                 postAction({ action: "force_set_result", winner: setState.winner_candidate });
             });
             actions.appendChild(button);
@@ -593,6 +607,7 @@
                 timer.ends_at = null;
                 timer.remaining_seconds = duration;
                 timer.is_running = false;
+                activeTimerSourceKey = null;
             } else {
                 const startedAt = new Date();
                 const endsAt = new Date(startedAt.getTime() + duration * 1000);
@@ -600,6 +615,7 @@
                 timer.ends_at = endsAt.toISOString();
                 timer.remaining_seconds = duration;
                 timer.is_running = true;
+                activeTimerSourceKey = "local-pending";
             }
             draft.timer = timer;
         };
@@ -732,8 +748,9 @@
         return amount > 0 ? `+${amount}` : String(amount);
     }
 
-    function buttonBaseText(step) {
-        return Number(step || 0) > 0 ? "+" : "-";
+    function buttonBaseText(button) {
+        if (button.dataset.queueLabel) return button.dataset.queueLabel;
+        return Number(button.dataset.hpStep || button.dataset.fpStep || 0) > 0 ? "+" : "-";
     }
 
     function queuedButtonConfig(kind) {
@@ -745,11 +762,25 @@
 
     function updateQueuedButtons(kind, target, amount) {
         const configForKind = queuedButtonConfig(kind);
+        if (kind === "hp") {
+            updateQueuedHpBadge(target, amount);
+        }
         document.querySelectorAll(`[${configForKind.selector}="${target}"]`).forEach((button) => {
             const step = Number(button.dataset[configForKind.stepAttr] || 0);
             const isActiveDirection = (amount > 0 && step > 0) || (amount < 0 && step < 0);
-            button.textContent = isActiveDirection ? formatQueuedAmount(amount) : buttonBaseText(step);
+            button.textContent = kind === "fp" && isActiveDirection ? formatQueuedAmount(amount) : buttonBaseText(button);
         });
+    }
+
+    function updateQueuedHpBadge(target, amount) {
+        const hpBox = document.querySelector(`[data-player-hp="${target}"]`)?.closest(".v2-battle-hp > div");
+        if (!hpBox) return;
+        hpBox.querySelectorAll(".v2-battle-hp-pending").forEach((node) => node.remove());
+        if (!amount) return;
+        const badge = document.createElement("span");
+        badge.className = `v2-battle-hp-pending ${amount > 0 ? "is-heal" : "is-damage"}`;
+        badge.textContent = formatQueuedAmount(amount);
+        hpBox.appendChild(badge);
     }
 
     function clearQueuedDelta(queue, kind, target) {
@@ -821,12 +852,31 @@
     document.querySelectorAll("[data-battle-action]").forEach((button) => {
         button.addEventListener("click", () => {
             const action = button.dataset.battleAction;
-            if (action === "timer") postAction({ action: "timer" }, optimisticTimer());
+            if (action === "timer") {
+                postAction({ action: "timer" }, optimisticTimer());
+                setShortTimerDisplay();
+                window.setTimeout(setShortTimerDisplay, 80);
+            }
             if (action === "undo") postAction({ action: "undo" });
             if (action === "sudden") postAction(
                 { action: "sudden_death", enabled: !state.sudden_death },
                 optimisticSuddenDeath(!state.sudden_death),
             );
+        });
+    });
+
+    document.querySelectorAll("[data-fullscreen-toggle]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const root = document.querySelector("[data-battle-session]") || document.documentElement;
+            if (!document.fullscreenElement) {
+                if (root.requestFullscreen) {
+                    root.requestFullscreen().catch(() => {});
+                }
+                return;
+            }
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(() => {});
+            }
         });
     });
 
@@ -895,6 +945,7 @@
         });
     });
 
+    applyLocalTimerBaseline(state);
     renderState();
     connectSocket();
     window.setInterval(() => {

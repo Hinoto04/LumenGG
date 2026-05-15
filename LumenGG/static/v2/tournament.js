@@ -112,6 +112,71 @@ function setupTournamentDeckSearch() {
 
 setupTournamentDeckSearch();
 
+function setupTournamentSections() {
+    const tabs = Array.from(document.querySelectorAll("[data-tournament-tab]"));
+    const panels = Array.from(document.querySelectorAll("[data-tournament-panel]"));
+    if (!tabs.length || !panels.length) return;
+
+    const validKeys = new Set(tabs.map((tab) => tab.dataset.tournamentTab));
+    const hashKey = window.location.hash.replace(/^#section-/, "");
+    const initialKey = validKeys.has(hashKey) ? hashKey : tabs[0].dataset.tournamentTab;
+
+    const activate = (key, updateHash) => {
+        if (!validKeys.has(key)) return;
+        tabs.forEach((tab) => {
+            const active = tab.dataset.tournamentTab === key;
+            tab.classList.toggle("is-active", active);
+            tab.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        panels.forEach((panel) => {
+            panel.hidden = panel.dataset.tournamentPanel !== key;
+        });
+        if (updateHash) {
+            window.history.replaceState(null, "", `#section-${key}`);
+        }
+    };
+
+    tabs.forEach((tab) => {
+        tab.setAttribute("aria-selected", "false");
+        tab.addEventListener("click", () => activate(tab.dataset.tournamentTab, true));
+    });
+
+    activate(initialKey, false);
+}
+
+setupTournamentSections();
+
+function setupRoundTabs() {
+    const tabs = Array.from(document.querySelectorAll("[data-round-tab]"));
+    const panels = Array.from(document.querySelectorAll("[data-round-panel]"));
+    if (!tabs.length || !panels.length) return;
+
+    const validKeys = new Set(tabs.map((tab) => tab.dataset.roundTab));
+    const defaultPanel = panels.find((panel) => panel.dataset.roundDefault === "true") || panels[0];
+    const initialKey = defaultPanel ? defaultPanel.dataset.roundPanel : tabs[0].dataset.roundTab;
+
+    const activate = (key) => {
+        if (!validKeys.has(key)) return;
+        tabs.forEach((tab) => {
+            const active = tab.dataset.roundTab === key;
+            tab.classList.toggle("is-active", active);
+            tab.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        panels.forEach((panel) => {
+            panel.hidden = panel.dataset.roundPanel !== key;
+        });
+    };
+
+    tabs.forEach((tab) => {
+        tab.setAttribute("aria-selected", "false");
+        tab.addEventListener("click", () => activate(tab.dataset.roundTab));
+    });
+
+    activate(initialKey);
+}
+
+setupRoundTabs();
+
 function tournamentHpRatio(hp, initialHp) {
     const current = Number(hp);
     const initial = Number(initialHp);
