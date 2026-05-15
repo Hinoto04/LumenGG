@@ -188,8 +188,24 @@
                 <h2>{{ current_round.number }}라운드 / {{ current_round.get_stage_display }}</h2>
                 <p class="v2-tournament-note">{{ current_round.set_count }}세트 / 승 {{ current_round.win_points }}점 · 무 {{ current_round.draw_points }}점 · 패 {{ current_round.loss_points }}점</p>
             </div>
-            <div class="v2-tournament-timer" data-round-timer data-ends-at="{{ current_round.ends_at|date:"c" }}">
-                --:--
+            <div class="v2-tournament-timer-stack">
+                <div class="v2-tournament-timer" data-round-timer data-ends-at="{{ current_round.ends_at|date:"c" }}">
+                    --:--
+                </div>
+                {% if is_operator %}
+                <form
+                    action="{% url "tournament:roundSuddenDeath" tournament.id current_round.id %}"
+                    method="post"
+                    class="v2-tournament-round-timeout-action"
+                    data-round-timeout-action
+                    data-ends-at="{{ current_round.ends_at|date:"c" }}"
+                    {% if current_round.ends_at > now %}hidden{% endif %}
+                    onsubmit="return confirm('아직 종료되지 않은 모든 테이블을 서든 데스로 전환할까요? 각 계산기는 HP 1000, FP 0, 추가 턴 3턴 상태가 됩니다.');"
+                >
+                    {% csrf_token %}
+                    <button class="v2-button v2-danger-button" type="submit">미종료 테이블 서든 데스</button>
+                </form>
+                {% endif %}
             </div>
         </section>
         {% endif %}
@@ -301,7 +317,7 @@
                                     <strong>{{ match.player1.name }}</strong>
                                     {% if match.battle_summary %}
                                     {% if match.battle_summary.p1_ready %}
-                                    <small data-battle-hp="p1">{{ match.battle_summary.p1_hp }} HP / FP {{ match.battle_summary.p1_fp }}{% if match.battle_summary.p1_hand_limit %} / 손패 {{ match.battle_summary.p1_hand_limit }}{% endif %}</small>
+                                    <small data-battle-hp="p1">{{ match.battle_summary.p1_hp }} HP / FP {{ match.battle_summary.p1_fp }}</small>
                                     {% else %}
                                     <small data-battle-hp="p1">캐릭터 선택 필요</small>
                                     {% endif %}
@@ -315,7 +331,7 @@
                                     {% if match.player2 %}
                                     {% if match.battle_summary %}
                                     {% if match.battle_summary.p2_ready %}
-                                    <small data-battle-hp="p2">{{ match.battle_summary.p2_hp }} HP / FP {{ match.battle_summary.p2_fp }}{% if match.battle_summary.p2_hand_limit %} / 손패 {{ match.battle_summary.p2_hand_limit }}{% endif %}</small>
+                                    <small data-battle-hp="p2">{{ match.battle_summary.p2_hp }} HP / FP {{ match.battle_summary.p2_fp }}</small>
                                     {% else %}
                                     <small data-battle-hp="p2">캐릭터 선택 필요</small>
                                     {% endif %}
@@ -330,8 +346,12 @@
                             <a class="v2-button" href="{% url "tournament:battleEntry" tournament.id match.id %}">계산기</a>
                             {% if match.battle_summary %}
                             <span class="v2-chip" data-battle-set>
+                                {% if match.battle_summary.sudden_death %}
+                                서든 데스 / 추가 턴 {{ match.battle_summary.sudden_death_turns_remaining }}
+                                {% else %}
                                 {% if match.battle_summary.set_number %}{{ match.battle_summary.set_number }}세트 / {% endif %}
                                 {{ match.battle_summary.p1_set_score }}:{{ match.battle_summary.p2_set_score }}
+                                {% endif %}
                             </span>
                             {% endif %}
                             <span class="v2-chip v2-battle-match-sudden" data-battle-sudden hidden>서든 데스</span>

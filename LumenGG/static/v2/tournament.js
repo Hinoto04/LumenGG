@@ -1,21 +1,26 @@
 document.querySelectorAll('[data-round-timer]').forEach((timer) => {
     const endsAt = new Date(timer.dataset.endsAt);
+    const timeoutActions = Array.from(document.querySelectorAll("[data-round-timeout-action]"))
+        .filter((action) => action.dataset.endsAt === timer.dataset.endsAt);
 
     const tick = () => {
         const remaining = endsAt.getTime() - Date.now();
         if (Number.isNaN(remaining)) {
             timer.textContent = '--:--';
+            timeoutActions.forEach((action) => { action.hidden = true; });
             return;
         }
         if (remaining <= 0) {
             timer.textContent = '시간 초과';
             timer.classList.add('is-over');
+            timeoutActions.forEach((action) => { action.hidden = false; });
             return;
         }
         const totalSeconds = Math.floor(remaining / 1000);
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
         timer.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        timeoutActions.forEach((action) => { action.hidden = true; });
     };
 
     tick();
@@ -228,19 +233,23 @@ function renderTournamentBattleState(data) {
         const sudden = matchRow.querySelector("[data-battle-sudden]");
         if (p1) {
             p1.textContent = summary.p1_ready
-                ? `${summary.p1_hp} HP / FP ${summary.p1_fp}${summary.p1_hand_limit ? ` / 손패 ${summary.p1_hand_limit}` : ""}`
+                ? `${summary.p1_hp} HP / FP ${summary.p1_fp}`
                 : "캐릭터 선택 필요";
         }
         if (p2) {
             p2.textContent = summary.p2_ready
-                ? `${summary.p2_hp} HP / FP ${summary.p2_fp}${summary.p2_hand_limit ? ` / 손패 ${summary.p2_hand_limit}` : ""}`
+                ? `${summary.p2_hp} HP / FP ${summary.p2_fp}`
                 : "캐릭터 선택 필요";
         }
         const setInfo = matchRow.querySelector("[data-battle-set]");
         if (setInfo) {
-            setInfo.textContent = summary.set_number
+            if (summary.sudden_death) {
+                setInfo.textContent = `서든 데스 / 추가 턴 ${summary.sudden_death_turns_remaining || 0}`;
+            } else {
+                setInfo.textContent = summary.set_number
                 ? `${summary.set_number}세트 / ${summary.p1_set_score}:${summary.p2_set_score} / 확인 ${summary.p1_confirmed ? "P1" : "-"} ${summary.p2_confirmed ? "P2" : "-"}`
                 : `${summary.p1_set_score}:${summary.p2_set_score}`;
+            }
         }
         if (sudden) {
             sudden.hidden = !summary.sudden_death;

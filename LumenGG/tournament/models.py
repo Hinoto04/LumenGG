@@ -62,7 +62,7 @@ class Tournament(models.Model):
     tags = models.CharField(max_length=255, blank=True, default='')
     decklist_required_count = models.PositiveSmallIntegerField(default=1)
     round_duration_minutes = models.PositiveSmallIntegerField(default=50)
-    round_set_count = models.PositiveSmallIntegerField(default=3)
+    round_set_count = models.PositiveSmallIntegerField(default=1)
     swiss_round_count = models.PositiveSmallIntegerField(default=0)
     top_cut_count = models.PositiveSmallIntegerField(default=0)
     tiebreaker = models.CharField(max_length=16, choices=TIEBREAKER_CHOICES, default=TIEBREAKER_BUCHHOLZ)

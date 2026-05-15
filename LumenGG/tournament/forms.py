@@ -1,15 +1,27 @@
 from django import forms
+from django.utils import timezone
 
 from deck.models import Deck
 
 from .models import Tournament, TournamentParticipant, TournamentRound
 
 
+EVENT_DATE_INPUT_FORMAT = '%Y-%m-%dT%H:%M'
+
+
+def _format_local_event_date(value):
+    if not value or isinstance(value, str):
+        return value
+    if timezone.is_aware(value):
+        value = timezone.localtime(value)
+    return value.strftime(EVENT_DATE_INPUT_FORMAT)
+
+
 class TournamentForm(forms.ModelForm):
     event_date = forms.DateTimeField(
         label='대회 일시',
         input_formats=['%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'],
-        widget=forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+        widget=forms.DateTimeInput(attrs={'type': 'datetime-local'}, format=EVENT_DATE_INPUT_FORMAT),
     )
 
     class Meta:
@@ -71,6 +83,10 @@ class TournamentForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if not self.is_bound:
+            event_date = self.initial.get('event_date') or getattr(self.instance, 'event_date', None)
+            if event_date:
+                self.initial['event_date'] = _format_local_event_date(event_date)
         for field_name, field in self.fields.items():
             field.widget.attrs.setdefault('class', 'v2-tournament-input')
             if field_name in ['join_code', 'swiss_round_count', 'top_cut_count', 'max_players']:

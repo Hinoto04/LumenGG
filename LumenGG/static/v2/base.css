@@ -3317,6 +3317,27 @@ label:has(> input.검색체크:checked) {
     font-variant-numeric: tabular-nums;
 }
 
+.v2-tournament-timer-stack {
+    display: grid;
+    gap: 8px;
+    justify-items: end;
+}
+
+.v2-tournament-round-timeout-action {
+    display: grid;
+}
+
+.v2-tournament-round-timeout-action[hidden] {
+    display: none !important;
+}
+
+.v2-tournament-round-timeout-action .v2-button {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: .82rem;
+    white-space: nowrap;
+}
+
 .v2-tournament-timer.is-over {
     border-color: rgba(217, 105, 105, .55);
     color: #ffd2d2;
@@ -3505,6 +3526,45 @@ label:has(> input.검색체크:checked) {
     padding: 18px;
 }
 
+.v2-table-board-head-side {
+    display: grid;
+    gap: 10px;
+    justify-items: end;
+    min-width: min(320px, 42vw);
+}
+
+.v2-table-board-clock {
+    display: grid;
+    min-width: min(300px, 42vw);
+    padding: 12px 16px;
+    border: 1px solid rgba(224, 180, 91, .56);
+    border-radius: 8px;
+    background:
+        linear-gradient(135deg, rgba(224, 180, 91, .2), rgba(255, 255, 255, .04)),
+        var(--v2-surface-2);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, .18);
+    text-align: right;
+}
+
+.v2-table-board-clock span {
+    color: var(--v2-muted);
+    font-size: .8rem;
+    font-weight: 900;
+}
+
+.v2-table-board-clock strong {
+    color: var(--v2-accent);
+    font-size: clamp(2.4rem, 6vw, 5rem);
+    font-weight: 900;
+    line-height: .95;
+    font-variant-numeric: tabular-nums;
+}
+
+.v2-table-board-clock strong.is-over {
+    color: var(--v2-red);
+    font-size: clamp(1.85rem, 4.6vw, 3.6rem);
+}
+
 .v2-table-board-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -3540,8 +3600,8 @@ label:has(> input.검색체크:checked) {
     position: absolute;
     top: 50%;
     z-index: 0;
-    width: 38%;
-    height: 112%;
+    width: min(44%, 170px);
+    height: 108%;
     background-repeat: no-repeat;
     background-size: contain;
     opacity: .18;
@@ -3549,17 +3609,17 @@ label:has(> input.검색체크:checked) {
 }
 
 .v2-table-board-card::before {
-    right: 50%;
-    transform: translate(50%, -50%);
+    left: 4px;
+    transform: translateY(-50%);
     background-image: var(--tournament-p1-character-img);
-    background-position: right center;
+    background-position: left center;
 }
 
 .v2-table-board-card::after {
-    left: 50%;
-    transform: translate(-50%, -50%);
+    right: 4px;
+    transform: translateY(-50%);
     background-image: var(--tournament-p2-character-img);
-    background-position: left center;
+    background-position: right center;
 }
 
 .v2-table-board-card > * {
@@ -3821,8 +3881,8 @@ label:has(> input.검색체크:checked) {
 
 .v2-battle-player,
 .v2-battle-center {
-    gap: 12px;
-    padding: 8px 12px;
+    gap: 5px;
+    padding: 8px;
 }
 
 .v2-battle-player {
@@ -3887,6 +3947,7 @@ label:has(> input.검색체크:checked) {
 }
 
 .v2-battle-center .v2-battle-round-clock,
+.v2-battle-center .v2-battle-timer-top,
 .v2-battle-center .v2-battle-big-timer,
 .v2-battle-center .v2-battle-center-actions,
 .v2-battle-center .v2-battle-set-panel,
@@ -4274,9 +4335,21 @@ label:has(> input.검색체크:checked) {
 
 .v2-battle-center-actions {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
     justify-items: stretch;
+}
+
+.v2-battle-timer-top {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+}
+
+.v2-battle-top-spacer {
+    display: block;
 }
 
 .v2-battle-report-actions {
@@ -4293,18 +4366,32 @@ label:has(> input.검색체크:checked) {
     min-height: 38px;
 }
 
-.v2-battle-center-actions .v2-button {
+.v2-battle-center-actions .v2-button,
+.v2-battle-timer-top .v2-button {
     display: grid;
     place-items: center;
     width: 100%;
+    min-width: 30px;
     min-height: 40px;
     padding: 0;
+    overflow: hidden;
     font-size: 0;
+    line-height: 1;
+    white-space: nowrap;
 }
 
-.v2-battle-center-actions .v2-button::before {
+.v2-battle-timer-top .v2-button {
+    inline-size: 30px;
+    block-size: 30px;
+    min-inline-size: 0;
+    min-block-size: 30px;
+    max-inline-size: 30px;
+}
+
+.v2-battle-center-actions .v2-button::before,
+.v2-battle-timer-top .v2-button::before {
     color: inherit;
-    font-size: 1.08rem;
+    font-size: 1rem;
     font-weight: 900;
     line-height: 1;
 }
@@ -4313,13 +4400,15 @@ label:has(> input.검색체크:checked) {
     content: "↶";
 }
 
-.v2-battle-center-actions [data-tournament-return]::before {
+.v2-battle-center-actions [data-tournament-return]::before,
+.v2-battle-timer-top [data-tournament-return]::before {
     content: "←";
 }
 
-.v2-battle-center-actions [data-battle-action="sudden"]::before {
+.v2-battle-center-actions [data-battle-action="sudden"]::before,
+.v2-battle-timer-top [data-battle-action="sudden"]::before {
     content: "SD";
-    font-size: .84rem;
+    font-size: .74rem;
 }
 
 .v2-battle-center-actions [data-history-toggle]::before {
@@ -4347,7 +4436,8 @@ label:has(> input.검색체크:checked) {
     color: var(--v2-teal);
 }
 
-.v2-battle-center-actions .is-active {
+.v2-battle-center-actions .is-active,
+.v2-battle-timer-top .is-active {
     border-color: rgba(217, 105, 105, .8);
     color: #fff;
     background: var(--v2-red);
@@ -4407,23 +4497,43 @@ label:has(> input.검색체크:checked) {
 }
 
 .v2-battle-round-clock {
-    display: grid;
-    gap: 2px;
-    justify-items: center;
-    padding: 0 2px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+    justify-self: stretch;
+    flex-grow: 1;
+    min-width: 0;
+    min-height: 30px;
+    padding: 0 4px;
+    overflow: hidden;
+    box-sizing: border-box;
     text-align: center;
+    white-space: nowrap;
 }
 
 .v2-battle-round-clock span {
+    flex: 0 1 auto;
+    max-width: 100%;
+    overflow: hidden;
     color: var(--v2-muted);
-    font-size: .68rem;
+    font-size: .62rem;
     font-weight: 800;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .v2-battle-round-clock strong {
+    flex: 0 0 auto;
+    max-width: 100%;
+    overflow: hidden;
     color: var(--v2-text);
-    font-size: .94rem;
+    font-size: .86rem;
     font-weight: 900;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .v2-battle-round-clock .is-danger {
@@ -4455,6 +4565,10 @@ label:has(> input.검색체크:checked) {
 }
 
 :root[data-theme="light"] .v2-battle-center-actions .is-active {
+    color: #fff;
+}
+
+:root[data-theme="light"] .v2-battle-timer-top .is-active {
     color: #fff;
 }
 
@@ -5242,6 +5356,10 @@ label:has(> input.검색체크:checked) {
         flex-direction: column;
     }
 
+    .v2-tournament-timer-stack {
+        justify-items: stretch;
+    }
+
     .v2-tournament-filter-row,
     .v2-tournament-code-row {
         grid-template-columns: 1fr;
@@ -5250,6 +5368,17 @@ label:has(> input.검색체크:checked) {
     .v2-table-board-head {
         display: grid;
         padding: 14px;
+    }
+
+    .v2-table-board-head-side,
+    .v2-table-board-clock {
+        justify-items: stretch;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .v2-table-board-clock {
+        text-align: left;
     }
 
     .v2-table-board-grid {
@@ -5337,18 +5466,21 @@ label:has(> input.검색체크:checked) {
         padding: 8px 6px;
     }
 
-    .v2-battle-round-clock {
-        align-self: center;
-        justify-items: center;
-        text-align: center;
+    .v2-battle-timer-top {
+        grid-template-columns: 30px minmax(0, 1fr) 30px;
+        gap: 4px;
+    }
+
+    .v2-battle-timer-top .v2-button {
+        min-height: 30px;
     }
 
     .v2-battle-round-clock span {
-        font-size: .66rem;
+        font-size: .6rem;
     }
 
     .v2-battle-round-clock strong {
-        font-size: .92rem;
+        font-size: .82rem;
     }
 
     .v2-battle-big-timer {
@@ -5374,7 +5506,7 @@ label:has(> input.검색체크:checked) {
     .v2-battle-center-actions {
         grid-column: 1;
         grid-row: auto;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         overflow: visible;
         justify-content: stretch;
         gap: 5px;

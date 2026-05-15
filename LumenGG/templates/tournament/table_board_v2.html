@@ -12,13 +12,20 @@
         <p class="v2-subtitle">아직 시작된 라운드가 없습니다.</p>
         {% endif %}
     </div>
-    <div class="v2-chip-row">
-        <a class="v2-chip" href="{% url "tournament:detail" tournament.id %}">대회 상세</a>
+    <div class="v2-table-board-head-side">
         {% if round %}
-        <span class="v2-chip">{{ round.set_count }}세트</span>
-        <span class="v2-chip">{{ round.win_points }}-{{ round.draw_points }}-{{ round.loss_points }}점</span>
-        <span class="v2-chip" data-round-timer data-ends-at="{{ round.ends_at|date:"c" }}">--:--</span>
+        <div class="v2-table-board-clock">
+            <span>남은 시간</span>
+            <strong data-round-timer data-ends-at="{{ round.ends_at|date:"c" }}">--:--</strong>
+        </div>
         {% endif %}
+        <div class="v2-chip-row">
+            <a class="v2-chip" href="{% url "tournament:detail" tournament.id %}">대회 상세</a>
+            {% if round %}
+            <span class="v2-chip">{{ round.set_count }}세트</span>
+            <span class="v2-chip">{{ round.win_points }}-{{ round.draw_points }}-{{ round.loss_points }}점</span>
+            {% endif %}
+        </div>
     </div>
 </section>
 
@@ -41,7 +48,7 @@
                 <strong>{{ match.player1.name }}</strong>
                 {% if match.battle_summary %}
                 {% if match.battle_summary.p1_ready %}
-                <span data-battle-hp="p1">{{ match.battle_summary.p1_hp }} HP / FP {{ match.battle_summary.p1_fp }}{% if match.battle_summary.p1_hand_limit %} / 손패 {{ match.battle_summary.p1_hand_limit }}{% endif %}</span>
+                <span data-battle-hp="p1">{{ match.battle_summary.p1_hp }} HP / FP {{ match.battle_summary.p1_fp }}</span>
                 {% else %}
                 <span data-battle-hp="p1">캐릭터 선택 필요</span>
                 {% endif %}
@@ -55,7 +62,7 @@
                 {% if match.player2 %}
                 {% if match.battle_summary %}
                 {% if match.battle_summary.p2_ready %}
-                <span data-battle-hp="p2">{{ match.battle_summary.p2_hp }} HP / FP {{ match.battle_summary.p2_fp }}{% if match.battle_summary.p2_hand_limit %} / 손패 {{ match.battle_summary.p2_hand_limit }}{% endif %}</span>
+                <span data-battle-hp="p2">{{ match.battle_summary.p2_hp }} HP / FP {{ match.battle_summary.p2_fp }}</span>
                 {% else %}
                 <span data-battle-hp="p2">캐릭터 선택 필요</span>
                 {% endif %}
@@ -75,8 +82,12 @@
             <span class="v2-chip">BYE 승</span>
             {% elif match.battle_summary %}
             <span class="v2-chip" data-battle-set>
+                {% if match.battle_summary.sudden_death %}
+                서든 데스 / 추가 턴 {{ match.battle_summary.sudden_death_turns_remaining }}
+                {% else %}
                 {% if match.battle_summary.set_number %}{{ match.battle_summary.set_number }}세트 / {% endif %}
                 {{ match.battle_summary.p1_set_score }}:{{ match.battle_summary.p2_set_score }}
+                {% endif %}
             </span>
             <span class="v2-chip v2-battle-match-sudden" data-battle-sudden {% if not match.battle_summary.sudden_death %}hidden{% endif %}>서든 데스</span>
             {% elif match.status == "reported" %}

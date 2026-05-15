@@ -193,6 +193,64 @@ class BattleCalculatorTests(TestCase):
         self.assertEqual(session.player1_character, self.char_c)
         self.assertEqual(session.player1_hp, 5200)
 
+    def test_sudden_death_resets_hp_fp_unlocks_time_over_match_and_resolves_after_three_turns(self):
+        owner = User.objects.create_user(username='sudden_owner', password='pw')
+        p1_user = User.objects.create_user(username='sudden_p1', password='pw')
+        p2_user = User.objects.create_user(username='sudden_p2', password='pw')
+        tournament = Tournament.objects.create(name='서든 테스트', organizer=owner)
+        deck1 = Deck.objects.create(name='D1', author=p1_user, character=self.char_a)
+        deck2 = Deck.objects.create(name='D2', author=p2_user, character=self.char_b)
+        participant1 = TournamentParticipant.objects.create(tournament=tournament, user=p1_user, deck=deck1)
+        participant2 = TournamentParticipant.objects.create(tournament=tournament, user=p2_user, deck=deck2)
+        round_obj = TournamentRound.objects.create(
+            tournament=tournament,
+            number=1,
+            started_at=timezone.now() - timedelta(minutes=20),
+            duration_minutes=1,
+        )
+        match = TournamentMatch.objects.create(round=round_obj, table_no=1, player1=participant1, player2=participant2)
+        session = get_or_create_tournament_session(match)
+        action_url = reverse('battlelog:sessionAction', kwargs={'view_token': session.view_token})
+
+        self.client.login(username='sudden_p1', password='pw')
+        locked_response = self.post_json(action_url, {'action': 'hp', 'target': 'p2', 'amount': -100})
+        self.assertEqual(locked_response.status_code, 403)
+
+        self.client.logout()
+        self.client.login(username='sudden_owner', password='pw')
+        response = self.post_json(action_url, {'action': 'fp', 'target': 'p1', 'amount': 3})
+        self.assertEqual(response.status_code, 200)
+        response = self.post_json(action_url, {'action': 'sudden_death', 'enabled': True})
+        self.assertEqual(response.status_code, 200)
+
+        session.refresh_from_db()
+        self.assertTrue(session.sudden_death)
+        self.assertEqual(session.sudden_death_turns_remaining, 3)
+        self.assertEqual(session.player1_hp, 1000)
+        self.assertEqual(session.player2_hp, 1000)
+        self.assertEqual(session.player1_fp, 0)
+        self.assertEqual(session.player2_fp, 0)
+
+        self.client.logout()
+        self.client.login(username='sudden_p1', password='pw')
+        response = self.post_json(action_url, {'action': 'hp', 'target': 'p2', 'amount': -100})
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(session.player2_hp, 900)
+
+        for _ in range(3):
+            response = self.post_json(action_url, {'action': 'sudden_turn'})
+            self.assertEqual(response.status_code, 200)
+
+        session.refresh_from_db()
+        match.refresh_from_db()
+        self.assertFalse(session.sudden_death)
+        self.assertEqual(session.sudden_death_turns_remaining, 0)
+        self.assertEqual(match.status, match.STATUS_REPORTED)
+        self.assertEqual(match.winner, participant1)
+        self.assertEqual(match.player1_score, 1)
+        self.assertEqual(match.player2_score, 0)
+
     def test_cleanup_deletes_expired_standalone_sessions(self):
         BattleSession.objects.create(
             session_type=BattleSession.SESSION_STANDALONE,

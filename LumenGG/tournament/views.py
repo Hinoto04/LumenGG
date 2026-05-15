@@ -17,7 +17,9 @@ from battlelog.services import (
     battle_summary_for_match,
     get_or_create_tournament_session,
     serialize_tournament_battle_state,
+    set_sudden_death,
 )
+from battlelog.realtime import broadcast_battle_session
 from deck.models import Deck
 
 from .forms import RoundStartForm, TournamentForm, TournamentJoinForm
@@ -255,7 +257,7 @@ def createV2(req):
             messages.success(req, '대회를 생성했습니다.')
             return redirect('tournament:detail', id=tournament.id)
     else:
-        form = TournamentForm(initial={'event_date': timezone.now().strftime('%Y-%m-%dT%H:%M')})
+        form = TournamentForm(initial={'event_date': timezone.now()})
     return render(req, 'tournament/create_v2.html', {'form': form})
 
 
@@ -766,6 +768,55 @@ def startRoundV2(req, id):
             messages.error(req, str(exc))
     else:
         messages.error(req, '라운드 시작 설정을 확인해주세요.')
+    return redirect('tournament:detail', id=tournament.id)
+
+
+@login_required(login_url='common:login', redirect_field_name='next')
+def startRoundSuddenDeathV2(req, id, round_id):
+    tournament = get_object_or_404(Tournament, id=id)
+    round_obj = get_object_or_404(TournamentRound, id=round_id, tournament=tournament)
+    if not _is_operator(req.user, tournament):
+        raise PermissionDenied()
+    if req.method != 'POST':
+        return redirect('tournament:detail', id=tournament.id)
+    if round_obj.status != TournamentRound.STATUS_RUNNING:
+        messages.error(req, '진행 중인 라운드만 서든 데스로 전환할 수 있습니다.')
+        return redirect('tournament:detail', id=tournament.id)
+    if round_obj.ends_at > timezone.now():
+        messages.error(req, '라운드 시간이 종료된 뒤에 사용할 수 있습니다.')
+        return redirect('tournament:detail', id=tournament.id)
+
+    matches = (
+        TournamentMatch.objects.select_related(
+            'player1',
+            'player1__deck',
+            'player1__deck__character',
+            'player2',
+            'player2__deck',
+            'player2__deck__character',
+        )
+        .prefetch_related('player1__deck_submissions__deck__character', 'player2__deck_submissions__deck__character')
+        .filter(round=round_obj, status=TournamentMatch.STATUS_PENDING, player2__isnull=False)
+        .order_by('table_no')
+    )
+
+    converted_count = 0
+    already_count = 0
+    for match in matches:
+        session = get_or_create_tournament_session(match, req.user)
+        if session.sudden_death:
+            already_count += 1
+            continue
+        session = set_sudden_death(session, True, req.user)
+        broadcast_battle_session(session)
+        converted_count += 1
+
+    if converted_count:
+        messages.success(req, f'미종료 테이블 {converted_count}개를 서든 데스로 전환했습니다.')
+    elif already_count:
+        messages.info(req, '모든 미종료 테이블이 이미 서든 데스 상태입니다.')
+    else:
+        messages.info(req, '서든 데스로 전환할 미종료 테이블이 없습니다.')
     return redirect('tournament:detail', id=tournament.id)
 
 

@@ -57,6 +57,7 @@ class BattleSession(models.Model):
     timer_started_at = models.DateTimeField(null=True, blank=True)
     timer_duration_seconds = models.PositiveSmallIntegerField(default=10)
     sudden_death = models.BooleanField(default=False)
+    sudden_death_turns_remaining = models.PositiveSmallIntegerField(default=0)
     round_extra_seconds = models.PositiveIntegerField(default=0)
     expires_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

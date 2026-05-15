@@ -56,9 +56,17 @@
         </article>
 
         <section class="v2-panel v2-battle-center">
-            <div class="v2-battle-round-clock">
-                <span data-battle-set-status>게임 시간</span>
-                <strong data-battle-round-time-large>--:--</strong>
+            <div class="v2-battle-timer-top">
+                {% if session.tournament_match %}
+                <a class="v2-button" href="{% url "tournament:detail" session.tournament_match.round.tournament.id %}" data-tournament-return>대회 복귀</a>
+                {% else %}
+                <span class="v2-battle-top-spacer"></span>
+                {% endif %}
+                <div class="v2-battle-round-clock">
+                    <span data-battle-set-status>게임 시간</span>
+                    <strong data-battle-round-time-large>--:--</strong>
+                </div>
+                <button class="v2-button v2-danger-button" type="button" data-battle-action="sudden">서든 데스</button>
             </div>
             <button class="v2-battle-big-timer" type="button" data-battle-action="timer">
                 <span>10초 타이머</span>
@@ -69,11 +77,7 @@
                 <button class="v2-button v2-button-primary" type="button" data-report-set>결과 보고</button>
             </div>
             <div class="v2-battle-center-actions">
-                {% if session.tournament_match %}
-                <a class="v2-button" href="{% url "tournament:detail" session.tournament_match.round.tournament.id %}" data-tournament-return>대회 복귀</a>
-                {% endif %}
                 <button class="v2-button" type="button" data-battle-action="undo">되돌리기</button>
-                <button class="v2-button v2-danger-button" type="button" data-battle-action="sudden">서든 데스</button>
                 <button class="v2-button" type="button" data-history-toggle>로그 확인</button>
                 <button class="v2-button" type="button" data-share-toggle>링크 공유</button>
                 <button class="v2-button" type="button" data-fullscreen-toggle>전체화면</button>

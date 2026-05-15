@@ -170,6 +170,14 @@ def ensure_current_set(session):
 
 
 def _winner_candidate(session):
+    if session.sudden_death:
+        if session.sudden_death_turns_remaining:
+            return ''
+        if session.player1_hp > session.player2_hp:
+            return BattleEvent.TARGET_PLAYER1
+        if session.player2_hp > session.player1_hp:
+            return BattleEvent.TARGET_PLAYER2
+        return ''
     p1_dead = session.player1_hp <= 0
     p2_dead = session.player2_hp <= 0
     if p1_dead and not p2_dead:
@@ -391,6 +399,8 @@ def can_control_session(user, session, control_token=''):
         return True
     if not is_match_player(user, match):
         return False
+    if session.sudden_death:
+        return True
     return (_round_remaining_seconds(session) or 0) > 0
 
 
@@ -633,6 +643,8 @@ def serialize_session(session, user=None, control_token='', include_events=True)
     )
     winner_candidate = _winner_candidate(session)
     ambiguous_result = session.player1_hp <= 0 and session.player2_hp <= 0
+    if session.sudden_death:
+        ambiguous_result = session.sudden_death_turns_remaining == 0 and session.player1_hp == session.player2_hp
 
     data = {
         'id': session.id,
@@ -641,6 +653,7 @@ def serialize_session(session, user=None, control_token='', include_events=True)
         'can_control': can_control,
         'can_sudden_death': can_sudden_death,
         'sudden_death': session.sudden_death,
+        'sudden_death_turns_remaining': session.sudden_death_turns_remaining,
         'suggested_winner': suggested_winner,
         'view_url': reverse('battlelog:sessionDetail', kwargs={'view_token': session.view_token}),
         'control_url': reverse('battlelog:sessionControl', kwargs={
@@ -938,15 +951,89 @@ def start_ten_second_timer(session, user=None):
 def set_sudden_death(session, enabled, user=None):
     with transaction.atomic():
         locked = BattleSession.objects.select_for_update().get(id=session.id)
-        locked.sudden_death = bool(enabled)
-        locked.save(update_fields=['sudden_death', 'updated_at'])
+        enabled = bool(enabled)
+        if enabled:
+            locked.sudden_death = True
+            locked.sudden_death_turns_remaining = 3
+            locked.player1_hp = 1000
+            locked.player2_hp = 1000
+            locked.player1_fp = 0
+            locked.player2_fp = 0
+            locked.player1_passive_state = {}
+            locked.player2_passive_state = {}
+            locked.timer_started_at = None
+            locked.timer_duration_seconds = 10
+            locked.save(update_fields=[
+                'sudden_death',
+                'sudden_death_turns_remaining',
+                'player1_hp',
+                'player2_hp',
+                'player1_fp',
+                'player2_fp',
+                'player1_passive_state',
+                'player2_passive_state',
+                'timer_started_at',
+                'timer_duration_seconds',
+                'updated_at',
+            ])
+            _clear_current_set_confirmations(locked)
+        else:
+            locked.sudden_death = False
+            locked.sudden_death_turns_remaining = 0
+            locked.save(update_fields=['sudden_death', 'sudden_death_turns_remaining', 'updated_at'])
         record_battle_event(
             locked,
             user,
             event_type=BattleEvent.EVENT_SUDDEN_DEATH,
             target=BattleEvent.TARGET_GLOBAL,
-            payload={'enabled': locked.sudden_death},
+            payload={
+                'enabled': locked.sudden_death,
+                'started': enabled,
+                'turns_remaining': locked.sudden_death_turns_remaining,
+                'player1_hp': locked.player1_hp,
+                'player2_hp': locked.player2_hp,
+                'player1_fp': locked.player1_fp,
+                'player2_fp': locked.player2_fp,
+            },
         )
+        return locked
+
+
+def advance_sudden_death_turn(session, user=None, control_token=''):
+    if not session.sudden_death:
+        raise ValueError('서든 데스가 진행 중이 아닙니다.')
+    if not can_control_session(user, session, control_token):
+        raise PermissionDenied()
+
+    with transaction.atomic():
+        locked = BattleSession.objects.select_for_update().get(id=session.id)
+        if not locked.sudden_death:
+            raise ValueError('서든 데스가 진행 중이 아닙니다.')
+        if locked.sudden_death_turns_remaining <= 0:
+            raise ValueError('남은 추가 턴이 없습니다.')
+
+        locked.sudden_death_turns_remaining -= 1
+        locked.save(update_fields=['sudden_death_turns_remaining', 'updated_at'])
+        record_battle_event(
+            locked,
+            user,
+            event_type=BattleEvent.EVENT_SUDDEN_DEATH,
+            target=BattleEvent.TARGET_GLOBAL,
+            payload={
+                'enabled': True,
+                'turn_advanced': True,
+                'turns_remaining': locked.sudden_death_turns_remaining,
+            },
+        )
+
+        if locked.sudden_death_turns_remaining == 0 and locked.tournament_match_id:
+            current_set = ensure_current_set(locked)
+            winner_side = ''
+            if locked.player1_hp > locked.player2_hp:
+                winner_side = BattleEvent.TARGET_PLAYER1
+            elif locked.player2_hp > locked.player1_hp:
+                winner_side = BattleEvent.TARGET_PLAYER2
+            _finish_current_set(locked, current_set, winner_side, user)
         return locked
 
 
@@ -981,7 +1068,7 @@ def _finalize_match_from_sets(session):
     p2_score = score[BattleEvent.TARGET_PLAYER2]
     required_wins = _required_set_wins(session)
     max_sets = _max_set_count(session)
-    finished_count = p1_score + p2_score
+    finished_count = session.sets.filter(status=BattleSet.STATUS_FINISHED).count()
 
     should_finish = (
         p1_score >= required_wins
@@ -1022,6 +1109,7 @@ def _start_next_set(session, user=None):
     session.timer_started_at = None
     session.timer_duration_seconds = 10
     session.sudden_death = False
+    session.sudden_death_turns_remaining = 0
     session.save(update_fields=[
         'player1_character',
         'player2_character',
@@ -1036,6 +1124,7 @@ def _start_next_set(session, user=None):
         'timer_started_at',
         'timer_duration_seconds',
         'sudden_death',
+        'sudden_death_turns_remaining',
         'updated_at',
     ])
     next_set = ensure_current_set(session)
@@ -1069,14 +1158,19 @@ def _finish_current_set(session, current_set, winner_side, user=None, forced=Fal
         'ended_at',
         'forced_by',
     ])
+    if session.sudden_death or session.sudden_death_turns_remaining:
+        session.sudden_death = False
+        session.sudden_death_turns_remaining = 0
+        session.save(update_fields=['sudden_death', 'sudden_death_turns_remaining', 'updated_at'])
     record_battle_event(
         session,
         user,
         event_type=BattleEvent.EVENT_SET_REPORT,
-        target=winner_side,
+        target=winner_side or BattleEvent.TARGET_GLOBAL,
         payload={
             'set_number': current_set.set_number,
             'winner_side': winner_side,
+            'draw': not bool(winner_side),
             'forced': forced,
         },
     )
@@ -1205,6 +1299,10 @@ def perform_session_action(session, body, user=None, control_token=''):
         if not can_toggle_sudden_death(user, session, control_token):
             raise PermissionDenied()
         session = set_sudden_death(session, bool(body.get('enabled')), user)
+    elif action == 'sudden_turn':
+        if not can_control_session(user, session, control_token):
+            raise PermissionDenied()
+        session = advance_sudden_death_turn(session, user, control_token)
     elif action == 'extra_time':
         session = add_extra_time(session, int(body.get('seconds') or 0), user)
     elif action == 'report_set':
@@ -1274,6 +1372,7 @@ def battle_summary_for_match(match):
         'p1_confirmed': bool(current_set and current_set.player1_confirmed_at),
         'p2_confirmed': bool(current_set and current_set.player2_confirmed_at),
         'sudden_death': session.sudden_death,
+        'sudden_death_turns_remaining': session.sudden_death_turns_remaining,
     }
 
 

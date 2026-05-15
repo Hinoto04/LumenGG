@@ -136,6 +136,9 @@
         if (event.type === "undo") return `${playerLabel(event.target)} 체력 변경 되돌림`;
         if (event.type === "timer") return event.payload && event.payload.running ? "10초 타이머 시작" : "10초 타이머 정지";
         if (event.type === "sudden_death") {
+            if (event.payload && event.payload.turn_advanced) {
+                return `서든 데스 추가 턴 종료 / 남은 턴 ${event.payload.turns_remaining}`;
+            }
             return event.payload && event.payload.enabled ? "서든 데스 진입" : "서든 데스 해제";
         }
         if (event.type === "set_report") {
@@ -190,8 +193,8 @@
                 (setState.report_side === "p1" && setState.player1_confirmed)
                 || (setState.report_side === "p2" && setState.player2_confirmed)
             );
-            button.disabled = !setState.can_report || !setState.winner_candidate || setState.ambiguous_result || alreadyReported;
-            button.hidden = state.type !== "tournament";
+            button.disabled = state.sudden_death || !setState.can_report || !setState.winner_candidate || setState.ambiguous_result || alreadyReported;
+            button.hidden = state.type !== "tournament" || state.sudden_death;
             button.textContent = alreadyReported ? "보고 완료" : "결과 보고";
         });
         document.querySelectorAll("[data-extra-time]").forEach((button) => {
@@ -443,9 +446,13 @@
         const setStatus = document.querySelector("[data-battle-set-status]");
         if (setStatus) {
             const setState = state.set || {};
-            setStatus.textContent = state.type === "tournament"
-                ? `${setState.current_number || 1}세트 / ${setState.score ? setState.score.p1 : 0}:${setState.score ? setState.score.p2 : 0}`
-                : "게임 시간";
+            if (state.sudden_death) {
+                setStatus.textContent = `SD ${state.sudden_death_turns_remaining || 0}턴`;
+            } else {
+                setStatus.textContent = state.type === "tournament"
+                    ? `${setState.current_number || 1}S ${setState.score ? setState.score.p1 : 0}:${setState.score ? setState.score.p2 : 0}`
+                    : "게임 시간";
+            }
         }
         const extraTimePanel = document.querySelector("[data-extra-time-panel]");
         if (extraTimePanel) {
@@ -466,9 +473,32 @@
         panel.replaceChildren();
         panel.hidden = true;
         if (state.type !== "tournament") {
-            return;
+            if (!state.sudden_death) return;
         }
         const setState = state.set || {};
+        if (state.sudden_death) {
+            panel.hidden = false;
+            const title = document.createElement("strong");
+            title.textContent = "서든 데스";
+            const note = document.createElement("span");
+            const turns = Number(state.sudden_death_turns_remaining || 0);
+            note.textContent = turns > 0
+                ? `남은 추가 턴 ${turns}턴`
+                : "추가 턴 종료";
+            panel.append(title, note);
+            if (state.can_control && turns > 0) {
+                const actions = document.createElement("div");
+                actions.className = "v2-battle-force-actions";
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "v2-button v2-button-primary";
+                button.textContent = "추가 턴 종료";
+                button.addEventListener("click", () => postAction({ action: "sudden_turn" }));
+                actions.appendChild(button);
+                panel.appendChild(actions);
+            }
+            return;
+        }
         if (setState.can_force && setState.winner_candidate && !setState.ambiguous_result) {
             panel.hidden = false;
             const actions = document.createElement("div");
@@ -624,6 +654,15 @@
     function optimisticSuddenDeath(enabled) {
         return (draft) => {
             draft.sudden_death = !!enabled;
+            draft.sudden_death_turns_remaining = enabled ? 3 : 0;
+            if (enabled && draft.players) {
+                ["p1", "p2"].forEach((target) => {
+                    if (!draft.players[target]) return;
+                    draft.players[target].hp = 1000;
+                    draft.players[target].fp = 0;
+                    draft.players[target].passive_state = {};
+                });
+            }
         };
     }
 
@@ -858,10 +897,17 @@
                 window.setTimeout(setShortTimerDisplay, 80);
             }
             if (action === "undo") postAction({ action: "undo" });
-            if (action === "sudden") postAction(
-                { action: "sudden_death", enabled: !state.sudden_death },
-                optimisticSuddenDeath(!state.sudden_death),
-            );
+            if (action === "sudden") {
+                const enable = !state.sudden_death;
+                const message = enable
+                    ? "서든 데스에 진입할까요? 각 플레이어의 HP는 1000, FP는 0이 되고 추가 턴 3턴이 시작됩니다."
+                    : "서든 데스를 해제할까요?";
+                if (!window.confirm(message)) return;
+                postAction(
+                    { action: "sudden_death", enabled: enable },
+                    optimisticSuddenDeath(enable),
+                );
+            }
         });
     });
 
