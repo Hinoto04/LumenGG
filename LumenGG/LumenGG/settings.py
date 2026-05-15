@@ -162,12 +162,10 @@ USE_I18N = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
-if DEBUG:
-    STATICFILES_DIRS = [
-        BASE_DIR / 'static',
-    ]
-else:
-    STATIC_ROOT = BASE_DIR / "static"
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+STATIC_ROOT = Path(os.environ.get('STATIC_ROOT', BASE_DIR / 'staticfiles'))
 
 if DEBUG:
     MEDIA_ROOT = BASE_DIR / 'media'

@@ -169,3 +169,5 @@ imglinks.txt
 imgNameNormalize.py
 logs
 LumenGG/media/generated/deck_captures/
+staticfiles/
+LumenGG/staticfiles/
