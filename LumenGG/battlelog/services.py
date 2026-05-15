@@ -1,7 +1,9 @@
 import secrets
 import posixpath
 from datetime import timedelta
+from pathlib import Path
 
+from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.contrib.staticfiles import finders
 from django.db import transaction
@@ -463,13 +465,27 @@ def _read_passive_ui_static(path, suffix):
     found_path = finders.find(safe_path)
     if isinstance(found_path, (list, tuple)):
         found_path = found_path[0] if found_path else ''
-    if not found_path:
-        return ''
-    try:
-        with open(found_path, encoding='utf-8') as static_file:
-            return static_file.read()
-    except OSError:
-        return ''
+    candidate_paths = []
+    if found_path:
+        candidate_paths.append(found_path)
+    static_root = getattr(settings, 'STATIC_ROOT', None)
+    if static_root:
+        candidate_paths.append(Path(static_root) / safe_path)
+    candidate_paths.append(Path(settings.BASE_DIR) / 'static' / safe_path)
+
+    for candidate_path in candidate_paths:
+        if not candidate_path:
+            continue
+        try:
+            with open(candidate_path, encoding='utf-8') as static_file:
+                return static_file.read()
+        except OSError:
+            continue
+    return ''
+
+
+def _is_passive_ui_static_reference(value, suffix):
+    return bool(_safe_passive_ui_path(value, PASSIVE_UI_STATIC_PREFIX, suffix))
 
 
 def _passive_ui_text_or_static(raw_ui, key, suffix):
@@ -479,7 +495,11 @@ def _passive_ui_text_or_static(raw_ui, key, suffix):
 
     value = str(raw_ui.get(key) or '')
     loaded = _read_passive_ui_static(value, suffix)
-    return loaded or value
+    if loaded:
+        return loaded
+    if _is_passive_ui_static_reference(value, suffix):
+        return ''
+    return value
 
 
 def _passive_ui(character):
