@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from card.models import Character
 from deck.models import Deck
-from tournament.models import Tournament, TournamentMatch, TournamentParticipant, TournamentRound
+from tournament.models import Tournament, TournamentDeckSubmission, TournamentMatch, TournamentParticipant, TournamentRound
 
 from .models import BattleEvent, BattleSession
 from .event_buffer import flush_session_events
@@ -30,6 +30,13 @@ class BattleCalculatorTests(TestCase):
             group='',
             datas={'hand': {'4500': 6, '3000': 8}},
             img='https://example.com/root.png',
+        )
+        self.char_c = Character.objects.create(
+            name='델피',
+            description='',
+            group='',
+            datas={'hand': {'5200': 6, '4000': 7}},
+            img='https://example.com/delphi.png',
         )
 
     def post_json(self, url, payload):
@@ -121,6 +128,70 @@ class BattleCalculatorTests(TestCase):
         self.assertEqual(response.status_code, 200)
         session.refresh_from_db()
         self.assertEqual(session.player2_hp, 4400)
+
+    def test_multi_deck_player_can_choose_character_again_on_next_set(self):
+        owner = User.objects.create_user(username='owner2', password='pw')
+        p1_user = User.objects.create_user(username='p1_multi', password='pw')
+        p2_user = User.objects.create_user(username='p2_single', password='pw')
+        tournament = Tournament.objects.create(name='다중 덱 테스트', organizer=owner, decklist_required_count=2)
+        deck1 = Deck.objects.create(name='D1', author=p1_user, character=self.char_a)
+        deck2 = Deck.objects.create(name='D2', author=p1_user, character=self.char_c)
+        deck3 = Deck.objects.create(name='D3', author=p2_user, character=self.char_b)
+        participant1 = TournamentParticipant.objects.create(tournament=tournament, user=p1_user, deck=deck1)
+        participant2 = TournamentParticipant.objects.create(tournament=tournament, user=p2_user, deck=deck3)
+        TournamentDeckSubmission.objects.create(participant=participant1, deck=deck1, slot=1)
+        TournamentDeckSubmission.objects.create(participant=participant1, deck=deck2, slot=2)
+        TournamentDeckSubmission.objects.create(participant=participant2, deck=deck3, slot=1)
+        round_obj = TournamentRound.objects.create(tournament=tournament, number=1, set_count=3)
+        match = TournamentMatch.objects.create(round=round_obj, table_no=1, player1=participant1, player2=participant2)
+        session = get_or_create_tournament_session(match)
+
+        self.assertIsNone(session.player1_character)
+        self.assertEqual(session.player2_character, self.char_b)
+
+        action_url = reverse('battlelog:sessionAction', kwargs={'view_token': session.view_token})
+        self.client.login(username='p1_multi', password='pw')
+        response = self.post_json(action_url, {
+            'action': 'character',
+            'target': 'p1',
+            'character_id': self.char_a.id,
+        })
+        self.assertEqual(response.status_code, 200)
+
+        response = self.post_json(action_url, {
+            'action': 'hp',
+            'target': 'p2',
+            'amount': -5000,
+        })
+        self.assertEqual(response.status_code, 200)
+
+        self.client.logout()
+        self.client.login(username='owner2', password='pw')
+        response = self.post_json(action_url, {
+            'action': 'force_set_result',
+            'winner': 'p1',
+        })
+        self.assertEqual(response.status_code, 200)
+
+        session.refresh_from_db()
+        self.assertEqual(session.sets.filter(status='finished').count(), 1)
+        self.assertEqual(session.sets.filter(status='running').get().set_number, 2)
+        self.assertIsNone(session.player1_character)
+        self.assertEqual(session.player1_hp, 0)
+        self.assertEqual(session.player2_character, self.char_b)
+        self.assertEqual(session.player2_hp, 4500)
+
+        self.client.logout()
+        self.client.login(username='p1_multi', password='pw')
+        response = self.post_json(action_url, {
+            'action': 'character',
+            'target': 'p1',
+            'character_id': self.char_c.id,
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(session.player1_character, self.char_c)
+        self.assertEqual(session.player1_hp, 5200)
 
     def test_cleanup_deletes_expired_standalone_sessions(self):
         BattleSession.objects.create(

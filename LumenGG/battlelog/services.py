@@ -18,10 +18,10 @@ from card.models import Card, Character
 from .event_buffer import (
     flush_pending_battle_events,
     flush_session_events,
-    has_pending_event,
     latest_pending_event,
     mark_pending_event_undone,
     normalize_event_datetime,
+    pending_event_records,
     recent_battle_event_payloads,
     record_battle_event,
 )
@@ -264,6 +264,38 @@ def _unique_character_candidates(participant):
 def _auto_character_for_participant(participant):
     candidates = _unique_character_candidates(participant)
     return candidates[0] if len(candidates) == 1 else None
+
+
+def _player_participant_for_target(session, target):
+    if not session.tournament_match_id:
+        return None
+    if target == BattleEvent.TARGET_PLAYER1:
+        return session.tournament_match.player1
+    if target == BattleEvent.TARGET_PLAYER2 and session.tournament_match.player2_id:
+        return session.tournament_match.player2
+    return None
+
+
+def _reset_player_for_next_set(session, target):
+    participant = _player_participant_for_target(session, target)
+    character_candidates = _unique_character_candidates(participant) if participant else []
+    character = character_candidates[0] if len(character_candidates) == 1 else None
+
+    if character:
+        _set_player_character(session, target, character)
+        return
+
+    if target == BattleEvent.TARGET_PLAYER1:
+        session.player1_character = None
+        session.player1_initial_hp = 0
+        session.player1_hp = 0
+        session.player1_fp = 0
+        return
+
+    session.player2_character = None
+    session.player2_initial_hp = 0
+    session.player2_hp = 0
+    session.player2_fp = 0
 
 
 def get_or_create_tournament_session(match, user=None):
@@ -676,15 +708,41 @@ def serialize_session(session, user=None, control_token='', include_events=True)
     return data
 
 
+def _pending_event_created_at(record):
+    parsed = parse_datetime(str(record.get('created_at') or ''))
+    if parsed is None:
+        return timezone.now()
+    return normalize_event_datetime(parsed)
+
+
+def _has_hp_events_in_current_set(session, target):
+    current_set = _current_set(session)
+    if not current_set:
+        return session.events.filter(event_type=BattleEvent.EVENT_HP, target=target).exists()
+
+    started_at = current_set.started_at
+    if session.events.filter(
+        event_type=BattleEvent.EVENT_HP,
+        target=target,
+        created_at__gte=started_at,
+    ).exists():
+        return True
+
+    for record in pending_event_records(session.id):
+        if record.get('event_type') != BattleEvent.EVENT_HP:
+            continue
+        if record.get('target') != target:
+            continue
+        if _pending_event_created_at(record) >= started_at:
+            return True
+    return False
+
+
 def select_character(session, target, character, user=None):
     with transaction.atomic():
         locked = BattleSession.objects.select_for_update().get(id=session.id)
-        existing_hp_events = (
-            locked.events.filter(event_type=BattleEvent.EVENT_HP, target=target).exists()
-            or has_pending_event(locked.id, BattleEvent.EVENT_HP, target)
-        )
-        if existing_hp_events:
-            raise ValueError('체력 변경 이력이 있는 플레이어의 캐릭터는 변경할 수 없습니다.')
+        if _has_hp_events_in_current_set(locked, target):
+            raise ValueError('현재 세트에서 체력 변경 이력이 있는 플레이어의 캐릭터는 변경할 수 없습니다.')
         _set_player_character(locked, target, character)
         locked.save(update_fields=[
             f'player{1 if target == BattleEvent.TARGET_PLAYER1 else 2}_character',
@@ -804,13 +862,6 @@ def reset_fp(session, target, user=None):
             payload={'before': before, 'after': 0, 'reset': True},
         )
         return locked
-
-
-def _pending_event_created_at(record):
-    parsed = parse_datetime(str(record.get('created_at') or ''))
-    if parsed is None:
-        return timezone.now()
-    return normalize_event_datetime(parsed)
 
 
 def undo_last_hp_event(session, user=None):
@@ -964,16 +1015,18 @@ def _finalize_match_from_sets(session):
 
 
 def _start_next_set(session, user=None):
-    session.player1_hp = session.player1_initial_hp
-    session.player2_hp = session.player2_initial_hp
-    session.player1_fp = 0
-    session.player2_fp = 0
+    _reset_player_for_next_set(session, BattleEvent.TARGET_PLAYER1)
+    _reset_player_for_next_set(session, BattleEvent.TARGET_PLAYER2)
     session.player1_passive_state = {}
     session.player2_passive_state = {}
     session.timer_started_at = None
     session.timer_duration_seconds = 10
     session.sudden_death = False
     session.save(update_fields=[
+        'player1_character',
+        'player2_character',
+        'player1_initial_hp',
+        'player2_initial_hp',
         'player1_hp',
         'player2_hp',
         'player1_fp',

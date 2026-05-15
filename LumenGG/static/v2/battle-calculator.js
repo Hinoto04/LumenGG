@@ -136,7 +136,12 @@
     }
 
     function setControlDisabled() {
-        document.querySelectorAll("[data-hp-target], [data-fp-target], [data-fp-reset], [data-battle-action='timer'], [data-battle-action='undo']").forEach((button) => {
+        document.querySelectorAll("[data-hp-target], [data-fp-target], [data-fp-reset]").forEach((button) => {
+            const target = button.dataset.hpTarget || button.dataset.fpTarget || button.dataset.fpReset;
+            const player = target && state.players ? state.players[target] : null;
+            button.disabled = !state.can_control || state.is_expired || !player || !player.character;
+        });
+        document.querySelectorAll("[data-battle-action='timer'], [data-battle-action='undo']").forEach((button) => {
             button.disabled = !state.can_control || state.is_expired;
         });
         const suddenButton = document.querySelector("[data-battle-action='sudden']");
@@ -298,7 +303,7 @@
         ["p1", "p2"].forEach((target) => {
             const player = state.players[target];
             const options = characterOptions[target] || { can_choose: false, options: [] };
-            if (player.character || !options.can_choose || !options.options.length) return;
+            if (player.character || !state.can_control || !options.can_choose || !options.options.length) return;
 
             const field = document.createElement("label");
             field.className = "v2-battle-character-select";
@@ -723,57 +728,89 @@
         });
     }
 
+    function formatQueuedAmount(amount) {
+        return amount > 0 ? `+${amount}` : String(amount);
+    }
+
+    function buttonBaseText(step) {
+        return Number(step || 0) > 0 ? "+" : "-";
+    }
+
+    function queuedButtonConfig(kind) {
+        if (kind === "hp") {
+            return { targetAttr: "hpTarget", stepAttr: "hpStep", selector: "data-hp-target" };
+        }
+        return { targetAttr: "fpTarget", stepAttr: "fpStep", selector: "data-fp-target" };
+    }
+
+    function updateQueuedButtons(kind, target, amount) {
+        const configForKind = queuedButtonConfig(kind);
+        document.querySelectorAll(`[${configForKind.selector}="${target}"]`).forEach((button) => {
+            const step = Number(button.dataset[configForKind.stepAttr] || 0);
+            const isActiveDirection = (amount > 0 && step > 0) || (amount < 0 && step < 0);
+            button.textContent = isActiveDirection ? formatQueuedAmount(amount) : buttonBaseText(step);
+        });
+    }
+
+    function clearQueuedDelta(queue, kind, target) {
+        const queued = queue.get(target);
+        if (queued && queued.timer) window.clearTimeout(queued.timer);
+        queue.delete(target);
+        updateQueuedButtons(kind, target, 0);
+    }
+
+    function queueDelta(queue, kind, target, step, delay, action, optimisticUpdate) {
+        const queued = queue.get(target) || { amount: 0, timer: null };
+        queued.amount += step;
+        window.clearTimeout(queued.timer);
+
+        if (!queued.amount) {
+            clearQueuedDelta(queue, kind, target);
+            return;
+        }
+
+        updateQueuedButtons(kind, target, queued.amount);
+        queued.timer = window.setTimeout(() => {
+            const amount = queued.amount;
+            const rollbackState = cloneState();
+            clearQueuedDelta(queue, kind, target);
+            postAction(
+                { action, target, amount },
+                optimisticUpdate(target, amount),
+                rollbackState,
+            );
+        }, delay);
+        queue.set(target, queued);
+    }
+
     document.querySelectorAll("[data-hp-target]").forEach((button) => {
         button.addEventListener("click", () => {
             if (!state.can_control || state.is_expired) return;
-            const key = `${button.dataset.hpTarget}:${button.dataset.hpStep}`;
+            const player = state.players ? state.players[button.dataset.hpTarget] : null;
+            if (!player || !player.character) return;
+            const target = button.dataset.hpTarget;
             const step = Number(button.dataset.hpStep || 0);
-            const queued = pendingHp.get(key) || { amount: 0, timer: null, originalText: button.textContent };
-            queued.amount += step;
-            button.textContent = queued.amount > 0 ? `+${queued.amount}` : String(queued.amount);
-            window.clearTimeout(queued.timer);
-            queued.timer = window.setTimeout(() => {
-                const amount = queued.amount;
-                const rollbackState = cloneState();
-                button.textContent = queued.originalText;
-                pendingHp.delete(key);
-                postAction(
-                    { action: "hp", target: button.dataset.hpTarget, amount },
-                    optimisticHp(button.dataset.hpTarget, amount),
-                    rollbackState,
-                );
-            }, 900);
-            pendingHp.set(key, queued);
+            queueDelta(pendingHp, "hp", target, step, 900, "hp", optimisticHp);
         });
     });
 
     document.querySelectorAll("[data-fp-target]").forEach((button) => {
         button.addEventListener("click", () => {
             if (!state.can_control || state.is_expired) return;
-            const key = `${button.dataset.fpTarget}:${button.dataset.fpStep}`;
+            const player = state.players ? state.players[button.dataset.fpTarget] : null;
+            if (!player || !player.character) return;
+            const target = button.dataset.fpTarget;
             const step = Number(button.dataset.fpStep || 0);
-            const queued = pendingFp.get(key) || { amount: 0, timer: null, originalText: button.textContent };
-            queued.amount += step;
-            button.textContent = queued.amount > 0 ? `+${queued.amount}` : String(queued.amount);
-            window.clearTimeout(queued.timer);
-            queued.timer = window.setTimeout(() => {
-                const amount = queued.amount;
-                const rollbackState = cloneState();
-                button.textContent = queued.originalText;
-                pendingFp.delete(key);
-                postAction(
-                    { action: "fp", target: button.dataset.fpTarget, amount },
-                    optimisticFp(button.dataset.fpTarget, amount),
-                    rollbackState,
-                );
-            }, 700);
-            pendingFp.set(key, queued);
+            queueDelta(pendingFp, "fp", target, step, 700, "fp", optimisticFp);
         });
     });
 
     document.querySelectorAll("[data-fp-reset]").forEach((button) => {
         button.addEventListener("click", () => {
             if (!state.can_control || state.is_expired) return;
+            const player = state.players ? state.players[button.dataset.fpReset] : null;
+            if (!player || !player.character) return;
+            clearQueuedDelta(pendingFp, "fp", button.dataset.fpReset);
             postAction(
                 { action: "fp_reset", target: button.dataset.fpReset },
                 optimisticFpReset(button.dataset.fpReset),
