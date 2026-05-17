@@ -16,6 +16,9 @@
         {% if perms.card.add_card %}
         <a class="v2-button v2-button-primary" href="{% url "card:create" %}">카드 추가</a>
         {% endif %}
+        {% if perms.card.change_card %}
+        <a class="v2-button" href="{% url "card:detailTextImport" %}">보충 설명 가져오기</a>
+        {% endif %}
     </div>
 </section>
 

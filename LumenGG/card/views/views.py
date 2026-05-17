@@ -1,6 +1,9 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, Http404, JsonResponse
+from django.contrib import messages
+from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q, Case, When, IntegerField, Avg, BooleanField, Min, Count
 from django.db.models.functions import Cast
 from django.conf import settings
@@ -11,11 +14,264 @@ from collection.models import CollectionCard, Pack
 from deck.models import Deck
 from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm, CardUpdateForm, CardCommentForm
 from decorators import permission_required
-import re, random, os, json
+import re, random, os, json, uuid
+from io import BytesIO
+from zipfile import BadZipFile
+import openpyxl
+from openpyxl.utils.exceptions import InvalidFileException
 
 from PIL import Image
 
 NEUTRAL_CHARACTER_ID = 1
+DETAIL_TEXT_IMPORT_DIR = 'card_detail_text_imports'
+DETAIL_TEXT_IMPORT_REQUIRED_COLUMNS = ['첫 출전팩', '번호', '이름', '보충 설명']
+
+
+def _detail_text_import_path(token):
+    if not re.fullmatch(r'[0-9a-f]{32}', token or ''):
+        raise ValueError('잘못된 업로드 토큰입니다.')
+    return f'{DETAIL_TEXT_IMPORT_DIR}/{token}.xlsx'
+
+
+def _normalize_excel_value(value):
+    if value is None:
+        return ''
+    if isinstance(value, str):
+        text = value
+    else:
+        text = str(value)
+    return text.replace('\r\n', '\n').replace('\r', '\n').strip()
+
+
+def _normalize_card_number(value):
+    if isinstance(value, int):
+        return str(value).zfill(3)
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value)).zfill(3)
+
+    text = _normalize_excel_value(value)
+    if text.isdigit():
+        return text.zfill(3)
+    return text.upper()
+
+
+def _build_detail_text_import_code(pack, number):
+    pack_code = _normalize_excel_value(pack).upper()
+    card_number = _normalize_card_number(number)
+    if not pack_code or not card_number:
+        return ''
+    return f'{pack_code}-{card_number}'
+
+
+def _save_detail_text_import_file(uploaded_file):
+    if not uploaded_file:
+        raise ValueError('xlsx 파일을 선택해 주세요.')
+    if not uploaded_file.name.lower().endswith('.xlsx'):
+        raise ValueError('xlsx 파일만 업로드할 수 있습니다.')
+
+    token = uuid.uuid4().hex
+    path = _detail_text_import_path(token)
+    default_storage.save(path, uploaded_file)
+    return token
+
+
+def _delete_detail_text_import_file(token):
+    try:
+        path = _detail_text_import_path(token)
+    except ValueError:
+        return
+    if default_storage.exists(path):
+        default_storage.delete(path)
+
+
+def _load_detail_text_import_workbook(token):
+    path = _detail_text_import_path(token)
+    if not default_storage.exists(path):
+        raise ValueError('업로드된 파일을 찾을 수 없습니다. 다시 업로드해 주세요.')
+    with default_storage.open(path, 'rb') as uploaded:
+        return openpyxl.load_workbook(BytesIO(uploaded.read()), read_only=True, data_only=True)
+
+
+def _get_detail_text_import_sheet_names(token):
+    workbook = _load_detail_text_import_workbook(token)
+    try:
+        return workbook.sheetnames
+    finally:
+        workbook.close()
+
+
+def _get_detail_text_header_indexes(sheet):
+    header_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), None)
+    if not header_row:
+        raise ValueError('헤더 행을 찾을 수 없습니다.')
+
+    headers = {}
+    for index, value in enumerate(header_row):
+        header = _normalize_excel_value(value)
+        if header:
+            headers[header] = index
+
+    missing_columns = [column for column in DETAIL_TEXT_IMPORT_REQUIRED_COLUMNS if column not in headers]
+    if missing_columns:
+        raise ValueError('필수 컬럼이 없습니다: ' + ', '.join(missing_columns))
+    return headers
+
+
+def _get_detail_text_import_cell(row, headers, column):
+    index = headers.get(column)
+    if index is None or index >= len(row):
+        return ''
+    return _normalize_excel_value(row[index])
+
+
+def _load_detail_text_import_card_maps():
+    cards = Card.objects.only('id', 'code', 'name', 'detail_text')
+    cards_by_code = {card.code: card for card in cards if card.code}
+    cards_by_name = {}
+    duplicate_names = set()
+
+    for card in cards:
+        if not card.name:
+            continue
+        if card.name in cards_by_name:
+            duplicate_names.add(card.name)
+        else:
+            cards_by_name[card.name] = card
+
+    for name in duplicate_names:
+        cards_by_name.pop(name, None)
+
+    return cards_by_code, cards_by_name, duplicate_names
+
+
+def parse_detail_text_import(token, sheet_name):
+    workbook = _load_detail_text_import_workbook(token)
+    try:
+        if sheet_name not in workbook.sheetnames:
+            raise ValueError('선택한 시트를 찾을 수 없습니다.')
+
+        sheet = workbook[sheet_name]
+        headers = _get_detail_text_header_indexes(sheet)
+        cards_by_code, cards_by_name, duplicate_names = _load_detail_text_import_card_maps()
+        rows = []
+        summary = {
+            'total_rows': 0,
+            'matched_count': 0,
+            'update_count': 0,
+            'no_change_count': 0,
+            'name_fallback_count': 0,
+            'unmatched_count': 0,
+            'empty_detail_count': 0,
+            'warning_count': 0,
+        }
+
+        for row_number, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            pack = _get_detail_text_import_cell(row, headers, '첫 출전팩')
+            number = row[headers['번호']] if headers['번호'] < len(row) else None
+            excel_number = _normalize_excel_value(number)
+            excel_name = _get_detail_text_import_cell(row, headers, '이름')
+            detail_text = _get_detail_text_import_cell(row, headers, '보충 설명')
+            card_type = _get_detail_text_import_cell(row, headers, '종류')
+            effect_text = _get_detail_text_import_cell(row, headers, '효과')
+
+            if not any([pack, excel_number, excel_name, detail_text, card_type, effect_text]):
+                continue
+
+            summary['total_rows'] += 1
+            code = _build_detail_text_import_code(pack, number)
+            card = cards_by_code.get(code)
+            match_method = 'code' if card else ''
+            warning = ''
+
+            if not card and excel_name:
+                if excel_name in duplicate_names:
+                    warning = '같은 이름의 카드가 여러 장 있어 이름으로 매칭하지 않았습니다.'
+                else:
+                    card = cards_by_name.get(excel_name)
+                    if card:
+                        match_method = 'name'
+                        summary['name_fallback_count'] += 1
+
+            if not detail_text:
+                status = 'empty_detail'
+                status_label = '빈 보충 설명'
+                status_class = 'muted'
+                summary['empty_detail_count'] += 1
+                changed = False
+            elif not card:
+                status = 'unmatched'
+                status_label = '미매칭'
+                status_class = 'danger'
+                summary['unmatched_count'] += 1
+                changed = False
+            else:
+                summary['matched_count'] += 1
+                if match_method == 'code' and excel_name and card.name != excel_name:
+                    warning = f'코드는 매칭되었지만 DB 이름은 "{card.name}"입니다.'
+                    summary['warning_count'] += 1
+
+                changed = (card.detail_text or '') != detail_text
+                if changed:
+                    status = 'will_update'
+                    status_label = '변경 예정'
+                    status_class = 'accent'
+                    summary['update_count'] += 1
+                else:
+                    status = 'no_change'
+                    status_label = '변경 없음'
+                    status_class = 'success'
+                    summary['no_change_count'] += 1
+
+                if match_method == 'name':
+                    status_label = '이름 매칭 / ' + status_label
+                    status_class = 'warning' if changed else 'success'
+
+            if warning and not (card and match_method == 'code' and excel_name and card.name != excel_name):
+                summary['warning_count'] += 1
+
+            rows.append({
+                'row_number': row_number,
+                'code': code,
+                'excel_name': excel_name,
+                'db_name': card.name if card else '',
+                'card_id': card.id if card else None,
+                'match_method': match_method,
+                'status': status,
+                'status_label': status_label,
+                'status_class': status_class,
+                'changed': changed,
+                'detail_text': detail_text,
+                'type': card_type,
+                'effect_text': effect_text,
+                'warning': warning,
+            })
+
+        return {
+            'sheet_name': sheet_name,
+            'rows': rows,
+            'summary': summary,
+        }
+    finally:
+        workbook.close()
+
+
+def apply_detail_text_import(token, sheet_name):
+    preview = parse_detail_text_import(token, sheet_name)
+    changed_rows = [row for row in preview['rows'] if row['changed'] and row['card_id']]
+    cards_by_id = Card.objects.in_bulk([row['card_id'] for row in changed_rows])
+    cards_to_update = []
+
+    with transaction.atomic():
+        for row in changed_rows:
+            card = cards_by_id.get(row['card_id'])
+            if not card:
+                continue
+            card.detail_text = row['detail_text']
+            cards_to_update.append(card)
+        if cards_to_update:
+            Card.objects.bulk_update(cards_to_update, ['detail_text'])
+
+    return preview, len(cards_to_update)
 
 # Create your views here.
 def index(req, template_name='card/list.html'):
@@ -307,6 +563,67 @@ def update(req, id=0, template_name='card/create.html', detail_route='card:detai
 
 def updateV2(req, id=0):
     return update(req, id, 'card/create_v2.html', 'card:detail')
+
+
+@permission_required('card.change_card')
+def detailTextImport(req):
+    context = {
+        'sheet_names': [],
+        'selected_sheet': '',
+        'token': '',
+        'preview': None,
+    }
+
+    if req.method == 'POST':
+        action = req.POST.get('action', '')
+
+        try:
+            if action == 'upload':
+                token = _save_detail_text_import_file(req.FILES.get('xlsx_file'))
+                try:
+                    sheet_names = _get_detail_text_import_sheet_names(token)
+                except Exception:
+                    _delete_detail_text_import_file(token)
+                    raise
+
+                context.update({
+                    'token': token,
+                    'sheet_names': sheet_names,
+                    'selected_sheet': sheet_names[0] if sheet_names else '',
+                })
+                messages.success(req, '파일을 업로드했습니다. 가져올 시트를 선택해 주세요.')
+
+            elif action == 'preview':
+                token = req.POST.get('token', '')
+                sheet_name = req.POST.get('sheet_name', '')
+                preview = parse_detail_text_import(token, sheet_name)
+                context.update({
+                    'token': token,
+                    'sheet_names': _get_detail_text_import_sheet_names(token),
+                    'selected_sheet': sheet_name,
+                    'preview': preview,
+                })
+
+            elif action == 'apply':
+                token = req.POST.get('token', '')
+                sheet_name = req.POST.get('sheet_name', '')
+                preview, updated_count = apply_detail_text_import(token, sheet_name)
+                _delete_detail_text_import_file(token)
+                messages.success(req, f'{updated_count}장의 보충 설명을 저장했습니다.')
+                context.update({
+                    'preview': preview,
+                    'selected_sheet': sheet_name,
+                })
+
+            else:
+                messages.error(req, '알 수 없는 요청입니다.')
+
+        except ValueError as error:
+            messages.error(req, str(error))
+        except (InvalidFileException, BadZipFile):
+            messages.error(req, '올바른 xlsx 파일을 업로드해 주세요.')
+
+    return render(req, 'card/detail_text_import_v2.html', context=context)
 
 
 def save_card_image_files(card, uploaded_image):

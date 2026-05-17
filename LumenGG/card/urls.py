@@ -18,6 +18,7 @@ urlpatterns = [
     path('v2/detail/<int:id>/', views.detailV2, name='detailV2'),
     path('v2/create/', views.createV2, name='createV2'),
     path('v2/update/<int:id>/', views.updateV2, name='updateV2'),
+    path('detail-text-import/', views.detailTextImport, name='detailTextImport'),
     path('detail/', views.detailV2, name='detailNone'),
     path('detail/<int:id>/', views.detailV2, name='detail'),
     path('detail/<str:name>/', views.detailName, name='detailName'),

@@ -2365,6 +2365,100 @@ label:has(> input.검색체크:checked) {
     list-style: none;
 }
 
+.v2-detail-import-form {
+    display: grid;
+    gap: 12px;
+}
+
+.v2-detail-import-preview {
+    display: grid;
+    gap: 14px;
+    margin-top: 16px;
+    padding: 16px;
+}
+
+.v2-import-head {
+    display: grid;
+    gap: 12px;
+}
+
+.v2-import-head h2 {
+    margin: 0;
+    color: var(--v2-text);
+    font-size: 1.25rem;
+    font-weight: 900;
+}
+
+.v2-import-table td {
+    vertical-align: top;
+}
+
+.v2-import-table small {
+    display: block;
+    margin-top: 4px;
+    color: var(--v2-muted);
+}
+
+.v2-import-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 8px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-surface-2);
+    font-size: .82rem;
+    font-weight: 900;
+}
+
+.v2-import-status.accent {
+    border-color: rgba(255, 195, 96, .55);
+    color: var(--v2-accent);
+    background: rgba(255, 195, 96, .1);
+}
+
+.v2-import-status.success {
+    border-color: rgba(91, 190, 176, .55);
+    color: var(--v2-teal);
+    background: rgba(91, 190, 176, .08);
+}
+
+.v2-import-status.warning {
+    border-color: rgba(255, 195, 96, .55);
+    color: var(--v2-accent);
+    background: rgba(255, 195, 96, .1);
+}
+
+.v2-import-status.danger {
+    border-color: rgba(217, 105, 105, .55);
+    color: var(--v2-red);
+    background: rgba(217, 105, 105, .08);
+}
+
+.v2-import-status.muted {
+    color: var(--v2-muted);
+}
+
+.v2-import-warning {
+    max-width: 280px;
+    color: var(--v2-accent) !important;
+    line-height: 1.45;
+}
+
+.v2-import-detail-text {
+    min-width: 220px;
+    max-width: 520px;
+    color: var(--v2-muted) !important;
+    white-space: normal;
+    line-height: 1.55;
+}
+
+.v2-import-apply-form {
+    display: flex;
+    justify-content: flex-end;
+}
+
 .v2-qna-editor-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
