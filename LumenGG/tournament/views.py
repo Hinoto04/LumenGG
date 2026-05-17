@@ -226,6 +226,25 @@ def _read_match_result(post_data, match, prefix=''):
     _set_match_result(match, post_data.get(f'{prefix}winner', ''), player1_score, player2_score)
 
 
+def _round_match_result_touched(post_data, match):
+    prefix = f'match_{match.id}_'
+    winner_value = str(post_data.get(f'{prefix}winner', '') or '').strip()
+    raw_player1_score = str(post_data.get(f'{prefix}player1_score', '') or '').strip()
+    raw_player2_score = str(post_data.get(f'{prefix}player2_score', '') or '').strip()
+
+    if winner_value:
+        return True
+    if match.status == TournamentMatch.STATUS_REPORTED:
+        return False
+
+    try:
+        player1_score = int(raw_player1_score or 0)
+        player2_score = int(raw_player2_score or 0)
+    except ValueError:
+        return True
+    return player1_score != 0 or player2_score != 0
+
+
 def indexV2(req):
     page = req.GET.get('page', '1')
     status = req.GET.get('status', '')
@@ -873,7 +892,7 @@ def reportRoundV2(req, id, round_id):
     matches = [
         match
         for match in matches
-        if _can_report_match(req.user, tournament, match)
+        if _can_report_match(req.user, tournament, match) and _round_match_result_touched(req.POST, match)
     ]
 
     if not matches:
@@ -888,7 +907,7 @@ def reportRoundV2(req, id, round_id):
                 _read_match_result(req.POST, match, prefix)
             except ValueError as exc:
                 player2_name = match.player2.name if match.player2 else 'BYE'
-                raise ValueError(f'T{match.table_no} {match.player1.name} vs {player2_name}: {exc}') from exc
+                raise ValueError(f'{match.table_label} {match.player1.name} vs {player2_name}: {exc}') from exc
             match.status = TournamentMatch.STATUS_REPORTED
             match.reported_at = reported_at
     except ValueError as exc:
@@ -900,7 +919,7 @@ def reportRoundV2(req, id, round_id):
             match.save(update_fields=['player1_score', 'player2_score', 'is_draw', 'winner', 'status', 'reported_at'])
         complete_round_if_ready(round_obj)
 
-    messages.success(req, f'{round_obj.number}라운드 결과를 저장했습니다.')
+    messages.success(req, f'{round_obj.number}라운드 결과 {len(matches)}건을 저장했습니다.')
     return redirect('tournament:detail', id=tournament.id)
 
 

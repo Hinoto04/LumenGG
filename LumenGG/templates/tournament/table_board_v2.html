@@ -42,7 +42,7 @@
         data-battle-p2-initial-hp="{{ match.battle_summary.p2_initial_hp|default_if_none:"" }}"
         data-battle-p2-character-img="{{ match.battle_summary.p2_character_img|default_if_none:"" }}"
         {% endif %}>
-        <div class="v2-table-board-number">T{{ match.table_no }}</div>
+        <div class="v2-table-board-number">{{ match.table_label }}</div>
         <div class="v2-table-board-players">
             <div class="{% if match.winner_id == match.player1_id %}is-winner{% endif %}">
                 <strong>{{ match.player1.name }}</strong>

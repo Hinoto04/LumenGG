@@ -1,8 +1,20 @@
+from django.db import transaction
 from django.utils import timezone
 
 from deck.models import CardInDeck, Deck
 
 from .models import Tournament, TournamentDeckSubmission, TournamentMatch, TournamentParticipant, TournamentRound
+
+
+SWISS_REMATCH_PENALTY = 1_000_000_000
+SWISS_REPEAT_BYE_PENALTY = 1_200_000_000
+SWISS_EXACT_PAIRING_LIMIT = 20
+SWISS_SEARCH_STATE_LIMIT = 120_000
+SWISS_GREEDY_CANDIDATE_LIMIT = 8
+
+
+class SwissPairingSearchLimit(Exception):
+    pass
 
 
 def _split_tag_text(value):
@@ -225,6 +237,7 @@ def _create_bye(round_obj, table_no, participant):
     return TournamentMatch.objects.create(
         round=round_obj,
         table_no=table_no,
+        bracket=getattr(participant, '_tournament_next_bracket', TournamentMatch.BRACKET_NONE),
         player1=participant,
         winner=participant,
         status=TournamentMatch.STATUS_REPORTED,
@@ -308,9 +321,119 @@ def get_elimination_winner(tournament):
     return winners[0] if len(winners) == 1 else None
 
 
+def _swiss_pair_cost(player1, player2, row_by_id, rank_by_id, opponent_map):
+    point_gap = abs(row_by_id[player1.id]['points'] - row_by_id[player2.id]['points'])
+    rank_gap = abs(rank_by_id[player1.id] - rank_by_id[player2.id])
+    cost = (point_gap * 10_000) + (rank_gap * 10)
+    if player2.id in opponent_map.get(player1.id, set()):
+        cost += SWISS_REMATCH_PENALTY
+    return cost
+
+
+def _swiss_bye_cost(participant, player_count, rank_by_id, bye_ids):
+    # 하위권 참가자에게 BYE를 주는 것을 기본 선호하되, 중복 BYE는 큰 비용으로 둔다.
+    cost = (player_count - rank_by_id[participant.id]) * 10
+    if participant.id in bye_ids:
+        cost += SWISS_REPEAT_BYE_PENALTY
+    return cost
+
+
+def _pair_swiss_players_greedy(players, row_by_id, rank_by_id, opponent_map):
+    remaining = list(players)
+    pairs = []
+    total_cost = 0
+    while remaining:
+        player1 = remaining.pop(0)
+        candidates = [
+            (_swiss_pair_cost(player1, candidate, row_by_id, rank_by_id, opponent_map), index, candidate)
+            for index, candidate in enumerate(remaining)
+        ]
+        candidates.sort(key=lambda item: (item[0], rank_by_id[item[2].id]))
+        pair_cost, index, player2 = candidates[0]
+        remaining.pop(index)
+        pairs.append((player1, player2))
+        total_cost += pair_cost
+    return pairs, total_cost
+
+
+def _pair_swiss_players_exact(players, row_by_id, rank_by_id, opponent_map):
+    state_count = 0
+    memo = {}
+
+    def solve(remaining_indexes):
+        nonlocal state_count
+        state_count += 1
+        if state_count > SWISS_SEARCH_STATE_LIMIT:
+            raise SwissPairingSearchLimit
+
+        if not remaining_indexes:
+            return 0, []
+        if remaining_indexes in memo:
+            return memo[remaining_indexes]
+
+        first_index = remaining_indexes[0]
+        player1 = players[first_index]
+        rest_indexes = remaining_indexes[1:]
+        candidates = []
+        for player2_index in rest_indexes:
+            player2 = players[player2_index]
+            candidates.append((
+                _swiss_pair_cost(player1, player2, row_by_id, rank_by_id, opponent_map),
+                rank_by_id[player2.id],
+                player2_index,
+            ))
+        candidates.sort()
+
+        # 참가자가 많을 때는 상태 폭발을 막기 위해 낮은 비용 후보부터 제한적으로 탐색한다.
+        if len(players) > SWISS_EXACT_PAIRING_LIMIT:
+            candidates = candidates[:SWISS_GREEDY_CANDIDATE_LIMIT]
+
+        best_cost = None
+        best_pairs = None
+        for pair_cost, _, player2_index in candidates:
+            next_remaining = tuple(index for index in rest_indexes if index != player2_index)
+            rest_cost, rest_pairs = solve(next_remaining)
+            total_cost = pair_cost + rest_cost
+            if best_cost is None or total_cost < best_cost:
+                best_cost = total_cost
+                best_pairs = [(player1, players[player2_index])] + rest_pairs
+
+        memo[remaining_indexes] = best_cost, best_pairs
+        return memo[remaining_indexes]
+
+    return solve(tuple(range(len(players))))
+
+
+def _pair_swiss_players_with_cost(players, row_by_id, rank_by_id, opponent_map):
+    if not players:
+        return [], 0
+    if len(players) % 2 == 1:
+        raise ValueError('스위스 매칭 대상은 짝수여야 합니다.')
+    if len(players) <= 2:
+        if not players:
+            return [], 0
+        pair = (players[0], players[1])
+        return [pair], _swiss_pair_cost(pair[0], pair[1], row_by_id, rank_by_id, opponent_map)
+
+    try:
+        cost, pairs = _pair_swiss_players_exact(players, row_by_id, rank_by_id, opponent_map)
+        return pairs, cost
+    except SwissPairingSearchLimit:
+        return _pair_swiss_players_greedy(players, row_by_id, rank_by_id, opponent_map)
+
+
+def _select_swiss_bye_candidates(players, bye_ids, rank_by_id):
+    no_bye_candidates = [participant for participant in players if participant.id not in bye_ids]
+    candidates = no_bye_candidates or list(players)
+    candidates.sort(key=lambda participant: _swiss_bye_cost(participant, len(players), rank_by_id, bye_ids))
+    return candidates
+
+
 def _pair_swiss_players(tournament):
     rows = build_standings(tournament)
     players = [row['participant'] for row in rows]
+    row_by_id = {row['participant'].id: row for row in rows}
+    rank_by_id = {row['participant'].id: index for index, row in enumerate(rows)}
     opponent_map = {row['participant'].id: row['opponent_ids'] for row in rows}
     bye_ids = {
         match.player1_id
@@ -323,26 +446,18 @@ def _pair_swiss_players(tournament):
 
     bye_player = None
     if len(players) % 2 == 1:
-        for participant in reversed(players):
-            if participant.id not in bye_ids:
-                bye_player = participant
-                break
-        if bye_player is None:
-            bye_player = players[-1]
-        players.remove(bye_player)
-
-    pairs = []
-    while players:
-        player1 = players.pop(0)
-        player2_index = None
-        for index, candidate in enumerate(players):
-            if candidate.id not in opponent_map.get(player1.id, set()):
-                player2_index = index
-                break
-        if player2_index is None:
-            player2_index = 0
-        player2 = players.pop(player2_index)
-        pairs.append((player1, player2))
+        best_result = None
+        for candidate in _select_swiss_bye_candidates(players, bye_ids, rank_by_id):
+            pair_targets = [participant for participant in players if participant.id != candidate.id]
+            pairs, pair_cost = _pair_swiss_players_with_cost(pair_targets, row_by_id, rank_by_id, opponent_map)
+            bye_cost = _swiss_bye_cost(candidate, len(players), rank_by_id, bye_ids)
+            total_cost = bye_cost + pair_cost
+            result = (total_cost, bye_cost, rank_by_id[candidate.id], pairs, candidate)
+            if best_result is None or result[:3] < best_result[:3]:
+                best_result = result
+        _, _, _, pairs, bye_player = best_result
+    else:
+        pairs, _ = _pair_swiss_players_with_cost(players, row_by_id, rank_by_id, opponent_map)
 
     return pairs, bye_player
 
@@ -393,6 +508,11 @@ def _pair_double_elimination_players(tournament):
     bye_player = None
     if len(active_players) % 2 == 1:
         bye_player = active_players.pop(0)
+        bye_player._tournament_next_bracket = (
+            TournamentMatch.BRACKET_LOSERS
+            if losses.get(bye_player.id, 0)
+            else TournamentMatch.BRACKET_WINNERS
+        )
 
     pairs = []
     while active_players:
@@ -406,7 +526,12 @@ def _pair_double_elimination_players(tournament):
         if player2_index is None:
             player2_index = 0
         player2 = active_players.pop(player2_index)
-        pairs.append((player1, player2))
+        bracket = (
+            TournamentMatch.BRACKET_LOSERS
+            if player1_losses or losses.get(player2.id, 0)
+            else TournamentMatch.BRACKET_WINNERS
+        )
+        pairs.append((player1, player2, bracket))
     return pairs, bye_player
 
 
@@ -416,7 +541,36 @@ def _pair_elimination_players(tournament):
     return _pair_single_elimination_players(tournament)
 
 
+def _normalize_pairing(pair):
+    if len(pair) == 3:
+        return pair
+    player1, player2 = pair
+    return player1, player2, TournamentMatch.BRACKET_NONE
+
+
 def create_round(
+    tournament,
+    stage,
+    duration_minutes=None,
+    set_count=None,
+    win_points=None,
+    draw_points=None,
+    loss_points=None,
+):
+    with transaction.atomic():
+        locked_tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
+        return _create_round_unlocked(
+            tournament=locked_tournament,
+            stage=stage,
+            duration_minutes=duration_minutes,
+            set_count=set_count,
+            win_points=win_points,
+            draw_points=draw_points,
+            loss_points=loss_points,
+        )
+
+
+def _create_round_unlocked(
     tournament,
     stage,
     duration_minutes=None,
@@ -476,10 +630,12 @@ def create_round(
     )
 
     table_no = 1
-    for player1, player2 in pairs:
+    for pair in pairs:
+        player1, player2, bracket = _normalize_pairing(pair)
         TournamentMatch.objects.create(
             round=round_obj,
             table_no=table_no,
+            bracket=bracket,
             player1=player1,
             player2=player2,
         )

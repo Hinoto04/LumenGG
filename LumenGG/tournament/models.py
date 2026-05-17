@@ -202,9 +202,18 @@ class TournamentMatch(models.Model):
         (STATUS_PENDING, '결과 대기'),
         (STATUS_REPORTED, '결과 입력'),
     ]
+    BRACKET_NONE = ''
+    BRACKET_WINNERS = 'W'
+    BRACKET_LOSERS = 'L'
+    BRACKET_CHOICES = [
+        (BRACKET_NONE, '일반'),
+        (BRACKET_WINNERS, '승자조'),
+        (BRACKET_LOSERS, '패자조'),
+    ]
 
     round = models.ForeignKey(TournamentRound, on_delete=models.CASCADE, related_name='matches')
     table_no = models.PositiveSmallIntegerField()
+    bracket = models.CharField(max_length=1, choices=BRACKET_CHOICES, blank=True, default=BRACKET_NONE)
     player1 = models.ForeignKey(TournamentParticipant, on_delete=models.CASCADE, related_name='matches_as_player1')
     player2 = models.ForeignKey(
         TournamentParticipant,
@@ -231,8 +240,26 @@ class TournamentMatch(models.Model):
 
     def __str__(self):
         player2_name = self.player2.name if self.player2 else 'BYE'
-        return f'{self.round} T{self.table_no}: {self.player1.name} vs {player2_name}'
+        return f'{self.round} {self.table_label}: {self.player1.name} vs {player2_name}'
 
     @property
     def is_bye(self):
         return self.player2_id is None
+
+    @property
+    def table_label(self):
+        if self.bracket:
+            if self.pk:
+                bracket_table_no = (
+                    TournamentMatch.objects.filter(
+                        round_id=self.round_id,
+                        bracket=self.bracket,
+                        table_no__lte=self.table_no,
+                    )
+                    .exclude(table_no=self.table_no, id__gt=self.id)
+                    .count()
+                )
+            else:
+                bracket_table_no = self.table_no
+            return f'{self.bracket}{bracket_table_no}'
+        return f'T{self.table_no}'

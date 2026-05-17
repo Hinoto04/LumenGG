@@ -11,7 +11,7 @@
             <h1 class="v2-title">{{ session.player1_name }} vs {{ session.player2_name }}</h1>
             {% if session.tournament_match %}
             <p class="v2-subtitle">
-                {{ session.tournament_match.round.tournament.name }} / T{{ session.tournament_match.table_no }}
+                {{ session.tournament_match.round.tournament.name }} / {{ session.tournament_match.table_label }}
             </p>
             {% endif %}
         </div>

@@ -82,6 +82,6 @@ class TournamentDeckSubmissionAdmin(admin.ModelAdmin):
 
 @admin.register(TournamentMatch)
 class TournamentMatchAdmin(admin.ModelAdmin):
-    list_display = ['round', 'table_no', 'player1', 'player2', 'winner', 'is_draw', 'status']
+    list_display = ['round', 'table_label', 'bracket', 'table_no', 'player1', 'player2', 'winner', 'is_draw', 'status']
     list_filter = ['status', 'is_draw']
     autocomplete_fields = ['round', 'player1', 'player2', 'winner']

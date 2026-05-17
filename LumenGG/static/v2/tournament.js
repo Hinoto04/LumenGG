@@ -182,6 +182,43 @@ function setupRoundTabs() {
 
 setupRoundTabs();
 
+document.querySelectorAll("[data-round-start-form]").forEach((form) => {
+    form.addEventListener("submit", () => {
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (!submitButton || submitButton.disabled) return;
+        submitButton.disabled = true;
+        submitButton.setAttribute("aria-busy", "true");
+        submitButton.textContent = "라운드 생성 중";
+    });
+});
+
+document.querySelectorAll("[data-match-result-form]").forEach((form) => {
+    const player1ScoreInput = form.querySelector('[data-result-score="p1"]');
+    const player2ScoreInput = form.querySelector('[data-result-score="p2"]');
+    const winnerSelect = form.querySelector("[data-result-winner]");
+    if (!player1ScoreInput || !player2ScoreInput || !winnerSelect) return;
+
+    const syncWinner = () => {
+        const player1Score = Number.parseInt(player1ScoreInput.value || "0", 10);
+        const player2Score = Number.parseInt(player2ScoreInput.value || "0", 10);
+        if (!Number.isFinite(player1Score) || !Number.isFinite(player2Score)) return;
+
+        if (player1Score > player2Score) {
+            winnerSelect.value = winnerSelect.options[1] ? winnerSelect.options[1].value : "";
+        } else if (player2Score > player1Score) {
+            winnerSelect.value = winnerSelect.options[2] ? winnerSelect.options[2].value : "";
+        } else if (player1Score >= 1 && player2Score >= 1) {
+            const drawOption = Array.from(winnerSelect.options).find((option) => option.value === "draw");
+            if (drawOption) winnerSelect.value = "draw";
+        }
+    };
+
+    player1ScoreInput.addEventListener("input", syncWinner);
+    player2ScoreInput.addEventListener("input", syncWinner);
+    player1ScoreInput.addEventListener("change", syncWinner);
+    player2ScoreInput.addEventListener("change", syncWinner);
+});
+
 function tournamentHpRatio(hp, initialHp) {
     const current = Number(hp);
     const initial = Number(initialHp);

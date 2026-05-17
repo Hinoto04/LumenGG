@@ -132,7 +132,7 @@
             <p class="v2-tournament-note">우승자가 결정되어 더 이상 라운드를 생성할 수 없습니다.</p>
         </div>
         {% else %}
-        <form action="{% url "tournament:startRound" tournament.id %}" method="post" class="v2-panel v2-tournament-join">
+        <form action="{% url "tournament:startRound" tournament.id %}" method="post" class="v2-panel v2-tournament-join" data-round-start-form>
             {% csrf_token %}
             <h2>라운드 시작</h2>
             <div class="v2-admin-field">
@@ -311,7 +311,7 @@
                             data-battle-p2-initial-hp="{{ match.battle_summary.p2_initial_hp|default_if_none:"" }}"
                             data-battle-p2-character-img="{{ match.battle_summary.p2_character_img|default_if_none:"" }}"
                             {% endif %}>
-                            <div class="v2-tournament-table-no">T{{ match.table_no }}</div>
+                            <div class="v2-tournament-table-no">{{ match.table_label }}</div>
                             <div class="v2-tournament-players">
                                 <span class="{% if match.winner_id == match.player1_id %}is-winner{% endif %}">
                                     <strong>{{ match.player1.name }}</strong>
@@ -359,12 +359,12 @@
                             {% if match.is_bye %}
                             <div class="v2-chip">BYE 승</div>
                             {% elif match.can_report %}
-                            <div class="v2-tournament-result-form">
+                            <div class="v2-tournament-result-form" data-match-result-form>
                                 <input type="hidden" name="match_ids" value="{{ match.id }}">
-                                <input type="number" name="match_{{ match.id }}_player1_score" value="{{ match.player1_score }}" min="0" max="{{ round.set_count }}" aria-label="{{ match.player1.name }} 점수">
+                                <input type="number" name="match_{{ match.id }}_player1_score" value="{{ match.player1_score }}" min="0" max="{{ round.set_count }}" aria-label="{{ match.player1.name }} 점수" data-result-score="p1">
                                 <span>:</span>
-                                <input type="number" name="match_{{ match.id }}_player2_score" value="{{ match.player2_score }}" min="0" max="{{ round.set_count }}" aria-label="{{ match.player2.name }} 점수">
-                                <select name="match_{{ match.id }}_winner" aria-label="승자">
+                                <input type="number" name="match_{{ match.id }}_player2_score" value="{{ match.player2_score }}" min="0" max="{{ round.set_count }}" aria-label="{{ match.player2.name }} 점수" data-result-score="p2">
+                                <select name="match_{{ match.id }}_winner" aria-label="승자" data-result-winner>
                                     <option value="">승자</option>
                                     <option value="{{ match.player1.id }}" {% if match.winner_id == match.player1_id %}selected{% endif %}>{{ match.player1.name }}</option>
                                     <option value="{{ match.player2.id }}" {% if match.winner_id == match.player2_id %}selected{% endif %}>{{ match.player2.name }}</option>
