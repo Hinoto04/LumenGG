@@ -56,7 +56,7 @@
         </div>
     </div>
     {% if ultimate_cards %}
-    <aside class="v2-deck-detail-ultimate">
+    <aside class="v2-deck-detail-ultimate" data-deck-copy-zone="얼티밋 카드">
         <h2>얼티밋 카드</h2>
         {% for card in ultimate_cards %}
         <a class="v2-deck-ultimate-card" href="{% url "card:detail" card.card.id %}">
@@ -138,7 +138,7 @@
     <div class="v2-deck-text-grid" id="텍스트리스트">
         <div class="v2-text-panel">
             <h2 class="v2-section-title">덱 리스트</h2>
-            <table id="텍스트리스트전체" class="v2-deck-text-table">
+            <table id="텍스트리스트전체" class="v2-deck-text-table" data-deck-copy-zone="리스트">
                 <tbody>
                     {% for card in main_cards %}
                     {% for _ in card|listcard %}
@@ -151,7 +151,7 @@
         <div class="v2-deck-text-side">
             <div class="v2-text-panel">
                 <h2 class="v2-section-title">손패</h2>
-                <table class="v2-deck-text-table">
+                <table class="v2-deck-text-table" data-deck-copy-zone="손패">
                     <tbody>
                         {% for card in hands %}
                         {% for _ in card.hand|times %}
@@ -163,7 +163,7 @@
             </div>
             <div class="v2-text-panel">
                 <h2 class="v2-section-title">사이드</h2>
-                <table class="v2-deck-text-table">
+                <table class="v2-deck-text-table" data-deck-copy-zone="사이드">
                     <tbody>
                         {% for card in sides %}
                         {% for _ in card.side|times %}
@@ -203,6 +203,6 @@
 </section>
 {% endif %}
 
-<script src="{% static "deck/detail.js" %}?v=20260510-capture-redirect"></script>
+<script src="{% static "deck/detail.js" %}?v=20260518-copy-zones"></script>
 <script src="{% static "imgloading.js" %}"></script>
 {% endblock content %}

@@ -56,11 +56,39 @@ function deckToggle() {
 }
 
 function deckCopy() {
-    var deckList = "";
-    $("#텍스트리스트전체 > tbody > tr > th > a").each(function(index, item) {
-        deckList += String(index+1) + ". " + item.text + "\n";
+    const copyZoneOrder = {
+        "리스트": 1,
+        "손패": 2,
+        "사이드": 3,
+        "얼티밋 카드": 4,
+    };
+    const copyZones = Array.from(document.querySelectorAll("[data-deck-copy-zone]")).sort((a, b) => {
+        return (copyZoneOrder[a.dataset.deckCopyZone] || 99) - (copyZoneOrder[b.dataset.deckCopyZone] || 99);
     });
-    console.log(deckList);
+    let deckList = "";
+    let cardIndex = 1;
+
+    if (copyZones.length > 0) {
+        copyZones.forEach((zone) => {
+            Array.from(zone.querySelectorAll("a"))
+                .map((item) => item.textContent.trim())
+                .filter(Boolean)
+                .forEach((cardName) => {
+                    deckList += `${cardIndex}. ${cardName}\n`;
+                    cardIndex += 1;
+                });
+        });
+    } else {
+        $("#텍스트리스트전체 > tbody > tr > th > a").each(function(index, item) {
+            deckList += String(index+1) + ". " + item.text + "\n";
+        });
+    }
+
+    if (!deckList.trim()) {
+        alert("복사할 덱 리스트가 없습니다.");
+        return;
+    }
+
     window.navigator.clipboard.writeText(deckList).then(() => {
         alert("클립보드에 복사되었습니다!")
     });
