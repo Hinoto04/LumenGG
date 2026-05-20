@@ -4,15 +4,27 @@ from asgiref.sync import async_to_sync
 from channels.generic.websocket import JsonWebsocketConsumer
 from django.core.exceptions import PermissionDenied
 
+from common.language import normalize_language, ui_text
 from tournament.models import Tournament
 
-from .models import BattleSession
-from .realtime import battle_session_group, broadcast_battle_session, tournament_battle_group
+from .models import BattleSession, LumenSimulatorSession
+from .realtime import (
+    battle_session_group,
+    broadcast_battle_session,
+    broadcast_simulator_session,
+    simulator_session_group,
+    tournament_battle_group,
+)
 from .services import (
     battle_session_queryset,
     perform_session_action,
     serialize_session,
     serialize_tournament_battle_state,
+)
+from .simulator_services import (
+    perform_simulator_action,
+    serialize_simulator_session,
+    simulator_queryset,
 )
 
 
@@ -26,6 +38,7 @@ class BattleSessionConsumer(JsonWebsocketConsumer):
     def connect(self):
         self.view_token = self.scope['url_route']['kwargs']['view_token']
         self.control_token = _query_value(self.scope, 'control_token')
+        self.language = normalize_language(_query_value(self.scope, 'language'))
         self.group_name = battle_session_group(self.view_token)
 
         try:
@@ -87,6 +100,7 @@ class BattleSessionConsumer(JsonWebsocketConsumer):
                 self.scope.get('user'),
                 self.control_token,
                 include_events=False,
+                language=self.language,
             ),
         })
 
@@ -95,7 +109,7 @@ class BattleSessionConsumer(JsonWebsocketConsumer):
             'type': 'error',
             'request_id': request_id,
             'ok': False,
-            'error': message,
+            'error': ui_text(message, self.language),
         })
 
 
@@ -128,4 +142,78 @@ class TournamentBattleStateConsumer(JsonWebsocketConsumer):
         self.send_json({
             'type': 'state',
             'state': serialize_tournament_battle_state(tournament),
+        })
+
+
+class LumenSimulatorConsumer(JsonWebsocketConsumer):
+    def connect(self):
+        self.view_token = self.scope['url_route']['kwargs']['view_token']
+        self.seat = _query_value(self.scope, 'seat')
+        self.seat_token = _query_value(self.scope, 'seat_token')
+        self.language = normalize_language(_query_value(self.scope, 'language'))
+        self.group_name = simulator_session_group(self.view_token)
+
+        try:
+            self.session = simulator_queryset().get(view_token=self.view_token)
+        except LumenSimulatorSession.DoesNotExist:
+            self.close(code=4404)
+            return
+
+        async_to_sync(self.channel_layer.group_add)(self.group_name, self.channel_name)
+        self.accept()
+        self.send_state()
+
+    def disconnect(self, close_code):
+        if hasattr(self, 'group_name'):
+            async_to_sync(self.channel_layer.group_discard)(self.group_name, self.channel_name)
+
+    def receive_json(self, content, **kwargs):
+        message_type = content.get('type')
+        request_id = content.get('request_id')
+
+        if message_type == 'state':
+            self.send_state(request_id=request_id)
+            return
+
+        if message_type != 'action':
+            self.send_error('알 수 없는 요청입니다.', request_id=request_id)
+            return
+
+        body = dict(content.get('payload') or {})
+        body.setdefault('seat', self.seat)
+        body.setdefault('seat_token', self.seat_token)
+
+        try:
+            session = simulator_queryset().get(view_token=self.view_token)
+            session = perform_simulator_action(session, body)
+        except LumenSimulatorSession.DoesNotExist:
+            self.send_error('시뮬레이터 세션을 찾을 수 없습니다.', request_id=request_id)
+            return
+        except PermissionDenied:
+            self.send_error('조작 권한이 없습니다.', request_id=request_id)
+            return
+        except (TypeError, ValueError) as exc:
+            self.send_error(str(exc), request_id=request_id)
+            return
+
+        self.send_json({'type': 'action_ack', 'request_id': request_id, 'ok': True})
+        broadcast_simulator_session(session)
+
+    def simulator_changed(self, event):
+        self.send_state()
+
+    def send_state(self, request_id=None):
+        session = simulator_queryset().get(view_token=self.view_token)
+        self.send_json({
+            'type': 'state',
+            'request_id': request_id,
+            'state': serialize_simulator_session(session, self.seat, self.seat_token, language=self.language),
+        })
+
+    def send_error(self, message, request_id=None):
+        self.send_json({
+            'type': 'error',
+            'request_id': request_id,
+            'ok': False,
+            'error': ui_text(message, self.language),
         })

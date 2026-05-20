@@ -15,6 +15,10 @@ def tournament_battle_group(tournament_id):
     return f'tournament_battle_{tournament_id}'
 
 
+def simulator_session_group(view_token):
+    return f'lumen_simulator_{view_token}'
+
+
 def broadcast_battle_session(session):
     channel_layer = get_channel_layer()
     if channel_layer is None:
@@ -32,3 +36,15 @@ def broadcast_battle_session(session):
             async_to_sync(channel_layer.group_send)(group_name, message)
         except Exception:
             logger.exception('Failed to broadcast battle session update to %s', group_name)
+
+
+def broadcast_simulator_session(session):
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
+
+    group_name = simulator_session_group(session.view_token)
+    try:
+        async_to_sync(channel_layer.group_send)(group_name, {'type': 'simulator.changed'})
+    except Exception:
+        logger.exception('Failed to broadcast simulator update to %s', group_name)

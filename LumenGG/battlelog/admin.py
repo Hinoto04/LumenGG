@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import BattleEvent, BattleSession, BattleSet
+from .models import BattleEvent, BattleSession, BattleSet, LumenSimulatorSession
 
 
 @admin.register(BattleSession)
@@ -33,3 +33,10 @@ class BattleSetAdmin(admin.ModelAdmin):
     list_filter = ['status', 'winner_side']
     search_fields = ['session__player1_name', 'session__player2_name']
     readonly_fields = ['started_at', 'ended_at']
+
+
+@admin.register(LumenSimulatorSession)
+class LumenSimulatorSessionAdmin(admin.ModelAdmin):
+    list_display = ['id', 'player1_name', 'player2_name', 'version', 'expires_at', 'updated_at']
+    search_fields = ['player1_name', 'player2_name', 'view_token', 'player1_token', 'player2_token']
+    readonly_fields = ['view_token', 'player1_token', 'player2_token', 'created_at', 'updated_at']

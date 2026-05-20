@@ -14,6 +14,15 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from card.models import Card, Character
+from common.language import (
+    DEFAULT_LANGUAGE,
+    game_term,
+    normalize_language,
+    translated_card_field,
+    translated_character_datas,
+    translated_character_field,
+    ui_text,
+)
 
 from .event_buffer import (
     flush_pending_battle_events,
@@ -427,16 +436,55 @@ def can_choose_character(user, session, target, control_token=''):
     return False
 
 
-def character_options_for_session(session, user=None, control_token=''):
+PASSIVE_UI_TRANSLATABLE_KEYS = {
+    'title',
+    'description',
+    'label',
+    'text',
+    'activeText',
+    'active_text',
+    'inactiveText',
+    'inactive_text',
+    'actionText',
+    'action_text',
+    'resetLabel',
+    'reset_label',
+    'resetText',
+    'reset_text',
+    'unit',
+    'placeholder',
+}
+
+
+def _localize_passive_ui_options(value, language):
+    language = normalize_language(language)
+    if language == DEFAULT_LANGUAGE:
+        return value
+    if isinstance(value, list):
+        return [_localize_passive_ui_options(item, language) for item in value]
+    if isinstance(value, dict):
+        localized = {}
+        for key, item in value.items():
+            if key in PASSIVE_UI_TRANSLATABLE_KEYS and isinstance(item, str):
+                localized[key] = ui_text(game_term(item, language), language)
+            else:
+                localized[key] = _localize_passive_ui_options(item, language)
+        return localized
+    return value
+
+
+def character_options_for_session(session, user=None, control_token='', language=DEFAULT_LANGUAGE):
+    language = normalize_language(language)
+
     def option_payload(character):
         return {
             'id': character.id,
-            'name': character.name,
+            'name': translated_character_field(character, language, 'name'),
             'color': character.color,
         }
 
     def all_characters():
-        return list(Character.objects.order_by('id'))
+        return list(Character.objects.prefetch_related('translations').order_by('id'))
 
     if session.session_type == BattleSession.SESSION_STANDALONE or not session.tournament_match_id:
         characters = all_characters()
@@ -468,14 +516,23 @@ def character_options_for_session(session, user=None, control_token=''):
     }
 
 
-def _passive_cards(character):
+def _passive_cards(character, language=DEFAULT_LANGUAGE):
     if not character:
         return []
-    return list(
+    cards = (
         Card.objects.filter(character=character, type='특성')
+        .prefetch_related('translations')
         .order_by('id')
-        .values('id', 'name', 'img', 'img_sm')
     )
+    return [
+        {
+            'id': card.id,
+            'name': translated_card_field(card, language, 'name'),
+            'img': card.img,
+            'img_sm': card.img_sm,
+        }
+        for card in cards
+    ]
 
 
 def _safe_passive_ui_path(value, prefix, suffix):
@@ -490,12 +547,15 @@ def _safe_passive_ui_path(value, prefix, suffix):
     return normalized_path
 
 
-def _render_passive_ui_template(path, character):
+def _render_passive_ui_template(path, character, language=DEFAULT_LANGUAGE):
     safe_path = _safe_passive_ui_path(path, PASSIVE_UI_TEMPLATE_PREFIX, '.html')
     if not safe_path:
         return ''
     try:
-        return render_to_string(safe_path, {'character': character})
+        return render_to_string(safe_path, {
+            'character': character,
+            'current_language': normalize_language(language),
+        })
     except TemplateDoesNotExist:
         return ''
 
@@ -544,16 +604,21 @@ def _passive_ui_text_or_static(raw_ui, key, suffix):
     return value
 
 
-def _passive_ui(character):
+def _passive_ui(character, language=DEFAULT_LANGUAGE):
     if not character:
         return {}
-    datas = character.datas or {}
+    language = normalize_language(language)
+    datas = translated_character_datas(character, language)
     battle_calculator = datas.get('battle_calculator') if isinstance(datas.get('battle_calculator'), dict) else {}
     battle_calculator_camel = datas.get('battleCalculator') if isinstance(datas.get('battleCalculator'), dict) else {}
     battle = datas.get('battle') if isinstance(datas.get('battle'), dict) else {}
     raw_ui = (
-        datas.get('battle_passive_ui')
+        datas.get('simulator_passive_ui')
+        or datas.get('simulatorPassiveUi')
+        or datas.get('battle_passive_ui')
         or datas.get('battlePassiveUi')
+        or datas.get('passive_ui')
+        or datas.get('passiveUi')
         or battle_calculator.get('passive_ui')
         or battle_calculator_camel.get('passiveUi')
         or battle.get('passive_ui')
@@ -561,29 +626,39 @@ def _passive_ui(character):
     if not isinstance(raw_ui, dict):
         return {}
     options = raw_ui.get('options', {})
+    if not isinstance(options, (dict, list)):
+        options = {}
+    if not options and any(key in raw_ui for key in ('controls', 'badges', 'latchedStatuses', 'latched_statuses')):
+        options = {
+            'title': raw_ui.get('title', ''),
+            'description': raw_ui.get('description', ''),
+            'controls': raw_ui.get('controls', []),
+            'badges': raw_ui.get('badges', []),
+            'latchedStatuses': raw_ui.get('latchedStatuses') or raw_ui.get('latched_statuses') or [],
+        }
     template_path = raw_ui.get('template') or raw_ui.get('template_path') or raw_ui.get('templatePath') or raw_ui.get('html_path') or raw_ui.get('htmlPath')
-    html = _render_passive_ui_template(template_path, character) if template_path else str(raw_ui.get('html') or '')
+    html = _render_passive_ui_template(template_path, character, language) if template_path else str(raw_ui.get('html') or '')
     return {
         'html': html,
         'css': _passive_ui_text_or_static(raw_ui, 'css', '.css'),
         'js': _passive_ui_text_or_static(raw_ui, 'js', '.js'),
-        'options': options if isinstance(options, (dict, list)) else {},
+        'options': _localize_passive_ui_options(options, language),
     }
 
 
-def _character_payload(character, hp):
+def _character_payload(character, hp, language=DEFAULT_LANGUAGE):
     if not character:
         return None
     return {
         'id': character.id,
-        'name': character.name,
+        'name': translated_character_field(character, language, 'name'),
         'img': character.body_img or character.sd_img or character.img,
         'icon_img': character.icon_img,
         'color': character.color,
         'hand_limit': hand_limit_for_hp(character, hp),
-        'passive_ui': _passive_ui(character),
-        'passive_cards': _passive_cards(character),
-        'passives': _passive_cards(character),
+        'passive_ui': _passive_ui(character, language),
+        'passive_cards': _passive_cards(character, language),
+        'passives': _passive_cards(character, language),
     }
 
 
@@ -602,7 +677,8 @@ def _event_payload(event):
     }
 
 
-def serialize_session(session, user=None, control_token='', include_events=True):
+def serialize_session(session, user=None, control_token='', include_events=True, language=DEFAULT_LANGUAGE):
+    language = normalize_language(language)
     now = timezone.now()
     can_control = can_control_session(user, session, control_token)
     can_sudden_death = can_toggle_sudden_death(user, session, control_token)
@@ -667,7 +743,7 @@ def serialize_session(session, user=None, control_token='', include_events=True)
                 'fp': session.player1_fp,
                 'initial_hp': session.player1_initial_hp,
                 'passive_state': session.player1_passive_state,
-                'character': _character_payload(session.player1_character, session.player1_hp),
+                'character': _character_payload(session.player1_character, session.player1_hp, language),
             },
             'p2': {
                 'name': session.player2_name,
@@ -675,7 +751,7 @@ def serialize_session(session, user=None, control_token='', include_events=True)
                 'fp': session.player2_fp,
                 'initial_hp': session.player2_initial_hp,
                 'passive_state': session.player2_passive_state,
-                'character': _character_payload(session.player2_character, session.player2_hp),
+                'character': _character_payload(session.player2_character, session.player2_hp, language),
             },
         },
         'timer': {
@@ -1420,4 +1496,6 @@ def cleanup_expired_sessions(now=None):
         flush_session_events(session_id)
     tournament_deleted, _ = tournament_qs.delete()
     flush_pending_battle_events()
-    return standalone_deleted + tournament_deleted
+    from .simulator_services import cleanup_expired_simulator_sessions
+    simulator_deleted = cleanup_expired_simulator_sessions(now)
+    return standalone_deleted + tournament_deleted + simulator_deleted

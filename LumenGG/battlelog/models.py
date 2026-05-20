@@ -197,3 +197,22 @@ class BattleSet(models.Model):
 
     def __str__(self):
         return f'{self.session_id} set {self.set_number}'
+
+
+class LumenSimulatorSession(models.Model):
+    view_token = models.CharField(max_length=64, unique=True)
+    player1_token = models.CharField(max_length=64, unique=True)
+    player2_token = models.CharField(max_length=64, unique=True)
+    player1_name = models.CharField(max_length=60, default='플레이어1')
+    player2_name = models.CharField(max_length=60, default='플레이어2')
+    document = models.JSONField(default=dict, blank=True)
+    version = models.PositiveIntegerField(default=1)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'시뮬레이터 #{self.id}: {self.player1_name} vs {self.player2_name}'
