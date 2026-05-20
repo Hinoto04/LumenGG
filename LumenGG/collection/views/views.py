@@ -8,6 +8,7 @@ from django.core.paginator import Paginator
 from django.conf import settings
 
 from card.models import Character
+from common.language import get_language
 from ..forms import CollectionForm, CollectionCreateForm
 import re, random, os, json
 from decorators import permission_required
@@ -19,7 +20,7 @@ from PIL import Image
 def index(req, template_name='collection/index.html'):
     page_number = req.GET.get('page', 1)
     
-    form = CollectionForm(req.GET)
+    form = CollectionForm(req.GET, language=get_language(req))
     q = Q()
     
     if form.data.get('char'):
@@ -90,11 +91,11 @@ def indexV2(req):
 @permission_required('card.add_card')
 def create(req, template_name='collection/create.html', success_route='collection:index'):
     if req.method == 'GET':
-        form = CollectionCreateForm()
+        form = CollectionCreateForm(language=get_language(req))
         
         return render(req, template_name, context={'form': form})
     else:
-        form = CollectionCreateForm(req.POST, req.FILES)
+        form = CollectionCreateForm(req.POST, req.FILES, language=get_language(req))
         if form.is_valid():
             path = os.path.join(settings.MEDIA_ROOT, 'webp', (form.cleaned_data['code']+'.webp'))
             handle_uploaded_file(req.FILES['imageFile'], path)

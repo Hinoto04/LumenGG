@@ -40,17 +40,22 @@ $(document).ready(function() {
 });
 
 var deckDisplay = 'image';
+const deckDetailTranslations = window.v2DeckDetailTranslations || {};
+
+function deckDetailText(key, fallback) {
+    return deckDetailTranslations[key] || fallback;
+}
 
 function deckToggle() {
     if (deckDisplay == 'image') {
         $("#ImageDisplay").hide();
         $("#TextDisplay").show();
-        $("#displayToggleBtn").text('이미지로 보기');
+        $("#displayToggleBtn").text(deckDetailText("imageView", "이미지로 보기"));
         deckDisplay = 'text';
     } else {
         $("#ImageDisplay").show();
         $("#TextDisplay").hide();
-        $("#displayToggleBtn").text('텍스트로 보기');
+        $("#displayToggleBtn").text(deckDetailText("textView", "텍스트로 보기"));
         deckDisplay = 'image';
     }
 }
@@ -85,17 +90,17 @@ function deckCopy() {
     }
 
     if (!deckList.trim()) {
-        alert("복사할 덱 리스트가 없습니다.");
+        alert(deckDetailText("emptyCopy", "복사할 덱 리스트가 없습니다."));
         return;
     }
 
     window.navigator.clipboard.writeText(deckList).then(() => {
-        alert("클립보드에 복사되었습니다!")
+        alert(deckDetailText("copied", "클립보드에 복사되었습니다!"))
     });
 }
 
 function setDeckCaptureLoading(control, isLoading) {
-    const loadingText = "이미지 생성 중...";
+    const loadingText = deckDetailText("captureLoading", "이미지 생성 중...");
     if (isLoading) {
         control.dataset.originalText = control.textContent;
         control.textContent = loadingText;
@@ -105,7 +110,7 @@ function setDeckCaptureLoading(control, isLoading) {
         if ("disabled" in control) control.disabled = true;
         control.classList.add("is-loading", "disabled");
     } else {
-        control.textContent = control.dataset.originalText || "덱 캡쳐";
+        control.textContent = control.dataset.originalText || deckDetailText("captureDefault", "덱 캡쳐");
         delete control.dataset.captureLoading;
         control.removeAttribute("aria-busy");
         control.removeAttribute("aria-disabled");

@@ -1,45 +1,47 @@
 {% extends "base_v2.html" %}
 {% load static %}
 {% load card_tags %}
-{% block title %}{{ card.name }} - LumenDB V2{% endblock title %}
+{% load language_tags %}
+{% block title %}{{ card|card_name:current_language }} - LumenDB V2{% endblock title %}
 {% block legacy_href %}{% url "card:legacyDetail" card.id %}{% endblock legacy_href %}
 {% block meta %}
-<meta content="{{ card.name }}" property="og:title" />
-<meta content="{{ card.text }}" property="og:description" />
+<meta content="{{ card|card_name:current_language }}" property="og:title" />
+<meta content="{{ card|card_text:current_language }}" property="og:description" />
 <meta content="{{ card.img_mid }}" property="og:image" />
 <meta content="#111111" data-react-helmet="true" name="theme-color" />
 {% endblock meta %}
 {% block content %}
+{% with translated_text=card|card_text:current_language translated_detail_text=card|card_detail_text:current_language translated_keyword=card|card_keyword:current_language %}
 <section class="v2-page-head">
     <div>
-        <div class="v2-kicker">{{ card.character.name }} / {{ card.code }}</div>
-        <h1 class="v2-title">{{ card.name }}</h1>
-        <p class="v2-subtitle">{{ card.keyword|keywords }}</p>
+        <div class="v2-kicker">{{ card.character|character_name:current_language }} / {{ card.code }}</div>
+        <h1 class="v2-title">{{ card|card_name:current_language }}</h1>
+        <p class="v2-subtitle">{{ translated_keyword|keywords_i18n:current_language }}</p>
     </div>
     <div class="v2-chip-row">
-        <a class="v2-button" href="{% url "card:index" %}">목록</a>
+        <a class="v2-button" href="{% url "card:index" %}">{% tr "목록" %}</a>
         {% if perms.card.change_card %}
-        <a class="v2-button" href="{% url "card:update" card.id %}">카드 수정</a>
+        <a class="v2-button" href="{% url "card:update" card.id %}">{% tr "카드 수정" %}</a>
         {% endif %}
-        <a class="v2-button v2-button-primary" href="{% url "card:comment" card.id %}">평점 {{ card.score|floatformat:1|default_if_none:"미평가" }}</a>
+        <a class="v2-button v2-button-primary" href="{% url "card:comment" card.id %}">{% tr "평점" %} {{ card.score|floatformat:1|default_if_none:"-" }}</a>
     </div>
 </section>
 
 <section class="v2-detail-grid">
     <article class="v2-panel v2-detail-card">
         <div class="v2-detail-image">
-            <img id="v2CardImage" src="{{ card.img }}" alt="{{ card.name }}">
+            <img id="v2CardImage" src="{{ card.img }}" alt="{{ card|card_name:current_language }}">
             {% if unReleased %}
-            <span class="v2-unreleased">미발매</span>
+            <span class="v2-unreleased">{% tr "미발매" %}</span>
             {% endif %}
         </div>
         <div class="v2-detail-summary">
             <div class="v2-chip-row">
-                <span class="v2-chip v2-type-{{ card.type }}">{{ card.type }}</span>
+                <span class="v2-chip v2-type-{{ card.type }}">{{ card.type|term:current_language }}</span>
                 {% if card.ultimate %}<span class="v2-chip">ULTIMATE</span>{% endif %}
-                {% if card.special %}<span class="v2-chip">{{ card.special }}</span>{% endif %}
-                <span class="v2-chip v2-adoption-chip">채용률 {{ adoption_stats.adoption_rate|floatformat:1 }}%</span>
-                <button class="v2-image-action" type="button" id="v2ImageButton">판본 변경</button>
+                {% if card.special %}<span class="v2-chip">{{ card.special|term:current_language }}</span>{% endif %}
+                <span class="v2-chip v2-adoption-chip">{% tr "채용률" %} {{ adoption_stats.adoption_rate|floatformat:1 }}%</span>
+                <button class="v2-image-action" type="button" id="v2ImageButton">{% tr "판본 변경" %}</button>
             </div>
         </div>
     </article>
@@ -47,41 +49,41 @@
     <div>
         {% if card.type == "공격" %}
         <section class="v2-stat-grid">
-            <div class="v2-stat"><span>판정</span><strong>{{ card.pos|default_if_none:"-" }} {{ card.body|default_if_none:"" }}</strong></div>
-            <div class="v2-stat"><span>속도</span><strong>{{ card.frame|default_if_none:"-" }}</strong></div>
-            <div class="v2-stat"><span>대미지</span><strong>{{ card.damage|default_if_none:"-" }}</strong></div>
-            <div class="v2-stat"><span>특수 판정</span><strong>{{ card.special|default_if_none:"-" }}</strong></div>
-            <div class="v2-stat"><span>히트</span><strong>{{ card.hit|default_if_none:"-" }}</strong></div>
-            <div class="v2-stat"><span>가드</span><strong>{{ card.guard|default_if_none:"-" }}</strong></div>
-            <div class="v2-stat"><span>카운터</span><strong>{{ card.counter|default_if_none:"-" }}</strong></div>
-            <div class="v2-stat"><span>평점</span><strong>{{ card.score|floatformat:1|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>{% tr "판정" %}</span><strong>{{ card.pos|default_if_none:"-"|term:current_language }} {{ card.body|default_if_none:""|term:current_language }}</strong></div>
+            <div class="v2-stat"><span>{% tr "속도" %}</span><strong>{{ card.frame|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>{% tr "대미지" %}</span><strong>{{ card.damage|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>{% tr "특수 판정" %}</span><strong>{{ card.special|default_if_none:"-"|term:current_language }}</strong></div>
+            <div class="v2-stat"><span>{% tr "히트" %}</span><strong>{{ card.hit|default_if_none:"-"|term:current_language }}</strong></div>
+            <div class="v2-stat"><span>{% tr "가드" %}</span><strong>{{ card.guard|default_if_none:"-"|term:current_language }}</strong></div>
+            <div class="v2-stat"><span>{% tr "카운터" %}</span><strong>{{ card.counter|default_if_none:"-"|term:current_language }}</strong></div>
+            <div class="v2-stat"><span>{% tr "평점" %}</span><strong>{{ card.score|floatformat:1|default_if_none:"-" }}</strong></div>
         </section>
         {% elif card.type == "수비" %}
         <section class="v2-stat-grid">
-            <div class="v2-stat"><span>상단</span><strong>{{ card.g_top|default_if_none:"-" }}</strong></div>
-            <div class="v2-stat"><span>중단</span><strong>{{ card.g_mid|default_if_none:"-" }}</strong></div>
-            <div class="v2-stat"><span>하단</span><strong>{{ card.g_bot|default_if_none:"-" }}</strong></div>
-            <div class="v2-stat"><span>평점</span><strong>{{ card.score|floatformat:1|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>{% tr "상단" %}</span><strong>{{ card.g_top|default_if_none:"-"|term:current_language }}</strong></div>
+            <div class="v2-stat"><span>{% tr "중단" %}</span><strong>{{ card.g_mid|default_if_none:"-"|term:current_language }}</strong></div>
+            <div class="v2-stat"><span>{% tr "하단" %}</span><strong>{{ card.g_bot|default_if_none:"-"|term:current_language }}</strong></div>
+            <div class="v2-stat"><span>{% tr "평점" %}</span><strong>{{ card.score|floatformat:1|default_if_none:"-" }}</strong></div>
         </section>
         {% else %}
         <section class="v2-stat-grid">
-            <div class="v2-stat"><span>분류</span><strong>{{ card.type }}</strong></div>
-            <div class="v2-stat"><span>속도</span><strong>{{ card.frame|default_if_none:"-" }}</strong></div>
-            <div class="v2-stat"><span>평점</span><strong>{{ card.score|floatformat:1|default_if_none:"-" }}</strong></div>
-            <div class="v2-stat"><span>최초 수록</span><strong>{{ card.code }}</strong></div>
+            <div class="v2-stat"><span>{% tr "분류" %}</span><strong>{{ card.type|term:current_language }}</strong></div>
+            <div class="v2-stat"><span>{% tr "속도" %}</span><strong>{{ card.frame|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>{% tr "평점" %}</span><strong>{{ card.score|floatformat:1|default_if_none:"-" }}</strong></div>
+            <div class="v2-stat"><span>{% tr "최초 수록" %}</span><strong>{{ card.code }}</strong></div>
         </section>
         {% endif %}
 
         <section class="v2-section">
             <div class="v2-section-title-row">
-                <h2 class="v2-section-title">효과</h2>
-                {% if card.detail_text %}
-                <button class="v2-card-info-toggle" type="button" data-card-detail-toggle aria-expanded="false">+보충 설명</button>
+                <h2 class="v2-section-title">{% tr "효과" %}</h2>
+                {% if translated_detail_text %}
+                <button class="v2-card-info-toggle" type="button" data-card-detail-toggle aria-expanded="false">{% tr "+보충 설명" %}</button>
                 {% endif %}
             </div>
-            <div class="v2-text-panel">{{ card.text|linebreaks }}</div>
-            {% if card.detail_text %}
-            <div class="v2-text-panel v2-card-detail-panel" data-card-detail-panel hidden>{{ card.detail_text|linebreaks }}</div>
+            <div class="v2-text-panel">{{ translated_text|linebreaks }}</div>
+            {% if translated_detail_text %}
+            <div class="v2-text-panel v2-card-detail-panel" data-card-detail-panel hidden>{{ translated_detail_text|linebreaks }}</div>
             {% endif %}
         </section>
 
@@ -90,38 +92,38 @@
 
 {% if perms.card.tag_update %}
 <section class="v2-section">
-    <h2 class="v2-section-title">태그 업데이트</h2>
+    <h2 class="v2-section-title">{% tr "태그 업데이트" %}</h2>
     <form action="{% url "card:editCardTag" card.id %}" method="post" class="v2-panel v2-tag-form">
         {% csrf_token %}
         <div>
-            <label for="keyword">이 카드가 가진 태그</label>
-            <input type="text" name="keyword" id="keyword" value="{{ card.keyword }}">
+            <label for="keyword">{% tr "이 카드가 가진 태그" %}</label>
+            <input type="text" name="keyword" id="keyword" value="{{ tag_edit.values.keyword }}" placeholder="{{ tag_edit.placeholders.keyword }}">
         </div>
         <div>
-            <label for="search">이 카드가 찾는 태그</label>
-            <input type="text" name="search" id="search" value="{{ card.search }}">
+            <label for="search">{% tr "이 카드가 찾는 태그" %}</label>
+            <input type="text" name="search" id="search" value="{{ tag_edit.values.search }}" placeholder="{{ tag_edit.placeholders.search }}">
         </div>
         <div>
-            <label for="hidden">숨겨진 검색어</label>
-            <input type="text" name="hidden" id="hidden" value="{{ card.hiddenKeyword }}">
+            <label for="hidden">{% tr "숨겨진 검색어" %}</label>
+            <input type="text" name="hidden" id="hidden" value="{{ tag_edit.values.hidden }}" placeholder="{{ tag_edit.placeholders.hidden }}">
         </div>
         <div>
-            <button class="v2-button v2-button-primary" type="submit">수정</button>
+            <button class="v2-button v2-button-primary" type="submit">{% tr "수정" %}</button>
         </div>
     </form>
 </section>
 {% endif %}
 
 <section class="v2-section">
-    <h2 class="v2-section-title">수록 정보</h2>
+    <h2 class="v2-section-title">{% tr "수록 정보" %}</h2>
     <div class="v2-release-list">
         {% regroup cc by code as release_groups %}
         {% for release in release_groups %}
         {% with first=release.list.0 %}
         <div class="v2-release-row">
-            <span class="v2-release-date">{% if first.isReleased %}{{ first.pack.released|date:"y-m-d" }}{% else %}미발매{% endif %}</span>
+            <span class="v2-release-date">{% if first.isReleased %}{{ first.pack.released|date:"y-m-d" }}{% else %}{% tr "미발매" %}{% endif %}</span>
             <strong class="v2-release-code">{{ release.grouper }}</strong>
-            <span class="v2-release-pack">{{ first.pack.name }}</span>
+            <span class="v2-release-pack">{{ first.pack|pack_name:current_language }}</span>
             <span class="v2-rare-list">
                 {% for ccc in release.list %}
                 <span class="v2-rare {{ ccc.rare }}">{{ ccc.rare }}</span>
@@ -130,26 +132,26 @@
         </div>
         {% endwith %}
         {% empty %}
-        <div class="v2-text-panel">수록 정보가 없습니다.</div>
+        <div class="v2-text-panel">{% tr "수록 정보가 없습니다." %}</div>
         {% endfor %}
     </div>
 </section>
 
 {% if relation|length != 0 %}
 <section class="v2-section">
-    <h2 class="v2-section-title">관련 카드</h2>
+    <h2 class="v2-section-title">{% tr "관련 카드" %}</h2>
     {% for kw, vs in relation.items %}
     <div class="v2-section">
-        <div class="v2-kicker">{{ kw }}</div>
+        <div class="v2-kicker">{{ kw|term:current_language }}</div>
         <div class="v2-related-grid mt-2">
             {% for v in vs %}
             <a class="v2-related-card" href="{% url "card:detail" v.id %}">
                 <div class="v2-related-image">
-                    <img src="{{ v.img_mid }}" alt="{{ v.name }}">
+                    <img src="{{ v.img_mid }}" alt="{{ v|card_name:current_language }}">
                 </div>
                 <div class="v2-related-body">
-                    <p class="v2-kicker">{{ v.character.name }}</p>
-                    <strong>{{ v.name }}</strong>
+                    <p class="v2-kicker">{{ v.character|character_name:current_language }}</p>
+                    <strong>{{ v|card_name:current_language }}</strong>
                 </div>
             </a>
             {% endfor %}
@@ -161,7 +163,7 @@
 
 {% if card.qna.all %}
 <section class="v2-section">
-    <h2 class="v2-section-title">관련 Q&A</h2>
+    <h2 class="v2-section-title">{% tr "관련 Q&A" %}</h2>
     <div class="v2-qna-list">
         {% for qna in card.qna.all %}
         <a class="v2-qna-item" href="{% url "qna:detail" qna.id %}">
@@ -201,4 +203,5 @@
         });
     }
 </script>
+{% endwith %}
 {% endblock content %}

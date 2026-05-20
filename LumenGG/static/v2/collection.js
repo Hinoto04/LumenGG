@@ -1,4 +1,10 @@
 const changedCollection = {};
+const collectionConfig = window.v2CollectionConfig || {};
+const collectionTranslations = collectionConfig.translations || {};
+
+function collectionText(key, fallback) {
+    return collectionTranslations[key] || fallback;
+}
 
 function setCollectionValue(id, value) {
     const input = document.getElementById(`cc_input_${id}`);
@@ -81,16 +87,16 @@ if (saveButton) {
             .then((data) => {
                 if (data.result === "ok") {
                     Object.keys(changedCollection).forEach((key) => delete changedCollection[key]);
-                    saveButton.textContent = "저장됨";
+                    saveButton.textContent = collectionText("saved", "저장됨");
                     window.setTimeout(() => {
-                        saveButton.textContent = "저장";
+                        saveButton.textContent = collectionText("save", "저장");
                     }, 1200);
                 } else {
-                    alert(data.message || "저장에 실패했습니다.");
+                    alert(data.message || collectionText("saveFailed", "저장에 실패했습니다."));
                 }
             })
             .catch(() => {
-                alert("저장에 실패했습니다.");
+                alert(collectionText("saveFailed", "저장에 실패했습니다."));
             });
     });
 }

@@ -7,12 +7,18 @@ from django.forms.models import model_to_dict
 from django.utils import timezone
 from django.core import serializers
 from ..forms import CharacterCommentForm
+from common.language import (
+    get_language,
+    translated_card_field,
+    translated_character_datas,
+    translated_character_field,
+)
 
 import json, math
 
 def index(req, template_name='character/index.html'):
     id = req.GET.get('id', '2')
-    chars = Character.objects.filter(Q(pack__released__lte=timezone.now())).order_by('pack__released')
+    chars = Character.objects.filter(Q(pack__released__lte=timezone.now())).prefetch_related('translations').order_by('pack__released')
     charnum = len(chars)+1
     charnum2 = math.ceil(len(chars)/2)+2
     form = CharacterCommentForm()
@@ -39,14 +45,23 @@ def character(req):
     return render(req, 'character/list.html', context=context)
 
 def detail(req, id):
+    language = get_language(req)
     try:
-        char = Character.objects.get(id=id)
+        char = Character.objects.prefetch_related('translations').get(id=id)
     except Character.DoesNotExist:
         raise Http404()
     
-    data = char.datas.copy()
+    data = translated_character_datas(char, language)
     for i in data['identity']:
-        i['card'] = list(Card.objects.only('img_mid').filter(id=i['card']).values('id', 'name', 'img_mid'))
+        cards = Card.objects.prefetch_related('translations').only('id', 'name', 'img_mid').filter(id=i['card'])
+        i['card'] = [
+            {
+                'id': card.id,
+                'name': translated_card_field(card, language, 'name'),
+                'img_mid': card.img_mid,
+            }
+            for card in cards
+        ]
     
     skinImgs = CollectionCard.objects.filter(
         Q(name__contains=char.name)
@@ -59,7 +74,14 @@ def detail(req, id):
         & Q(card_id=None)
         & Q(name__contains="토큰")
     ).order_by('pack__released')
-    passive = list(Card.objects.filter(type="특성", character=char).values('id', 'name', 'img'))
+    passive = [
+        {
+            'id': card.id,
+            'name': translated_card_field(card, language, 'name'),
+            'img': card.img,
+        }
+        for card in Card.objects.prefetch_related('translations').filter(type="특성", character=char)
+    ]
     selfComment = None
     if req.user.is_authenticated:
         try:
@@ -71,8 +93,14 @@ def detail(req, id):
                         author_name=F('author__username')
                     ).filter(character=id).order_by('-created').values())
             
+    char_data = model_to_dict(char)
+    char_data['name'] = translated_character_field(char, language, 'name')
+    char_data['description'] = translated_character_field(char, language, 'description')
+    char_data['group'] = translated_character_field(char, language, 'group')
+    char_data['datas'] = data
+
     jsons = {
-        'char': model_to_dict(char),
+        'char': char_data,
         "passive": passive,
         "skin": [char.img] + [i.image for i in skinImgs],
         "token": [i.image for i in tokenImgs],

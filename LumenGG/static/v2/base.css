@@ -126,6 +126,7 @@ img {
 .v2-nav a,
 .v2-account a,
 .v2-theme-toggle,
+.v2-language-select,
 .v2-button,
 .v2-soft-link {
     display: inline-flex;
@@ -143,6 +144,7 @@ img {
 .v2-nav a:hover,
 .v2-account a:hover,
 .v2-theme-toggle:hover,
+.v2-language-select:hover,
 .v2-button:hover,
 .v2-soft-link:hover {
     border-color: var(--v2-accent);
@@ -158,6 +160,22 @@ img {
 .v2-theme-toggle {
     cursor: pointer;
     font: inherit;
+}
+
+.v2-language-form {
+    margin: 0;
+}
+
+.v2-language-select {
+    min-width: 96px;
+    cursor: pointer;
+    font: inherit;
+    appearance: none;
+}
+
+.v2-language-select option {
+    color: #1e1b16;
+    background: #fffaf0;
 }
 
 .v2-content {
@@ -2553,6 +2571,20 @@ label:has(> input.검색체크:checked) {
     justify-content: space-between;
     gap: 18px;
     padding: 22px;
+}
+
+.v2-profile-danger-zone {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+}
+
+.v2-profile-danger-zone p {
+    margin: 6px 0 0;
+    color: var(--v2-muted);
+    line-height: 1.55;
 }
 
 .v2-profile-bg {
@@ -5226,6 +5258,16 @@ label:has(> input.검색체크:checked) {
 
     .v2-profile-row {
         grid-template-columns: 1fr;
+    }
+
+    .v2-profile-danger-zone {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .v2-profile-danger-zone .v2-button {
+        justify-content: center;
+        width: 100%;
     }
 
     .v2-profile-bg {

@@ -1,11 +1,12 @@
 {% extends "base_v2.html" %}
 {% load static %}
 {% load deck_tags %}
+{% load language_tags %}
 {% block title %}{{ deck.name }} - LumenDB V2{% endblock title %}
 {% block legacy_href %}{% url "deck:legacyDetail" deck.id %}{% endblock legacy_href %}
 {% block meta %}
 <meta content="{{ deck.name }}" property="og:title" />
-<meta content="캐릭터 : {{ deck.character.name }}&#10;작성자 : {{ deck.author.username }}" property="og:description" />
+<meta content="{% tr "캐릭터" %} : {{ deck.character|character_name:current_language }}&#10;{% tr "작성자" %} : {{ deck.author.username }}" property="og:description" />
 <meta content="https://images.hinoto.kr/lumendb/루멘DB로고.webp" property="og:image" />
 {% endblock meta %}
 {% block content %}
@@ -18,55 +19,55 @@
     <div class="v2-deck-detail-info">
         <div class="v2-deck-detail-title">
             <div class="v2-kicker">
-                <a href="{% url "card:character" %}?id={{ deck.character.id }}">{{ deck.character.name }}</a>
+                <a href="{% url "card:character" %}?id={{ deck.character.id }}">{{ deck.character|character_name:current_language }}</a>
             </div>
             <h1 class="v2-title">{{ deck.name }}</h1>
         </div>
         <div class="v2-deck-detail-bottom">
             <div class="v2-deck-detail-tags">
                 {% firstof deck.keyword deck.tags as deck_tag_text %}
-                {{ deck_tag_text|deckkeywords }}
+                {{ deck_tag_text|keywords_i18n:current_language }}
             </div>
             <div class="v2-chip-row">
-                <span class="v2-chip">추천 {{ likecount }}</span>
+                <span class="v2-chip">{% tr "추천" %} {{ likecount }}</span>
                 <span class="v2-chip">ver. {{ deck.version }}</span>
-                <span class="v2-chip">{{ deck.get_visibility_display }}</span>
+                <span class="v2-chip">{{ deck.get_visibility_display|ui:current_language }}</span>
                 <a class="v2-chip" href="{% url "common:userpage" deck.author.id %}">{{ deck.author.username }}</a>
                 <span class="v2-chip">{{ deck.created|date:"Y-m-d" }}</span>
             </div>
             <div class="v2-deck-detail-actions">
-                <button id="displayToggleBtn" class="v2-button" onclick="deckToggle();" type="button">텍스트로 보기</button>
-                <button class="v2-button" type="button" onclick="deckCopy()">텍스트 덱 복사</button>
+                <button id="displayToggleBtn" class="v2-button" onclick="deckToggle();" type="button">{% tr "텍스트로 보기" %}</button>
+                <button class="v2-button" type="button" onclick="deckCopy()">{% tr "텍스트 덱 복사" %}</button>
                 {% if user.is_authenticated %}
                 <form method="POST" action="{% url "deck:copy" deck.id %}">
                     {% csrf_token %}
-                    <button class="v2-button" type="submit">덱 복사</button>
+                    <button class="v2-button" type="submit">{% tr "덱 복사" %}</button>
                 </form>
                 {% else %}
-                <a class="v2-button" href="{% url "common:login" %}?next={{ request.path|urlencode }}">덱 복사</a>
+                <a class="v2-button" href="{% url "common:login" %}?next={{ request.path|urlencode }}">{% tr "덱 복사" %}</a>
                 {% endif %}
-                <a class="v2-button" href="{% url "deck:capture" deck.id %}" target="_blank" rel="noopener" data-deck-capture-open>덱 캡쳐</a>
+                <a class="v2-button" href="{% url "deck:capture" deck.id %}" target="_blank" rel="noopener" data-deck-capture-open>{% tr "덱 캡쳐" %}</a>
                 {% if user == deck.author and not deck_tournament_locked %}
-                <a class="v2-button" href="{% url "deck:update" deck.id %}">덱 수정</a>
-                <a class="v2-button v2-danger-button" href="{% url "deck:delete" deck.id %}">덱 삭제</a>
+                <a class="v2-button" href="{% url "deck:update" deck.id %}">{% tr "덱 수정" %}</a>
+                <a class="v2-button v2-danger-button" href="{% url "deck:delete" deck.id %}">{% tr "덱 삭제" %}</a>
                 {% elif user == deck.author and deck_tournament_locked %}
-                <span class="v2-chip">대회 제출 덱 잠금</span>
+                <span class="v2-chip">{% tr "대회 제출 덱 잠금" %}</span>
                 {% endif %}
             </div>
         </div>
     </div>
     {% if ultimate_cards %}
     <aside class="v2-deck-detail-ultimate" data-deck-copy-zone="얼티밋 카드">
-        <h2>얼티밋 카드</h2>
+        <h2>{% tr "얼티밋 카드" %}</h2>
         {% for card in ultimate_cards %}
         <a class="v2-deck-ultimate-card" href="{% url "card:detail" card.card.id %}">
             <div class="v2-deck-image-tile">
-                <img src="{{ card.card.img_mid }}" alt="{{ card.card.name }}">
-                {% if card.unReleased %}<span class="v2-unreleased">미발매</span>{% endif %}
+                <img src="{{ card.card.img_mid }}" alt="{{ card.card|card_name:current_language }}">
+                {% if card.unReleased %}<span class="v2-unreleased">{% tr "미발매" %}</span>{% endif %}
             </div>
             <div>
-                <strong>{{ card.card.name }}</strong>
-                <span>{{ card.card.character.name }}</span>
+                <strong>{{ card.card|card_name:current_language }}</strong>
+                <span>{{ card.card.character|character_name:current_language }}</span>
             </div>
         </a>
         {% endfor %}
@@ -78,17 +79,17 @@
     <div class="v2-deck-board" id="ImageDeck">
         <div class="v2-deck-zone v2-deck-zone-list" id="List">
             <div class="v2-deck-zone-head">
-                <h2>리스트</h2>
-                <span>{{ main_list_count }}장</span>
+                <h2>{% tr "리스트" %}</h2>
+                <span>{{ main_list_count }}{% tr "장" %}</span>
             </div>
             <div class="v2-deck-card-grid" id="original">
                 {% for card in main_cards %}
                 {% for _ in card|listcard %}
                 <div class="v2-deck-image-tile imgBox">
                     <a href="{% url "card:detail" card.card.id %}">
-                        <img class="cardImg" src="{{ card.card.img_mid }}" alt="{{ card.card.name }}">
+                        <img class="cardImg" src="{{ card.card.img_mid }}" alt="{{ card.card|card_name:current_language }}">
                     </a>
-                    {% if card.unReleased %}<span class="v2-unreleased">미발매</span>{% endif %}
+                    {% if card.unReleased %}<span class="v2-unreleased">{% tr "미발매" %}</span>{% endif %}
                 </div>
                 {% endfor %}
                 {% endfor %}
@@ -96,17 +97,17 @@
         </div>
         <div class="v2-deck-zone v2-deck-zone-hand" id="Hand">
             <div class="v2-deck-zone-head">
-                <h2>손패</h2>
-                <span>{{ hand_count }}장</span>
+                <h2>{% tr "손패" %}</h2>
+                <span>{{ hand_count }}{% tr "장" %}</span>
             </div>
             <div class="v2-deck-card-grid v2-deck-hand-grid">
                 {% for card in hands %}
                 {% for _ in card.hand|times %}
                 <div class="v2-deck-image-tile imgBox">
                     <a href="{% url "card:detail" card.card.id %}">
-                        <img class="cardImg" src="{{ card.card.img_mid }}" alt="{{ card.card.name }}">
+                        <img class="cardImg" src="{{ card.card.img_mid }}" alt="{{ card.card|card_name:current_language }}">
                     </a>
-                    {% if card.unReleased %}<span class="v2-unreleased">미발매</span>{% endif %}
+                    {% if card.unReleased %}<span class="v2-unreleased">{% tr "미발매" %}</span>{% endif %}
                 </div>
                 {% endfor %}
                 {% endfor %}
@@ -114,17 +115,17 @@
         </div>
         <div class="v2-deck-zone v2-deck-zone-side" id="Side">
             <div class="v2-deck-zone-head">
-                <h2>사이드</h2>
-                <span>{{ side_count }}장</span>
+                <h2>{% tr "사이드" %}</h2>
+                <span>{{ side_count }}{% tr "장" %}</span>
             </div>
             <div class="v2-deck-side-grid">
                 {% for card in sides %}
                 {% for _ in card.side|times %}
                 <div class="v2-deck-image-tile v2-deck-side-item imgBox">
                     <a href="{% url "card:detail" card.card.id %}">
-                        <img class="cardImg sideImg" src="{{ card.card.img_mid }}" alt="{{ card.card.name }}">
+                        <img class="cardImg sideImg" src="{{ card.card.img_mid }}" alt="{{ card.card|card_name:current_language }}">
                     </a>
-                    {% if card.unReleased %}<span class="v2-unreleased">미발매</span>{% endif %}
+                    {% if card.unReleased %}<span class="v2-unreleased">{% tr "미발매" %}</span>{% endif %}
                 </div>
                 {% endfor %}
                 {% endfor %}
@@ -137,12 +138,12 @@
 <section class="v2-section" id="TextDisplay" style="display:none;">
     <div class="v2-deck-text-grid" id="텍스트리스트">
         <div class="v2-text-panel">
-            <h2 class="v2-section-title">덱 리스트</h2>
+            <h2 class="v2-section-title">{% tr "덱 리스트" %}</h2>
             <table id="텍스트리스트전체" class="v2-deck-text-table" data-deck-copy-zone="리스트">
                 <tbody>
                     {% for card in main_cards %}
                     {% for _ in card|listcard %}
-                    <tr><th><a href="{% url "card:detail" card.card.id %}">{{ card.card.name }}</a></th></tr>
+                    <tr><th><a href="{% url "card:detail" card.card.id %}">{{ card.card|card_name:current_language }}</a></th></tr>
                     {% endfor %}
                     {% endfor %}
                 </tbody>
@@ -150,24 +151,24 @@
         </div>
         <div class="v2-deck-text-side">
             <div class="v2-text-panel">
-                <h2 class="v2-section-title">손패</h2>
+                <h2 class="v2-section-title">{% tr "손패" %}</h2>
                 <table class="v2-deck-text-table" data-deck-copy-zone="손패">
                     <tbody>
                         {% for card in hands %}
                         {% for _ in card.hand|times %}
-                        <tr><th><a href="{% url "card:detail" card.card.id %}">{{ card.card.name }}</a></th></tr>
+                        <tr><th><a href="{% url "card:detail" card.card.id %}">{{ card.card|card_name:current_language }}</a></th></tr>
                         {% endfor %}
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
             <div class="v2-text-panel">
-                <h2 class="v2-section-title">사이드</h2>
+                <h2 class="v2-section-title">{% tr "사이드" %}</h2>
                 <table class="v2-deck-text-table" data-deck-copy-zone="사이드">
                     <tbody>
                         {% for card in sides %}
                         {% for _ in card.side|times %}
-                        <tr><th><a href="{% url "card:detail" card.card.id %}">{{ card.card.name }}</a></th></tr>
+                        <tr><th><a href="{% url "card:detail" card.card.id %}">{{ card.card|card_name:current_language }}</a></th></tr>
                         {% endfor %}
                         {% endfor %}
                     </tbody>
@@ -178,7 +179,7 @@
 </section>
 
 <section class="v2-section">
-    <h2 class="v2-section-title">덱 설명</h2>
+    <h2 class="v2-section-title">{% tr "덱 설명" %}</h2>
     <div id="덱설명" class="v2-text-panel v2-deck-description">
         {{ deck.description|safe }}
     </div>
@@ -203,6 +204,16 @@
 </section>
 {% endif %}
 
-<script src="{% static "deck/detail.js" %}?v=20260518-copy-zones"></script>
+<script>
+    window.v2DeckDetailTranslations = {
+        imageView: "{% tr "이미지로 보기" %}",
+        textView: "{% tr "텍스트로 보기" %}",
+        emptyCopy: "{% tr "복사할 덱 리스트가 없습니다." %}",
+        copied: "{% tr "클립보드에 복사되었습니다!" %}",
+        captureLoading: "{% tr "이미지 생성 중..." %}",
+        captureDefault: "{% tr "덱 캡쳐" %}"
+    };
+</script>
+<script src="{% static "deck/detail.js" %}?v=20260520-i18n"></script>
 <script src="{% static "imgloading.js" %}"></script>
 {% endblock content %}

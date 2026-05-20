@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 {% load static %}
 {% load card_tags %}
+{% load language_tags %}
 {% block title %}
-{{ card.name }}
+{{ card|card_name:current_language }}
 {% endblock title %}
 {% block v2_href %}{% url "card:detail" card.id %}{% endblock v2_href %}
 {% block meta %}
-<meta content="{{ card.name }}" property="og:title" />
-<meta content="{{ card.text }}" property="og:description" />
+<meta content="{{ card|card_name:current_language }}" property="og:title" />
+<meta content="{{ card|card_text:current_language }}" property="og:description" />
 <meta content="{{ card.img_mid }}" property="og:image" />
 <meta content="#000000" data-react-helmet="true" name="theme-color" />
 {% endblock meta %}
@@ -15,6 +16,7 @@
 <link rel="stylesheet" href="{% static "card/detail.css" %}">
 {% endblock style %}
 {% block content %}
+{% with translated_text=card|card_text:current_language translated_detail_text=card|card_detail_text:current_language translated_keyword=card|card_keyword:current_language %}
 <script>
     var imgList = [];
     var now = 0;
@@ -27,9 +29,9 @@
 </script>
 <div>
     <div>
-        <a id="돌아가기" href="javascript:history.back()">← 돌아가기</a>
+        <a id="돌아가기" href="javascript:history.back()">← {% tr "돌아가기" %}</a>
         {% if perms.card.change_card %}
-        <a class="btn btn-sm btn-dark ms-2" href="{% url "card:legacyUpdate" card.id %}">카드 수정</a>
+        <a class="btn btn-sm btn-dark ms-2" href="{% url "card:legacyUpdate" card.id %}">{% tr "카드 수정" %}</a>
         {% endif %}
     </div>
     <div id="섹션1">
@@ -37,19 +39,19 @@
             <div class="overlayButton">
                 <img id="카드이미지" class="w-100" src="{{ card.img }}" alt="{{ card.img }}">
                 <button class="imageChange" onclick="imageChange();">
-                    <img src="{% static "card/change-arrow.png" %}" alt="다른 판본">
+                    <img src="{% static "card/change-arrow.png" %}" alt="{% tr "판본 변경" %}">
                 </button>
                 {% if unReleased %}
-                <div class="미발매">미발매</div>
+                <div class="미발매">{% tr "미발매" %}</div>
                 {% endif %}
             </div>
             <div class="d-flex flex-row justify-content-between">
                 <div class="카드정보">
-                    <p class="캐릭터명">{{ card.character.name }}</p>
-                    <p class="카드명">{{ card.name }}</p>
+                    <p class="캐릭터명">{{ card.character|character_name:current_language }}</p>
+                    <p class="카드명">{{ card|card_name:current_language }}</p>
                 </div>
                 <div class="mt-auto mb-auto me-2">
-                    <a href="{% url "card:comment" card.id %}" class="btn btn-dark">평점 {{ card.score|floatformat|default_if_none:"미평가" }}/10.0</a>
+                    <a href="{% url "card:comment" card.id %}" class="btn btn-dark">{% tr "평점" %} {{ card.score|floatformat|default_if_none:"-" }}/10.0</a>
                 </div>
             </div>
         </div>
@@ -57,26 +59,26 @@
             {% if card.type == "공격" %}
             <div id="기본정보" class="공격">
                 <div id="판정" class="정보상자">
-                    <div><p>판정</p></div><div><p>{{ card.pos }} {{ card.body|default_if_none:"" }}</p></div>
+                    <div><p>{% tr "판정" %}</p></div><div><p>{{ card.pos|term:current_language }} {{ card.body|default_if_none:""|term:current_language }}</p></div>
                 </div>
                 <div id="특수" class="정보상자">
-                    <div><p>특수 판정</p></div><div><p>{{ card.special|default_if_none:"X" }}</p></div>
+                    <div><p>{% tr "특수 판정" %}</p></div><div><p>{{ card.special|default_if_none:"X"|term:current_language }}</p></div>
                 </div>
                 <div id="댐지" class="정보상자">
-                    <div><p>대미지</p></div><div><p>{{ card.damage }}</p></div>
+                    <div><p>{% tr "대미지" %}</p></div><div><p>{{ card.damage }}</p></div>
                 </div>
                 <div id="속도" class="정보상자">
-                    <div><p>속도</p></div><div><p>{{ card.frame }}</p></div>
+                    <div><p>{% tr "속도" %}</p></div><div><p>{{ card.frame }}</p></div>
                 </div>
                 <div id="처리">
                     <div id="처리1" class="정보상자">
-                        <div><p>히트</p></div><div><p>{{ card.hit|default_if_none:"X" }}</p></div>
+                        <div><p>{% tr "히트" %}</p></div><div><p>{{ card.hit|default_if_none:"X"|term:current_language }}</p></div>
                     </div>
                     <div id="처리2" class="정보상자">
-                        <div><p>가드</p></div><div><p>{{ card.guard|default_if_none:"X" }}</p></div>
+                        <div><p>{% tr "가드" %}</p></div><div><p>{{ card.guard|default_if_none:"X"|term:current_language }}</p></div>
                     </div>
                     <div id="처리3" class="정보상자">
-                        <div><p>카운터</p></div><div><p>{{ card.counter|default_if_none:"X" }}</p></div>
+                        <div><p>{% tr "카운터" %}</p></div><div><p>{{ card.counter|default_if_none:"X"|term:current_language }}</p></div>
                     </div>
                 </div>
             </div>
@@ -85,13 +87,13 @@
             <div id="기본정보" class="수비">
                 <div id="처리">
                     <div id="처리1" class="정보상자">
-                        <div><p>상단</p></div><div><p>{{ card.g_top|default_if_none:"X" }}</p></div>
+                        <div><p>{% tr "상단" %}</p></div><div><p>{{ card.g_top|default_if_none:"X"|term:current_language }}</p></div>
                     </div>
                     <div id="처리2" class="정보상자">
-                        <div><p>중단</p></div><div><p>{{ card.g_mid|default_if_none:"X" }}</p></div>
+                        <div><p>{% tr "중단" %}</p></div><div><p>{{ card.g_mid|default_if_none:"X"|term:current_language }}</p></div>
                     </div>
                     <div id="처리3" class="정보상자">
-                        <div><p>하단</p></div><div><p>{{ card.g_bot|default_if_none:"X" }}</p></div>
+                        <div><p>{% tr "하단" %}</p></div><div><p>{{ card.g_bot|default_if_none:"X"|term:current_language }}</p></div>
                     </div>
                 </div>
             </div>
@@ -100,74 +102,74 @@
             <div id="섹션2">
                 <div id="효과" class="배경색1">
                     <div class="카드텍스트헤더">
-                        <p>효과</p>
-                        {% if card.detail_text %}
-                        <button class="btn btn-sm btn-dark" type="button" data-card-detail-toggle aria-expanded="false">+보충 설명</button>
+                        <p>{% tr "효과" %}</p>
+                        {% if translated_detail_text %}
+                        <button class="btn btn-sm btn-dark" type="button" data-card-detail-toggle aria-expanded="false">{% tr "+보충 설명" %}</button>
                         {% endif %}
                     </div>
-                    <div>{{ card.text|linebreaks }}</div>
+                    <div>{{ translated_text|linebreaks }}</div>
                 </div>
-                {% if card.detail_text %}
+                {% if translated_detail_text %}
                 <div class="배경색1 카드상세정보" data-card-detail-panel hidden>
-                    <p>보충 설명</p>
-                    <div>{{ card.detail_text|linebreaks }}</div>
+                    <p>{% tr "보충 설명" %}</p>
+                    <div>{{ translated_detail_text|linebreaks }}</div>
                 </div>
                 {% endif %}
                 <div class="배경색1">
-                    <p>최초 수록</p>
+                    <p>{% tr "최초 수록" %}</p>
                     <p>{{ card.code }}</p>
                 </div>
                 <div class="배경색1">
-                    <p>덱 채용률</p>
+                    <p>{% tr "덱 채용률" %}</p>
                     <p>{{ adoption_stats.adoption_rate|floatformat:1 }}%</p>
                 </div>
                 <div class="배경색1">
-                    <p>태그</p>
-                    <p>{{ card.keyword|keywords }}</p>
+                    <p>{% tr "태그" %}</p>
+                    <p>{{ translated_keyword|keywords_i18n:current_language }}</p>
                 </div>
             </div>
         </div>
     </div>
     {% if perms.card.tag_update %}
     <hr class="my-4">
-    <div class="sectionName">태그 업데이트</div>
+    <div class="sectionName">{% tr "태그 업데이트" %}</div>
     <form action="{% url "card:editCardTag" card.id %}" method="post" class="배경색1" id="태그폼">
         {% csrf_token %}
         <div>
-            <label for="keyword">이 카드가 가진 태그</label>
-            <input class="form-control 배경색2" type="text" name="keyword" id="keyword" value="{{ card.keyword }}">
+            <label for="keyword">{% tr "이 카드가 가진 태그" %}</label>
+            <input class="form-control 배경색2" type="text" name="keyword" id="keyword" value="{{ tag_edit.values.keyword }}" placeholder="{{ tag_edit.placeholders.keyword }}">
         </div>
         <div>
-            <label for="search">이 카드가 찾는 태그</label>
-            <input class="form-control 배경색2" type="text" name="search" id="search" value="{{ card.search }}">
+            <label for="search">{% tr "이 카드가 찾는 태그" %}</label>
+            <input class="form-control 배경색2" type="text" name="search" id="search" value="{{ tag_edit.values.search }}" placeholder="{{ tag_edit.placeholders.search }}">
         </div>
         <div>
-            <label for="hidden">이 카드의 숨겨진 검색어</label>
-            <input class="form-control 배경색2" type="text" name="hidden" id="hidden" value="{{ card.hiddenKeyword }}">
+            <label for="hidden">{% tr "숨겨진 검색어" %}</label>
+            <input class="form-control 배경색2" type="text" name="hidden" id="hidden" value="{{ tag_edit.values.hidden }}" placeholder="{{ tag_edit.placeholders.hidden }}">
         </div>
         <div class="flex-row justify-content-end">
-            <button class="btn btn-dark" type="submit">수정</button>
+            <button class="btn btn-dark" type="submit">{% tr "수정" %}</button>
         </div>
     </form>
     {% endif %}
     <hr class="my-4">
     <div id="수록정보">
-        <div class="sectionName">수록 정보</div>
+        <div class="sectionName">{% tr "수록 정보" %}</div>
         <div class="released">
-            <div>출시일</div>
-            <div>수록번호</div>
-            <div>수록 팩</div>
-            <div>레어도</div>
+            <div>{% tr "출시일" %}</div>
+            <div>{% tr "수록번호" %}</div>
+            <div>{% tr "수록 팩" %}</div>
+            <div>{% tr "레어도" %}</div>
         </div>
         {% for ccc in cc %}
         <div class="released">
             {% if ccc.isReleased %}
             <div>{{ ccc.pack.released|date:"y-m-d" }}</div>
             {% else %}
-            <div>미발매</div>
+            <div>{% tr "미발매" %}</div>
             {% endif %}
             <div>{{ ccc.code }}</div>
-            <div>{{ ccc.pack.name }}</div>
+            <div>{{ ccc.pack|pack_name:current_language }}</div>
             <div class="{{ ccc.rare }}">{{ ccc.rare }}</div>
         </div>
         {% endfor %}
@@ -179,10 +181,10 @@
         <div class="d-flex flex-row mb-2">
             <select class="btn btn-sm border" name="kw" id="kwSelect">
                 {% for kw in relation.keys %}
-                <option value="{{ kw|cut:" " }}">{{kw}}</option>
+                <option value="{{ kw|cut:" " }}">{{ kw|term:current_language }}</option>
                 {% endfor %}
             </select>
-            <p class="ms-2">관련 카드</p>
+            <p class="ms-2">{% tr "관련 카드" %}</p>
         </div>
         <div>
             {% for kw, vs in relation.items %}
@@ -191,11 +193,11 @@
                 <div class="관련카드 배경색1">
                     <a href="{% url 'card:legacyDetail' v.id %}">
                         <div class="w-100 d-flex flex-column justify-content-center hoverBig">
-                            <img class="w-100" src="{{ v.img_mid }}" alt="{{ v.name }}">
+                            <img class="w-100" src="{{ v.img_mid }}" alt="{{ v|card_name:current_language }}">
                             <div class="카드정보">
                                 <a class="캐릭터명2" href="{% url "card:legacyCharacter" %}?id={{v.character.id}}">
-                                    {{ v.character.name }}</a>
-                                <p class="카드명2">{{ v.name }}</p>
+                                    {{ v.character|character_name:current_language }}</a>
+                                <p class="카드명2">{{ v|card_name:current_language }}</p>
                             </div>
                         </div>
                     </a>
@@ -208,7 +210,7 @@
     {% endif %}
     <hr class="my-4">
     <div id="qna" class="mt-2 mb-3">
-        <div class="w-100 sectionName">관련 Q&A</div>
+        <div class="w-100 sectionName">{% tr "관련 Q&A" %}</div>
         {% for qna in card.qna.all %}
         <a href="{% url "qna:legacyDetail" qna.id %}">
             <div class="질문답변 배경색1">
@@ -234,4 +236,5 @@
         $(".imageChange").css("display", "none");
     }
 </script>
+{% endwith %}
 {% endblock content %}

@@ -71,6 +71,51 @@ class Card(models.Model):
     def score(self):
         return self.comments.aggregate(avg_score=Avg('score'))['avg_score']
 
+class CharacterTranslation(models.Model):
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('ja', '日本語'),
+    ]
+
+    character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='translations')
+    language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES)
+    name = models.CharField(max_length=100, blank=True)
+    description = models.TextField(blank=True)
+    group = models.CharField(max_length=100, blank=True)
+    datas = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['character', 'language'], name='unique_character_translation_language'),
+        ]
+
+    def __str__(self):
+        return f'{self.character.name} / {self.language}'
+
+class CardTranslation(models.Model):
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('ja', '日本語'),
+    ]
+
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='translations')
+    language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES)
+    name = models.CharField(max_length=100, blank=True)
+    ruby = models.CharField(blank=True, max_length=100)
+    text = models.TextField(blank=True)
+    detail_text = models.TextField(blank=True)
+    keyword = models.CharField(blank=True, default='', max_length=255)
+    hiddenKeyword = models.CharField(blank=True, default='', max_length=255)
+    search = models.CharField(blank=True, default='', max_length=255)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['card', 'language'], name='unique_card_translation_language'),
+        ]
+
+    def __str__(self):
+        return f'{self.card.code} / {self.language}'
+
 class Tag(models.Model):
     name = models.CharField(max_length=20) #태그명
     description = models.TextField() #태그 설명

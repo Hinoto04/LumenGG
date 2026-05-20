@@ -29,6 +29,29 @@
     {% endif %}
 </section>
 
+{% if messages %}
+<div class="v2-message-list">
+    {% for message in messages %}
+    <div class="v2-message {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if user == target %}
+<section class="v2-section">
+    <div class="v2-panel v2-profile-danger-zone">
+        <div>
+            <h2 class="v2-section-title">계정 관리</h2>
+            <p>계정을 삭제하면 로그인 정보와 이 계정에 연결된 데이터가 삭제됩니다.</p>
+        </div>
+        <form action="{% url "common:deleteAccount" %}" method="post" onsubmit="return confirm('계정을 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.');">
+            {% csrf_token %}
+            <button class="v2-button v2-danger-button" type="submit">계정 삭제</button>
+        </form>
+    </div>
+</section>
+{% endif %}
+
 <section class="v2-section">
     <div class="v2-section-head-line">
         <h2 class="v2-section-title">작성한 덱</h2>

@@ -1,7 +1,21 @@
 from django import forms
 from .models import CollectionCard, Collected, Pack
 from card.models import Card, Character
+from common.language import translated_card_field, translated_character_field, translated_pack_field, ui_text
 from django.core.validators import FileExtensionValidator
+
+
+def _translated_choices(choices, language):
+    return [(value, ui_text(label, language)) for value, label in choices]
+
+
+def _localize_character_field(field, language):
+    field.label_from_instance = lambda character: translated_character_field(character, language, 'name')
+
+
+def _localize_pack_field(field, language):
+    field.label_from_instance = lambda pack: translated_pack_field(pack, language, 'name')
+
 
 class CollectionForm(forms.ModelForm):
     char = forms.ModelChoiceField(
@@ -64,6 +78,20 @@ class CollectionForm(forms.ModelForm):
         model = CollectionCard
         fields = ['code', 'rare', 'char']
 
+    def __init__(self, *args, language=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['char'].label = ui_text('캐릭터', language)
+        _localize_character_field(self.fields['char'], language)
+        self.fields['code'].label = ui_text('출신 팩', language)
+        _localize_pack_field(self.fields['code'], language)
+        self.fields['sortValue'].label = ui_text('정렬', language)
+        self.fields['sortValue'].choices = _translated_choices(self.fields['sortValue'].choices, language)
+        self.fields['ascending'].label = ui_text('정렬방향', language)
+        self.fields['ascending'].choices = _translated_choices(self.fields['ascending'].choices, language)
+        self.fields['onlyZero'].label = ui_text('미수집 카드만', language)
+        self.fields['rare'].label = ui_text('레어도', language)
+        self.fields['rare'].choices = _translated_choices(self.fields['rare'].choices, language)
+
 class CollectionCreateForm(forms.ModelForm):
     pack = forms.ModelChoiceField(
         queryset = Pack.objects.all(),
@@ -93,3 +121,14 @@ class CollectionCreateForm(forms.ModelForm):
     class Meta:
         model = CollectionCard
         fields = ['name', 'code']
+
+    def __init__(self, *args, language=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['name'].label = ui_text('카드명', language)
+        self.fields['code'].label = ui_text('수록 정보', language)
+        self.fields['pack'].label = ui_text('팩', language)
+        _localize_pack_field(self.fields['pack'], language)
+        self.fields['rare'].label = ui_text('레어도', language)
+        self.fields['imageFile'].label = ui_text('이미지', language)
+        self.fields['card'].label = ui_text('카드', language)
+        self.fields['card'].label_from_instance = lambda card: translated_card_field(card, language, 'name')

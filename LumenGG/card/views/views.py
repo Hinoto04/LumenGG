@@ -12,7 +12,8 @@ from django.utils import timezone
 from ..models import Card, Character, Tag, CardComment
 from collection.models import CollectionCard, Pack
 from deck.models import Deck
-from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm, CardUpdateForm, CardCommentForm
+from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm, CardUpdateForm, CardTranslationUpdateForm, CardCommentForm
+from ..search import card_matches_search, card_matches_search_exact
 from decorators import permission_required
 import re, random, os, json, uuid
 from io import BytesIO
@@ -21,6 +22,16 @@ import openpyxl
 from openpyxl.utils.exceptions import InvalidFileException
 
 from PIL import Image
+from common.language import (
+    DEFAULT_LANGUAGE,
+    LANGUAGE_ENGLISH,
+    LANGUAGE_JAPANESE,
+    SUPPORTED_LANGUAGES,
+    get_language,
+    normalize_language,
+    translated_character_field,
+    ui_text,
+)
 
 NEUTRAL_CHARACTER_ID = 1
 DETAIL_TEXT_IMPORT_DIR = 'card_detail_text_imports'
@@ -275,9 +286,10 @@ def apply_detail_text_import(token, sheet_name):
 
 # Create your views here.
 def index(req, template_name='card/list.html'):
+    language = get_language(req)
     page = req.GET.get('page', '1')
     
-    form = CardForm(req.GET)
+    form = CardForm(req.GET, language=language)
     
     if not form.is_valid():
         char = None
@@ -332,14 +344,17 @@ def index(req, template_name='card/list.html'):
         if frametype == '일치': q.add(Q(frame=int(framenum)), q.AND)
         elif frametype == '이상': q.add(Q(frame__gte=int(framenum)), q.AND)
         elif frametype == '이하': q.add(Q(frame__lte=int(framenum)), q.AND)
+    data = Card.objects.filter(q).select_related('character').prefetch_related(
+        'translations',
+        'character__translations',
+    ).distinct().annotate(avgscore=Avg('comments__score'))
+
     if keyword:
-        q1 = Q()
-        q1.add(Q(name__contains=keyword), q.OR)
-        q1.add(Q(keyword__contains=keyword), q.OR)
-        q1.add(Q(hiddenKeyword__contains=keyword), q.OR)
-        q.add(q1, q.AND)
-    
-    data = Card.objects.filter(q).annotate(avgscore=Avg('comments__score'))
+        matched_ids = [
+            card.id for card in data
+            if card_matches_search(card, keyword, include_keywords=True)
+        ]
+        data = data.filter(id__in=matched_ids)
     
     if sort:
         if '히트' in sort:
@@ -392,7 +407,7 @@ def index(req, template_name='card/list.html'):
     paginator = Paginator(data, 12)
     page_data = paginator.get_page(page)
     
-    form = CardForm(req.GET)
+    form = CardForm(req.GET, language=language)
     
     
     context = {
@@ -404,7 +419,7 @@ def index(req, template_name='card/list.html'):
 def indexV2(req):
     return index(req, 'card/list_v2.html')
 
-def get_card_adoption_stats(card):
+def get_card_adoption_stats(card, language='ko'):
     deck_scope = Deck.objects.filter(
         deleted=False,
     ).annotate(
@@ -415,10 +430,17 @@ def get_card_adoption_stats(card):
 
     is_neutral_card = card.character_id == NEUTRAL_CHARACTER_ID
     if is_neutral_card:
-        scope_label = '전체 덱'
+        scope_label = ui_text('전체 덱', language)
     else:
         deck_scope = deck_scope.filter(character_id=card.character_id)
-        scope_label = f'{card.character.name} 덱'
+        character_name = translated_character_field(card.character, language, 'name')
+        language = normalize_language(language)
+        if language == LANGUAGE_ENGLISH:
+            scope_label = f'{character_name} decks'
+        elif language == LANGUAGE_JAPANESE:
+            scope_label = f'{character_name}デッキ'
+        else:
+            scope_label = f'{character_name} 덱'
 
     total_decks = deck_scope.count()
     adopted_decks = deck_scope.filter(cids__card_id=card.id).distinct().count()
@@ -432,9 +454,39 @@ def get_card_adoption_stats(card):
         'adoption_rate': adoption_rate,
     }
 
+
+def card_tag_edit_context(card, language):
+    language = normalize_language(language)
+    source_values = {
+        'keyword': card.keyword or '',
+        'search': card.search or '',
+        'hidden': card.hiddenKeyword or '',
+    }
+    if language == DEFAULT_LANGUAGE:
+        return {
+            'values': source_values,
+            'placeholders': {'keyword': '', 'search': '', 'hidden': ''},
+            'is_translation': False,
+        }
+
+    translation = card.translations.filter(language=language).first()
+    return {
+        'values': {
+            'keyword': (translation.keyword if translation else '') or '',
+            'search': (translation.search if translation else '') or '',
+            'hidden': (translation.hiddenKeyword if translation else '') or '',
+        },
+        'placeholders': source_values,
+        'is_translation': True,
+    }
+
 def detail(req, id=0, template_name='card/detail.html'):
+    language = get_language(req)
     try:
-        card = Card.objects.get(id = id)
+        card = Card.objects.select_related('character').prefetch_related(
+            'translations',
+            'character__translations',
+        ).get(id = id)
     except Card.DoesNotExist:
         raise Http404("카드가 존재하지 않습니다.")
     
@@ -442,10 +494,13 @@ def detail(req, id=0, template_name='card/detail.html'):
     
     kws = card.search.split('/')[:-1]
     for kw in kws:
-        relation[kw] = Card.objects.filter(keyword__contains=kw)
+        relation[kw] = Card.objects.select_related('character').prefetch_related(
+            'translations',
+            'character__translations',
+        ).filter(keyword__contains=kw)
         relation[kw] = relation[kw].exclude(id = id)
     
-    cc = CollectionCard.objects.filter(card = card)
+    cc = CollectionCard.objects.select_related('pack').prefetch_related('pack__translations').filter(card = card)
     cc = cc.annotate(
         custom_order=Case(
         When(rare='N', then=0),
@@ -471,7 +526,8 @@ def detail(req, id=0, template_name='card/detail.html'):
         'relation': relation,
         'cc': cc,
         'unReleased': unReleased,
-        'adoption_stats': get_card_adoption_stats(card),
+        'adoption_stats': get_card_adoption_stats(card, language),
+        'tag_edit': card_tag_edit_context(card, language),
     }
     return render(req, template_name, context=context)
 
@@ -479,10 +535,22 @@ def detailV2(req, id=0):
     return detail(req, id, 'card/detail_v2.html')
 
 def detailName(req, name):
+    language = get_language(req)
     try:
         card = Card.objects.get(name=name)
     except Card.DoesNotExist:
-        cards = Card.objects.filter(Q(name__contains=name)|Q(keyword__contains=name)|Q(hiddenKeyword__contains=name))
+        candidates = Card.objects.select_related('character').prefetch_related(
+            'translations',
+            'character__translations',
+        ).order_by('id')
+        for candidate in candidates:
+            if card_matches_search_exact(candidate, name, include_keywords=False):
+                return detailV2(req, candidate.id)
+
+        cards = [
+            candidate for candidate in candidates
+            if card_matches_search(candidate, name, include_keywords=True)
+        ]
         context = {
             'cards': cards
         }
@@ -494,7 +562,17 @@ def detailNameLegacy(req, name):
     try:
         card = Card.objects.get(name=name)
     except Card.DoesNotExist:
-        cards = Card.objects.filter(Q(name__contains=name)|Q(keyword__contains=name)|Q(hiddenKeyword__contains=name))
+        candidates = Card.objects.select_related('character').prefetch_related(
+            'translations',
+            'character__translations',
+        ).order_by('id')
+        for candidate in candidates:
+            if card_matches_search_exact(candidate, name, include_keywords=False):
+                return detail(req, candidate.id)
+        cards = [
+            candidate for candidate in candidates
+            if card_matches_search(candidate, name, include_keywords=True)
+        ]
         context = {
             'cards': cards
         }
@@ -541,14 +619,40 @@ def createV2(req):
 
 @permission_required('card.change_card')
 def update(req, id=0, template_name='card/create.html', detail_route='card:detail'):
+    language = get_language(req)
+    language = normalize_language(language)
+    is_translation_update = language != DEFAULT_LANGUAGE
+    language_labels = dict(SUPPORTED_LANGUAGES)
+
     try:
         card = Card.objects.get(id=id)
     except Card.DoesNotExist:
         raise Http404("카드가 존재하지 않습니다.")
+
+    context_base = {
+        'card': card,
+        'is_update': True,
+        'is_translation_update': is_translation_update,
+        'edit_language': language,
+        'edit_language_label': language_labels.get(language, language),
+    }
+
+    if is_translation_update:
+        translation = card.translations.filter(language=language).first()
+
+        if req.method == 'GET':
+            form = CardTranslationUpdateForm(instance=translation, card=card, language=language)
+            return render(req, template_name, context={**context_base, 'form': form})
+
+        form = CardTranslationUpdateForm(req.POST, instance=translation, card=card, language=language)
+        if form.is_valid():
+            form.save()
+            return redirect(detail_route, card.id)
+        return render(req, template_name, context={**context_base, 'form': form})
     
     if req.method == 'GET':
         form = CardUpdateForm(instance=card)
-        return render(req, template_name, context={'form': form, 'card': card, 'is_update': True})
+        return render(req, template_name, context={**context_base, 'form': form})
     
     form = CardUpdateForm(req.POST, req.FILES, instance=card)
     if form.is_valid():
@@ -559,7 +663,7 @@ def update(req, id=0, template_name='card/create.html', detail_route='card:detai
         card.save()
         CollectionCard.objects.filter(card=card).update(name=card.name)
         return redirect(detail_route, card.id)
-    return render(req, template_name, context={'form': form, 'card': card, 'is_update': True})
+    return render(req, template_name, context={**context_base, 'form': form})
 
 def updateV2(req, id=0):
     return update(req, id, 'card/create_v2.html', 'card:detail')
@@ -718,15 +822,26 @@ def tagUpdate(req, id=0):
 
 @permission_required('card.tag_update')
 def editCardTag(req, id=0):
+    language = get_language(req)
+    language = normalize_language(language)
     try:
         card = Card.objects.get(id = id)
     except Card.DoesNotExist:
         raise Http404("카드가 존재하지 않습니다.")
-    
-    card.hiddenKeyword = req.POST['hidden']
-    card.keyword = req.POST['keyword']
-    card.search = req.POST['search']
-    card.save()
+
+    if language == DEFAULT_LANGUAGE:
+        card.hiddenKeyword = req.POST['hidden']
+        card.keyword = req.POST['keyword']
+        card.search = req.POST['search']
+        card.save(update_fields=['hiddenKeyword', 'keyword', 'search'])
+    else:
+        translation = card.translations.filter(language=language).first()
+        if translation is None:
+            translation = card.translations.create(language=language)
+        translation.hiddenKeyword = req.POST['hidden']
+        translation.keyword = req.POST['keyword']
+        translation.search = req.POST['search']
+        translation.save(update_fields=['hiddenKeyword', 'keyword', 'search'])
     
     return redirect('card:detail', id)
 

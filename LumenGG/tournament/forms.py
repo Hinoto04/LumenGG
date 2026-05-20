@@ -1,6 +1,7 @@
 from django import forms
 from django.utils import timezone
 
+from common.language import ui_text
 from deck.models import Deck
 
 from .models import Tournament, TournamentParticipant, TournamentRound
@@ -15,6 +16,10 @@ def _format_local_event_date(value):
     if timezone.is_aware(value):
         value = timezone.localtime(value)
     return value.strftime(EVENT_DATE_INPUT_FORMAT)
+
+
+def _translated_choices(choices, language):
+    return [(value, ui_text(label, language)) for value, label in choices]
 
 
 class TournamentForm(forms.ModelForm):
@@ -81,21 +86,27 @@ class TournamentForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'rows': 5}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, language=None, **kwargs):
+        self.language = language
         super().__init__(*args, **kwargs)
         if not self.is_bound:
             event_date = self.initial.get('event_date') or getattr(self.instance, 'event_date', None)
             if event_date:
                 self.initial['event_date'] = _format_local_event_date(event_date)
         for field_name, field in self.fields.items():
+            field.label = ui_text(field.label, language)
             field.widget.attrs.setdefault('class', 'v2-tournament-input')
+            if 'placeholder' in field.widget.attrs:
+                field.widget.attrs['placeholder'] = ui_text(field.widget.attrs['placeholder'], language)
             if field_name in ['join_code', 'swiss_round_count', 'top_cut_count', 'max_players']:
                 field.required = False
+            if getattr(field, 'choices', None):
+                field.choices = _translated_choices(field.choices, language)
 
     def clean_decklist_required_count(self):
         value = self.cleaned_data['decklist_required_count']
         if value > 10:
-            raise forms.ValidationError('요구 덱 리스트 수는 10개 이하로 설정해주세요.')
+            raise forms.ValidationError(ui_text('요구 덱 리스트 수는 10개 이하로 설정해주세요.', self.language))
         return value
 
     def clean_join_code(self):
@@ -127,7 +138,7 @@ class TournamentForm(forms.ModelForm):
         tournament_format = cleaned_data.get('format')
         top_cut_count = cleaned_data.get('top_cut_count') or 0
         if tournament_format == Tournament.FORMAT_HYBRID and top_cut_count < 2:
-            self.add_error('top_cut_count', forms.ValidationError('스위스 + 토너먼트 대회는 토너먼트 진출자 수를 2명 이상으로 지정해주세요.'))
+            self.add_error('top_cut_count', forms.ValidationError(ui_text('스위스 + 토너먼트 대회는 토너먼트 진출자 수를 2명 이상으로 지정해주세요.', self.language)))
         return cleaned_data
 
 
@@ -142,7 +153,8 @@ class TournamentJoinForm(forms.ModelForm):
             'display_name': forms.TextInput(attrs={'placeholder': '비워두면 계정 이름 사용'}),
         }
 
-    def __init__(self, *args, user=None, tournament=None, **kwargs):
+    def __init__(self, *args, user=None, tournament=None, language=None, **kwargs):
+        self.language = language
         super().__init__(*args, **kwargs)
         self.user = user
         self.tournament = tournament
@@ -155,9 +167,9 @@ class TournamentJoinForm(forms.ModelForm):
 
         if self.needs_join_code:
             self.fields['join_code'] = forms.CharField(
-                label='참가 코드',
+                label=ui_text('참가 코드', language),
                 required=True,
-                widget=forms.TextInput(attrs={'placeholder': '대회 참가 코드를 입력'}),
+                widget=forms.TextInput(attrs={'placeholder': ui_text('대회 참가 코드를 입력', language)}),
             )
 
         submitted_by_slot = {}
@@ -172,7 +184,7 @@ class TournamentJoinForm(forms.ModelForm):
             field_name = f'deck_{slot}'
             selected_deck = submitted_by_slot.get(slot)
             self.fields[field_name] = forms.IntegerField(
-                label=f'제출 덱 {slot}',
+                label=f'{ui_text("제출 덱", language)} {slot}',
                 required=True,
                 widget=forms.HiddenInput(attrs={'data-deck-slot': slot}),
             )
@@ -181,6 +193,9 @@ class TournamentJoinForm(forms.ModelForm):
                 self.selected_decks_by_slot[slot] = selected_deck
 
         for field in self.fields.values():
+            field.label = ui_text(field.label, language)
+            if 'placeholder' in field.widget.attrs:
+                field.widget.attrs['placeholder'] = ui_text(field.widget.attrs['placeholder'], language)
             field.widget.attrs.setdefault('class', 'v2-tournament-input')
 
     def _can_submit_deck(self, deck):
@@ -194,10 +209,10 @@ class TournamentJoinForm(forms.ModelForm):
         try:
             deck = Deck.objects.select_related('author', 'character').get(id=deck_id, deleted=False)
         except Deck.DoesNotExist:
-            raise forms.ValidationError('존재하지 않는 덱입니다.')
+            raise forms.ValidationError(ui_text('존재하지 않는 덱입니다.', self.language))
 
         if not self._can_submit_deck(deck):
-            raise forms.ValidationError('제출할 수 없는 덱입니다.')
+            raise forms.ValidationError(ui_text('제출할 수 없는 덱입니다.', self.language))
         return deck
 
     def clean(self):
@@ -205,7 +220,7 @@ class TournamentJoinForm(forms.ModelForm):
         if self.needs_join_code:
             input_code = (cleaned_data.get('join_code') or '').strip().upper()
             if input_code != (self.tournament.join_code or '').upper():
-                self.add_error('join_code', forms.ValidationError('참가 코드가 올바르지 않습니다.'))
+                self.add_error('join_code', forms.ValidationError(ui_text('참가 코드가 올바르지 않습니다.', self.language)))
 
         if not self.tournament or self.tournament.decklist_required_count == 0:
             return cleaned_data
@@ -225,10 +240,10 @@ class TournamentJoinForm(forms.ModelForm):
                 decks.append(deck)
 
         if len(decks) != self.tournament.decklist_required_count:
-            raise forms.ValidationError('요구된 수만큼 덱 리스트를 제출해야 합니다.')
+            raise forms.ValidationError(ui_text('요구된 수만큼 덱 리스트를 제출해야 합니다.', self.language))
         deck_ids = [deck.id for deck in decks]
         if len(deck_ids) != len(set(deck_ids)):
-            raise forms.ValidationError('같은 덱을 중복 제출할 수 없습니다.')
+            raise forms.ValidationError(ui_text('같은 덱을 중복 제출할 수 없습니다.', self.language))
         return cleaned_data
 
     def submitted_decks(self):
@@ -277,7 +292,7 @@ class RoundStartForm(forms.Form):
         required=False,
     )
 
-    def __init__(self, *args, tournament=None, **kwargs):
+    def __init__(self, *args, tournament=None, language=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.tournament = tournament
         if tournament:
@@ -298,4 +313,7 @@ class RoundStartForm(forms.Form):
                 if finished_swiss_rounds >= tournament.swiss_round_count:
                     self.fields['stage'].initial = TournamentRound.STAGE_ELIMINATION
         for field in self.fields.values():
+            field.label = ui_text(field.label, language)
+            if getattr(field, 'choices', None):
+                field.choices = _translated_choices(field.choices, language)
             field.widget.attrs.setdefault('class', 'v2-tournament-input')

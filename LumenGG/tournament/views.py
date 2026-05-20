@@ -20,6 +20,7 @@ from battlelog.services import (
     set_sudden_death,
 )
 from battlelog.realtime import broadcast_battle_session
+from common.language import get_language, translated_character_field, ui_text
 from deck.models import Deck
 
 from .forms import RoundStartForm, TournamentForm, TournamentJoinForm
@@ -268,7 +269,7 @@ def indexV2(req):
 @login_required(login_url='common:login', redirect_field_name='next')
 def createV2(req):
     if req.method == 'POST':
-        form = TournamentForm(req.POST)
+        form = TournamentForm(req.POST, language=get_language(req))
         if form.is_valid():
             tournament = form.save(commit=False)
             tournament.organizer = req.user
@@ -276,7 +277,7 @@ def createV2(req):
             messages.success(req, '대회를 생성했습니다.')
             return redirect('tournament:detail', id=tournament.id)
     else:
-        form = TournamentForm(initial={'event_date': timezone.now()})
+        form = TournamentForm(initial={'event_date': timezone.now()}, language=get_language(req))
     return render(req, 'tournament/create_v2.html', {'form': form})
 
 
@@ -287,13 +288,13 @@ def editV2(req, id):
         raise PermissionDenied()
 
     if req.method == 'POST':
-        form = TournamentForm(req.POST, instance=tournament)
+        form = TournamentForm(req.POST, instance=tournament, language=get_language(req))
         if form.is_valid():
             form.save()
             messages.success(req, '대회 설정을 저장했습니다.')
             return redirect('tournament:detail', id=tournament.id)
     else:
-        form = TournamentForm(instance=tournament)
+        form = TournamentForm(instance=tournament, language=get_language(req))
     return render(req, 'tournament/edit_v2.html', {'form': form, 'tournament': tournament})
 
 
@@ -410,8 +411,9 @@ def detailV2(req, id):
         tournament=tournament,
         instance=participant,
         initial=join_initial,
+        language=get_language(req),
     )
-    round_form = RoundStartForm(tournament=tournament)
+    round_form = RoundStartForm(tournament=tournament, language=get_language(req))
 
     character_stats = []
     round_character_stats = []
@@ -537,14 +539,15 @@ def deckSearchV2(req):
         .select_related('author', 'character')
         .order_by('-created')[:20]
     )
+    language = get_language(req)
     data = [
         {
             'id': deck.id,
             'name': deck.name,
             'author': deck.author.username,
-            'character': deck.character.name,
+            'character': translated_character_field(deck.character, language, 'name'),
             'version': deck.version,
-            'visibility': deck.get_visibility_display(),
+            'visibility': ui_text(deck.get_visibility_display(), language),
             'is_owner': deck.author_id == req.user.id,
         }
         for deck in decks
@@ -715,7 +718,7 @@ def joinV2(req, id):
     if req.method != 'POST':
         return redirect('tournament:detail', id=tournament.id)
 
-    form = TournamentJoinForm(req.POST, user=req.user, tournament=tournament, instance=participant)
+    form = TournamentJoinForm(req.POST, user=req.user, tournament=tournament, instance=participant, language=get_language(req))
     if form.is_valid():
         submitted_decks = form.submitted_decks()
         with transaction.atomic():
@@ -770,7 +773,7 @@ def startRoundV2(req, id):
     if req.method != 'POST':
         return redirect('tournament:detail', id=tournament.id)
 
-    form = RoundStartForm(req.POST, tournament=tournament)
+    form = RoundStartForm(req.POST, tournament=tournament, language=get_language(req))
     if form.is_valid():
         try:
             create_round(

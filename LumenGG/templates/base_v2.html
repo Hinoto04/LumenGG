@@ -1,6 +1,7 @@
 {% load static %}
+{% load language_tags %}
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="{{ current_language|default:'ko' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -41,24 +42,35 @@
                 <small>V2</small>
             </span>
         </a>
-        <nav class="v2-nav" aria-label="주 메뉴">
-            <a href="{% url "card:index" %}">카드</a>
-            <a href="{% url "card:character" %}">캐릭터</a>
-            <a href="{% url "deck:index" %}">덱</a>
-            <a href="{% url "tournament:index" %}">대회</a>
-            <a href="{% url "battlelog:sim" %}">계산기</a>
-            <a href="{% url "collection:index" %}">컬렉션</a>
+        <nav class="v2-nav" aria-label="{% tr "주 메뉴" %}">
+            <a href="{% url "card:index" %}">{% tr "카드" %}</a>
+            <a href="{% url "card:character" %}">{% tr "캐릭터" %}</a>
+            <a href="{% url "deck:index" %}">{% tr "덱" %}</a>
+            <a href="{% url "tournament:index" %}">{% tr "대회" %}</a>
+            <a href="{% url "battlelog:sim" %}">{% tr "계산기" %}</a>
+            <a href="{% url "battlelog:simulatorStart" %}">{% tr "시뮬레이터" %}</a>
+            <a href="{% url "collection:index" %}">{% tr "컬렉션" %}</a>
             <a href="{% url "qna:index" %}">Q&A</a>
         </nav>
         <div class="v2-account">
-            <button class="v2-theme-toggle" type="button" data-theme-toggle>
-                <span data-theme-toggle-label>라이트</span>
+            <form class="v2-language-form" action="{% url "common:setLanguage" %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <label class="visually-hidden" for="v2LanguageSelect">{% tr "언어" %}</label>
+                <select class="v2-language-select" id="v2LanguageSelect" name="language" aria-label="{% tr "언어" %}" onchange="this.form.submit()">
+                    {% for language in language_options %}
+                    <option value="{{ language.code }}" {% if language.active %}selected{% endif %}>{{ language.label }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            <button class="v2-theme-toggle" type="button" data-theme-toggle data-theme-label-light="{% tr "라이트" %}" data-theme-label-dark="{% tr "다크" %}" data-theme-change-suffix="{% tr "테마로 변경" %}">
+                <span data-theme-toggle-label>{% tr "라이트" %}</span>
             </button>
             {% if user.is_authenticated %}
             <a href="{% url "common:mypage" %}">{{ user.username }}</a>
-            <a href="{% url "common:logout" %}?next={% url "card:index" %}">로그아웃</a>
+            <a href="{% url "common:logout" %}?next={% url "card:index" %}">{% tr "로그아웃" %}</a>
             {% else %}
-            <a href="{% url "common:login" %}?next={{ request.get_full_path|urlencode }}">로그인</a>
+            <a href="{% url "common:login" %}?next={{ request.get_full_path|urlencode }}">{% tr "로그인" %}</a>
             {% endif %}
         </div>
     </header>
@@ -66,7 +78,7 @@
         {% block content %}{% endblock content %}
     </main>
     <footer class="v2-shell v2-footer">
-        <span>루멘콘덴서 팬 사이트</span>
+        <span>{% tr "루멘콘덴서 팬 사이트" %}</span>
         <span>Developed by Hinoto</span>
         <span>Copyright 2023-2026 Yaoni Comic, Perso Studio All rights reserved.</span>
     </footer>

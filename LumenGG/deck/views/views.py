@@ -11,6 +11,8 @@ from django.utils import timezone
 from django.db.models import Case, When
 
 from card.models import Card, Character
+from card.search import card_matches_search
+from common.language import DEFAULT_LANGUAGE, get_language, translated_card_field
 from ..models import Deck, CardInDeck, DeckLike, DeckComment
 from ..forms import DeckSearchForm, DeckMakeForm
 from ..capture import generate_deck_capture, get_deck_capture_public_url
@@ -24,7 +26,7 @@ import json
 # Create your views here.
 def index(req, template_name='deck/list.html'):
     page = req.GET.get('page', '1')
-    form = DeckSearchForm(req.GET)
+    form = DeckSearchForm(req.GET, language=get_language(req))
     
     if not form.is_valid():
         char = None
@@ -350,7 +352,7 @@ def replace_deck_cards(deck, deck_entries):
 
 def _create(req, template_name='deck/create.html', detail_route='deck:detail'):
     if req.method == "GET":
-        form = DeckMakeForm()
+        form = DeckMakeForm(language=get_language(req))
         exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
         return render(req, template_name, context={
             'form': form,
@@ -418,6 +420,7 @@ def createV2(req):
     return _create(req, 'deck/create_v2.html', 'deck:detail')
 
 def createSearch(req):
+    language = get_language(req)
     neutral = req.GET.get('neutral', '')
     char = req.GET.get('char', '0')
     framenum = req.GET.get('framenum', '')
@@ -441,28 +444,42 @@ def createSearch(req):
         if frametype == '일치': q.add(Q(frame=int(framenum)), q.AND)
         if frametype == '이상': q.add(Q(frame__gte=int(framenum)), q.AND)
         if frametype == '이하': q.add(Q(frame__lte=int(framenum)), q.AND)
-    c = Q()
-    if keyword != '':
-        c.add(Q(keyword__contains=keyword), c.OR)
-        c.add(Q(hiddenKeyword__contains=keyword), c.OR)
-        c.add(Q(name__contains=keyword), c.OR)
-        c.add(Q(pos__contains=keyword), c.OR)
-        q.add(c, q.AND)
     q.add(~Q(type="특성"), q.AND)
     q.add(~Q(type="토큰"), q.AND)
-    
-    data = list(Card.objects.filter(q).values('pk', 'name', 'frame', 'img_sm', 'character', 'ultimate'))
+
+    cards = Card.objects.filter(q).prefetch_related('translations').order_by('id')
+    if keyword != '':
+        cards = [
+            card for card in cards
+            if card_matches_search(card, keyword, include_keywords=True) or keyword in (card.pos or '')
+        ]
+
+    data = [
+        {
+            'pk': card.pk,
+            'name': translated_card_field(card, language, 'name'),
+            'frame': card.frame,
+            'img_sm': card.img_sm,
+            'character': card.character_id,
+            'ultimate': card.ultimate,
+        }
+        for card in cards
+    ]
     #sdata = serializers.serialize('json', data)
     return JsonResponse(data, safe=False)
 
 def get_initial_cards(card_in_deck):
+    return get_initial_cards_for_language(card_in_deck, DEFAULT_LANGUAGE)
+
+
+def get_initial_cards_for_language(card_in_deck, language):
     cards = {}
     for cid in card_in_deck:
         key = cid.card.id
         if key not in cards:
             cards[key] = {
                 'pk': cid.card.id,
-                'name': cid.card.name,
+                'name': translated_card_field(cid.card, language, 'name'),
                 'frame': cid.card.frame,
                 'img_sm': cid.card.img_sm,
                 'character': cid.card.character_id,
@@ -492,7 +509,7 @@ def _update(req, id=0, template_name='deck/update.html', detail_route='deck:deta
         return render(req, 'error.html', context={'error':'진행 중이거나 종료된 대회에 제출된 덱은 수정하실 수 없습니다.'})
     
     if req.method == "GET":
-        form = DeckMakeForm(instance=deck)
+        form = DeckMakeForm(instance=deck, language=get_language(req))
         cid = CardInDeck.objects.filter(deck=deck).select_related('card', 'card__character')
         exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
         return render(req, template_name, context=
@@ -502,7 +519,7 @@ def _update(req, id=0, template_name='deck/update.html', detail_route='deck:deta
                      'deck': deck,
                      'selected_character_id': deck.character_id,
                      'exceptList': exceptList,
-                     'initial_cards': get_initial_cards(cid),
+                     'initial_cards': get_initial_cards_for_language(cid, get_language(req)),
                      'is_update': True})
     else:
         data = json.loads(req.body)

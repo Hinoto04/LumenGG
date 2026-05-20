@@ -1,11 +1,15 @@
 (function () {
     const stateNode = document.getElementById("battle-initial-state");
     const optionsNode = document.getElementById("battle-character-options");
+    const i18nNode = document.getElementById("battle-i18n");
     const config = window.v2BattleConfig || {};
     if (!stateNode || !optionsNode || !config.stateUrl || !config.actionUrl) return;
 
     let state = JSON.parse(stateNode.textContent);
     const characterOptions = JSON.parse(optionsNode.textContent);
+    const i18n = i18nNode ? JSON.parse(i18nNode.textContent) : {};
+    const translations = i18n.translations || {};
+    const translationKeys = Object.keys(translations).sort((a, b) => b.length - a.length);
     let historyFilter = "all";
     let historyOpen = false;
     let shareOpen = false;
@@ -26,10 +30,19 @@
     const csrfInput = document.querySelector("[name=csrfmiddlewaretoken]");
     const csrfToken = csrfInput ? csrfInput.value : "";
 
+    function t(value) {
+        if (value === null || value === undefined) return "";
+        const raw = String(value);
+        if (!raw) return raw;
+        if (translations[raw]) return translations[raw];
+        return translationKeys.reduce((output, key) => output.replaceAll(key, translations[key]), raw);
+    }
+
     function buildWebSocketUrl(path) {
         const url = new URL(path, window.location.href);
         url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         if (config.controlToken) url.searchParams.set("control_token", config.controlToken);
+        if (config.language) url.searchParams.set("language", config.language);
         return url.toString();
     }
 
@@ -42,7 +55,13 @@
     }
 
     function playerLabel(target) {
-        return target === "p1" ? "P1" : target === "p2" ? "P2" : "공통";
+        return target === "p1" ? "P1" : target === "p2" ? "P2" : t("공통");
+    }
+
+    function setPrefix(setNumber) {
+        if (!setNumber) return "";
+        if (i18n.language === "en") return `Set ${setNumber} `;
+        return `${setNumber}${t("세트")} `;
     }
 
     function cloneState() {
@@ -145,11 +164,11 @@
             if (event.payload && event.payload.confirmed) {
                 return `${playerLabel(event.target)} 세트 결과 확인`;
             }
-            const setNumber = event.payload && event.payload.set_number ? `${event.payload.set_number}세트 ` : "";
-            return `${setNumber}${playerLabel(event.target)} 승`;
+            const setNumber = event.payload && event.payload.set_number ? setPrefix(event.payload.set_number) : "";
+            return `${setNumber}${playerLabel(event.target)} ${t("승")}`;
         }
         if (event.type === "set_start") {
-            return `${event.payload && event.payload.set_number ? event.payload.set_number : ""}세트 시작`;
+            return `${setPrefix(event.payload && event.payload.set_number ? event.payload.set_number : "")}${t("시작")}`;
         }
         if (event.type === "extra_time") {
             return `추가 시간 ${formatSeconds(event.amount || 0)}`;
@@ -185,7 +204,7 @@
         if (suddenButton) {
             suddenButton.disabled = !state.can_sudden_death || state.is_expired;
             suddenButton.classList.toggle("is-active", state.sudden_death);
-            suddenButton.textContent = state.sudden_death ? "서든 데스 해제" : "서든 데스";
+            suddenButton.textContent = state.sudden_death ? t("서든 데스 해제") : t("서든 데스");
         }
         document.querySelectorAll("[data-report-set]").forEach((button) => {
             const setState = state.set || {};
@@ -195,7 +214,7 @@
             );
             button.disabled = state.sudden_death || !setState.can_report || !setState.winner_candidate || setState.ambiguous_result || alreadyReported;
             button.hidden = state.type !== "tournament" || state.sudden_death;
-            button.textContent = alreadyReported ? "보고 완료" : "결과 보고";
+            button.textContent = alreadyReported ? t("보고 완료") : t("결과 보고");
         });
         document.querySelectorAll("[data-extra-time]").forEach((button) => {
             button.disabled = !(state.set && state.set.can_add_time);
@@ -299,7 +318,7 @@
             } catch (error) {
                 const message = document.createElement("p");
                 message.className = "v2-battle-empty";
-                message.textContent = "패시브 패널 스크립트 오류가 발생했습니다.";
+                message.textContent = t("패시브 패널 스크립트 오류가 발생했습니다.");
                 holder.appendChild(message);
                 console.error(error);
             }
@@ -321,7 +340,7 @@
         if (!player.character) {
             const empty = document.createElement("p");
             empty.className = "v2-battle-empty";
-            empty.textContent = "캐릭터를 선택하면 패시브 패널이 표시됩니다.";
+            empty.textContent = t("캐릭터를 선택하면 패시브 패널이 표시됩니다.");
             holder.appendChild(empty);
             return;
         }
@@ -345,11 +364,11 @@
             const field = document.createElement("label");
             field.className = "v2-battle-character-select";
             const span = document.createElement("span");
-            span.textContent = `${playerLabel(target)} 캐릭터`;
+            span.textContent = `${playerLabel(target)} ${t("캐릭터")}`;
             const select = document.createElement("select");
             const empty = document.createElement("option");
             empty.value = "";
-            empty.textContent = "선택";
+            empty.textContent = t("선택");
             select.appendChild(empty);
             options.options.forEach((character) => {
                 const option = document.createElement("option");
@@ -380,7 +399,7 @@
         if (!events.length) {
             const empty = document.createElement("p");
             empty.className = "v2-battle-empty";
-            empty.textContent = "표시할 기록이 없습니다.";
+            empty.textContent = t("표시할 기록이 없습니다.");
             holder.appendChild(empty);
             return;
         }
@@ -397,7 +416,7 @@
             }
             if (event.undone) row.classList.add("is-undone");
             const label = document.createElement("strong");
-            label.textContent = actionLabel(event);
+            label.textContent = t(actionLabel(event));
             const meta = document.createElement("span");
             const created = new Date(event.created_at);
             meta.textContent = `${Number.isNaN(created.getTime()) ? "" : created.toLocaleTimeString()} / ${event.actor}`;
@@ -428,7 +447,7 @@
             }
             if (hand) {
                 const limit = player.character ? player.character.hand_limit : null;
-                hand.textContent = limit ? `손패 ${limit}` : "손패 -";
+                hand.textContent = limit ? `${t("손패")} ${limit}` : t("손패 -");
             }
             renderCharacter(target);
             updatePlayerHpColor(target, player);
@@ -447,11 +466,11 @@
         if (setStatus) {
             const setState = state.set || {};
             if (state.sudden_death) {
-                setStatus.textContent = `SD ${state.sudden_death_turns_remaining || 0}턴`;
+                setStatus.textContent = `SD ${state.sudden_death_turns_remaining || 0}${t("턴")}`;
             } else {
                 setStatus.textContent = state.type === "tournament"
                     ? `${setState.current_number || 1}S ${setState.score ? setState.score.p1 : 0}:${setState.score ? setState.score.p2 : 0}`
-                    : "게임 시간";
+                    : t("게임 시간");
             }
         }
         const extraTimePanel = document.querySelector("[data-extra-time-panel]");
@@ -479,12 +498,12 @@
         if (state.sudden_death) {
             panel.hidden = false;
             const title = document.createElement("strong");
-            title.textContent = "서든 데스";
+            title.textContent = t("서든 데스");
             const note = document.createElement("span");
             const turns = Number(state.sudden_death_turns_remaining || 0);
             note.textContent = turns > 0
-                ? `남은 추가 턴 ${turns}턴`
-                : "추가 턴 종료";
+                ? `${t("남은 추가 턴")} ${turns}${t("턴")}`
+                : t("추가 턴 종료");
             panel.append(title, note);
             if (state.can_control && turns > 0) {
                 const actions = document.createElement("div");
@@ -492,7 +511,7 @@
                 const button = document.createElement("button");
                 button.type = "button";
                 button.className = "v2-button v2-button-primary";
-                button.textContent = "추가 턴 종료";
+                button.textContent = t("추가 턴 종료");
                 button.addEventListener("click", () => postAction({ action: "sudden_turn" }));
                 actions.appendChild(button);
                 panel.appendChild(actions);
@@ -506,8 +525,8 @@
             const button = document.createElement("button");
             button.type = "button";
             button.className = "v2-button v2-button-primary";
-            button.textContent = "결과 확정";
-            button.title = `${playerLabel(setState.winner_candidate)} 승으로 확정`;
+            button.textContent = t("결과 확정");
+            button.title = `${playerLabel(setState.winner_candidate)} ${t("승으로 확정")}`;
             button.addEventListener("click", () => {
                 postAction({ action: "force_set_result", winner: setState.winner_candidate });
             });
@@ -520,7 +539,7 @@
         historyOpen = nextOpen;
         document.body.classList.toggle("v2-battle-history-open", historyOpen);
         document.querySelectorAll("[data-history-toggle]").forEach((button) => {
-            button.textContent = historyOpen ? "로그 닫기" : "로그 확인";
+            button.textContent = historyOpen ? t("로그 닫기") : t("로그 확인");
         });
         if (historyOpen) fetchHistory(true);
     }
@@ -542,7 +561,7 @@
             .then((response) => response.json().then((data) => ({ response, data })))
             .then(({ response, data }) => {
                 if (!response.ok || !data.ok) {
-                    throw new Error(data.error || "요청을 처리하지 못했습니다.");
+                    throw new Error(data.error || t("요청을 처리하지 못했습니다."));
                 }
                 keepEventsAndApplyState(data.state);
                 renderState();
@@ -550,7 +569,7 @@
                 return data;
             })
             .catch((error) => {
-                throw new Error(error && error.message ? error.message : "네트워크 오류가 발생했습니다.");
+                throw new Error(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
             });
     }
 
@@ -563,7 +582,7 @@
         return new Promise((resolve, reject) => {
             const timeout = window.setTimeout(() => {
                 pendingSocketActions.delete(requestId);
-                reject(new Error("요청 응답 시간이 초과되었습니다."));
+                reject(new Error(t("요청 응답 시간이 초과되었습니다.")));
             }, 5000);
             pendingSocketActions.set(requestId, { resolve, reject, timeout });
             try {
@@ -594,7 +613,7 @@
                 state = previousState;
                 renderState();
             }
-            window.alert(error && error.message ? error.message : "네트워크 오류가 발생했습니다.");
+            window.alert(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
         });
     }
 
@@ -718,7 +737,7 @@
         window.clearTimeout(pending.timeout);
         pendingSocketActions.delete(String(message.request_id));
         if (message.type === "error" || message.ok === false) {
-            pending.reject(new Error(message.error || "요청을 처리하지 못했습니다."));
+            pending.reject(new Error(message.error || t("요청을 처리하지 못했습니다.")));
             return;
         }
         pending.resolve(message);
@@ -768,7 +787,7 @@
 
         socket.addEventListener("close", () => {
             socketReady = false;
-            rejectPendingSocketActions("계산기 연결이 끊겼습니다.");
+            rejectPendingSocketActions(t("계산기 연결이 끊겼습니다."));
             if (reconnectAttempts >= 5) {
                 startPollingFallback();
                 return;
@@ -900,8 +919,8 @@
             if (action === "sudden") {
                 const enable = !state.sudden_death;
                 const message = enable
-                    ? "서든 데스에 진입할까요? 각 플레이어의 HP는 1000, FP는 0이 되고 추가 턴 3턴이 시작됩니다."
-                    : "서든 데스를 해제할까요?";
+                    ? t("서든 데스에 진입할까요? 각 플레이어의 HP는 1000, FP는 0이 되고 추가 턴 3턴이 시작됩니다.")
+                    : t("서든 데스를 해제할까요?");
                 if (!window.confirm(message)) return;
                 postAction(
                     { action: "sudden_death", enabled: enable },
@@ -985,7 +1004,7 @@
                 });
                 return;
             }
-            window.prompt("링크", value);
+            window.prompt(t("링크"), value);
             markCopied();
             window.setTimeout(() => setShareOpen(false), 500);
         });

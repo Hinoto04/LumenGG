@@ -1,13 +1,13 @@
 {% extends "base_v2.html" %}
 {% load static %}
-{% block title %}{% if is_update %}카드 수정{% else %}카드 추가{% endif %} - LumenDB V2{% endblock title %}
+{% block title %}{% if is_translation_update %}카드 번역 수정{% elif is_update %}카드 수정{% else %}카드 추가{% endif %} - LumenDB V2{% endblock title %}
 {% block legacy_href %}{% if is_update %}{% url "card:legacyUpdate" card.id %}{% else %}{% url "card:legacyCreate" %}{% endif %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-page-head">
     <div>
         <div class="v2-kicker">CARD ADMIN</div>
-        <h1 class="v2-title">{% if is_update %}카드 수정{% else %}카드 추가{% endif %}</h1>
-        <p class="v2-subtitle">{% if is_update %}카드 기본 정보와 보충 설명을 수정합니다.{% else %}카드 기본 정보와 수록 정보를 함께 등록합니다.{% endif %}</p>
+        <h1 class="v2-title">{% if is_translation_update %}카드 번역 수정{% elif is_update %}카드 수정{% else %}카드 추가{% endif %}</h1>
+        <p class="v2-subtitle">{% if is_translation_update %}{{ edit_language_label }} 카드명, 효과, 검색어를 수정합니다.{% elif is_update %}카드 기본 정보와 보충 설명을 수정합니다.{% else %}카드 기본 정보와 수록 정보를 함께 등록합니다.{% endif %}</p>
     </div>
     <div class="v2-chip-row">
         <a class="v2-button" href="{% url "card:index" %}">목록</a>
@@ -20,6 +20,42 @@
 <form action="{% if is_update %}{% url "card:update" card.id %}{% else %}{% url "card:create" %}{% endif %}" method="post" enctype="multipart/form-data" class="v2-panel v2-admin-form">
     {% include "form_errors.html" %}
     {% csrf_token %}
+    {% if is_translation_update %}
+    <div class="v2-admin-grid">
+        <div class="v2-admin-field v2-admin-wide">
+            <label>원본 카드</label>
+            <div class="v2-kicker">{{ card.code }} / {{ card.name }}</div>
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+            {{ form.name }}
+        </div>
+        <div class="v2-admin-field">
+            <label for="{{ form.ruby.id_for_label }}">{{ form.ruby.label }}</label>
+            {{ form.ruby }}
+        </div>
+        <div class="v2-admin-field v2-admin-wide">
+            <label for="{{ form.keyword.id_for_label }}">{{ form.keyword.label }}</label>
+            {{ form.keyword }}
+        </div>
+        <div class="v2-admin-field v2-admin-wide">
+            <label for="{{ form.hiddenKeyword.id_for_label }}">{{ form.hiddenKeyword.label }}</label>
+            {{ form.hiddenKeyword }}
+        </div>
+        <div class="v2-admin-field v2-admin-wide">
+            <label for="{{ form.search.id_for_label }}">{{ form.search.label }}</label>
+            {{ form.search }}
+        </div>
+    </div>
+    <div class="v2-admin-field">
+        <label for="{{ form.text.id_for_label }}">{{ form.text.label }}</label>
+        {{ form.text }}
+    </div>
+    <div class="v2-admin-field">
+        <label for="{{ form.detail_text.id_for_label }}">{{ form.detail_text.label }}</label>
+        {{ form.detail_text }}
+    </div>
+    {% else %}
     <div class="v2-admin-grid">
         <div class="v2-admin-field">
             <label for="{{ form.name.id_for_label }}">카드명</label>
@@ -131,6 +167,7 @@
         <label for="{{ form.detail_text.id_for_label }}">보충 설명</label>
         {{ form.detail_text }}
     </div>
+    {% endif %}
     <div class="v2-admin-actions">
         <button class="v2-button v2-button-primary" type="submit">{% if is_update %}수정 저장{% else %}저장{% endif %}</button>
     </div>

@@ -2,6 +2,11 @@ var charDatas = {
 
 }
 
+const lumenText = window.lumenLanguageText || {};
+function t(key, fallback) {
+    return lumenText[key] || fallback;
+}
+
 //그래프 세팅용
 function HexToRGB(hex, alpha) {
     let r = parseInt(hex.slice(1, 3), 16),
@@ -29,9 +34,9 @@ const ctx = $("#캐릭터그래프")[0].getContext('2d');
 const graph = new Chart(ctx, {
     type: 'radar',
     data: {
-        labels: ['화력', '연계', '변수창출', '안정성', '템포'],
+        labels: [t('power', '화력'), t('combo', '연계'), t('reversal', '변수창출'), t('safety', '안정성'), t('tempo', '템포')],
         datasets: [{
-            label: "데이터",
+            label: t('data', '데이터'),
             data: [0, 0, 0, 0, 0],
             fill: true,
             backgroundColor: 'rgba(255, 99, 132, 0.2)',
@@ -112,7 +117,7 @@ function passiveChange() {
 //페이지 변경용
 var nowPage = 0;
 var pageId = ["#그래프", "#상징카드정보"]
-var pageName = ["그래프", "중요한 카드"]
+var pageName = [t('graph', '그래프'), t('keyCards', '중요한 카드')]
 var pageType = ['flex', 'grid']
 function nextPage() {
     $(pageId[nowPage]).css("display", "none");
@@ -137,11 +142,11 @@ function commentLoad(commentList) {
                     <div class="v2-character-comment-head">
                         <a href="/common/v2/profile/${encodeURIComponent(item.author_name)}/">${item.author_name}</a>
                         <div class="v2-character-comment-scores">
-                            <span>화력 ${item.power?item.power:'미평가'}</span>
-                            <span>연계 ${item.combo?item.combo:'미평가'}</span>
-                            <span>변수 ${item.reversal?item.reversal:'미평가'}</span>
-                            <span>안정 ${item.safety?item.safety:'미평가'}</span>
-                            <span>템포 ${item.tempo?item.tempo:'미평가'}</span>
+                            <span>${t('power', '화력')} ${item.power?item.power:t('unrated', '미평가')}</span>
+                            <span>${t('combo', '연계')} ${item.combo?item.combo:t('unrated', '미평가')}</span>
+                            <span>${t('variable', '변수')} ${item.reversal?item.reversal:t('unrated', '미평가')}</span>
+                            <span>${t('stable', '안정')} ${item.safety?item.safety:t('unrated', '미평가')}</span>
+                            <span>${t('tempo', '템포')} ${item.tempo?item.tempo:t('unrated', '미평가')}</span>
                         </div>
                     </div>
                     <p>${item.comment.replace('\n', '<br>')}</p>
@@ -154,11 +159,11 @@ function commentLoad(commentList) {
                         <div class="me-2"><a href="/common/profile/${item.author_name}">
                             ${item.author_name} | </a></div>
                         <div class="점수 flex-grow-1">
-                            <div>화력 : ${item.power?item.power:'미평가'}</div>
-                            <div>연계 : ${item.combo?item.combo:'미평가'}</div>
-                            <div>변수<span class="모바일비표시">창출</span> : ${item.reversal?item.reversal:'미평가'}</div>
-                            <div>안정<span class="모바일비표시">성</span> : ${item.safety?item.safety:'미평가'}</div>
-                            <div>템포 : ${item.tempo?item.tempo:'미평가'}</div>
+                            <div>${t('power', '화력')} : ${item.power?item.power:t('unrated', '미평가')}</div>
+                            <div>${t('combo', '연계')} : ${item.combo?item.combo:t('unrated', '미평가')}</div>
+                            <div>${t('reversal', '변수창출')} : ${item.reversal?item.reversal:t('unrated', '미평가')}</div>
+                            <div>${t('safety', '안정성')} : ${item.safety?item.safety:t('unrated', '미평가')}</div>
+                            <div>${t('tempo', '템포')} : ${item.tempo?item.tempo:t('unrated', '미평가')}</div>
                         </div>
                     </div>
                     <div class="ms-2">${item.comment.replace('\n', '<br>')}</div>

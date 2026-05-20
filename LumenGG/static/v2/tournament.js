@@ -1,3 +1,14 @@
+const tournamentConfig = window.v2TournamentConfig || {};
+const tournamentTranslations = tournamentConfig.translations || {};
+
+function tournamentText(key, fallback, params = {}) {
+    let value = tournamentTranslations[key] || fallback;
+    Object.entries(params).forEach(([paramKey, paramValue]) => {
+        value = value.replaceAll(`{${paramKey}}`, paramValue);
+    });
+    return value;
+}
+
 document.querySelectorAll('[data-round-timer]').forEach((timer) => {
     const endsAt = new Date(timer.dataset.endsAt);
     const timeoutActions = Array.from(document.querySelectorAll("[data-round-timeout-action]"))
@@ -11,7 +22,7 @@ document.querySelectorAll('[data-round-timer]').forEach((timer) => {
             return;
         }
         if (remaining <= 0) {
-            timer.textContent = '시간 초과';
+            timer.textContent = tournamentText("timeout", "시간 초과");
             timer.classList.add('is-over');
             timeoutActions.forEach((action) => { action.hidden = false; });
             return;
@@ -27,10 +38,8 @@ document.querySelectorAll('[data-round-timer]').forEach((timer) => {
     setInterval(tick, 1000);
 });
 
-const tournamentConfig = window.v2TournamentConfig || {};
-
 function deckResultLabel(deck) {
-    const ownerMark = deck.is_owner ? "내 덱" : deck.visibility;
+    const ownerMark = deck.is_owner ? tournamentText("myDeck", "내 덱") : deck.visibility;
     return `#${deck.id} ${deck.name} / ${deck.author} / ${deck.character} / ${ownerMark}`;
 }
 
@@ -63,7 +72,7 @@ function renderTournamentDeckResults(picker, decks) {
     if (!decks.length) {
         const empty = document.createElement("div");
         empty.className = "v2-tournament-deck-result is-empty";
-        empty.textContent = "검색 결과가 없습니다.";
+        empty.textContent = tournamentText("noResults", "검색 결과가 없습니다.");
         results.appendChild(empty);
         return;
     }
@@ -76,7 +85,7 @@ function renderTournamentDeckResults(picker, decks) {
         const title = document.createElement("strong");
         title.textContent = `#${deck.id} ${deck.name}`;
         const meta = document.createElement("span");
-        meta.textContent = `${deck.author} / ${deck.character} / ${deck.version} / ${deck.is_owner ? "내 덱" : deck.visibility}`;
+        meta.textContent = `${deck.author} / ${deck.character} / ${deck.version} / ${deck.is_owner ? tournamentText("myDeck", "내 덱") : deck.visibility}`;
         button.append(title, meta);
         button.setAttribute("aria-label", deckResultLabel(deck));
         button.addEventListener("click", () => selectTournamentDeck(picker, deck));
@@ -188,7 +197,7 @@ document.querySelectorAll("[data-round-start-form]").forEach((form) => {
         if (!submitButton || submitButton.disabled) return;
         submitButton.disabled = true;
         submitButton.setAttribute("aria-busy", "true");
-        submitButton.textContent = "라운드 생성 중";
+        submitButton.textContent = tournamentText("creatingRound", "라운드 생성 중");
     });
 });
 
@@ -271,20 +280,20 @@ function renderTournamentBattleState(data) {
         if (p1) {
             p1.textContent = summary.p1_ready
                 ? `${summary.p1_hp} HP / FP ${summary.p1_fp}`
-                : "캐릭터 선택 필요";
+                : tournamentText("characterRequired", "캐릭터 선택 필요");
         }
         if (p2) {
             p2.textContent = summary.p2_ready
                 ? `${summary.p2_hp} HP / FP ${summary.p2_fp}`
-                : "캐릭터 선택 필요";
+                : tournamentText("characterRequired", "캐릭터 선택 필요");
         }
         const setInfo = matchRow.querySelector("[data-battle-set]");
         if (setInfo) {
             if (summary.sudden_death) {
-                setInfo.textContent = `서든 데스 / 추가 턴 ${summary.sudden_death_turns_remaining || 0}`;
+                setInfo.textContent = `${tournamentText("suddenDeath", "서든 데스")} / ${tournamentText("extraTurn", "추가 턴")} ${summary.sudden_death_turns_remaining || 0}`;
             } else {
                 setInfo.textContent = summary.set_number
-                ? `${summary.set_number}세트 / ${summary.p1_set_score}:${summary.p2_set_score} / 확인 ${summary.p1_confirmed ? "P1" : "-"} ${summary.p2_confirmed ? "P2" : "-"}`
+                ? `${summary.set_number} ${tournamentText("set", "세트")} / ${summary.p1_set_score}:${summary.p2_set_score} / ${tournamentText("confirmed", "확인")} ${summary.p1_confirmed ? "P1" : "-"} ${summary.p2_confirmed ? "P2" : "-"}`
                 : `${summary.p1_set_score}:${summary.p2_set_score}`;
             }
         }
@@ -368,7 +377,7 @@ document.querySelectorAll("[data-tournament-join-form]").forEach((form) => {
         const hasExternalDeck = Array.from(form.querySelectorAll("[data-deck-picker]"))
             .some((picker) => picker.dataset.selectedOwner === "other");
         if (hasExternalDeck) {
-            window.alert("타인의 덱으로 참가 신청하는 경우, 해당 덱이 내 덱으로 복사된 뒤 신청됩니다.");
+            window.alert(tournamentText("externalDeckAlert", "타인의 덱으로 참가 신청하는 경우, 해당 덱이 내 덱으로 복사된 뒤 신청됩니다."));
         }
     });
 });

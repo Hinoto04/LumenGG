@@ -1,0 +1,104 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% load language_tags %}
+{% block title %}{{ session.player1_name }} vs {{ session.player2_name }} - {% tr "루멘콘덴서 시뮬레이터" %}{% endblock title %}
+{% block body_class %}v2-simulator-mode{% endblock body_class %}
+{% block style %}
+<link rel="stylesheet" href="{% static "v2/lumen-simulator.css" %}">
+{% endblock style %}
+{% block content %}
+<section class="v2-sim-page" data-lumen-simulator>
+    {% csrf_token %}
+    <div class="v2-page-head v2-sim-head">
+        <div>
+            <div class="v2-kicker">LUMEN CONDENSOR SIMULATOR</div>
+            <h1 class="v2-title">{{ session.player1_name }} vs {{ session.player2_name }}</h1>
+            <p class="v2-subtitle" data-sim-role></p>
+        </div>
+        <div class="v2-sim-share">
+            <button class="v2-button" type="button" data-copy-link="{{ view_url }}">{% tr "관전 링크" %}</button>
+            {% if state.role == "p1" %}
+            <button class="v2-button" type="button" data-copy-link="{{ player1_url }}">{% tr "P1 링크" %}</button>
+            <button class="v2-button" type="button" data-copy-link="{{ player2_url }}">{% tr "P2 링크" %}</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="v2-panel v2-sim-controlbar">
+        <div class="v2-sim-turn">
+            <span>Turn</span>
+            <strong data-sim-turn>1</strong>
+        </div>
+        <div class="v2-sim-phase">
+            <strong data-sim-phase-current>Lumen</strong>
+            <div data-sim-phase-buttons></div>
+            <div class="v2-sim-import-card">
+                <input type="text" data-card-import-input maxlength="100" placeholder="{% tr "카드명" %}">
+                <button class="v2-button" type="button" data-sim-action="import_card">{% tr "루멘에 생성" %}</button>
+            </div>
+        </div>
+        <button class="v2-sim-timer" type="button" data-sim-action="timer">
+            <span>{% tr "10초" %}</span>
+            <strong data-sim-timer>10</strong>
+        </button>
+        <div class="v2-sim-status" data-sim-status></div>
+        <div class="v2-sim-control-actions">
+            <button class="v2-button" type="button" data-sim-action="next_turn">{% tr "다음 턴" %}</button>
+            <button class="v2-button" type="button" data-sim-action="undo">{% tr "되돌리기" %}</button>
+            <button class="v2-button" type="button" data-fullscreen-toggle>{% tr "전체화면" %}</button>
+        </div>
+    </div>
+
+    <div class="v2-sim-layout">
+        <section class="v2-sim-player-wrap" data-player-board="p2"></section>
+        <section class="v2-sim-player-wrap" data-player-board="p1"></section>
+    </div>
+
+    <aside class="v2-panel v2-sim-card-drawer" data-card-drawer aria-live="polite">
+        <div class="v2-sim-drawer-head">
+            <strong>{% tr "카드 정보" %}</strong>
+            <button class="v2-button" type="button" data-card-drawer-close>{% tr "닫기" %}</button>
+        </div>
+        <div class="v2-sim-card-detail" data-card-detail></div>
+    </aside>
+
+    <aside class="v2-panel v2-sim-log-drawer" data-log-drawer>
+        <div class="v2-sim-drawer-head">
+            <strong>{% tr "로그" %}</strong>
+            <button class="v2-button" type="button" data-log-toggle>{% tr "접기" %}</button>
+        </div>
+        <div class="v2-sim-log-tools">
+            <div class="v2-sim-quick-log">
+                <button class="v2-button" type="button" data-quick-log="히트">{% tr "히트" %}</button>
+                <button class="v2-button" type="button" data-quick-log="카운터">{% tr "카운터" %}</button>
+                <button class="v2-button" type="button" data-quick-log="방어">{% tr "방어" %}</button>
+                <button class="v2-button" type="button" data-quick-log="회피">{% tr "회피" %}</button>
+                <button class="v2-button" type="button" data-quick-log="상쇄">{% tr "상쇄" %}</button>
+                <button class="v2-button" type="button" data-quick-log="대응 없음">{% tr "대응 없음" %}</button>
+                <button class="v2-button" type="button" data-quick-log="콤보 타임">{% tr "콤보 타임" %}</button>
+                <button class="v2-button" type="button" data-quick-log="캐치 타임">{% tr "캐치 타임" %}</button>
+            </div>
+            <div class="v2-sim-manual-log">
+                <input type="text" data-manual-log-input maxlength="300" placeholder="{% tr "로그 입력" %}">
+                <button class="v2-button" type="button" data-sim-action="manual_log">{% tr "기록" %}</button>
+            </div>
+        </div>
+        <div class="v2-sim-log" data-sim-log></div>
+    </aside>
+    <button class="v2-sim-log-fab" type="button" data-log-toggle>{% tr "로그" %}</button>
+</section>
+
+{{ state|json_script:"lumen-simulator-state" }}
+{{ simulator_i18n|json_script:"lumen-simulator-i18n" }}
+<script>
+    window.lumenSimulatorConfig = {
+        stateUrl: "{% url "battlelog:simulatorState" session.view_token %}",
+        actionUrl: "{% url "battlelog:simulatorAction" session.view_token %}",
+        wsPath: "/ws/battlelog/simulator/{{ session.view_token|escapejs }}/",
+        seat: "{{ seat|escapejs }}",
+        seatToken: "{{ seat_token|escapejs }}",
+        language: "{{ current_language|escapejs }}",
+    };
+</script>
+<script src="{% static "v2/lumen-simulator.js" %}"></script>
+{% endblock content %}

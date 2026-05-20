@@ -1,10 +1,26 @@
 from django import forms
-from .models import Character, Card, Tag, CardComment, CharacterComment
+from .models import Character, Card, CardTranslation, Tag, CardComment, CharacterComment
 from collection.models import Pack
 from django.core.validators import FileExtensionValidator
 from common.models import SiteSettings
+from common.language import (
+    DEFAULT_LANGUAGE,
+    game_term,
+    translated_character_field,
+    translated_choice_label,
+    ui_text,
+)
 from django.utils import timezone
 from django.db.models import Q
+
+
+def _localized_choices(choices, language):
+    return [
+        (value, translated_choice_label(label, language))
+        for value, label in choices
+    ]
+
+
 class CardForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
         label = "캐릭터",
@@ -98,12 +114,55 @@ class CardForm(forms.Form):
     )
     
     def __init__(self, *args, **kwargs):
+        language = kwargs.pop('language', DEFAULT_LANGUAGE)
         super().__init__(*args, **kwargs)
+        self.fields['char'].label = ui_text('캐릭터', language)
+        self.fields['char'].label_from_instance = lambda obj: translated_character_field(obj, language, 'name')
+        self.fields['type'].label = ui_text('분류', language)
+        self.fields['type'].choices = _localized_choices([
+            ('특성', '특성'), ('공격', '공격'), ('수비', '수비'), ('특수', '특수')
+        ], language)
+        self.fields['ultimate'].label = ui_text('얼티밋', language)
+        self.fields['pos'].label = ui_text('판정', language)
+        self.fields['pos'].choices = _localized_choices([
+            ('상단', '상단'), ('중단', '중단'), ('하단', '하단')
+        ], language)
+        self.fields['body'].label = ui_text('부위', language)
+        self.fields['specialpos'].label = ui_text('특수 판정', language)
+        self.fields['specialpos'].choices = _localized_choices([
+            ('상단', '상단'), ('중단', '중단'), ('하단', '하단')
+        ], language)
+        self.fields['specialtype'].label = ui_text('특수 판정', language)
+        self.fields['specialtype'].choices = _localized_choices([
+            ('회피', '회피'), ('상쇄', '상쇄'), ('그랩', '그랩')
+        ], language)
+        self.fields['pack'].label = ui_text('출신 팩', language)
+        self.fields['framenum'].label = ui_text('속도', language)
+        self.fields['framenum'].widget.attrs['placeholder'] = ui_text('속도', language)
+        self.fields['frametype'].label = ui_text('속도 분류', language)
+        self.fields['frametype'].choices = _localized_choices([
+            ('일치', '일치'), ('이상', '이상'), ('이하', '이하')
+        ], language)
+        self.fields['keyword'].widget.attrs['placeholder'] = ui_text('카드명, 키워드 검색', language)
+        self.fields['sort'].label = ui_text('정렬', language)
+        self.fields['sort'].choices = [
+            ('', ui_text('정렬', language)),
+            ('출시일', ui_text('출시일 느린 순', language)), ('+출시일', ui_text('출시일 빠른 순', language)),
+            ('-속도', ui_text('속도 내림차순', language)), ('+속도', ui_text('속도 오름차순', language)),
+            ('-데미지', ui_text('데미지 내림차순', language)), ('+데미지', ui_text('데미지 오름차순', language)),
+            ('-히트', ui_text('히트 내림차순', language)), ('+히트', ui_text('히트 오름차순', language)),
+            ('-카운터', ui_text('카운터 내림차순', language)), ('+카운터', ui_text('카운터 오름차순', language)),
+            ('-가드', ui_text('가드 내림차순', language)), ('+가드', ui_text('가드 오름차순', language)),
+            ('-평점', ui_text('평점 내림차순', language)), ('+평점', ui_text('평점 오름차순', language))
+        ]
         try:
             site_setting = SiteSettings.objects.get(name='검색필터 팩')
-            self.fields['pack'].choices = site_setting.setting["data"]
+            self.fields['pack'].choices = _localized_choices(site_setting.setting["data"], language)
             site_setting = SiteSettings.objects.get(name='부위판정종류')
-            self.fields['body'].choices = site_setting.setting["data"]
+            self.fields['body'].choices = [
+                (value, game_term(label, language))
+                for value, label in site_setting.setting["data"]
+            ]
         except SiteSettings.DoesNotExist:
             self.fields['pack'].choices = []
 
@@ -202,6 +261,56 @@ class CardUpdateForm(CardCreateForm):
         super().__init__(*args, **kwargs)
         self.fields.pop('pack', None)
         self.fields.pop('rare', None)
+
+
+CARD_TRANSLATION_UPDATE_FIELDS = [
+    'name',
+    'ruby',
+    'text',
+    'detail_text',
+    'keyword',
+    'hiddenKeyword',
+    'search',
+]
+
+
+class CardTranslationUpdateForm(forms.ModelForm):
+    class Meta:
+        model = CardTranslation
+        fields = CARD_TRANSLATION_UPDATE_FIELDS
+        labels = {
+            'name': '카드명',
+            'ruby': '루비',
+            'text': '효과',
+            'detail_text': '보충 설명',
+            'keyword': '이 카드가 가진 태그',
+            'hiddenKeyword': '숨겨진 검색어',
+            'search': '이 카드가 찾는 태그',
+        }
+        widgets = {
+            'text': forms.Textarea(attrs={'rows': 6}),
+            'detail_text': forms.Textarea(attrs={'rows': 6}),
+            'keyword': forms.TextInput(),
+            'hiddenKeyword': forms.TextInput(),
+            'search': forms.TextInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.card = kwargs.pop('card')
+        self.language = kwargs.pop('language')
+        super().__init__(*args, **kwargs)
+
+        for field_name in CARD_TRANSLATION_UPDATE_FIELDS:
+            field = self.fields[field_name]
+            field.required = False
+            source_value = getattr(self.card, field_name, '')
+            if source_value:
+                field.widget.attrs.setdefault('placeholder', source_value)
+
+    def save(self, commit=True):
+        self.instance.card = self.card
+        self.instance.language = self.language
+        return super().save(commit=commit)
 
 class CardCommentForm(forms.ModelForm):
     class Meta:

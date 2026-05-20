@@ -1,6 +1,7 @@
 {% load static %}
+{% load language_tags %}
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="{{ current_language|default:'ko' }}">
 <head>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-LLJ26ZET9L"></script>
@@ -64,40 +65,51 @@
         <div class="collapse navbar-collapse justify-content-between" id="navbarSupportedContent">
             <ul class="navbar-nav">
                 <li class="nav-item">
-                    <a href="{% url "card:legacyIndex" %}" class="nav-link">카드</a>
+                    <a href="{% url "card:legacyIndex" %}" class="nav-link">{% tr "카드" %}</a>
                 </li>
                 <li class="nav-item">
-                    <a href="{% url "card:legacyCharacter" %}" class="nav-link">캐릭터</a>
+                    <a href="{% url "card:legacyCharacter" %}" class="nav-link">{% tr "캐릭터" %}</a>
                 </li>
                 <li class="nav-item">
-                    <a href="{% url "deck:legacyIndex" %}" class="nav-link">덱</a>
+                    <a href="{% url "deck:legacyIndex" %}" class="nav-link">{% tr "덱" %}</a>
                 </li>
                 <li class="nav-item">
                     <a href="{% url "qna:legacyIndex" %}" class="nav-link">Q&A</a>
                 </li>
                 <li class="nav-item">
-                    <a href="{% url "collection:legacyIndex" %}" class="nav-link">컬렉션</a>
+                    <a href="{% url "collection:legacyIndex" %}" class="nav-link">{% tr "컬렉션" %}</a>
                 </li>
             </ul>
             <ul class="navbar-nav">
                 <li class="nav-item">
-                    <button type="button" class="nav-link theme-toggle" data-theme-toggle>
-                        <span data-theme-toggle-label>라이트</span>
+                    <form action="{% url "common:setLanguage" %}" method="post" class="m-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <select class="nav-link border-0" name="language" aria-label="{% tr "언어" %}" onchange="this.form.submit()">
+                            {% for language in language_options %}
+                            <option value="{{ language.code }}" {% if language.active %}selected{% endif %}>{{ language.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </li>
+                <li class="nav-item">
+                    <button type="button" class="nav-link theme-toggle" data-theme-toggle data-theme-label-light="{% tr "라이트" %}" data-theme-label-dark="{% tr "다크" %}" data-theme-change-suffix="{% tr "테마로 변경" %}">
+                        <span data-theme-toggle-label>{% tr "라이트" %}</span>
                     </button>
                 </li>
                 <li class="nav-item">
-                    <a href="{% block v2_href %}{% url "card:index" %}{% endblock v2_href %}" class="nav-link">새 UI</a>
+                    <a href="{% block v2_href %}{% url "card:index" %}{% endblock v2_href %}" class="nav-link">{% tr "새 UI" %}</a>
                 </li>
                 {% if user.is_authenticated %}
                 <li class="nav-item">
                     <a href="{% url "common:legacyMypage" %}" class="nav-link">{{ user.username }}</a>
                 </li>
                 <li class="nav-item">
-                    <a href="{% url "common:logout" %}?next={% url "card:legacyIndex" %}" class="nav-link">로그아웃</a>
+                    <a href="{% url "common:logout" %}?next={% url "card:legacyIndex" %}" class="nav-link">{% tr "로그아웃" %}</a>
                 </li>
                 {% else %}
                 <li class="nav-item">
-                    <a href="{% url "common:legacyLogin" %}?next={{request.path}}" class="nav-link">로그인</a>
+                    <a href="{% url "common:legacyLogin" %}?next={{request.path}}" class="nav-link">{% tr "로그인" %}</a>
                 </li>
                 {% endif %}
             </ul>
@@ -109,7 +121,7 @@
         {% endblock content %}
     </div>
     <footer id="footer" class="d-flex flex-column">
-        <div class="ms-auto me-auto">본 사이트는 팬 사이트이며, 수익창출을 하지 않습니다.</div>
+        <div class="ms-auto me-auto">{% tr "본 사이트는 팬 사이트이며, 수익창출을 하지 않습니다." %}</div>
         <div class="ms-auto me-auto">Developed by Hinoto</div>
         <div class="ms-auto me-auto">Copyright 2023-2026 Yaoni Comic, Perso Studio All rights reserved.</div>
     </footer>

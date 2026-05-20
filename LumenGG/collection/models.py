@@ -13,6 +13,24 @@ class Pack(models.Model):
     def __str__(self):
         return self.code + ' - ' + self.name
 
+class PackTranslation(models.Model):
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('ja', '日本語'),
+    ]
+
+    pack = models.ForeignKey(Pack, on_delete=models.CASCADE, related_name='translations')
+    language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES)
+    name = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['pack', 'language'], name='unique_pack_translation_language'),
+        ]
+
+    def __str__(self):
+        return f'{self.pack.code} / {self.language}'
+
 class CollectionCard(models.Model):
     card = models.ForeignKey(Card, null=True, on_delete=models.DO_NOTHING, related_name='collection_card')
     rare = models.CharField(max_length=10, default='')

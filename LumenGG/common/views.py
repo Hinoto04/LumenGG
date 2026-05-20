@@ -1,12 +1,18 @@
 from django.shortcuts import render, redirect
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout, authenticate, login
 from django.contrib.auth.models import User
 from django.http import HttpResponseRedirect, Http404
+from django.db import transaction, IntegrityError
 from django.db.models import Q, Count, Prefetch
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
 
 
 from .forms import UserForm, LoginForm, UserDataForm
+from .language import LANGUAGE_COOKIE_MAX_AGE, LANGUAGE_COOKIE_NAME, set_language
+from card.models import CharacterComment
 from statistic.models import Championship, CSDeck
 from deck.models import Deck, CardInDeck
 from .models import UserData
@@ -38,10 +44,48 @@ def loginLegacy(req):
     return login_view(req, 'common/login.html', 'card:legacyIndex')
 
 # Create your views here.
+@require_POST
+def setLanguage(req):
+    language = set_language(req, req.POST.get('language'))
+    redirect_to = req.POST.get('next') or req.META.get('HTTP_REFERER') or '/'
+    if not url_has_allowed_host_and_scheme(
+        url=redirect_to,
+        allowed_hosts={req.get_host()},
+        require_https=req.is_secure(),
+    ):
+        redirect_to = '/'
+
+    response = redirect(redirect_to)
+    response.set_cookie(
+        LANGUAGE_COOKIE_NAME,
+        language,
+        max_age=LANGUAGE_COOKIE_MAX_AGE,
+        samesite='Lax',
+    )
+    return response
+
 @login_required(login_url='common:login')
 def logout_view(req):
     logout(req)
     return redirect(req.GET.get('next') or 'card:index')
+
+
+@login_required(login_url='common:login')
+@require_POST
+def deleteAccount(req):
+    user = req.user
+
+    try:
+        with transaction.atomic():
+            CharacterComment.objects.filter(author=user).delete()
+            user.delete()
+    except IntegrityError:
+        messages.error(req, '계정 삭제 중 연결된 데이터 제약 조건 문제가 발생했습니다.')
+        return redirect('common:mypage')
+
+    logout(req)
+    return redirect('card:index')
+
 
 def signup(req, template_name='common/signup.html', success_route='card:index'):
     if req.method == "POST":

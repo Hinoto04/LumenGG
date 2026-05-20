@@ -32,10 +32,13 @@
         document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
             const nextTheme = theme === "light" ? "dark" : "light";
             const label = button.querySelector("[data-theme-toggle-label]") || button;
-            label.textContent = nextTheme === "light" ? "라이트" : "다크";
-            button.setAttribute("aria-label", `${label.textContent} 테마로 변경`);
+            const lightLabel = button.dataset.themeLabelLight || "라이트";
+            const darkLabel = button.dataset.themeLabelDark || "다크";
+            const changeSuffix = button.dataset.themeChangeSuffix || "테마로 변경";
+            label.textContent = nextTheme === "light" ? lightLabel : darkLabel;
+            button.setAttribute("aria-label", `${label.textContent} ${changeSuffix}`);
             button.setAttribute("aria-pressed", theme === "light" ? "true" : "false");
-            button.title = `${label.textContent} 테마로 변경`;
+            button.title = `${label.textContent} ${changeSuffix}`;
         });
     }
 

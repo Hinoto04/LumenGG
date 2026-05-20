@@ -1,23 +1,24 @@
 {% extends "base_v2.html" %}
 {% load static %}
 {% load card_tags %}
-{% block title %}카드 검색 - LumenDB V2{% endblock title %}
+{% load language_tags %}
+{% block title %}{% tr "카드 검색" %} - LumenDB V2{% endblock title %}
 {% block legacy_href %}{% url "card:legacyIndex" %}{% endblock legacy_href %}
 {% block content %}
 <section class="v2-page-head">
     <div>
         <div class="v2-kicker">CARD DATABASE</div>
-        <h1 class="v2-title">카드 검색</h1>
-        <p class="v2-subtitle">루멘콘덴서의 모든 카드를 검색할 수 있는 화면입니다.</p>
+        <h1 class="v2-title">{% tr "카드 검색" %}</h1>
+        <p class="v2-subtitle">{% tr "루멘콘덴서의 모든 카드를 검색할 수 있는 화면입니다." %}</p>
     </div>
     <div class="v2-chip-row">
-        <span class="v2-chip">총 {{ cards.paginator.count }}장</span>
-        <span class="v2-chip">{{ cards.number }} / {{ cards.paginator.num_pages }} 페이지</span>
+        <span class="v2-chip">{% tr "총" %} {{ cards.paginator.count }}{% tr "장" %}</span>
+        <span class="v2-chip">{{ cards.number }} / {{ cards.paginator.num_pages }} {% tr "페이지" %}</span>
         {% if perms.card.add_card %}
-        <a class="v2-button v2-button-primary" href="{% url "card:create" %}">카드 추가</a>
+        <a class="v2-button v2-button-primary" href="{% url "card:create" %}">{% tr "카드 추가" %}</a>
         {% endif %}
         {% if perms.card.change_card %}
-        <a class="v2-button" href="{% url "card:detailTextImport" %}">보충 설명 가져오기</a>
+        <a class="v2-button" href="{% url "card:detailTextImport" %}">{% tr "보충 설명 가져오기" %}</a>
         {% endif %}
     </div>
 </section>
@@ -26,45 +27,45 @@
     <div class="v2-search-row">
         {{ form.keyword }}
         {{ form.sort }}
-        <button class="v2-button" type="button" id="v2FilterToggle">필터</button>
-        <button class="v2-button v2-button-primary" type="submit">검색</button>
+        <button class="v2-button" type="button" id="v2FilterToggle">{% tr "필터" %}</button>
+        <button class="v2-button v2-button-primary" type="submit">{% tr "검색" %}</button>
     </div>
     <div class="v2-filter-grid" id="v2FilterGrid">
         <div class="v2-filter-box v2-filter-wide">
-            <label for="id_char">캐릭터</label>
+            <label for="id_char">{% tr "캐릭터" %}</label>
             {{ form.char }}
         </div>
         <div class="v2-filter-box">
-            <span class="v2-filter-label">분류</span>
+            <span class="v2-filter-label">{% tr "분류" %}</span>
             {{ form.type }}
-            <label class="v2-check-label mt-2" for="id_ultimate">{{ form.ultimate }} 얼티밋</label>
+            <label class="v2-check-label mt-2" for="id_ultimate">{{ form.ultimate }} {% tr "얼티밋" %}</label>
         </div>
         <div class="v2-filter-box">
-            <label for="id_pos">판정</label>
+            <label for="id_pos">{% tr "판정" %}</label>
             {{ form.pos }}
         </div>
         <div class="v2-filter-box">
-            <label for="id_body">부위</label>
+            <label for="id_body">{% tr "부위" %}</label>
             {{ form.body }}
         </div>
         <div class="v2-filter-box">
-            <span class="v2-filter-label">특수 판정</span>
+            <span class="v2-filter-label">{% tr "특수 판정" %}</span>
             {{ form.specialpos }}
             {{ form.specialtype }}
         </div>
         <div class="v2-filter-box">
-            <span class="v2-filter-label">속도</span>
+            <span class="v2-filter-label">{% tr "속도" %}</span>
             {{ form.frametype }}
             {{ form.framenum }}
         </div>
         <div class="v2-filter-box">
-            <label for="id_pack">출신 팩</label>
+            <label for="id_pack">{% tr "출신 팩" %}</label>
             {{ form.pack }}
         </div>
         {% if perms.card.tag_update %}
         <div class="v2-filter-box">
-            <span class="v2-filter-label">관리</span>
-            <a href="{% url "card:tagList" %}" class="v2-button">태그 목록</a>
+            <span class="v2-filter-label">{% tr "관리" %}</span>
+            <a href="{% url "card:tagList" %}" class="v2-button">{% tr "태그 목록" %}</a>
         </div>
         {% endif %}
     </div>
@@ -74,18 +75,18 @@
     {% for card in cards %}
     <a class="v2-card-tile" href="{% url "card:detail" card.id %}">
         <div class="v2-card-img">
-            <img src="{{ card.img_mid }}" alt="{{ card.name }}">
+            <img src="{{ card.img_mid }}" alt="{{ card|card_name:current_language }}">
             {% if card.unReleased %}
-            <span class="v2-unreleased">미발매</span>
+            <span class="v2-unreleased">{% tr "미발매" %}</span>
             {% endif %}
         </div>
         <div class="v2-card-body">
-            <p class="v2-card-character">{{ card.character.name }}</p>
-            <h2 class="v2-card-name">{{ card.name }}</h2>
+            <p class="v2-card-character">{{ card.character|character_name:current_language }}</p>
+            <h2 class="v2-card-name">{{ card|card_name:current_language }}</h2>
         </div>
     </a>
     {% empty %}
-    <div class="v2-panel v2-text-panel">검색 결과가 없습니다.</div>
+    <div class="v2-panel v2-text-panel">{% tr "검색 결과가 없습니다." %}</div>
     {% endfor %}
 </section>
 

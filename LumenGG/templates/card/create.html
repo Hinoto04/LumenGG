@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}{% if is_update %}카드 수정{% else %}카드 추가{% endif %}{% endblock title %}
+{% block title %}{% if is_translation_update %}카드 번역 수정{% elif is_update %}카드 수정{% else %}카드 추가{% endif %}{% endblock title %}
 {% block v2_href %}{% if is_update %}{% url "card:update" card.id %}{% else %}{% url "card:create" %}{% endif %}{% endblock v2_href %}
 {% block style %}
 <link rel="stylesheet" href="{% static "card/create.css" %}">
 {% endblock style %}
 {% block content %}
 <div id="최상단" class="d-flex flex-column mb-1">
-    <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">{% if is_update %}카드 수정{% else %}카드 추가{% endif %}</div>
+    <div style="text-align: start; font-size: 2em; font-weight: 900;" class="ms-1">{% if is_translation_update %}카드 번역 수정{% elif is_update %}카드 수정{% else %}카드 추가{% endif %}</div>
     {% if is_update %}
     <a class="btn btn-sm btn-dark ms-1" href="{% url "card:legacyDetail" card.id %}">상세</a>
     {% endif %}
@@ -15,6 +15,42 @@
 <form action="" method="post" enctype="multipart/form-data">
     {% include "form_errors.html" %}
     {% csrf_token %}
+    {% if is_translation_update %}
+    <div class="행">
+        <div class="option">
+            <label>원본 카드</label>
+            <div>{{ card.code }} / {{ card.name }}</div>
+        </div>
+        <div class="option">
+            <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+            {{ form.name }}
+        </div>
+        <div class="option">
+            <label for="{{ form.ruby.id_for_label }}">{{ form.ruby.label }}</label>
+            {{ form.ruby }}
+        </div>
+        <div class="option">
+            <label for="{{ form.keyword.id_for_label }}">{{ form.keyword.label }}</label>
+            {{ form.keyword }}
+        </div>
+        <div class="option">
+            <label for="{{ form.hiddenKeyword.id_for_label }}">{{ form.hiddenKeyword.label }}</label>
+            {{ form.hiddenKeyword }}
+        </div>
+        <div class="option">
+            <label for="{{ form.search.id_for_label }}">{{ form.search.label }}</label>
+            {{ form.search }}
+        </div>
+    </div>
+    <div class="option">
+        <label for="{{ form.text.id_for_label }}">{{ form.text.label }}</label>
+        {{ form.text }}
+    </div>
+    <div class="option">
+        <label for="{{ form.detail_text.id_for_label }}">{{ form.detail_text.label }}</label>
+        {{ form.detail_text }}
+    </div>
+    {% else %}
     <div class="행">
         <div class="option">
             <label for="name">카드명</label>
@@ -117,6 +153,7 @@
         <label for="detail_text">보충 설명</label>
         {{ form.detail_text }}
     </div>
+    {% endif %}
     <button class="w-100 border btn btn-light" type="submit">{% if is_update %}수정 저장{% else %}저장{% endif %}</button>
 </form>
 {% endblock content %}

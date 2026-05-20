@@ -1,0 +1,916 @@
+.v2-simulator-mode .v2-shell {
+    width: min(1840px, calc(100% - 20px));
+}
+
+.v2-sim-head {
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.v2-sim-page:fullscreen {
+    width: 100vw;
+    min-height: 100vh;
+    overflow: auto;
+    padding: 10px;
+    background: var(--v2-bg);
+}
+
+.v2-sim-page:fullscreen .v2-sim-head {
+    display: none;
+}
+
+.v2-sim-share,
+.v2-sim-control-actions,
+.v2-sim-phase > div,
+.v2-sim-import-card,
+.v2-sim-zone-actions,
+.v2-sim-quick-log,
+.v2-sim-manual-log,
+.v2-sim-passive-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.v2-sim-controlbar {
+    display: grid;
+    grid-template-columns: auto minmax(280px, 1fr) auto minmax(260px, 400px) auto;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 10px;
+}
+
+.v2-sim-turn,
+.v2-sim-phase,
+.v2-sim-status-row,
+.v2-sim-timer {
+    display: grid;
+    gap: 3px;
+}
+
+.v2-sim-turn span,
+.v2-sim-timer span,
+.v2-sim-player-head span {
+    color: var(--v2-muted);
+    font-size: .75rem;
+    font-weight: 800;
+}
+
+.v2-sim-turn strong,
+.v2-sim-phase > strong,
+.v2-sim-timer strong {
+    color: var(--v2-text);
+    font-size: 1.05rem;
+    font-weight: 900;
+}
+
+.v2-sim-phase .is-active,
+.v2-sim-control-actions .is-active {
+    border-color: var(--v2-accent);
+    color: var(--v2-accent);
+    background: rgba(224, 180, 91, .12);
+}
+
+.v2-sim-import-card {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) auto;
+    gap: 6px;
+}
+
+.v2-sim-import-card input {
+    min-width: 0;
+    min-height: 32px;
+    padding: 6px 9px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-surface);
+    color-scheme: var(--v2-control-scheme);
+    font: inherit;
+    font-size: .82rem;
+}
+
+.v2-sim-timer {
+    min-width: 86px;
+    padding: 7px 10px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-soft-bg);
+    font: inherit;
+}
+
+.v2-sim-timer.is-active {
+    border-color: var(--v2-teal);
+}
+
+.v2-sim-timer.is-danger strong {
+    color: var(--v2-red);
+}
+
+.v2-sim-status {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 5px;
+}
+
+.v2-sim-status-row {
+    grid-template-columns: minmax(84px, 1fr) auto;
+    align-items: center;
+}
+
+.v2-sim-status-row.is-own {
+    grid-template-columns: minmax(84px, 1fr) auto auto;
+}
+
+.v2-sim-status-row strong {
+    min-height: 28px;
+    padding: 4px 7px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-muted);
+    background: var(--v2-soft-bg);
+    font-size: .8rem;
+}
+
+.v2-sim-status-row strong.is-requested {
+    border-color: rgba(224, 180, 91, .6);
+    color: var(--v2-accent);
+}
+
+.v2-sim-status-row strong.is-done {
+    border-color: rgba(91, 190, 176, .6);
+    color: var(--v2-teal);
+}
+
+.v2-sim-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+}
+
+.v2-sim-player {
+    position: relative;
+    overflow: hidden;
+    --sim-card-width: 94px;
+    --sim-card-height: 132px;
+    --sim-card-step: 68px;
+    --sim-zone-rows: 1;
+    --sim-zone-grid-height: calc(var(--sim-card-height) + 12px);
+}
+
+.v2-sim-player::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-image: var(--sim-character-bg);
+    background-position: right 10px top 2px;
+    background-repeat: no-repeat;
+    background-size: min(36%, 260px);
+    opacity: .12;
+    pointer-events: none;
+}
+
+.v2-sim-player.is-action-requested::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.v2-sim-player.is-own-request::after {
+    background: linear-gradient(90deg, rgba(224, 180, 91, .26), rgba(224, 180, 91, .08) 36%, transparent 72%);
+}
+
+.v2-sim-player.is-opponent-request::after {
+    background: linear-gradient(270deg, rgba(224, 180, 91, .26), rgba(224, 180, 91, .08) 36%, transparent 72%);
+}
+
+.v2-sim-player > * {
+    position: relative;
+    z-index: 1;
+}
+
+.v2-sim-player-head {
+    display: grid;
+    grid-template-columns: minmax(120px, .75fr) minmax(260px, 1.65fr);
+    gap: 10px;
+    align-items: start;
+    min-height: 50px;
+    padding: 10px 12px 6px;
+    border-bottom: 1px solid var(--v2-line);
+}
+
+.v2-sim-player-head h2 {
+    overflow: hidden;
+    margin: 1px 0 0;
+    font-size: 1.08rem;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.v2-sim-life {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, .85fr);
+    gap: 7px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--v2-line);
+}
+
+.v2-sim-hp,
+.v2-sim-fp {
+    display: grid;
+    grid-template-columns: 48px 38px minmax(58px, 1fr) 38px 48px;
+    gap: 4px;
+    align-items: center;
+}
+
+.v2-sim-fp {
+    grid-template-columns: 38px minmax(74px, 1fr) 38px;
+}
+
+.v2-sim-hp strong,
+.v2-sim-fp-value {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 34px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-surface);
+    font-weight: 900;
+}
+
+.v2-sim-hp strong[data-pending-amount]::after,
+.v2-sim-fp-value[data-pending-amount]::after {
+    content: attr(data-pending-amount);
+    position: absolute;
+    right: 4px;
+    bottom: -10px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    color: #111;
+    background: var(--v2-accent);
+    font-size: .68rem;
+}
+
+.v2-sim-counter,
+.v2-sim-fp-value {
+    min-height: 34px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-soft-bg);
+    font: inherit;
+    cursor: pointer;
+}
+
+.v2-sim-counter.is-damage {
+    color: #ffd2d2;
+}
+
+.v2-sim-counter.is-heal {
+    color: #d7fff8;
+}
+
+.v2-sim-counter:disabled,
+.v2-sim-fp-value:disabled,
+.v2-sim-passive-form button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.v2-sim-passive {
+    display: flex;
+    overflow: visible;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 0;
+}
+
+.v2-sim-passive-cards,
+.v2-sim-passive-list,
+.v2-sim-passive-custom,
+.v2-sim-passive-controls {
+    display: flex;
+    overflow-x: auto;
+    gap: 5px;
+}
+
+.v2-sim-passive-controls {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-height: 68px;
+    min-width: 0;
+    padding-bottom: 2px;
+}
+
+.v2-sim-passive-cards {
+    flex: 0 0 auto;
+    align-items: flex-start;
+    max-width: 150px;
+}
+
+.v2-sim-passive-card {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 56px;
+    padding: 0;
+    border: 1px solid rgba(91, 190, 176, .45);
+    border-radius: 6px;
+    background: var(--v2-surface);
+    cursor: pointer;
+}
+
+.v2-sim-passive-card img {
+    width: 100%;
+    height: 100%;
+    border-radius: 5px;
+    object-fit: cover;
+}
+
+.v2-sim-passive-list span {
+    flex: 0 0 auto;
+    min-height: 24px;
+    padding: 3px 7px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-muted);
+    background: var(--v2-soft-bg);
+    font-size: .76rem;
+}
+
+.v2-sim-passive-custom {
+    max-width: min(520px, 100%);
+    align-items: center;
+}
+
+.v2-sim-passive-custom button,
+.v2-sim-passive-custom input,
+.v2-sim-passive-custom select {
+    min-height: 28px;
+    border-radius: 8px;
+    font: inherit;
+    font-size: .76rem;
+}
+
+.v2-sim-passive-error {
+    color: var(--v2-red);
+    font-size: .76rem;
+    font-weight: 900;
+}
+
+.v2-sim-passive-list:empty {
+    display: none;
+}
+
+.v2-sim-passive-list strong {
+    color: var(--v2-text);
+}
+
+.v2-sim-passive-native {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 28px;
+    padding: 3px 5px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-muted);
+    background: color-mix(in srgb, var(--v2-soft-bg) 86%, transparent);
+    font-size: .74rem;
+}
+
+.v2-sim-passive-native > span {
+    max-width: 96px;
+    overflow: hidden;
+    color: var(--v2-text);
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.v2-sim-passive-native strong,
+.v2-sim-passive-native-button {
+    display: inline-grid;
+    place-items: center;
+    min-width: 27px;
+    min-height: 22px;
+    padding: 2px 6px;
+    border: 1px solid var(--v2-line);
+    border-radius: 7px;
+    color: var(--v2-text);
+    background: var(--v2-surface-2);
+    font: inherit;
+    font-weight: 900;
+}
+
+.v2-sim-passive-native-button {
+    cursor: pointer;
+}
+
+.v2-sim-passive-native-button:hover:not(:disabled),
+.v2-sim-passive-native-button.is-active,
+.v2-sim-passive-native.is-active strong {
+    border-color: rgba(91, 190, 176, .72);
+    color: var(--v2-teal);
+    background: rgba(91, 190, 176, .12);
+}
+
+.v2-sim-passive-native-button.is-danger {
+    border-color: rgba(217, 105, 105, .65);
+    color: var(--v2-red);
+}
+
+.v2-sim-passive-native-button:disabled {
+    color: var(--v2-faint);
+    cursor: not-allowed;
+    opacity: .55;
+}
+
+.v2-sim-passive-form input,
+.v2-sim-manual-log input {
+    min-width: 0;
+    min-height: 30px;
+    padding: 5px 8px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-surface);
+    color-scheme: var(--v2-control-scheme);
+    font-size: .82rem;
+}
+
+.v2-sim-passive-form input {
+    flex: 1 1 72px;
+}
+
+.v2-sim-passive-form .v2-button {
+    min-height: 30px;
+    padding: 4px 8px;
+    font-size: .78rem;
+}
+
+.v2-sim-zones {
+    display: grid;
+    gap: 7px;
+    padding: 9px;
+}
+
+.v2-sim-zone-row {
+    display: grid;
+    gap: 7px;
+}
+
+.v2-sim-zone-row-top {
+    grid-template-columns: 112px minmax(0, 1fr);
+}
+
+.v2-sim-zone-row-bottom {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.v2-sim-zone {
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .025);
+}
+
+.v2-sim-zone-ultimate {
+    min-height: 0;
+}
+
+.v2-sim-zone-lumen {
+    min-height: 0;
+}
+
+.v2-sim-zone-battle {
+    min-height: 0;
+}
+
+.v2-sim-zone-hand {
+    min-height: 0;
+}
+
+.v2-sim-zone-list {
+    min-height: 0;
+    --sim-zone-rows: 2;
+    --sim-zone-grid-height: calc(var(--sim-card-height) + var(--sim-card-height) + 18px);
+}
+
+.v2-sim-zone-side {
+    min-height: 0;
+}
+
+.v2-sim-zone-break {
+    min-height: 0;
+}
+
+.v2-sim-zone header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    min-height: 28px;
+    padding: 3px 7px;
+    border-bottom: 1px solid var(--v2-line);
+}
+
+.v2-sim-zone header strong {
+    overflow: hidden;
+    color: var(--v2-muted);
+    font-size: .78rem;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.v2-sim-zone header span {
+    color: var(--v2-faint);
+    font-size: .74rem;
+    font-weight: 800;
+}
+
+.v2-sim-zone-actions button {
+    min-height: 22px;
+    padding: 1px 6px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-soft-bg);
+    font-size: .7rem;
+}
+
+.v2-sim-zone.is-drop-hover {
+    border-color: var(--v2-accent);
+    background: rgba(224, 180, 91, .08);
+}
+
+.v2-sim-card-grid {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: var(--sim-card-fit-step, calc(var(--sim-card-width) + 6px));
+    grid-template-columns: none;
+    grid-template-rows: repeat(var(--sim-zone-rows), var(--sim-card-height));
+    justify-items: start;
+    align-items: start;
+    gap: 6px 0;
+    height: var(--sim-zone-grid-height);
+    overflow: hidden;
+    padding: 6px;
+}
+
+.v2-sim-zone-ultimate .v2-sim-card-grid {
+    grid-auto-columns: var(--sim-card-width);
+}
+
+.v2-sim-card {
+    position: relative;
+    display: block;
+    width: var(--sim-card-width);
+    height: var(--sim-card-height);
+    border: 1px solid rgba(224, 180, 91, .34);
+    border-radius: 6px;
+    color: var(--v2-text);
+    background: var(--v2-surface);
+    cursor: grab;
+}
+
+.v2-sim-card[draggable="false"] {
+    cursor: pointer;
+}
+
+.v2-sim-card.is-hidden {
+    border-color: var(--v2-line);
+    background:
+        repeating-linear-gradient(135deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .08) 5px, transparent 5px, transparent 10px),
+        var(--v2-surface-2);
+}
+
+.v2-sim-card.is-face-up {
+    box-shadow: inset 0 0 0 1px rgba(91, 190, 176, .36);
+}
+
+.v2-sim-card img {
+    width: 100%;
+    height: 100%;
+    border-radius: 5px;
+    object-fit: cover;
+}
+
+.v2-sim-card-toggle {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--v2-line);
+    border-radius: 999px;
+    background: var(--v2-surface-2);
+    cursor: pointer;
+}
+
+.v2-sim-card-toggle::before {
+    content: "";
+    width: 13px;
+    height: 8px;
+    border: 2px solid currentColor;
+    border-radius: 999px / 80%;
+}
+
+.v2-sim-card-toggle::after {
+    content: "";
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 999px;
+    background: currentColor;
+}
+
+.v2-sim-card-toggle.is-public {
+    border-color: rgba(91, 190, 176, .8);
+    color: var(--v2-teal);
+    background: rgba(91, 190, 176, .16);
+}
+
+.v2-sim-card-toggle.is-private {
+    border-color: rgba(217, 105, 105, .7);
+    color: var(--v2-red);
+    background: rgba(217, 105, 105, .14);
+}
+
+.v2-sim-card-toggle.is-private::after {
+    width: 16px;
+    height: 2px;
+    border-radius: 999px;
+    transform: rotate(-35deg);
+}
+
+.v2-sim-log-fab {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 80;
+    min-height: 42px;
+    padding: 8px 14px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-surface);
+    font: inherit;
+    font-weight: 900;
+}
+
+.v2-sim-log-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 90;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    width: min(440px, 100vw);
+    height: 100vh;
+    overflow: hidden;
+    border-radius: 0;
+    transform: translateX(100%);
+    transition: transform .18s ease;
+}
+
+.v2-sim-log-drawer.is-open {
+    transform: translateX(0);
+}
+
+.v2-sim-card-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: min(420px, 100vw);
+    height: 100vh;
+    overflow: hidden;
+    border-radius: 0;
+    transform: translateX(-100%);
+    transition: transform .18s ease;
+}
+
+.v2-sim-card-drawer.is-open {
+    transform: translateX(0);
+}
+
+.v2-sim-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px;
+    border-bottom: 1px solid var(--v2-line);
+}
+
+.v2-sim-drawer-head strong {
+    font-size: .96rem;
+    font-weight: 900;
+}
+
+.v2-sim-log-tools {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border-bottom: 1px solid var(--v2-line);
+}
+
+.v2-sim-quick-log .v2-button {
+    min-height: 29px;
+    padding: 4px 8px;
+    font-size: .78rem;
+}
+
+.v2-sim-manual-log {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.v2-sim-log {
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.v2-sim-log-row {
+    width: min(86%, 360px);
+    padding: 8px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    background: var(--v2-soft-bg);
+}
+
+.v2-sim-log-row + .v2-sim-log-row {
+    margin-top: 7px;
+}
+
+.v2-sim-log-row strong {
+    display: block;
+    font-size: .86rem;
+    line-height: 1.35;
+}
+
+.v2-sim-log-row.is-own-log {
+    margin-right: auto;
+    text-align: left;
+}
+
+.v2-sim-log-row.is-opponent-log {
+    margin-left: auto;
+    text-align: right;
+}
+
+.v2-sim-log-row.is-neutral-log {
+    margin-right: auto;
+    margin-left: auto;
+    text-align: center;
+}
+
+.v2-sim-log-row.is-p1 {
+    border-color: rgba(217, 105, 105, .42);
+}
+
+.v2-sim-log-row.is-p2 {
+    border-color: rgba(91, 190, 176, .42);
+}
+
+.v2-sim-card-detail {
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.v2-sim-card-detail img {
+    display: block;
+    width: min(260px, 86%);
+    margin: 0 auto 14px;
+    border-radius: 8px;
+}
+
+.v2-sim-card-detail h2 {
+    margin: 0 0 12px;
+    font-size: 1.2rem;
+    font-weight: 900;
+}
+
+.v2-sim-card-detail-text {
+    display: grid;
+    gap: 8px;
+}
+
+.v2-sim-card-detail-text {
+    margin-top: 12px;
+    color: var(--v2-text);
+    font-size: .95rem;
+    line-height: 1.55;
+    white-space: pre-line;
+}
+
+.v2-sim-card-detail-text p {
+    margin: 0;
+}
+
+.v2-sim-card-detail-line {
+    color: var(--v2-text);
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+.v2-sim-card-detail-line.is-muted {
+    color: var(--v2-muted);
+    font-size: .92rem;
+}
+
+.v2-sim-card-detail-effect {
+    color: var(--v2-muted);
+    font-size: .92rem;
+    font-weight: 700;
+}
+
+.v2-sim-card-tooltip {
+    position: fixed;
+    z-index: 140;
+    display: none;
+    max-width: min(340px, calc(100vw - 24px));
+    padding: 8px 10px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-surface);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .32);
+    font-size: .92rem;
+    font-weight: 900;
+    line-height: 1.35;
+    pointer-events: none;
+}
+
+.v2-sim-card-tooltip.is-visible {
+    display: block;
+}
+
+.v2-sim-share .is-copied::after {
+    content: " 복사됨";
+    color: var(--v2-teal);
+}
+
+@media (max-width: 1180px) {
+    .v2-sim-controlbar,
+    .v2-sim-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 680px) {
+    .v2-sim-head {
+        display: grid;
+    }
+
+    .v2-sim-player-head {
+        grid-template-columns: 1fr;
+    }
+
+    .v2-sim-passive {
+        justify-content: flex-start;
+    }
+
+    .v2-sim-passive-controls {
+        justify-content: flex-start;
+        max-height: none;
+    }
+
+    .v2-sim-player {
+        --sim-card-width: 84px;
+        --sim-card-height: 118px;
+        --sim-card-step: 60px;
+    }
+
+    .v2-sim-life {
+        grid-template-columns: 1fr;
+    }
+
+    .v2-sim-zones {
+        padding: 7px;
+    }
+
+    .v2-sim-zone-row-top {
+        grid-template-columns: 96px minmax(0, 1fr);
+    }
+}

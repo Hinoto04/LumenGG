@@ -1,6 +1,7 @@
 {% extends "base_v2.html" %}
 {% load static %}
-{% block title %}캐릭터 - LumenDB V2{% endblock title %}
+{% load language_tags %}
+{% block title %}{% tr "캐릭터" %} - LumenDB V2{% endblock title %}
 {% block legacy_href %}{% url "card:legacyCharacter" %}?id={{ id }}{% endblock legacy_href %}
 {% block style %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -18,11 +19,11 @@
 <section class="v2-page-head">
     <div>
         <div class="v2-kicker">CHARACTERS</div>
-        <h1 class="v2-title">캐릭터</h1>
-        <p class="v2-subtitle">캐릭터별 성향, 대표 카드, 코멘트를 한 화면에서 확인합니다.</p>
+        <h1 class="v2-title">{% tr "캐릭터" %}</h1>
+        <p class="v2-subtitle">{% tr "캐릭터별 성향, 대표 카드, 코멘트를 한 화면에서 확인합니다." %}</p>
     </div>
     <div class="v2-chip-row">
-        <span class="v2-chip">총 {{ chars|length }}명</span>
+        <span class="v2-chip">{% tr "총" %} {{ chars|length }}{% tr "명" %}</span>
     </div>
 </section>
 
@@ -34,19 +35,19 @@
                     <img src="" alt="">
                 </div>
                 <div class="v2-character-control-box">
-                    <button class="v2-button" id="passiveChange" type="button">패시브</button>
+                    <button class="v2-button" id="passiveChange" type="button">{% tr "패시브" %}</button>
                     <div class="v2-character-name-box">
-                        <strong id="캐릭터이름">캐릭터</strong>
+                        <strong id="캐릭터이름">{% tr "캐릭터" %}</strong>
                         <span id="캐릭터그룹"></span>
                     </div>
-                    <button class="v2-button" id="skinChange" type="button">스킨</button>
-                    <button class="v2-button" id="tokenChange" type="button">토큰</button>
+                    <button class="v2-button" id="skinChange" type="button">{% tr "스킨" %}</button>
+                    <button class="v2-button" id="tokenChange" type="button">{% tr "토큰" %}</button>
                 </div>
             </div>
             <div id="캐릭터정보" class="v2-character-info-panel v2-panel">
                 <div id="페이지전환" class="v2-character-page-switch">
                     <button class="v2-button" id="previousPage" type="button">&lt;</button>
-                    <strong id="페이지명">그래프</strong>
+                    <strong id="페이지명">{% tr "그래프" %}</strong>
                     <button class="v2-button" id="nextPage" type="button">&gt;</button>
                 </div>
                 <div id="그래프" class="v2-character-graph">
@@ -55,15 +56,15 @@
                 <div id="상징카드정보" class="v2-character-identity-grid">
                     <div id="상징1" class="v2-character-identity-card">
                         <img src="" alt="">
-                        <p>초반 심리전</p>
+                        <p>{% tr "초반 심리전" %}</p>
                     </div>
                     <div id="상징2" class="v2-character-identity-card">
                         <img src="" alt="">
-                        <p>강력한 콤보용</p>
+                        <p>{% tr "강력한 콤보용" %}</p>
                     </div>
                     <div id="상징3" class="v2-character-identity-card">
                         <img src="" alt="">
-                        <p>압박 주축 카드</p>
+                        <p>{% tr "압박 주축 카드" %}</p>
                     </div>
                 </div>
                 <div id="특징" class="v2-character-feature"></div>
@@ -82,7 +83,7 @@
 </section>
 
 <section class="v2-section">
-    <h2 class="v2-section-title">캐릭터 코멘트</h2>
+    <h2 class="v2-section-title">{% tr "캐릭터 코멘트" %}</h2>
     {% if user.is_authenticated %}
     <form action="{% url "card:writeCharComment" %}" method="post" class="v2-panel v2-character-comment-form" id="코멘트작성">
         {% csrf_token %}
@@ -90,38 +91,53 @@
         {{ form.character }}
         <div id="캐릭터수치평가창" class="v2-character-score-grid">
             <div>
-                <label for="id_power" data-bs-toggle="tooltip" title="공격력, 한 방의 위력과 평균적인 데미지 기대치">화력</label>
+                <label for="id_power" data-bs-toggle="tooltip" title="{% tr "공격력, 한 방의 위력과 평균적인 데미지 기대치" %}">{% tr "화력" %}</label>
                 {{ form.power }}
             </div>
             <div>
-                <label for="id_combo" data-bs-toggle="tooltip" title="연속 공격이나 캐치, 콤보의 용이함/데미지">연계</label>
+                <label for="id_combo" data-bs-toggle="tooltip" title="{% tr "연속 공격이나 캐치, 콤보의 용이함/데미지" %}">{% tr "연계" %}</label>
                 {{ form.combo }}
             </div>
             <div>
-                <label for="id_reversal" data-bs-toggle="tooltip" title="불리한 상황에서 역전할 수 있는 능력">변수창출</label>
+                <label for="id_reversal" data-bs-toggle="tooltip" title="{% tr "불리한 상황에서 역전할 수 있는 능력" %}">{% tr "변수창출" %}</label>
                 {{ form.reversal }}
             </div>
             <div>
-                <label for="id_safety" data-bs-toggle="tooltip" title="플레이의 안정성, 리스크 관리 능력. 높을 수록 안정적임">안정성</label>
+                <label for="id_safety" data-bs-toggle="tooltip" title="{% tr "플레이의 안정성, 리스크 관리 능력. 높을 수록 안정적임" %}">{% tr "안정성" %}</label>
                 {{ form.safety }}
             </div>
             <div>
-                <label for="id_tempo" data-bs-toggle="tooltip" title="메인 플레이를 펼치기 위한 시간. 높을 수록 빠름을 의미">템포</label>
+                <label for="id_tempo" data-bs-toggle="tooltip" title="{% tr "메인 플레이를 펼치기 위한 시간. 높을 수록 빠름을 의미" %}">{% tr "템포" %}</label>
                 {{ form.tempo }}
             </div>
         </div>
         <div class="v2-admin-field">
-            <label for="id_comment">코멘트</label>
+            <label for="id_comment">{% tr "코멘트" %}</label>
             {{ form.comment }}
         </div>
         <div class="v2-admin-actions">
-            <button class="v2-button v2-button-primary" type="submit">작성</button>
+            <button class="v2-button v2-button-primary" type="submit">{% tr "작성" %}</button>
         </div>
     </form>
     {% endif %}
     <div id="댓글목록" class="v2-character-comments"></div>
 </section>
 
+<script>
+    window.lumenLanguageText = {
+        power: "{% tr "화력" %}",
+        combo: "{% tr "연계" %}",
+        reversal: "{% tr "변수창출" %}",
+        safety: "{% tr "안정성" %}",
+        tempo: "{% tr "템포" %}",
+        variable: "{% tr "변수" %}",
+        stable: "{% tr "안정" %}",
+        unrated: "{% tr "미평가" %}",
+        data: "{% tr "데이터" %}",
+        graph: "{% tr "그래프" %}",
+        keyCards: "{% tr "중요한 카드" %}"
+    };
+</script>
 <script src="{% static "character/index.js" %}"></script>
 <script>
     dataLoad({{ id }});

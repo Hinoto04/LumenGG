@@ -1,7 +1,17 @@
 from django import forms
 
 from card.models import Character
+from common.language import translated_character_field, ui_text
 from .models import Deck
+
+
+def _translated_choices(choices, language):
+    return [(value, ui_text(label, language)) for value, label in choices]
+
+
+def _localize_character_field(field, language):
+    field.label_from_instance = lambda character: translated_character_field(character, language, 'name')
+
 
 class DeckSearchForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
@@ -29,6 +39,14 @@ class DeckSearchForm(forms.Form):
         initial = 'recent', 
         widget = forms.Select(attrs={'class': 'btn border 배경색1'})
     )
+
+    def __init__(self, *args, language=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['char'].label = ui_text('캐릭터', language)
+        _localize_character_field(self.fields['char'], language)
+        self.fields['keyword'].widget.attrs['placeholder'] = ui_text('키워드, 작성자 검색', language)
+        self.fields['sort'].label = ui_text('정렬', language)
+        self.fields['sort'].choices = _translated_choices(self.fields['sort'].choices, language)
 
 class DeckMakeForm(forms.ModelForm):
     name = forms.CharField(
@@ -68,6 +86,17 @@ class DeckMakeForm(forms.ModelForm):
         #     'description': SummernoteWidget(attrs={'class': 'w-100', 'rows':''}),
         # }
 
+    def __init__(self, *args, language=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['name'].label = ui_text('덱 이름', language)
+        self.fields['name'].widget.attrs['placeholder'] = ui_text('덱 이름', language)
+        self.fields['char'].label = ui_text('캐릭터', language)
+        _localize_character_field(self.fields['char'], language)
+        self.fields['keyword'].label = ui_text('태그', language)
+        self.fields['keyword'].widget.attrs['placeholder'] = ui_text('검색 키워드 목록', language)
+        self.fields['visibility'].label = ui_text('공개 범위', language)
+        self.fields['visibility'].choices = _translated_choices(self.fields['visibility'].choices, language)
+
 class DeckImportForm(forms.Form):
     name = forms.CharField(
         label = "덱 이름",
@@ -94,3 +123,12 @@ class DeckImportForm(forms.Form):
             'class': 'form-control'
         }
     ))
+
+    def __init__(self, *args, language=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['name'].label = ui_text('덱 이름', language)
+        self.fields['name'].widget.attrs['placeholder'] = ui_text('덱 이름', language)
+        self.fields['char'].label = ui_text('캐릭터', language)
+        _localize_character_field(self.fields['char'], language)
+        self.fields['visibility'].label = ui_text('공개 범위', language)
+        self.fields['visibility'].choices = _translated_choices(self.fields['visibility'].choices, language)

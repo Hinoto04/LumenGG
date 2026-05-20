@@ -1,7 +1,18 @@
+const config = window.v2DeckBuilderConfig || {};
+const translations = config.translations || {};
+
+function t(key, fallback, params = {}) {
+    let value = translations[key] || fallback;
+    Object.entries(params).forEach(([name, replacement]) => {
+        value = value.replace(`{${name}}`, replacement);
+    });
+    return value;
+}
+
 const zoneLabels = {
-    list: "리스트",
-    hand: "손패",
-    side: "사이드",
+    list: t("list", "리스트"),
+    hand: t("hand", "손패"),
+    side: t("side", "사이드"),
 };
 
 const zoneElements = {
@@ -16,7 +27,6 @@ const zoneCountElements = {
     side: document.getElementById("v2SideZoneCount"),
 };
 
-const config = window.v2DeckBuilderConfig || {};
 const exceptList = config.exceptList || {};
 const cardStore = new Map();
 const deckEntries = [];
@@ -37,7 +47,7 @@ function ToggleDesc() {
     const button = document.getElementById("DescToggleBtn");
     if (!description || !button) return;
     const isHidden = description.classList.toggle("is-hidden");
-    button.textContent = isHidden ? "덱 설명 열기" : "덱 설명 닫기";
+    button.textContent = isHidden ? t("openDescription", "덱 설명 열기") : t("closeDescription", "덱 설명 닫기");
 }
 
 function getSelectedCharacterId() {
@@ -80,15 +90,15 @@ function countCard(pk) {
 
 function canAddCard(card, zone) {
     if (countEntries() >= maxDeckSize) {
-        alert(`덱 매수는 최대 ${maxDeckSize}장입니다.`);
+        alert(t("maxDeckSize", "덱 매수는 최대 {count}장입니다.", { count: maxDeckSize }));
         return false;
     }
     if (isUltimateCard(card) && countUltimateEntries() >= 1) {
-        alert("얼티밋 카드는 1장까지만 넣을 수 있습니다.");
+        alert(t("maxUltimate", "얼티밋 카드는 1장까지만 넣을 수 있습니다."));
         return false;
     }
     if (zone === "hand" && countEntries("hand") >= 5) {
-        alert("손패 매수는 최대 5장입니다.");
+        alert(t("maxHand", "손패 매수는 최대 5장입니다."));
         return false;
     }
 
@@ -97,7 +107,7 @@ function canAddCard(card, zone) {
 
     const limit = exceptList[String(card.pk)];
     if (!limit || cardCount >= Number(limit)) {
-        alert("이 카드는 더 넣을 수 없습니다.");
+        alert(t("cannotAdd", "이 카드는 더 넣을 수 없습니다."));
         return false;
     }
     return true;
@@ -120,11 +130,11 @@ function moveEntry(entryId, zone) {
     if (!entry || entry.zone === zone) return;
     const card = cardStore.get(String(entry.pk));
     if (isUltimateCard(card) && zone !== "list") {
-        alert("얼티밋 카드는 얼티밋 영역에 별도로 표시됩니다.");
+        alert(t("ultimateNotice", "얼티밋 카드는 얼티밋 영역에 별도로 표시됩니다."));
         return;
     }
     if (zone === "hand" && countEntries("hand") >= 5) {
-        alert("손패 매수는 최대 5장입니다.");
+        alert(t("maxHand", "손패 매수는 최대 5장입니다."));
         return;
     }
     entry.zone = zone;
@@ -180,7 +190,7 @@ function makeDeckCard(entry) {
     if (isUltimateCard(card)) {
         const badge = document.createElement("span");
         badge.className = "v2-builder-ultimate-badge";
-        badge.textContent = "얼티밋";
+        badge.textContent = t("ultimate", "얼티밋");
         controls.appendChild(badge);
     } else {
         Object.keys(zoneLabels).forEach((zone) => {
