@@ -91,6 +91,16 @@
     font-weight: 900;
 }
 
+:host button.config-passive-value {
+    cursor: pointer;
+}
+
+:host button.config-passive-value:disabled {
+    color: var(--v2-faint);
+    cursor: not-allowed;
+    opacity: .72;
+}
+
 :host .config-passive-button {
     min-height: 32px;
     padding: 4px 9px;

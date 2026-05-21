@@ -68,11 +68,26 @@
         return JSON.parse(JSON.stringify(state));
     }
 
-    function keepEventsAndApplyState(nextState) {
+    function stateVersion(source) {
+        const version = Number(source && source.version);
+        return Number.isFinite(version) ? version : 0;
+    }
+
+    function bumpLocalVersion() {
+        state.version = stateVersion(state) + 1;
+    }
+
+    function keepEventsAndApplyState(nextState, options) {
+        const incomingVersion = stateVersion(nextState);
+        const currentVersion = stateVersion(state);
+        if (!(options && options.force) && incomingVersion && currentVersion && incomingVersion <= currentVersion) {
+            return false;
+        }
         const previousEvents = state.events || [];
         applyLocalTimerBaseline(nextState);
         state = nextState;
         if (!state.events) state.events = previousEvents;
+        return true;
     }
 
     function timerRemainingSeconds(timerOverride) {
@@ -276,16 +291,20 @@
             passiveState,
             canControl: state.can_control && !state.is_expired,
             action(payload) {
-                return postAction({ action: "passive", target, ...(payload || {}) });
+                const actionPayload = { action: "passive", target, ...(payload || {}) };
+                return postAction(actionPayload, optimisticPassive(target, actionPayload));
             },
             increment(key, delta, label) {
-                return postAction({ action: "passive", target, key, delta: Number(delta || 1), label: label || key });
+                const actionPayload = { action: "passive", target, key, delta: Number(delta || 1), label: label || key };
+                return postAction(actionPayload, optimisticPassive(target, actionPayload));
             },
             set(key, value, label) {
-                return postAction({ action: "passive", target, key, value, label: label || key });
+                const actionPayload = { action: "passive", target, key, value, label: label || key };
+                return postAction(actionPayload, optimisticPassive(target, actionPayload));
             },
             note(key, note, label) {
-                return postAction({ action: "passive", target, key: key || "memo", note, label: label || key || "메모" });
+                const actionPayload = { action: "passive", target, key: key || "memo", note, label: label || key || "메모" };
+                return postAction(actionPayload, optimisticPassive(target, actionPayload));
             },
             get(key, fallback) {
                 const entry = passiveState[String(key)] || {};
@@ -478,12 +497,23 @@
             extraTimePanel.hidden = !(state.set && state.set.can_add_time);
         }
         renderSetPanel();
+        renderPresence();
 
         document.body.classList.toggle("v2-battle-readonly", !state.can_control);
         document.body.classList.toggle("v2-battle-history-open", historyOpen);
         renderCharacterSelectors();
         if (historyOpen) renderHistory();
         setControlDisabled();
+    }
+
+    function renderPresence() {
+        const holder = document.querySelector("[data-battle-presence]");
+        if (!holder) return;
+        const presence = state.presence || {};
+        holder.innerHTML = `
+            <span>${t("조작")} <strong>${Number(presence.control || 0)}</strong></span>
+            <span>${t("관전")} <strong>${Number(presence.viewer || 0)}</strong></span>
+        `;
     }
 
     function renderSetPanel() {
@@ -561,7 +591,9 @@
             .then((response) => response.json().then((data) => ({ response, data })))
             .then(({ response, data }) => {
                 if (!response.ok || !data.ok) {
-                    throw new Error(data.error || t("요청을 처리하지 못했습니다."));
+                    const error = new Error(data.error || t("요청을 처리하지 못했습니다."));
+                    error.serverRejected = true;
+                    throw error;
                 }
                 keepEventsAndApplyState(data.state);
                 renderState();
@@ -569,6 +601,7 @@
                 return data;
             })
             .catch((error) => {
+                if (error && error.serverRejected) throw error;
                 throw new Error(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
             });
     }
@@ -603,14 +636,16 @@
         const previousState = rollbackState || (optimisticUpdate ? cloneState() : null);
         if (optimisticUpdate) {
             optimisticUpdate(state);
+            bumpLocalVersion();
             renderState();
         }
         const request = config.wsPath && "WebSocket" in window
             ? postSocketAction(payload)
             : postHttpAction(payload);
         return request.catch((error) => {
-            if (previousState) {
-                state = previousState;
+            if (previousState && error && error.serverRejected) {
+                keepEventsAndApplyState(previousState, { force: true });
+                pollState();
                 renderState();
             }
             window.alert(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
@@ -685,6 +720,23 @@
         };
     }
 
+    function optimisticPassive(target, payload) {
+        return (draft) => {
+            const player = draft.players && draft.players[target];
+            if (!player) return;
+            const passiveState = player.passive_state || {};
+            const key = String(payload.key || "memo").slice(0, 80);
+            const current = { ...(passiveState[key] || {}) };
+            const delta = Number(payload.delta || 0);
+            if (delta) current.count = Math.max(0, Number(current.count || 0) + delta);
+            if ("value" in payload) current.value = payload.value;
+            if (payload.note) current.last_note = String(payload.note).slice(0, 200);
+            if (payload.label) current.label = String(payload.label).slice(0, 80);
+            passiveState[key] = current;
+            player.passive_state = passiveState;
+        };
+    }
+
     function fetchHistory(force) {
         if (!config.eventsUrl || (!force && historyLoaded)) {
             renderHistory();
@@ -737,7 +789,9 @@
         window.clearTimeout(pending.timeout);
         pendingSocketActions.delete(String(message.request_id));
         if (message.type === "error" || message.ok === false) {
-            pending.reject(new Error(message.error || t("요청을 처리하지 못했습니다.")));
+            const error = new Error(message.error || t("요청을 처리하지 못했습니다."));
+            error.serverRejected = true;
+            pending.reject(error);
             return;
         }
         pending.resolve(message);
@@ -778,6 +832,11 @@
                 keepEventsAndApplyState(message.state);
                 renderState();
                 if (historyOpen) fetchHistory(true);
+                return;
+            }
+            if (message.type === "presence" && message.presence) {
+                state.presence = message.presence;
+                renderPresence();
                 return;
             }
             if (message.type === "action_ack" || message.type === "error") {
@@ -1013,6 +1072,11 @@
     applyLocalTimerBaseline(state);
     renderState();
     connectSocket();
+    window.setInterval(() => {
+        if (socketReady && socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "presence" }));
+        }
+    }, 30000);
     window.setInterval(() => {
         if (state.round_timer.remaining_seconds > 0) state.round_timer.remaining_seconds -= 1;
         const roundTimeLarge = document.querySelector("[data-battle-round-time-large]");

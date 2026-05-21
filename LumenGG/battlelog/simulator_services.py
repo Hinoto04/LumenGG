@@ -22,6 +22,7 @@ from common.language import (
 from deck.models import CardInDeck, Deck
 
 from .models import LumenSimulatorSession
+from .presence import simulator_presence_counts
 from .services import _passive_ui, hand_limit_for_hp, initial_hp_for_character
 
 
@@ -140,7 +141,7 @@ def _player_skeleton(side, name, deck):
             'img': character.body_img or character.sd_img or character.img,
             'icon_img': character.icon_img,
             'color': character.color,
-            'passive_ui': _passive_ui(character),
+            'passive_ui': _passive_ui(character, context='simulator'),
         },
         'initial_hp': initial_hp,
         'hp': initial_hp,
@@ -353,6 +354,32 @@ def _apply_bulk_move(state, payload):
         owner = card.get('owner') or player_side
         state['players'][owner]['zones'][to_zone].append(card)
     payload['count'] = len(cards)
+
+
+def _apply_shuffle_hand(state, payload):
+    player_side = str(payload.get('player') or '')
+    if player_side not in PLAYER_SIDES:
+        raise ValueError('패 셔플 대상이 올바르지 않습니다.')
+
+    hand = state['players'][player_side]['zones']['hand']
+    current_order = [str(card.get('instance_id') or '') for card in hand]
+    requested_order = payload.get('order')
+    if requested_order is None:
+        next_order = current_order[:]
+        secrets.SystemRandom().shuffle(next_order)
+        if len(next_order) > 1 and next_order == current_order:
+            next_order = next_order[1:] + next_order[:1]
+        requested_order = next_order
+    else:
+        requested_order = [str(instance_id) for instance_id in requested_order]
+
+    if len(requested_order) != len(current_order) or set(requested_order) != set(current_order):
+        raise ValueError('패 셔플 순서가 올바르지 않습니다.')
+
+    cards_by_id = {str(card.get('instance_id') or ''): card for card in hand}
+    state['players'][player_side]['zones']['hand'] = [cards_by_id[instance_id] for instance_id in requested_order]
+    payload['order'] = requested_order
+    payload['count'] = len(requested_order)
 
 
 def _apply_phase(state, payload):
@@ -599,6 +626,8 @@ def _apply_event(state, event):
         _apply_move_card(state, payload)
     elif event_type == 'bulk_move':
         _apply_bulk_move(state, payload)
+    elif event_type == 'shuffle_hand':
+        _apply_shuffle_hand(state, payload)
     elif event_type == 'set_phase':
         _apply_phase(state, payload)
     elif event_type == 'next_turn':
@@ -786,8 +815,6 @@ def _localized_card_term_labels(card, language):
 
 def _localize_filtered_state(state, language):
     language = normalize_language(language)
-    if language == DEFAULT_LANGUAGE:
-        return state
 
     card_ids = set()
     character_ids = set()
@@ -815,26 +842,29 @@ def _localize_filtered_state(state, language):
         character_payload = player.get('character') or {}
         character = characters_by_id.get(character_payload.get('id'))
         if character:
-            character_payload['name'] = translated_character_field(character, language, 'name')
-            character_payload['passive_ui'] = _passive_ui(character, language)
+            if language != DEFAULT_LANGUAGE:
+                character_payload['name'] = translated_character_field(character, language, 'name')
+            character_payload['passive_ui'] = _passive_ui(character, language, context='simulator')
 
         for cards in (player.get('zones') or {}).values():
             for card in cards:
                 if card.get('hidden'):
-                    card['name'] = ui_text('비공개 카드', language)
+                    if language != DEFAULT_LANGUAGE:
+                        card['name'] = ui_text('비공개 카드', language)
                     continue
                 if card.get('kind') == 'character':
                     character = characters_by_id.get(card.get('character_id'))
-                    if character:
+                    if character and language != DEFAULT_LANGUAGE:
                         card['name'] = translated_character_field(character, language, 'name')
                     continue
 
                 model_card = cards_by_id.get(card.get('card_id'))
-                if model_card:
+                if model_card and language != DEFAULT_LANGUAGE:
                     card['name'] = translated_card_field(model_card, language, 'name')
                     card['text'] = translated_card_field(model_card, language, 'text')
                     card['detail_text'] = translated_card_field(model_card, language, 'detail_text')
-                _localized_card_term_labels(card, language)
+                if language != DEFAULT_LANGUAGE:
+                    _localized_card_term_labels(card, language)
     return state
 
 
@@ -916,6 +946,7 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
     return {
         'id': session.id,
         'version': session.version,
+        'presence': simulator_presence_counts(session.view_token),
         'role': role,
         'can_control': role in PLAYER_SIDES and not simulator_session_is_expired(session),
         'is_expired': simulator_session_is_expired(session),

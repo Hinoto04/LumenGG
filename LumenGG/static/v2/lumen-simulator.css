@@ -19,6 +19,12 @@
     display: none;
 }
 
+.v2-sim-share-panel {
+    display: grid;
+    gap: 6px;
+    justify-items: end;
+}
+
 .v2-sim-share,
 .v2-sim-control-actions,
 .v2-sim-phase > div,
@@ -30,6 +36,29 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+}
+
+.v2-sim-presence {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.v2-sim-presence span {
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid var(--v2-line);
+    border-radius: 999px;
+    color: var(--v2-muted);
+    background: rgba(255, 255, 255, .05);
+    font-size: .75rem;
+    font-weight: 900;
+}
+
+.v2-sim-presence strong {
+    color: var(--v2-text);
 }
 
 .v2-sim-controlbar {
@@ -313,6 +342,12 @@
     padding-bottom: 2px;
 }
 
+.v2-sim-passive-controls.has-custom-passive {
+    overflow: visible;
+    flex-wrap: nowrap;
+    max-height: none;
+}
+
 .v2-sim-passive-cards {
     flex: 0 0 auto;
     align-items: flex-start;
@@ -415,6 +450,11 @@
 
 .v2-sim-passive-native-button {
     cursor: pointer;
+}
+
+.v2-sim-passive-native-button.is-value {
+    min-width: 38px;
+    color: var(--v2-text);
 }
 
 .v2-sim-passive-native-button:hover:not(:disabled),

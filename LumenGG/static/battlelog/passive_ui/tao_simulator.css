@@ -1,0 +1,199 @@
+:host .tao-passive-panel {
+    display: grid;
+    width: max-content;
+    max-width: 100%;
+    gap: 2px;
+}
+
+:host .tao-counter-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 3px;
+}
+
+:host .tao-counter-card {
+    display: grid;
+    grid-template-columns: 14px 14px 28px 14px;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 1px 2px;
+    border: 1px solid var(--v2-line);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--v2-soft-bg) 88%, transparent);
+    transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+
+:host .tao-counter-card > span {
+    grid-column: 1;
+    grid-row: 1;
+    flex: 0 0 auto;
+    color: var(--v2-muted);
+    font-size: .58rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+:host .tao-counter-card > strong {
+    grid-column: 3;
+    grid-row: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 16px;
+    border: 1px solid var(--v2-line);
+    border-radius: 6px;
+    color: var(--v2-text);
+    background: var(--v2-surface-2);
+    font-size: .58rem;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+}
+
+:host .tao-counter-card > strong.is-disabled {
+    color: var(--v2-faint);
+    cursor: default;
+    opacity: .72;
+}
+
+:host .tao-counter-card[data-tao-card="yang"].is-dominant {
+    border-color: rgba(224, 180, 91, .82);
+    background:
+        linear-gradient(135deg, rgba(224, 180, 91, .18), rgba(224, 180, 91, .04)),
+        color-mix(in srgb, var(--v2-soft-bg) 88%, transparent);
+    box-shadow: inset 0 0 0 1px rgba(224, 180, 91, .14);
+}
+
+:host .tao-counter-card[data-tao-card="yin"].is-dominant {
+    border-color: rgba(91, 190, 176, .82);
+    background:
+        linear-gradient(135deg, rgba(91, 190, 176, .16), rgba(91, 190, 176, .04)),
+        color-mix(in srgb, var(--v2-soft-bg) 88%, transparent);
+    box-shadow: inset 0 0 0 1px rgba(91, 190, 176, .14);
+}
+
+:host .tao-counter-card.is-harmony {
+    border-color: rgba(91, 190, 176, .78);
+    background:
+        linear-gradient(135deg, rgba(91, 190, 176, .14), rgba(224, 180, 91, .08)),
+        color-mix(in srgb, var(--v2-soft-bg) 88%, transparent);
+}
+
+:host .tao-counter-actions {
+    display: contents;
+}
+
+:host .tao-counter-actions [data-tao-delta="-1"] {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+:host .tao-counter-actions [data-tao-delta="1"] {
+    grid-column: 4;
+    grid-row: 1;
+}
+
+:host .tao-counter-actions [data-tao-reset] {
+    display: none;
+}
+
+:host button {
+    min-width: 0;
+    min-height: 16px;
+    padding: 1px 3px;
+    border: 1px solid var(--v2-line);
+    border-radius: 6px;
+    color: var(--v2-text);
+    background: var(--v2-surface-2);
+    font-size: .58rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+:host button:hover:not(:disabled),
+:host button.is-active {
+    border-color: rgba(91, 190, 176, .72);
+    color: var(--v2-teal);
+}
+
+:host button:disabled {
+    color: var(--v2-faint);
+    cursor: not-allowed;
+    opacity: .58;
+}
+
+:host .tao-harmony-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    gap: 2px;
+    align-items: center;
+    padding: 2px 3px;
+    border: 1px solid rgba(91, 190, 176, .75);
+    border-radius: 7px;
+    background:
+        linear-gradient(135deg, rgba(91, 190, 176, .16), rgba(224, 180, 91, .1)),
+        color-mix(in srgb, var(--v2-soft-bg) 88%, transparent);
+    box-shadow: inset 0 0 0 1px rgba(91, 190, 176, .1);
+}
+
+:host .tao-harmony-row[hidden] {
+    display: none;
+}
+
+:host .tao-harmony-row > span {
+    color: var(--v2-teal);
+    font-size: .56rem;
+    font-weight: 900;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+:host .tao-harmony-row button {
+    min-height: 17px;
+    font-size: .56rem;
+}
+
+@media screen and (max-width: 760px) {
+    :host .tao-passive-panel {
+        width: min(200px, 100%);
+        gap: 2px;
+    }
+
+    :host .tao-counter-grid,
+    :host .tao-harmony-row {
+        gap: 2px;
+    }
+
+    :host .tao-counter-card {
+        grid-template-columns: 14px 14px 27px 14px;
+        padding: 1px 2px;
+        gap: 2px;
+    }
+
+    :host .tao-counter-card > span,
+    :host .tao-counter-card > strong,
+    :host button,
+    :host .tao-harmony-row > span,
+    :host .tao-harmony-row button {
+        font-size: .58rem;
+    }
+
+    :host button {
+        min-height: 16px;
+        padding: 1px 2px;
+    }
+
+    :host .tao-counter-card > strong {
+        flex-basis: 30px;
+        min-height: 16px;
+    }
+
+    :host .tao-harmony-row {
+        padding: 2px;
+    }
+
+    :host .tao-harmony-row button {
+        min-height: 17px;
+    }
+}

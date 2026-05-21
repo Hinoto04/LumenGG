@@ -1,0 +1,193 @@
+:host .tao-passive-panel {
+    display: grid;
+    gap: 6px;
+}
+
+:host .tao-counter-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+}
+
+:host .tao-counter-card {
+    display: grid;
+    grid-template-columns: minmax(72px, 1fr) minmax(36px, auto) auto minmax(36px, auto);
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 7px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    background: var(--v2-soft-bg);
+    transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+
+:host .tao-counter-card > span {
+    grid-column: 1;
+    grid-row: 1;
+    color: var(--v2-muted);
+    font-size: .78rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+:host .tao-counter-card > strong {
+    grid-column: 3;
+    grid-row: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    min-height: 32px;
+    padding: 3px 9px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-surface-2);
+    font-size: .88rem;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+}
+
+:host .tao-counter-card > strong.is-disabled {
+    color: var(--v2-faint);
+    cursor: default;
+    opacity: .72;
+}
+
+:host .tao-counter-card[data-tao-card="yang"].is-dominant {
+    border-color: rgba(224, 180, 91, .82);
+    background:
+        linear-gradient(135deg, rgba(224, 180, 91, .2), rgba(224, 180, 91, .06)),
+        var(--v2-soft-bg);
+    box-shadow: inset 0 0 0 1px rgba(224, 180, 91, .16);
+}
+
+:host .tao-counter-card[data-tao-card="yin"].is-dominant {
+    border-color: rgba(91, 190, 176, .82);
+    background:
+        linear-gradient(135deg, rgba(91, 190, 176, .18), rgba(91, 190, 176, .05)),
+        var(--v2-soft-bg);
+    box-shadow: inset 0 0 0 1px rgba(91, 190, 176, .15);
+}
+
+:host .tao-counter-card.is-harmony {
+    border-color: rgba(91, 190, 176, .78);
+    background:
+        linear-gradient(135deg, rgba(91, 190, 176, .16), rgba(224, 180, 91, .1)),
+        var(--v2-soft-bg);
+}
+
+:host .tao-counter-actions {
+    display: contents;
+}
+
+:host .tao-counter-actions [data-tao-delta="-1"] {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+:host .tao-counter-actions [data-tao-delta="1"] {
+    grid-column: 4;
+    grid-row: 1;
+}
+
+:host .tao-counter-actions [data-tao-reset] {
+    display: none;
+}
+
+:host button {
+    min-width: 0;
+    min-height: 30px;
+    padding: 3px 6px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-surface-2);
+    font-size: .82rem;
+    font-weight: 900;
+}
+
+:host button:hover:not(:disabled),
+:host button.is-active {
+    border-color: rgba(91, 190, 176, .72);
+    color: var(--v2-teal);
+}
+
+:host button:disabled {
+    color: var(--v2-faint);
+    cursor: not-allowed;
+    opacity: .62;
+}
+
+:host .tao-harmony-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    align-items: center;
+    padding: 6px;
+    border: 1px solid rgba(91, 190, 176, .75);
+    border-radius: 8px;
+    background:
+        linear-gradient(135deg, rgba(91, 190, 176, .18), rgba(224, 180, 91, .14)),
+        var(--v2-soft-bg);
+    box-shadow: inset 0 0 0 1px rgba(91, 190, 176, .12);
+}
+
+:host .tao-harmony-row[hidden] {
+    display: none;
+}
+
+:host .tao-harmony-row > span {
+    color: var(--v2-teal);
+    font-size: .78rem;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+:host .tao-harmony-row button {
+    min-height: 32px;
+}
+
+@media screen and (max-width: 760px) {
+    :host .tao-passive-panel {
+        gap: 4px;
+    }
+
+    :host .tao-counter-grid,
+    :host .tao-harmony-row {
+        gap: 4px;
+    }
+
+    :host .tao-counter-card {
+        grid-template-columns: minmax(42px, 1fr) minmax(30px, auto) auto minmax(30px, auto);
+        gap: 4px;
+        padding: 5px;
+    }
+
+    :host .tao-counter-card > span {
+        font-size: .68rem;
+    }
+
+    :host .tao-counter-card > strong {
+        min-width: 44px;
+        min-height: 26px;
+        padding: 2px 6px;
+        font-size: .72rem;
+    }
+
+    :host button {
+        min-height: 24px;
+        padding: 2px 4px;
+        font-size: .72rem;
+    }
+
+    :host .tao-harmony-row {
+        padding: 4px;
+    }
+
+    :host .tao-harmony-row button {
+        min-height: 26px;
+    }
+}

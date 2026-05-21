@@ -8,6 +8,13 @@ from common.language import normalize_language, ui_text
 from tournament.models import Tournament
 
 from .models import BattleSession, LumenSimulatorSession
+from .presence import (
+    battle_presence_counts,
+    register_presence,
+    simulator_presence_counts,
+    touch_presence,
+    unregister_presence,
+)
 from .realtime import (
     battle_session_group,
     broadcast_battle_session,
@@ -17,12 +24,14 @@ from .realtime import (
 )
 from .services import (
     battle_session_queryset,
+    can_control_session,
     perform_session_action,
     serialize_session,
     serialize_tournament_battle_state,
 )
 from .simulator_services import (
     perform_simulator_action,
+    role_for_token,
     serialize_simulator_session,
     simulator_queryset,
 )
@@ -47,13 +56,22 @@ class BattleSessionConsumer(JsonWebsocketConsumer):
             self.close(code=4404)
             return
 
+        self.presence_role = (
+            'control'
+            if can_control_session(self.scope.get('user'), self.session, self.control_token)
+            else 'viewer'
+        )
+        register_presence('battle', self.view_token, self.presence_role, self.channel_name)
         async_to_sync(self.channel_layer.group_add)(self.group_name, self.channel_name)
         self.accept()
         self.send_state()
+        self.broadcast_presence()
 
     def disconnect(self, close_code):
         if hasattr(self, 'group_name'):
+            unregister_presence(self.channel_name)
             async_to_sync(self.channel_layer.group_discard)(self.group_name, self.channel_name)
+            self.broadcast_presence()
 
     def receive_json(self, content, **kwargs):
         message_type = content.get('type')
@@ -61,6 +79,10 @@ class BattleSessionConsumer(JsonWebsocketConsumer):
 
         if message_type == 'state':
             self.send_state(request_id=request_id)
+            return
+        if message_type == 'presence':
+            touch_presence(self.channel_name)
+            self.send_presence()
             return
 
         if message_type != 'action':
@@ -89,6 +111,18 @@ class BattleSessionConsumer(JsonWebsocketConsumer):
 
     def battle_changed(self, event):
         self.send_state()
+
+    def presence_changed(self, event):
+        self.send_presence()
+
+    def broadcast_presence(self):
+        async_to_sync(self.channel_layer.group_send)(self.group_name, {'type': 'presence.changed'})
+
+    def send_presence(self):
+        self.send_json({
+            'type': 'presence',
+            'presence': battle_presence_counts(self.view_token),
+        })
 
     def send_state(self, request_id=None):
         session = battle_session_queryset().get(view_token=self.view_token)
@@ -159,13 +193,19 @@ class LumenSimulatorConsumer(JsonWebsocketConsumer):
             self.close(code=4404)
             return
 
+        role = role_for_token(self.session, self.seat, self.seat_token)
+        self.presence_role = role if role in ('p1', 'p2') else 'viewer'
+        register_presence('simulator', self.view_token, self.presence_role, self.channel_name)
         async_to_sync(self.channel_layer.group_add)(self.group_name, self.channel_name)
         self.accept()
         self.send_state()
+        self.broadcast_presence()
 
     def disconnect(self, close_code):
         if hasattr(self, 'group_name'):
+            unregister_presence(self.channel_name)
             async_to_sync(self.channel_layer.group_discard)(self.group_name, self.channel_name)
+            self.broadcast_presence()
 
     def receive_json(self, content, **kwargs):
         message_type = content.get('type')
@@ -173,6 +213,10 @@ class LumenSimulatorConsumer(JsonWebsocketConsumer):
 
         if message_type == 'state':
             self.send_state(request_id=request_id)
+            return
+        if message_type == 'presence':
+            touch_presence(self.channel_name)
+            self.send_presence()
             return
 
         if message_type != 'action':
@@ -201,6 +245,18 @@ class LumenSimulatorConsumer(JsonWebsocketConsumer):
 
     def simulator_changed(self, event):
         self.send_state()
+
+    def presence_changed(self, event):
+        self.send_presence()
+
+    def broadcast_presence(self):
+        async_to_sync(self.channel_layer.group_send)(self.group_name, {'type': 'presence.changed'})
+
+    def send_presence(self):
+        self.send_json({
+            'type': 'presence',
+            'presence': simulator_presence_counts(self.view_token),
+        })
 
     def send_state(self, request_id=None):
         session = simulator_queryset().get(view_token=self.view_token)

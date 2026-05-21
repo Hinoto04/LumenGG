@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.contrib.staticfiles import finders
 from django.db import transaction
+from django.db.models import F
 from django.template import TemplateDoesNotExist
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -35,6 +36,7 @@ from .event_buffer import (
     record_battle_event,
 )
 from .models import BattleEvent, BattleSession, BattleSet
+from .presence import battle_presence_counts
 
 
 STANDALONE_SESSION_LIFETIME = timedelta(hours=1)
@@ -604,7 +606,19 @@ def _passive_ui_text_or_static(raw_ui, key, suffix):
     return value
 
 
-def _passive_ui(character, language=DEFAULT_LANGUAGE):
+def _first_passive_ui(datas, candidates):
+    for candidate in candidates:
+        if isinstance(candidate, tuple):
+            source, key = candidate
+            if isinstance(source, dict) and isinstance(source.get(key), dict):
+                return source.get(key)
+            continue
+        if isinstance(datas.get(candidate), dict):
+            return datas.get(candidate)
+    return None
+
+
+def _passive_ui(character, language=DEFAULT_LANGUAGE, context='battle'):
     if not character:
         return {}
     language = normalize_language(language)
@@ -612,17 +626,35 @@ def _passive_ui(character, language=DEFAULT_LANGUAGE):
     battle_calculator = datas.get('battle_calculator') if isinstance(datas.get('battle_calculator'), dict) else {}
     battle_calculator_camel = datas.get('battleCalculator') if isinstance(datas.get('battleCalculator'), dict) else {}
     battle = datas.get('battle') if isinstance(datas.get('battle'), dict) else {}
-    raw_ui = (
-        datas.get('simulator_passive_ui')
-        or datas.get('simulatorPassiveUi')
-        or datas.get('battle_passive_ui')
-        or datas.get('battlePassiveUi')
-        or datas.get('passive_ui')
-        or datas.get('passiveUi')
-        or battle_calculator.get('passive_ui')
-        or battle_calculator_camel.get('passiveUi')
-        or battle.get('passive_ui')
-    )
+    simulator = datas.get('simulator') if isinstance(datas.get('simulator'), dict) else {}
+    if context == 'simulator':
+        raw_ui = _first_passive_ui(datas, (
+            'simulator_passive_ui',
+            'simulatorPassiveUi',
+            (simulator, 'passive_ui'),
+            (simulator, 'passiveUi'),
+            'passive_ui',
+            'passiveUi',
+            'battle_passive_ui',
+            'battlePassiveUi',
+            (battle_calculator, 'passive_ui'),
+            (battle_calculator_camel, 'passiveUi'),
+            (battle, 'passive_ui'),
+        ))
+    else:
+        raw_ui = _first_passive_ui(datas, (
+            'battle_passive_ui',
+            'battlePassiveUi',
+            (battle_calculator, 'passive_ui'),
+            (battle_calculator_camel, 'passiveUi'),
+            (battle, 'passive_ui'),
+            'passive_ui',
+            'passiveUi',
+            'simulator_passive_ui',
+            'simulatorPassiveUi',
+            (simulator, 'passive_ui'),
+            (simulator, 'passiveUi'),
+        ))
     if not isinstance(raw_ui, dict):
         return {}
     options = raw_ui.get('options', {})
@@ -724,6 +756,8 @@ def serialize_session(session, user=None, control_token='', include_events=True,
 
     data = {
         'id': session.id,
+        'version': session.version,
+        'presence': battle_presence_counts(session.view_token),
         'type': session.session_type,
         'is_expired': session_is_expired(session),
         'can_control': can_control,
@@ -1411,6 +1445,10 @@ def perform_session_action(session, body, user=None, control_token=''):
     else:
         raise ValueError('알 수 없는 요청입니다.')
 
+    BattleSession.objects.filter(id=session.id).update(
+        version=F('version') + 1,
+        updated_at=timezone.now(),
+    )
     return battle_session_queryset().get(id=session.id)
 
 

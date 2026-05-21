@@ -1,0 +1,35 @@
+{% load language_tags %}
+<section
+    class="tao-passive-panel"
+    data-tao-panel
+    data-label-yang="{% tr "양" %}"
+    data-label-yin="{% tr "음" %}"
+    data-label-harmony="{% tr "조화" %}"
+    data-label-harmony-effect="{% tr "조화 효과" %}"
+>
+    <div class="tao-counter-grid">
+        <div class="tao-counter-card" data-tao-card="yang">
+            <span>{% tr "양" %}</span>
+            <strong data-tao-value="yang">0</strong>
+            <div class="tao-counter-actions">
+                <button type="button" data-tao-counter="yang" data-tao-delta="-1">-</button>
+                <button type="button" data-tao-counter="yang" data-tao-delta="1">+</button>
+                <button type="button" data-tao-counter="yang" data-tao-reset>0</button>
+            </div>
+        </div>
+        <div class="tao-counter-card" data-tao-card="yin">
+            <span>{% tr "음" %}</span>
+            <strong data-tao-value="yin">0</strong>
+            <div class="tao-counter-actions">
+                <button type="button" data-tao-counter="yin" data-tao-delta="-1">-</button>
+                <button type="button" data-tao-counter="yin" data-tao-delta="1">+</button>
+                <button type="button" data-tao-counter="yin" data-tao-reset>0</button>
+            </div>
+        </div>
+    </div>
+    <div class="tao-harmony-row" data-tao-harmony-row hidden>
+        <span>{% tr "조화" %}</span>
+        <button type="button" data-tao-effect="damage_100">+100DMG</button>
+        <button type="button" data-tao-effect="fp_1">+1FP</button>
+    </div>
+</section>

@@ -15,12 +15,15 @@
             <h1 class="v2-title">{{ session.player1_name }} vs {{ session.player2_name }}</h1>
             <p class="v2-subtitle" data-sim-role></p>
         </div>
-        <div class="v2-sim-share">
-            <button class="v2-button" type="button" data-copy-link="{{ view_url }}">{% tr "관전 링크" %}</button>
-            {% if state.role == "p1" %}
-            <button class="v2-button" type="button" data-copy-link="{{ player1_url }}">{% tr "P1 링크" %}</button>
-            <button class="v2-button" type="button" data-copy-link="{{ player2_url }}">{% tr "P2 링크" %}</button>
-            {% endif %}
+        <div class="v2-sim-share-panel">
+            <div class="v2-sim-share">
+                <button class="v2-button" type="button" data-copy-link="{{ view_url }}">{% tr "관전 링크" %}</button>
+                {% if state.role == "p1" %}
+                <button class="v2-button" type="button" data-copy-link="{{ player1_url }}">{% tr "P1 링크" %}</button>
+                <button class="v2-button" type="button" data-copy-link="{{ player2_url }}">{% tr "P2 링크" %}</button>
+                {% endif %}
+            </div>
+            <div class="v2-sim-presence" data-sim-presence></div>
         </div>
     </div>
 

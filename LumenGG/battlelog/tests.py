@@ -10,8 +10,9 @@ from card.models import Card, Character
 from deck.models import CardInDeck, Deck
 from tournament.models import Tournament, TournamentDeckSubmission, TournamentMatch, TournamentParticipant, TournamentRound
 
-from .models import BattleEvent, BattleSession, LumenSimulatorSession
+from .models import BattleEvent, BattleSession, LumenSimulatorSession, RealtimePresence
 from .event_buffer import flush_session_events
+from .presence import battle_presence_counts, register_presence, simulator_presence_counts, unregister_presence
 from .services import cleanup_expired_sessions, get_or_create_tournament_session
 from .simulator_services import create_simulator_session, serialize_simulator_session
 
@@ -270,6 +271,19 @@ class BattleCalculatorTests(TestCase):
 
         self.assertFalse(BattleSession.objects.filter(view_token='expired').exists())
         self.assertTrue(BattleSession.objects.filter(view_token='active').exists())
+
+    def test_realtime_presence_counts_by_link_role(self):
+        register_presence(RealtimePresence.SCOPE_BATTLE, 'battle-presence', 'control', 'battle-control')
+        register_presence(RealtimePresence.SCOPE_BATTLE, 'battle-presence', 'viewer', 'battle-viewer')
+        register_presence(RealtimePresence.SCOPE_SIMULATOR, 'sim-presence', 'p1', 'sim-p1')
+        register_presence(RealtimePresence.SCOPE_SIMULATOR, 'sim-presence', 'p2', 'sim-p2')
+        register_presence(RealtimePresence.SCOPE_SIMULATOR, 'sim-presence', 'viewer', 'sim-viewer')
+
+        self.assertEqual(battle_presence_counts('battle-presence'), {'control': 1, 'viewer': 1})
+        self.assertEqual(simulator_presence_counts('sim-presence'), {'p1': 1, 'p2': 1, 'viewer': 1})
+
+        unregister_presence('battle-control')
+        self.assertEqual(battle_presence_counts('battle-presence'), {'control': 0, 'viewer': 1})
 
 
 class LumenSimulatorTests(TestCase):
@@ -659,6 +673,62 @@ class LumenSimulatorTests(TestCase):
             if card['instance_id'] == list_card['instance_id']
         ][0]
         self.assertTrue(viewer_card['hidden'])
+
+    def test_shuffle_hand_reorders_hand_and_replays_with_undo(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+
+        for source_zone in ('list', 'side'):
+            card = session.document['state']['players']['p1']['zones'][source_zone][0]
+            response = self.post_json(action_url, {
+                'action': 'move_card',
+                'seat': 'p1',
+                'seat_token': session.player1_token,
+                'payload': {
+                    'card_instance_id': card['instance_id'],
+                    'to_player': 'p1',
+                    'to_zone': 'hand',
+                },
+            })
+            self.assertEqual(response.status_code, 200)
+            session.refresh_from_db()
+
+        before_order = [
+            card['instance_id']
+            for card in session.document['state']['players']['p1']['zones']['hand']
+        ]
+        shuffled_order = list(reversed(before_order))
+
+        response = self.post_json(action_url, {
+            'action': 'shuffle_hand',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'player': 'p1',
+                'order': shuffled_order,
+            },
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(
+            [card['instance_id'] for card in session.document['state']['players']['p1']['zones']['hand']],
+            shuffled_order,
+        )
+        self.assertEqual(session.document['events'][-1]['payload']['order'], shuffled_order)
+
+        response = self.post_json(action_url, {
+            'action': 'undo',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(
+            [card['instance_id'] for card in session.document['state']['players']['p1']['zones']['hand']],
+            before_order,
+        )
 
     def test_cleanup_removes_expired_simulator_sessions(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)

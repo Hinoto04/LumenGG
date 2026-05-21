@@ -59,6 +59,7 @@ class BattleSession(models.Model):
     sudden_death = models.BooleanField(default=False)
     sudden_death_turns_remaining = models.PositiveSmallIntegerField(default=0)
     round_extra_seconds = models.PositiveIntegerField(default=0)
+    version = models.PositiveIntegerField(default=1)
     expires_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -216,3 +217,28 @@ class LumenSimulatorSession(models.Model):
 
     def __str__(self):
         return f'시뮬레이터 #{self.id}: {self.player1_name} vs {self.player2_name}'
+
+
+class RealtimePresence(models.Model):
+    SCOPE_BATTLE = 'battle'
+    SCOPE_SIMULATOR = 'simulator'
+    SCOPE_CHOICES = [
+        (SCOPE_BATTLE, '계산기'),
+        (SCOPE_SIMULATOR, '시뮬레이터'),
+    ]
+
+    scope = models.CharField(max_length=16, choices=SCOPE_CHOICES)
+    view_token = models.CharField(max_length=64, db_index=True)
+    role = models.CharField(max_length=16)
+    channel_name = models.CharField(max_length=255, unique=True)
+    connected_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['scope', 'view_token', 'role']),
+            models.Index(fields=['last_seen_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.scope}:{self.view_token}:{self.role}'

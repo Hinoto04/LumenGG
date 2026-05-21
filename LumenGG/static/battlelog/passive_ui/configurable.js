@@ -58,6 +58,16 @@ function createStatus(text, active) {
     return status;
 }
 
+function createValueButton(text, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "config-passive-value";
+    button.textContent = text;
+    button.disabled = !api.canControl;
+    button.addEventListener("click", onClick);
+    return button;
+}
+
 function renderTitle() {
     if (!options.title && !options.description) return;
     const titleBox = document.createElement("div");
@@ -106,6 +116,12 @@ function counterHighlightClass(control, value) {
 
 function conditionMet(condition, overrideKey = null, overrideValue = null) {
     if (!condition) return false;
+    if (condition.type === "keyActive") {
+        return isActive(valueForCondition(condition.key, overrideKey, overrideValue));
+    }
+    if (condition.type === "keyEquals") {
+        return valueForCondition(condition.key, overrideKey, overrideValue) === condition.value;
+    }
     if (condition.type === "hpAtMost") {
         return asNumber(api.player.hp) <= asNumber(condition.value);
     }
@@ -119,6 +135,14 @@ function conditionMet(condition, overrideKey = null, overrideValue = null) {
         return asNumber(valueForCondition(condition.key, overrideKey, overrideValue)) >= asNumber(condition.value);
     }
     return false;
+}
+
+function controlVisible(control) {
+    return !control.visibleWhen || conditionMet(control.visibleWhen);
+}
+
+function controlEnabled(control) {
+    return !control.enableWhen || conditionMet(control.enableWhen);
 }
 
 function applyLatchedStatusUpdates(changedKey, changedValue) {
@@ -153,28 +177,27 @@ function renderCounter(control) {
     controls.className = "config-passive-controls";
     const minus = createButton("-", () => setCounterValue(control, Math.max(0, value - 1), control.label));
     minus.disabled = !api.canControl || value <= 0;
-    const display = document.createElement("span");
-    display.className = "config-passive-value";
-    display.textContent = max === null ? `${value}${control.unit || ""}` : `${value}/${max}${control.unit || ""}`;
+    const display = createValueButton(
+        max === null ? `${value}${control.unit || ""}` : `${value}/${max}${control.unit || ""}`,
+        () => setCounterValue(control, 0, control.resetLabel || control.label),
+    );
+    display.disabled = !api.canControl || value <= 0;
+    if (control.reset) {
+        display.title = control.resetText ? `${control.resetText}` : "0";
+    }
     const plus = createButton("+", () => {
         const nextValue = max === null ? value + 1 : Math.min(max, value + 1);
         setCounterValue(control, nextValue, control.label);
     });
     plus.disabled = !api.canControl || (max !== null && value >= max);
     controls.append(minus, display, plus);
-    if (control.reset) {
-        const reset = createButton(control.resetText || "0", () => {
-            setCounterValue(control, 0, control.resetLabel || control.label);
-        }, "is-danger");
-        reset.disabled = !api.canControl || value <= 0;
-        controls.appendChild(reset);
-    }
     row.appendChild(controls);
     panel.appendChild(row);
 }
 
 function renderChoice(control) {
     const value = getValue(control.key, control.default || "");
+    const enabled = controlEnabled(control);
     const row = document.createElement("div");
     row.className = "config-passive-row";
     row.appendChild(createLabel(control));
@@ -186,6 +209,7 @@ function renderChoice(control) {
         const choiceLabel = typeof choice === "string" ? choice : choice.label;
         const active = value === choiceValue;
         const button = createButton(choiceLabel, () => api.set(control.key, choiceValue, control.label), active ? "is-active" : "");
+        button.disabled = !api.canControl || !enabled;
         choices.appendChild(button);
     });
     row.appendChild(choices);
@@ -239,6 +263,7 @@ function renderThresholdAction(control) {
 }
 
 function renderControl(control) {
+    if (!controlVisible(control)) return;
     if (control.type === "toggle") renderToggle(control);
     else if (control.type === "counter") renderCounter(control);
     else if (control.type === "choice") renderChoice(control);

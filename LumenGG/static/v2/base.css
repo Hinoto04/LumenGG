@@ -3979,6 +3979,33 @@ label:has(> input.검색체크:checked) {
     display: none;
 }
 
+.v2-battle-presence {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+}
+
+.v2-battle-share-modal .v2-battle-presence {
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, .06);
+}
+
+.v2-battle-presence span {
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid var(--v2-line);
+    border-radius: 999px;
+    color: var(--v2-muted);
+    background: rgba(255, 255, 255, .04);
+    font-size: .75rem;
+    font-weight: 800;
+}
+
+.v2-battle-presence strong {
+    color: var(--v2-text);
+}
+
 .v2-battle-mode .v2-header,
 .v2-battle-mode .v2-footer,
 .v2-battle-mode .v2-page-head {

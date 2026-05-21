@@ -219,15 +219,42 @@
         };
     }
 
-    function updateEnvelope(nextEnvelope) {
+    function envelopeVersion(source) {
+        const version = Number(source && source.version);
+        return Number.isFinite(version) ? version : 0;
+    }
+
+    function bumpLocalVersion() {
+        envelope.version = envelopeVersion(envelope) + 1;
+    }
+
+    function updateEnvelope(nextEnvelope, options) {
+        const incomingVersion = envelopeVersion(nextEnvelope);
+        const currentVersion = envelopeVersion(envelope);
+        if (!(options && options.force) && incomingVersion && currentVersion && incomingVersion <= currentVersion) {
+            return envelope;
+        }
         envelope = nextEnvelope || envelope;
         state = envelope.state || {};
         events = Array.isArray(envelope.events) ? envelope.events : [];
         render();
+        return envelope;
     }
 
     function cloneData(value) {
         return JSON.parse(JSON.stringify(value));
+    }
+
+    function shuffledOrder(cards) {
+        const order = (cards || []).map((card) => String(card.instance_id));
+        for (let index = order.length - 1; index > 0; index -= 1) {
+            const nextIndex = Math.floor(Math.random() * (index + 1));
+            [order[index], order[nextIndex]] = [order[nextIndex], order[index]];
+        }
+        if (order.length > 1 && order.every((instanceId, index) => instanceId === String(cards[index].instance_id))) {
+            order.push(order.shift());
+        }
+        return order;
     }
 
     function findCardLocation(localState, instanceId) {
@@ -314,6 +341,21 @@
                 state.players[owner].zones[toZone].push(card);
             });
             localPayload.count = cards.length;
+            appendOptimisticEvent(action, localPayload);
+            return true;
+        }
+
+        if (action === "shuffle_hand") {
+            const playerSide = String(localPayload.player || "");
+            const player = state.players[playerSide];
+            const hand = player && player.zones ? player.zones.hand || [] : [];
+            const order = Array.isArray(localPayload.order) ? localPayload.order.map(String) : [];
+            if (!player || order.length !== hand.length) return false;
+            const cardsById = new Map(hand.map((card) => [String(card.instance_id), card]));
+            if (cardsById.size !== hand.length || order.some((instanceId) => !cardsById.has(instanceId))) return false;
+            player.zones.hand = order.map((instanceId) => cardsById.get(instanceId));
+            localPayload.order = order;
+            localPayload.count = order.length;
             appendOptimisticEvent(action, localPayload);
             return true;
         }
@@ -452,6 +494,7 @@
         return [
             "move_card",
             "bulk_move",
+            "shuffle_hand",
             "set_phase",
             "next_turn",
             "request_action",
@@ -525,10 +568,16 @@
         let optimisticApplied = false;
         if (rollbackEnvelope) {
             optimisticApplied = applyOptimisticAction(action, cloneData(actionPayload));
-            if (optimisticApplied) render();
+            if (optimisticApplied) {
+                bumpLocalVersion();
+                render();
+            }
         }
         return postSocketAction(action, actionPayload).catch((error) => {
-            if (optimisticApplied && rollbackEnvelope) updateEnvelope(rollbackEnvelope);
+            if (optimisticApplied && rollbackEnvelope) {
+                updateEnvelope(rollbackEnvelope, { force: true });
+                fetchState();
+            }
             window.alert(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
             return null;
         });
@@ -710,6 +759,7 @@
         if (hasPassiveControls(options)) {
             renderNativePassiveControls(side, controlsNode, options, passiveState, player);
         } else if (hasCustomPanel) {
+            controlsNode.classList.add("has-custom-passive");
             renderCustomPassiveUi(side, controlsNode, passiveUi);
         } else if (rows) {
             const listNode = document.createElement("div");
@@ -760,9 +810,15 @@
                     <div class="v2-sim-passive-native is-counter">
                         <span>${escapeHtml(label)}</span>
                         ${passiveSetButton(side, control.key, minus, label, "-", current <= 0 ? "is-disabled" : "")}
-                        <strong>${escapeHtml(max === null ? `${current}${control.unit || ""}` : `${current}/${max}${control.unit || ""}`)}</strong>
+                        ${passiveSetButton(
+                            side,
+                            control.key,
+                            0,
+                            control.resetLabel || label,
+                            max === null ? `${current}${control.unit || ""}` : `${current}/${max}${control.unit || ""}`,
+                            current <= 0 ? "is-value is-disabled" : "is-value",
+                        )}
                         ${passiveSetButton(side, control.key, plus, label, "+", max !== null && current >= max ? "is-disabled" : "")}
-                        ${control.reset ? passiveSetButton(side, control.key, 0, control.resetLabel || label, control.resetText || "0", "is-danger") : ""}
                     </div>
                 `);
             } else if (control.type === "toggle") {
@@ -908,17 +964,22 @@
             zoneNode.className = `v2-sim-zone v2-sim-zone-${zone}`;
             zoneNode.dataset.dropZone = zone;
             zoneNode.dataset.dropPlayer = side;
-            const bulk = zone === "battle" && canControl()
-                ? `<div class="v2-sim-zone-actions">
-                    <button type="button" data-bulk-player="${side}" data-bulk-target="list">${t("리스트")}</button>
-                    <button type="button" data-bulk-player="${side}" data-bulk-target="hand">${t("손패")}</button>
-                </div>`
+            const actions = [];
+            if (zone === "battle" && canControl()) {
+                actions.push(`<button type="button" data-bulk-player="${side}" data-bulk-target="list">${t("리스트")}</button>`);
+                actions.push(`<button type="button" data-bulk-player="${side}" data-bulk-target="hand">${t("손패")}</button>`);
+            }
+            if (zone === "hand" && canControl()) {
+                actions.push(`<button type="button" data-shuffle-hand-player="${side}">${t("셔플")}</button>`);
+            }
+            const zoneActions = actions.length
+                ? `<div class="v2-sim-zone-actions">${actions.join("")}</div>`
                 : "";
             zoneNode.innerHTML = `
                 <header>
                     <strong>${zone === "ultimate" ? "ULTIMATE" : zoneLabel(zone)}</strong>
                     ${zone === "ultimate" ? "" : `<span>${cards.length}</span>`}
-                    ${bulk}
+                    ${zoneActions}
                 </header>
                 <div class="v2-sim-card-grid">
                     ${cards.map((card) => renderCard(card)).join("")}
@@ -1022,6 +1083,7 @@
         if (event.type === "bulk_move") {
             return `${actor} ${playerLabel(payload.player)} ${zoneLabel("battle")} ${payload.count || 0}${t("장")} → ${zoneLabel(payload.to_zone)}`;
         }
+        if (event.type === "shuffle_hand") return `${playerLabel(payload.player)} ${zoneLabel("hand")} ${t("셔플")}`;
         if (event.type === "set_phase") return `${phaseLabel(payload.phase)} ${t("Phase")}`;
         if (event.type === "import_card") return `${actor} ${payload.card_label || payload.card_name || t("카드")} → ${zoneLabel("lumen")}`;
         if (event.type === "next_turn") return t("다음 턴");
@@ -1047,6 +1109,7 @@
         if (["set_phase", "next_turn"].includes(event.type)) return "";
         if (["request_action", "set_done", "hp", "fp", "fp_reset", "passive", "timer_timeout"].includes(event.type)) return payload.target || payload.owner || "";
         if (event.type === "bulk_move") return payload.player || "";
+        if (event.type === "shuffle_hand") return payload.player || "";
         if (event.type === "import_card") return payload.target || event.actor || "";
         if (event.type === "set_visibility") return payload.owner || event.actor || "";
         if (event.type === "move_card") return payload.owner || event.actor || payload.to_player || payload.from_player || "";
@@ -1229,6 +1292,7 @@
     function render() {
         const role = document.querySelector("[data-sim-role]");
         if (role) role.textContent = roleText();
+        renderPresence();
         renderPhase();
         renderStatus();
         renderTimer();
@@ -1246,6 +1310,7 @@
             "[data-counter-kind]",
             "[data-fp-reset]",
             "[data-bulk-player]",
+            "[data-shuffle-hand-player]",
             "[data-visibility-card]",
             "[data-sim-action='import_card']",
         ].join(", ")).forEach((button) => {
@@ -1259,6 +1324,17 @@
         });
         attachDragAndDrop();
         updateQueuedCounters();
+    }
+
+    function renderPresence() {
+        const holder = document.querySelector("[data-sim-presence]");
+        if (!holder) return;
+        const presence = envelope.presence || {};
+        holder.innerHTML = `
+            <span>P1 <strong>${Number(presence.p1 || 0)}</strong></span>
+            <span>P2 <strong>${Number(presence.p2 || 0)}</strong></span>
+            <span>${t("관전")} <strong>${Number(presence.viewer || 0)}</strong></span>
+        `;
     }
 
     function passivePayload(side, delta) {
@@ -1352,6 +1428,17 @@
                 player: button.dataset.bulkPlayer,
                 from_zone: "battle",
                 to_zone: button.dataset.bulkTarget,
+            });
+            return;
+        }
+        if (button.dataset.shuffleHandPlayer) {
+            const side = button.dataset.shuffleHandPlayer;
+            const player = state.players && state.players[side];
+            const cards = player && player.zones ? player.zones.hand || [] : [];
+            if (cards.length <= 1) return;
+            postAction("shuffle_hand", {
+                player: side,
+                order: shuffledOrder(cards),
             });
             return;
         }
@@ -1568,6 +1655,11 @@
                 updateEnvelope(message.state);
                 return;
             }
+            if (message.type === "presence" && message.presence) {
+                envelope.presence = message.presence;
+                renderPresence();
+                return;
+            }
             if (message.type === "action_ack" || message.type === "error") resolveSocketAction(message);
         });
         socket.addEventListener("close", () => {
@@ -1588,5 +1680,10 @@
 
     render();
     connectSocket();
+    window.setInterval(() => {
+        if (socketReady && socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "presence" }));
+        }
+    }, 30000);
     window.setInterval(renderTimer, 1000);
 })();
