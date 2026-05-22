@@ -198,12 +198,32 @@
     background-image: var(--sim-character-bg);
     background-position: right 10px top 2px;
     background-repeat: no-repeat;
-    background-size: min(36%, 260px);
-    opacity: .12;
+    background-size: auto clamp(360px, 66vh, 520px);
+    opacity: .14;
     pointer-events: none;
 }
 
+.v2-sim-p1 .v2-sim-player::before {
+    background-position: left 10px top 2px;
+}
+
+.v2-sim-board-left .v2-sim-player::before {
+    background-position: right 10px top 2px;
+}
+
+.v2-sim-board-right .v2-sim-player::before {
+    background-position: left 10px top 2px;
+}
+
 .v2-sim-player.is-action-requested::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.v2-sim-player.is-action-done::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -219,6 +239,46 @@
     background: linear-gradient(270deg, rgba(224, 180, 91, .26), rgba(224, 180, 91, .08) 36%, transparent 72%);
 }
 
+.v2-sim-player.is-own-done::after {
+    background: linear-gradient(90deg, rgba(74, 144, 226, .28), rgba(74, 144, 226, .09) 38%, transparent 74%);
+}
+
+.v2-sim-player.is-opponent-done::after {
+    background: linear-gradient(270deg, rgba(74, 144, 226, .28), rgba(74, 144, 226, .09) 38%, transparent 74%);
+}
+
+.v2-sim-p2 .v2-sim-player.is-action-requested::after {
+    background: linear-gradient(90deg, rgba(224, 180, 91, .38), rgba(224, 180, 91, .12) 34%, transparent 72%);
+}
+
+.v2-sim-p1 .v2-sim-player.is-action-requested::after {
+    background: linear-gradient(270deg, rgba(224, 180, 91, .38), rgba(224, 180, 91, .12) 34%, transparent 72%);
+}
+
+.v2-sim-p2 .v2-sim-player.is-action-done::after {
+    background: linear-gradient(90deg, rgba(74, 144, 226, .38), rgba(74, 144, 226, .12) 34%, transparent 72%);
+}
+
+.v2-sim-p1 .v2-sim-player.is-action-done::after {
+    background: linear-gradient(270deg, rgba(74, 144, 226, .38), rgba(74, 144, 226, .12) 34%, transparent 72%);
+}
+
+.v2-sim-board-left .v2-sim-player.is-action-requested::after {
+    background: linear-gradient(90deg, rgba(224, 180, 91, .38), rgba(224, 180, 91, .12) 34%, transparent 72%);
+}
+
+.v2-sim-board-right .v2-sim-player.is-action-requested::after {
+    background: linear-gradient(270deg, rgba(224, 180, 91, .38), rgba(224, 180, 91, .12) 34%, transparent 72%);
+}
+
+.v2-sim-board-left .v2-sim-player.is-action-done::after {
+    background: linear-gradient(90deg, rgba(74, 144, 226, .38), rgba(74, 144, 226, .12) 34%, transparent 72%);
+}
+
+.v2-sim-board-right .v2-sim-player.is-action-done::after {
+    background: linear-gradient(270deg, rgba(74, 144, 226, .38), rgba(74, 144, 226, .12) 34%, transparent 72%);
+}
+
 .v2-sim-player > * {
     position: relative;
     z-index: 1;
@@ -229,7 +289,7 @@
     grid-template-columns: minmax(120px, .75fr) minmax(260px, 1.65fr);
     gap: 10px;
     align-items: start;
-    min-height: 50px;
+    min-height: 84px;
     padding: 10px 12px 6px;
     border-bottom: 1px solid var(--v2-line);
 }
@@ -241,6 +301,78 @@
     font-weight: 900;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.v2-sim-p1 .v2-sim-player-head {
+    grid-template-columns: minmax(260px, 1.65fr) minmax(120px, .75fr);
+}
+
+.v2-sim-p1 .v2-sim-player-head > div:first-child {
+    grid-column: 2;
+    text-align: right;
+}
+
+.v2-sim-p1 .v2-sim-player-head > .v2-sim-passive {
+    grid-column: 1;
+    grid-row: 1;
+    justify-content: flex-start;
+}
+
+.v2-sim-p1 .v2-sim-passive-controls {
+    order: 2;
+    justify-content: flex-start;
+}
+
+.v2-sim-p1 .v2-sim-passive-cards {
+    order: 1;
+}
+
+.v2-sim-board-left .v2-sim-player-head {
+    grid-template-columns: minmax(120px, .75fr) minmax(260px, 1.65fr);
+}
+
+.v2-sim-board-left .v2-sim-player-head > div:first-child {
+    grid-column: auto;
+    text-align: left;
+}
+
+.v2-sim-board-left .v2-sim-player-head > .v2-sim-passive {
+    grid-column: auto;
+    grid-row: auto;
+    justify-content: flex-end;
+}
+
+.v2-sim-board-left .v2-sim-passive-controls {
+    order: 0;
+    justify-content: flex-end;
+}
+
+.v2-sim-board-left .v2-sim-passive-cards {
+    order: 0;
+}
+
+.v2-sim-board-right .v2-sim-player-head {
+    grid-template-columns: minmax(260px, 1.65fr) minmax(120px, .75fr);
+}
+
+.v2-sim-board-right .v2-sim-player-head > div:first-child {
+    grid-column: 2;
+    text-align: right;
+}
+
+.v2-sim-board-right .v2-sim-player-head > .v2-sim-passive {
+    grid-column: 1;
+    grid-row: 1;
+    justify-content: flex-start;
+}
+
+.v2-sim-board-right .v2-sim-passive-controls {
+    order: 2;
+    justify-content: flex-start;
+}
+
+.v2-sim-board-right .v2-sim-passive-cards {
+    order: 1;
 }
 
 .v2-sim-life {
@@ -317,10 +449,12 @@
 
 .v2-sim-passive {
     display: flex;
-    overflow: visible;
+    overflow: hidden;
     align-items: flex-start;
     justify-content: flex-end;
     gap: 6px;
+    min-height: 74px;
+    max-height: 74px;
     min-width: 0;
 }
 
@@ -337,27 +471,29 @@
     flex: 1 1 auto;
     flex-wrap: wrap;
     justify-content: flex-end;
-    max-height: 68px;
+    max-height: 74px;
     min-width: 0;
     padding-bottom: 2px;
 }
 
 .v2-sim-passive-controls.has-custom-passive {
-    overflow: visible;
+    overflow-x: auto;
+    overflow-y: auto;
     flex-wrap: nowrap;
-    max-height: none;
+    max-height: 74px;
 }
 
 .v2-sim-passive-cards {
     flex: 0 0 auto;
     align-items: flex-start;
-    max-width: 150px;
+    max-width: 180px;
+    max-height: 74px;
 }
 
 .v2-sim-passive-card {
-    flex: 0 0 40px;
-    width: 40px;
-    height: 56px;
+    flex: 0 0 48px;
+    width: 48px;
+    height: 68px;
     padding: 0;
     border: 1px solid rgba(91, 190, 176, .45);
     border-radius: 6px;
@@ -385,6 +521,8 @@
 
 .v2-sim-passive-custom {
     max-width: min(520px, 100%);
+    max-height: 74px;
+    overflow-y: auto;
     align-items: center;
 }
 
@@ -512,6 +650,18 @@
 
 .v2-sim-zone-row-top {
     grid-template-columns: 112px minmax(0, 1fr);
+}
+
+.v2-sim-p1 .v2-sim-zone-row-top {
+    grid-template-columns: minmax(0, 1fr) 112px;
+}
+
+.v2-sim-board-left .v2-sim-zone-row-top {
+    grid-template-columns: 112px minmax(0, 1fr);
+}
+
+.v2-sim-board-right .v2-sim-zone-row-top {
+    grid-template-columns: minmax(0, 1fr) 112px;
 }
 
 .v2-sim-zone-row-bottom {
@@ -712,6 +862,34 @@
     background: var(--v2-surface);
     font: inherit;
     font-weight: 900;
+    transition: transform .18s ease, border-color .16s ease, color .16s ease;
+}
+
+.v2-sim-log-fab.is-log-open {
+    z-index: 95;
+    transform: translateX(calc(-1 * min(440px, 100vw - 76px)));
+    border-color: rgba(91, 190, 176, .62);
+    color: var(--v2-teal);
+}
+
+.v2-sim-shortcut-fab {
+    position: fixed;
+    left: 18px;
+    bottom: 18px;
+    z-index: 80;
+    min-height: 42px;
+    padding: 8px 14px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-text);
+    background: var(--v2-surface);
+    font: inherit;
+    font-weight: 900;
+}
+
+.v2-sim-shortcut-fab:hover {
+    border-color: rgba(224, 180, 91, .62);
+    color: var(--v2-accent);
 }
 
 .v2-sim-log-drawer {
@@ -833,6 +1011,17 @@
     border-color: rgba(91, 190, 176, .42);
 }
 
+.v2-sim-log-row.has-card-link {
+    cursor: pointer;
+}
+
+.v2-sim-log-row.has-card-link:hover,
+.v2-sim-log-row.has-card-link:focus {
+    border-color: var(--v2-accent);
+    outline: none;
+    background: rgba(224, 180, 91, .08);
+}
+
 .v2-sim-card-detail {
     overflow-y: auto;
     padding: 16px;
@@ -848,6 +1037,20 @@
 .v2-sim-card-detail h2 {
     margin: 0 0 12px;
     font-size: 1.2rem;
+    font-weight: 900;
+}
+
+.v2-sim-card-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 12px;
+}
+
+.v2-sim-card-detail-actions .v2-button {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: .84rem;
     font-weight: 900;
 }
 
@@ -902,6 +1105,59 @@
     pointer-events: none;
 }
 
+.v2-sim-shortcut-modal[hidden] {
+    display: none;
+}
+
+.v2-sim-shortcut-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 160;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+}
+
+.v2-sim-shortcut-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, .56);
+}
+
+.v2-sim-shortcut-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(520px, 100%);
+    max-height: min(720px, calc(100vh - 36px));
+    overflow: hidden;
+}
+
+.v2-sim-shortcut-grid {
+    display: grid;
+    grid-template-columns: minmax(96px, auto) minmax(0, 1fr);
+    gap: 8px 12px;
+    padding: 14px;
+}
+
+.v2-sim-shortcut-grid span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 4px 8px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-accent);
+    background: var(--v2-soft-bg);
+    font-weight: 900;
+}
+
+.v2-sim-shortcut-grid strong {
+    align-self: center;
+    color: var(--v2-text);
+    font-size: .9rem;
+}
+
 .v2-sim-card-tooltip.is-visible {
     display: block;
 }
@@ -927,13 +1183,38 @@
         grid-template-columns: 1fr;
     }
 
+    .v2-sim-p1 .v2-sim-player-head {
+        grid-template-columns: 1fr;
+    }
+
+    .v2-sim-p1 .v2-sim-player-head > div:first-child,
+    .v2-sim-p1 .v2-sim-player-head > .v2-sim-passive {
+        grid-column: auto;
+        grid-row: auto;
+        text-align: left;
+    }
+
+    .v2-sim-board-left .v2-sim-player-head,
+    .v2-sim-board-right .v2-sim-player-head {
+        grid-template-columns: 1fr;
+    }
+
+    .v2-sim-board-left .v2-sim-player-head > div:first-child,
+    .v2-sim-board-left .v2-sim-player-head > .v2-sim-passive,
+    .v2-sim-board-right .v2-sim-player-head > div:first-child,
+    .v2-sim-board-right .v2-sim-player-head > .v2-sim-passive {
+        grid-column: auto;
+        grid-row: auto;
+        text-align: left;
+    }
+
     .v2-sim-passive {
         justify-content: flex-start;
     }
 
     .v2-sim-passive-controls {
         justify-content: flex-start;
-        max-height: none;
+        max-height: 74px;
     }
 
     .v2-sim-player {
@@ -952,5 +1233,17 @@
 
     .v2-sim-zone-row-top {
         grid-template-columns: 96px minmax(0, 1fr);
+    }
+
+    .v2-sim-p1 .v2-sim-zone-row-top {
+        grid-template-columns: minmax(0, 1fr) 96px;
+    }
+
+    .v2-sim-board-left .v2-sim-zone-row-top {
+        grid-template-columns: 96px minmax(0, 1fr);
+    }
+
+    .v2-sim-board-right .v2-sim-zone-row-top {
+        grid-template-columns: minmax(0, 1fr) 96px;
     }
 }

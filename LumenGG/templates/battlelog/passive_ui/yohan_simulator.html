@@ -1,0 +1,32 @@
+{% load language_tags %}
+<section
+    class="character-passive-panel yohan-passive-panel"
+    data-yohan-panel
+    data-label-foresight-counter="{% tr "예지 카운터" %}"
+    data-label-disaster-one="{% tr "디제스터 원" %}"
+>
+    <div class="yohan-passive-top">
+        <div class="character-passive-row is-counter">
+            <span>{% tr "예지" %}</span>
+            <div class="character-passive-counter-actions">
+                <button type="button" data-yohan-foresight-delta="-1">-</button>
+                <strong data-yohan-foresight-value>0/10</strong>
+                <button type="button" data-yohan-foresight-delta="1">+</button>
+            </div>
+        </div>
+        <div class="character-passive-row">
+            <span>{% tr "디제스터 원" %}</span>
+            <button type="button" data-yohan-disaster-toggle>OFF</button>
+        </div>
+    </div>
+    <div class="character-passive-row is-wide">
+        <span>{% tr "선언" %}</span>
+        <div class="character-passive-buttons">
+            <button type="button" data-yohan-foresight-reveal>{% tr "예지" %}</button>
+            <button type="button" data-yohan-declare="odd">{% tr "홀" %}</button>
+            <button type="button" data-yohan-declare="even">{% tr "짝" %}</button>
+            <button type="button" data-yohan-declare="attack">{% tr "공" %}</button>
+            <button type="button" data-yohan-declare="defense">{% tr "수" %}</button>
+        </div>
+    </div>
+</section>

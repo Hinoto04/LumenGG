@@ -932,6 +932,10 @@
                 renderPresence();
                 return;
             }
+            if (message.type === "warning") {
+                showRealtimeToast(message.message || t("요청이 너무 빠르게 반복되고 있습니다."));
+                return;
+            }
             if (message.type === "action_ack" || message.type === "error") {
                 resolveSocketAction(message);
             }

@@ -2956,10 +2956,13 @@ label:has(> input.검색체크:checked) {
     display: grid;
     gap: 8px;
     margin-top: 10px;
+    min-width: 0;
 }
 
 .v2-character-comment {
+    min-width: 0;
     padding: 12px;
+    overflow-wrap: anywhere;
 }
 
 .v2-character-comment-head {
@@ -2968,12 +2971,17 @@ label:has(> input.검색체크:checked) {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+    min-width: 0;
     margin-bottom: 8px;
 }
 
 .v2-character-comment-head a {
+    min-width: 0;
+    max-width: 100%;
     color: var(--v2-text);
     font-weight: 900;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .v2-character-comment-head a:hover {
@@ -2984,6 +2992,7 @@ label:has(> input.검색체크:checked) {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+    min-width: 0;
 }
 
 .v2-character-comment-scores span {
@@ -2999,8 +3008,14 @@ label:has(> input.검색체크:checked) {
 }
 
 .v2-character-comment p {
+    max-width: 100%;
+    min-width: 0;
+    margin-bottom: 0;
     color: var(--v2-muted);
     line-height: 1.65;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
 }
 
 .v2-message-list {

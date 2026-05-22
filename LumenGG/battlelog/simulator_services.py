@@ -23,7 +23,7 @@ from deck.models import CardInDeck, Deck
 
 from .models import LumenSimulatorSession
 from .presence import simulator_presence_counts
-from .services import _passive_ui, hand_limit_for_hp, initial_hp_for_character
+from .services import _passive_ui, hand_limit_for_hp, initial_hp_for_character, initial_passive_state_for_character
 
 
 SIMULATOR_SESSION_LIFETIME = timedelta(hours=24)
@@ -31,6 +31,7 @@ SIMULATOR_DEFAULT_EVENT_LIMIT = 150
 SIMULATOR_MAX_EVENT_LIMIT = 300
 SIMULATOR_STORED_EVENT_LIMIT = 800
 SIMULATOR_STORED_EVENT_KEEP = 500
+SIMULATOR_HAND_SHUFFLE_COOLDOWN = timedelta(seconds=3)
 PLAYER_SIDES = ('p1', 'p2')
 PHASES = ('lumen', 'ready', 'battle', 'get', 'recovery')
 PHASE_LABELS = {
@@ -54,7 +55,14 @@ ZONE_LABELS = {
 }
 PUBLIC_ON_ENTER_ZONES = {'character', 'passive', 'list', 'break', 'ultimate'}
 PRIVATE_ON_ENTER_ZONES = {'hand', 'side', 'lumen'}
+VISIBILITY_TOGGLE_ZONES = {'hand', 'side', 'battle', 'lumen'}
 CROSS_PLAYER_ZONES = {'battle', 'lumen'}
+YOHAN_DECLARATION_LABELS = {
+    'odd': '홀수',
+    'even': '짝수',
+    'attack': '공격',
+    'defense': '수비',
+}
 CARD_METADATA_FIELDS = (
     'name', 'code', 'type', 'frame', 'damage', 'pos', 'body', 'special',
     'hit', 'guard', 'counter', 'g_top', 'g_mid', 'g_bot', 'text',
@@ -151,7 +159,7 @@ def _player_skeleton(side, name, deck):
         'initial_hp': initial_hp,
         'hp': initial_hp,
         'fp': 0,
-        'passive_state': {},
+        'passive_state': initial_passive_state_for_character(character),
         'zones': {zone: [] for zone in ZONES},
     }
 
@@ -198,13 +206,15 @@ def _add_deck_cards_to_player(player, side, deck):
 
 
 def _initial_state(player1_name, player2_name, player1_deck, player2_deck):
+    first_player = secrets.choice(PLAYER_SIDES)
     state = {
         'turn': 1,
         'phase': 'lumen',
         'status': {
-            'p1': {'requested': False, 'done': False},
-            'p2': {'requested': False, 'done': False},
+            side: {'requested': side == first_player, 'done': False}
+            for side in PLAYER_SIDES
         },
+        'priority_player': first_player,
         'timer': {
             'started_at': None,
             'duration_seconds': 10,
@@ -315,6 +325,57 @@ def _reset_status(state):
         state['status'][side] = {'requested': False, 'done': False}
 
 
+def _priority_score(state, side):
+    player = ((state.get('players') or {}).get(side) or {})
+    zones = player.get('zones') or {}
+    return (
+        int(player.get('fp') or 0),
+        int(player.get('hp') or 0),
+        len(zones.get('hand') or []),
+    )
+
+
+def _priority_player(state):
+    p1_score = _priority_score(state, 'p1')
+    p2_score = _priority_score(state, 'p2')
+    if p1_score > p2_score:
+        return 'p1'
+    if p2_score > p1_score:
+        return 'p2'
+    last_priority = state.get('priority_player')
+    return last_priority if last_priority in PLAYER_SIDES else 'p1'
+
+
+def _request_priority_for_phase(state):
+    if state.get('phase') in ('ready', 'battle'):
+        return None
+    target = _priority_player(state)
+    state['priority_player'] = target
+    state.setdefault('status', {})
+    for side in PLAYER_SIDES:
+        state['status'][side] = {'requested': side == target, 'done': False}
+    return target
+
+
+def _start_phase(state, phase):
+    state['phase'] = phase
+    _reset_status(state)
+    if phase == 'battle':
+        for player in state.get('players', {}).values():
+            for card in player.get('zones', {}).get('battle', []):
+                card['face_up'] = True
+    return _request_priority_for_phase(state)
+
+
+def _advance_phase(state):
+    current_phase = state.get('phase') if state.get('phase') in PHASES else 'lumen'
+    if current_phase == 'recovery':
+        state['turn'] = int(state.get('turn') or 1) + 1
+        return _start_phase(state, 'lumen')
+    next_index = min(PHASES.index(current_phase) + 1, len(PHASES) - 1)
+    return _start_phase(state, PHASES[next_index])
+
+
 def _find_card_location(state, instance_id):
     for player_side, player in (state.get('players') or {}).items():
         for zone, cards in (player.get('zones') or {}).items():
@@ -322,6 +383,53 @@ def _find_card_location(state, instance_id):
                 if card.get('instance_id') == instance_id:
                     return player_side, zone, index, card
     return None, None, None, None
+
+
+def _opponent_side(side):
+    return 'p2' if side == 'p1' else 'p1'
+
+
+def _character_name(state, side):
+    return str((((state.get('players') or {}).get(side) or {}).get('character') or {}).get('name') or '')
+
+
+def _require_character(state, side, *names):
+    character_name = _character_name(state, side).casefold()
+    if not character_name or not any(str(name).casefold() in character_name for name in names):
+        raise PermissionDenied()
+
+
+def _card_label(card):
+    if card.get('name'):
+        return card.get('name')
+    card_id = card.get('card_id')
+    if card_id:
+        model_card = Card.objects.filter(id=card_id).only('name').first()
+        if model_card:
+            card['name'] = model_card.name
+            return model_card.name
+    return '카드'
+
+
+def _card_name_contains(card, text):
+    return str(text).casefold() in _card_label(card).casefold()
+
+
+def _card_type(card):
+    if card.get('type'):
+        return str(card.get('type') or '')
+    card_id = card.get('card_id')
+    if card_id:
+        model_card = Card.objects.filter(id=card_id).only('type').first()
+        if model_card:
+            card['type'] = model_card.type
+            return str(model_card.type or '')
+    return ''
+
+
+def _is_attack_or_defense_card(card):
+    card_type = _card_type(card)
+    return '공격' in card_type or '수비' in card_type
 
 
 def _set_card_visibility_for_zone(card, zone, state):
@@ -332,7 +440,15 @@ def _set_card_visibility_for_zone(card, zone, state):
         card['face_up'] = False
         return
     if zone == 'battle':
-        card['face_up'] = state.get('phase') == 'battle'
+        card['face_up'] = state.get('phase') not in ('lumen', 'ready')
+
+
+def _should_preserve_card_visibility(from_zone, to_zone):
+    return from_zone in VISIBILITY_TOGGLE_ZONES and to_zone in VISIBILITY_TOGGLE_ZONES
+
+
+def _was_public_in_zone(card, zone):
+    return zone in PUBLIC_ON_ENTER_ZONES or bool(card.get('face_up'))
 
 
 def _apply_move_card(state, payload):
@@ -355,9 +471,26 @@ def _apply_move_card(state, payload):
     if target_player != owner and to_zone not in CROSS_PLAYER_ZONES:
         raise ValueError('상대 플레이어의 루멘 존 또는 배틀 존으로만 이동할 수 있습니다.')
     payload['owner'] = owner
-    payload['card_label'] = card.get('name') or '카드'
+    payload['card_label'] = _card_label(card)
+    was_public = _was_public_in_zone(card, from_zone)
     state['players'][player_side]['zones'][from_zone].pop(index)
-    _set_card_visibility_for_zone(card, to_zone, state)
+    if card.get('kind') == 'token' and to_zone == 'break':
+        payload['from_player'] = player_side
+        payload['from_zone'] = from_zone
+        payload['to_player'] = target_player
+        payload['deleted_token'] = True
+        payload['was_face_up'] = bool(card.get('face_up'))
+        if card.get('card_id'):
+            payload['card_id'] = card.get('card_id')
+        return
+    if to_zone == 'battle' and state.get('phase') not in ('lumen', 'ready'):
+        card['face_up'] = True
+    elif not _should_preserve_card_visibility(from_zone, to_zone):
+        _set_card_visibility_for_zone(card, to_zone, state)
+    if was_public and not bool(card.get('face_up')):
+        payload['public_card_label'] = _card_label(card)
+        if card.get('card_id'):
+            payload['public_card_id'] = card.get('card_id')
     state['players'][target_player]['zones'][to_zone].append(card)
     payload['from_player'] = player_side
     payload['from_zone'] = from_zone
@@ -375,7 +508,8 @@ def _apply_bulk_move(state, payload):
     cards = state['players'][player_side]['zones'][from_zone]
     state['players'][player_side]['zones'][from_zone] = []
     for card in cards:
-        _set_card_visibility_for_zone(card, to_zone, state)
+        if not _should_preserve_card_visibility(from_zone, to_zone):
+            _set_card_visibility_for_zone(card, to_zone, state)
         owner = card.get('owner') or player_side
         state['players'][owner]['zones'][to_zone].append(card)
     payload['count'] = len(cards)
@@ -403,26 +537,68 @@ def _apply_shuffle_hand(state, payload):
 
     cards_by_id = {str(card.get('instance_id') or ''): card for card in hand}
     state['players'][player_side]['zones']['hand'] = [cards_by_id[instance_id] for instance_id in requested_order]
+    cooldown_until = payload.get('cooldown_until')
+    if cooldown_until:
+        state.setdefault('hand_shuffle_cooldowns', {})[player_side] = cooldown_until
     payload['order'] = requested_order
     payload['count'] = len(requested_order)
+
+
+def _event_datetime(value):
+    parsed = parse_datetime(str(value or ''))
+    if not parsed:
+        return timezone.now()
+    if timezone.is_naive(parsed):
+        return timezone.make_aware(parsed)
+    return parsed
+
+
+def _prepare_shuffle_hand_payload(state, payload, created_at):
+    player_side = str(payload.get('player') or '')
+    if player_side not in PLAYER_SIDES:
+        raise ValueError('패 셔플 대상이 올바르지 않습니다.')
+    now = _event_datetime(created_at)
+    cooldown_value = (state.get('hand_shuffle_cooldowns') or {}).get(player_side)
+    cooldown_until = _event_datetime(cooldown_value) if cooldown_value else None
+    if cooldown_until and cooldown_until > now:
+        remaining = max(1, int((cooldown_until - now).total_seconds()))
+        raise ValueError(f'패 셔플은 {remaining}초 뒤에 다시 사용할 수 있습니다.')
+    payload['cooldown_until'] = (now + SIMULATOR_HAND_SHUFFLE_COOLDOWN).isoformat()
+    payload['cooldown_seconds'] = int(SIMULATOR_HAND_SHUFFLE_COOLDOWN.total_seconds())
+
+
+def _apply_hand_visibility(state, payload, actor):
+    target = str(payload.get('target') or actor or '')
+    if target not in PLAYER_SIDES:
+        raise ValueError('손패 공개 대상을 찾을 수 없습니다.')
+    if actor != target:
+        raise PermissionDenied()
+
+    face_up = bool(payload.get('face_up'))
+    hand = state['players'][target]['zones']['hand']
+    count = 0
+    for card in hand:
+        if card.get('kind') == 'character' or card.get('owner') != target:
+            continue
+        card['face_up'] = face_up
+        count += 1
+    payload['target'] = target
+    payload['face_up'] = face_up
+    payload['count'] = count
 
 
 def _apply_phase(state, payload):
     phase = str(payload.get('phase') or '')
     if phase not in PHASES:
         raise ValueError('페이즈가 올바르지 않습니다.')
-    state['phase'] = phase
-    _reset_status(state)
-    if phase == 'battle':
-        for player in state.get('players', {}).values():
-            for card in player.get('zones', {}).get('battle', []):
-                card['face_up'] = True
+    priority = _start_phase(state, phase)
+    if priority:
+        payload['priority_player'] = priority
 
 
 def _apply_next_turn(state):
     state['turn'] = int(state.get('turn') or 1) + 1
-    state['phase'] = 'lumen'
-    _reset_status(state)
+    _start_phase(state, 'lumen')
 
 
 def _apply_request_action(state, payload):
@@ -433,6 +609,7 @@ def _apply_request_action(state, payload):
     state['status'][target]['requested'] = bool(payload.get('requested', True))
     if state['status'][target]['requested']:
         state['status'][target]['done'] = False
+        state['priority_player'] = target
 
 
 def _apply_done(state, payload):
@@ -443,6 +620,18 @@ def _apply_done(state, payload):
     state['status'][target]['done'] = bool(payload.get('done', True))
     if state['status'][target]['done']:
         state['status'][target]['requested'] = False
+        opponent = _opponent_side(target)
+        if state.get('status', {}).get(opponent, {}).get('done'):
+            from_phase = state.get('phase') if state.get('phase') in PHASES else 'lumen'
+            from_turn = int(state.get('turn') or 1)
+            priority = _advance_phase(state)
+            payload['auto_advanced'] = True
+            payload['from_phase'] = from_phase
+            payload['from_turn'] = from_turn
+            payload['to_phase'] = state.get('phase')
+            payload['to_turn'] = int(state.get('turn') or 1)
+            if priority:
+                payload['priority_player'] = priority
 
 
 def _apply_hp(state, payload):
@@ -641,6 +830,192 @@ def _apply_import_card(state, payload, actor):
     state['players'][actor].setdefault('zones', {}).setdefault('lumen', []).append(imported)
 
 
+def _apply_yohan_declare_reveal(state, payload, actor):
+    if actor not in PLAYER_SIDES:
+        raise PermissionDenied()
+    _require_character(state, actor, '요한')
+    target = str(payload.get('target') or actor)
+    if target != actor:
+        raise PermissionDenied()
+
+    declaration = str(payload.get('declaration') or '')
+    if declaration not in YOHAN_DECLARATION_LABELS:
+        raise ValueError('선언 종류가 올바르지 않습니다.')
+
+    _reveal_opponent_private_hand_card(state, payload, actor)
+    payload['declaration'] = declaration
+    payload['declaration_label'] = YOHAN_DECLARATION_LABELS[declaration]
+
+
+def _reveal_opponent_private_hand_card(state, payload, actor):
+    opponent = _opponent_side(actor)
+    hand = state['players'][opponent]['zones']['hand']
+    instance_id = str(payload.get('card_instance_id') or '')
+    if instance_id:
+        card = next((item for item in hand if item.get('instance_id') == instance_id), None)
+        if not card:
+            raise ValueError('공개할 카드를 찾을 수 없습니다.')
+    else:
+        candidates = [card for card in hand if not bool(card.get('face_up'))]
+        if not candidates:
+            raise ValueError('상대 손패에 공개할 비공개 카드가 없습니다.')
+        card = secrets.choice(candidates)
+
+    card['face_up'] = True
+    card['hidden'] = False
+    payload['target'] = actor
+    payload['opponent'] = opponent
+    payload['card_instance_id'] = card.get('instance_id')
+    payload['card_id'] = card.get('card_id')
+    payload['card_label'] = _card_label(card)
+    return card, opponent
+
+
+def _apply_yohan_foresight_reveal(state, payload, actor):
+    if actor not in PLAYER_SIDES:
+        raise PermissionDenied()
+    _require_character(state, actor, '요한')
+    target = str(payload.get('target') or actor)
+    if target != actor:
+        raise PermissionDenied()
+
+    _reveal_opponent_private_hand_card(state, payload, actor)
+
+
+def _apply_nia_lumen_cards_to_list(state, payload, actor):
+    if actor not in PLAYER_SIDES:
+        raise PermissionDenied()
+    _require_character(state, actor, '니아')
+    target = str(payload.get('target') or actor)
+    if target != actor:
+        raise PermissionDenied()
+
+    lumen = state['players'][target]['zones']['lumen']
+    moved = []
+    kept = []
+    for card in lumen:
+        if card.get('kind') == 'character' or not _is_attack_or_defense_card(card):
+            kept.append(card)
+            continue
+        moved.append(card)
+
+    state['players'][target]['zones']['lumen'] = kept
+    for card in moved:
+        owner = card.get('owner') if card.get('owner') in PLAYER_SIDES else target
+        _set_card_visibility_for_zone(card, 'list', state)
+        state['players'][owner]['zones']['list'].append(card)
+    payload['target'] = target
+    payload['count'] = len(moved)
+
+
+def _new_single_cards(actor, payload):
+    cards = copy.deepcopy(payload.get('cards') or [])
+    if cards:
+        return cards
+
+    try:
+        card = _find_external_card('뉴 싱글')
+    except ValueError:
+        card = None
+
+    cards = []
+    for index in range(10):
+        instance_id = f'{actor}-new-single-{uuid.uuid4().hex[:12]}-{index + 1}'
+        if card:
+            cards.append(_card_payload(card, actor, instance_id, face_up=True, kind='token'))
+        else:
+            cards.append({
+                'instance_id': instance_id,
+                'kind': 'token',
+                'owner': actor,
+                'name': '뉴 싱글',
+                'type': '토큰',
+                'face_up': True,
+            })
+    payload['cards'] = copy.deepcopy(cards)
+    return cards
+
+
+def _apply_cmyk_new_single(state, payload, actor):
+    if actor not in PLAYER_SIDES:
+        raise PermissionDenied()
+    _require_character(state, actor, 'CMYK')
+    target = str(payload.get('target') or actor)
+    if target != actor:
+        raise PermissionDenied()
+
+    player = state['players'][target]
+    passive_state = player.setdefault('passive_state', {})
+    created_state = passive_state.get('new_single_created') or {}
+    if created_state.get('value'):
+        raise ValueError('뉴 싱글 토큰은 이미 생성했습니다.')
+
+    cards = _new_single_cards(actor, payload)
+    for card in cards:
+        imported = copy.deepcopy(card)
+        imported['owner'] = actor
+        imported['face_up'] = True
+        imported.setdefault('kind', 'token')
+        if _find_card_location(state, imported.get('instance_id'))[3]:
+            raise ValueError('이미 생성된 카드입니다.')
+        player.setdefault('zones', {}).setdefault('lumen', []).append(imported)
+
+    passive_state['new_single_created'] = {
+        'value': True,
+        'label': '뉴 싱글',
+    }
+    payload['target'] = target
+    payload['count'] = len(cards)
+    payload['card_label'] = '뉴 싱글'
+
+
+def _apply_blackout_random_get(state, payload, actor):
+    if actor not in PLAYER_SIDES:
+        raise PermissionDenied()
+
+    source_instance_id = str(payload.get('source_card_instance_id') or '')
+    source_player, source_zone, _, source_card = _find_card_location(state, source_instance_id)
+    if not source_card:
+        raise ValueError('블랙아웃 카드를 찾을 수 없습니다.')
+    if source_card.get('kind') == 'character' or source_card.get('owner') != actor:
+        raise PermissionDenied()
+    if not source_card.get('face_up'):
+        raise ValueError('공개된 블랙아웃 카드만 사용할 수 있습니다.')
+    if not _card_name_contains(source_card, '블랙아웃'):
+        raise ValueError('블랙아웃 카드가 아닙니다.')
+
+    opponent = _opponent_side(actor)
+    opponent_list = state['players'][opponent]['zones']['list']
+    target_instance_id = str(payload.get('target_card_instance_id') or '')
+    if target_instance_id:
+        target_index = next(
+            (index for index, card in enumerate(opponent_list) if card.get('instance_id') == target_instance_id),
+            None,
+        )
+        if target_index is None:
+            raise ValueError('상대 리스트에서 가져올 카드를 찾을 수 없습니다.')
+    else:
+        if not opponent_list:
+            raise ValueError('상대 리스트에 가져올 카드가 없습니다.')
+        target_index = secrets.randbelow(len(opponent_list))
+
+    target_card = opponent_list.pop(target_index)
+    target_card['face_up'] = True
+    state['players'][opponent]['zones']['hand'].append(target_card)
+
+    payload['target'] = actor
+    payload['opponent'] = opponent
+    payload['source_player'] = source_player
+    payload['source_zone'] = source_zone
+    payload['source_card_instance_id'] = source_instance_id
+    payload['source_card_label'] = _card_label(source_card)
+    payload['target_card_instance_id'] = target_card.get('instance_id')
+    payload['card_instance_id'] = target_card.get('instance_id')
+    payload['card_label'] = _card_label(target_card)
+    if target_card.get('card_id'):
+        payload['card_id'] = target_card.get('card_id')
+
+
 def _apply_event(state, event):
     event_type = event.get('type')
     payload = event.get('payload')
@@ -654,6 +1029,8 @@ def _apply_event(state, event):
         _apply_bulk_move(state, payload)
     elif event_type == 'shuffle_hand':
         _apply_shuffle_hand(state, payload)
+    elif event_type == 'set_hand_visibility':
+        _apply_hand_visibility(state, payload, actor)
     elif event_type == 'set_phase':
         _apply_phase(state, payload)
     elif event_type == 'next_turn':
@@ -680,6 +1057,16 @@ def _apply_event(state, event):
         _apply_log_note(payload)
     elif event_type == 'import_card':
         _apply_import_card(state, payload, actor)
+    elif event_type == 'yohan_declare_reveal':
+        _apply_yohan_declare_reveal(state, payload, actor)
+    elif event_type == 'yohan_foresight_reveal':
+        _apply_yohan_foresight_reveal(state, payload, actor)
+    elif event_type == 'nia_lumen_cards_to_list':
+        _apply_nia_lumen_cards_to_list(state, payload, actor)
+    elif event_type == 'cmyk_new_single':
+        _apply_cmyk_new_single(state, payload, actor)
+    elif event_type == 'blackout_random_get':
+        _apply_blackout_random_get(state, payload, actor)
     else:
         raise ValueError('알 수 없는 요청입니다.')
 
@@ -751,6 +1138,8 @@ def perform_simulator_action(session, body):
                     if item_action == 'set_done':
                         item_payload.setdefault('target', actor)
                     event = _make_event(item_action, actor, item_payload)
+                    if item_action == 'shuffle_hand':
+                        _prepare_shuffle_hand_payload(state, item_payload, event.get('created_at'))
                     _apply_event(state, event)
                     events.append(event)
             elif action == 'timer':
@@ -773,6 +1162,8 @@ def perform_simulator_action(session, body):
                 payload.setdefault('target', actor)
             if action != 'batch':
                 event = _make_event(action, actor, payload)
+                if action == 'shuffle_hand':
+                    _prepare_shuffle_hand_payload(state, payload, event.get('created_at'))
                 _apply_event(state, event)
                 events.append(event)
             document['state'] = state
@@ -1009,14 +1400,33 @@ def _filtered_event(event, state, viewer_side, language=DEFAULT_LANGUAGE):
     filtered = copy.deepcopy(event)
     payload = filtered.get('payload') or {}
     event_type = filtered.get('type')
-    if event_type in ('move_card', 'set_visibility'):
+    if event_type in ('move_card', 'set_visibility', 'yohan_declare_reveal', 'yohan_foresight_reveal', 'blackout_random_get'):
         _, _, _, card = _find_card_location(state, payload.get('card_instance_id'))
-        if not card or not _card_visible_to(card, viewer_side):
+        if not card and payload.get('deleted_token'):
+            if viewer_side == payload.get('owner') or payload.get('was_face_up'):
+                if payload.get('card_id') and normalize_language(language) != DEFAULT_LANGUAGE:
+                    model_card = Card.objects.prefetch_related('translations').filter(id=payload.get('card_id')).first()
+                    payload['card_label'] = translated_card_field(model_card, language, 'name') if model_card else payload.get('card_label') or ui_text('카드', language)
+                else:
+                    payload['card_label'] = payload.get('card_label') or ui_text('카드', language)
+            else:
+                payload['card_label'] = ui_text('비공개 카드', language)
+        elif event_type == 'move_card' and payload.get('public_card_label'):
+            if payload.get('public_card_id') and normalize_language(language) != DEFAULT_LANGUAGE:
+                model_card = Card.objects.prefetch_related('translations').filter(id=payload.get('public_card_id')).first()
+                payload['card_label'] = translated_card_field(model_card, language, 'name') if model_card else payload.get('public_card_label') or ui_text('카드', language)
+            else:
+                payload['card_label'] = payload.get('public_card_label') or ui_text('카드', language)
+        elif not card or not _card_visible_to(card, viewer_side):
             payload['card_label'] = ui_text('비공개 카드', language)
         elif payload.get('card_label') and normalize_language(language) == DEFAULT_LANGUAGE:
             payload['card_label'] = payload.get('card_label')
         else:
             payload['card_label'] = _visible_card_name(state, payload.get('card_instance_id'), viewer_side, language)
+    if event_type == 'yohan_declare_reveal':
+        declaration = payload.get('declaration')
+        if declaration in YOHAN_DECLARATION_LABELS:
+            payload['declaration_label'] = ui_text(YOHAN_DECLARATION_LABELS[declaration], language)
     filtered['payload'] = payload
     return filtered
 

@@ -167,7 +167,8 @@ function setCounterValue(control, nextValue, label) {
 }
 
 function renderCounter(control) {
-    const value = Math.max(0, asNumber(getValue(control.key, 0)));
+    const initialValue = control.default ?? control.initial ?? 0;
+    const value = Math.max(0, asNumber(getValue(control.key, initialValue)));
     const max = control.max === undefined || control.max === null ? null : asNumber(control.max);
     const row = document.createElement("div");
     row.className = `config-passive-row config-passive-row-${safeClassName(control.key)}${counterHighlightClass(control, value)}`;

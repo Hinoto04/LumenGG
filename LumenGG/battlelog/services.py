@@ -1,3 +1,4 @@
+import copy
 import secrets
 import posixpath
 from datetime import timedelta
@@ -43,6 +44,7 @@ STANDALONE_SESSION_LIFETIME = timedelta(hours=1)
 TOURNAMENT_SESSION_LIFETIME_AFTER_FINISH = timedelta(days=7)
 PASSIVE_UI_TEMPLATE_PREFIX = 'battlelog/passive_ui/'
 PASSIVE_UI_STATIC_PREFIX = 'battlelog/passive_ui/'
+YOHAN_INITIAL_FORESIGHT_COUNT = 2
 
 
 def battle_session_queryset():
@@ -89,6 +91,52 @@ def initial_hp_for_character(character):
     return max(table.keys()) if table else 5000
 
 
+def initial_passive_state_for_character(character):
+    if not character:
+        return {}
+
+    state = {}
+    datas = character.datas or {}
+    configured = datas.get('initial_passive_state')
+    if isinstance(configured, dict):
+        state.update(copy.deepcopy(configured))
+
+    for ui_key in ('battle_passive_ui', 'simulator_passive_ui'):
+        ui_config = datas.get(ui_key) or {}
+        if not isinstance(ui_config, dict):
+            continue
+        options = ui_config.get('options') or {}
+        controls = options.get('controls') or []
+        if not isinstance(controls, list):
+            continue
+        for control in controls:
+            if not isinstance(control, dict):
+                continue
+            key = str(control.get('key') or '')[:80]
+            if not key or ('default' not in control and 'initial' not in control):
+                continue
+            value = control.get('default') if 'default' in control else control.get('initial')
+            entry = {}
+            if control.get('type') == 'counter':
+                try:
+                    entry['count'] = max(0, int(value))
+                except (TypeError, ValueError):
+                    continue
+            else:
+                entry['value'] = value
+            label = str(control.get('label') or '')[:80]
+            if label:
+                entry['label'] = label
+            state.setdefault(key, entry)
+
+    if '요한' in (character.name or '') and 'foresight_counter' not in state:
+        state['foresight_counter'] = {
+            'count': YOHAN_INITIAL_FORESIGHT_COUNT,
+            'label': '예지 카운터',
+        }
+    return state
+
+
 def hand_limit_for_hp(character, hp):
     table = character_hand_table(character)
     if not table:
@@ -111,16 +159,19 @@ def _session_token_pair():
 
 def _set_player_character(session, target, character):
     initial_hp = initial_hp_for_character(character)
+    passive_state = initial_passive_state_for_character(character)
     if target == BattleEvent.TARGET_PLAYER1:
         session.player1_character = character
         session.player1_initial_hp = initial_hp
         session.player1_hp = initial_hp
         session.player1_fp = 0
+        session.player1_passive_state = passive_state
         return
     session.player2_character = character
     session.player2_initial_hp = initial_hp
     session.player2_hp = initial_hp
     session.player2_fp = 0
+    session.player2_passive_state = passive_state
 
 
 def _round_ends_at(session):
@@ -309,12 +360,14 @@ def _reset_player_for_next_set(session, target):
         session.player1_initial_hp = 0
         session.player1_hp = 0
         session.player1_fp = 0
+        session.player1_passive_state = {}
         return
 
     session.player2_character = None
     session.player2_initial_hp = 0
     session.player2_hp = 0
     session.player2_fp = 0
+    session.player2_passive_state = {}
 
 
 def get_or_create_tournament_session(match, user=None):
@@ -657,6 +710,8 @@ def _passive_ui(character, language=DEFAULT_LANGUAGE, context='battle'):
         ))
     if not isinstance(raw_ui, dict):
         return {}
+    if raw_ui.get('disabled') or raw_ui.get('enabled') is False:
+        return {}
     options = raw_ui.get('options', {})
     if not isinstance(options, (dict, list)):
         options = {}
@@ -872,6 +927,7 @@ def select_character(session, target, character, user=None):
             f'player{1 if target == BattleEvent.TARGET_PLAYER1 else 2}_initial_hp',
             f'player{1 if target == BattleEvent.TARGET_PLAYER1 else 2}_hp',
             f'player{1 if target == BattleEvent.TARGET_PLAYER1 else 2}_fp',
+            f'player{1 if target == BattleEvent.TARGET_PLAYER1 else 2}_passive_state',
             'updated_at',
         ])
         current_set = _current_set(locked)
@@ -1069,8 +1125,8 @@ def set_sudden_death(session, enabled, user=None):
             locked.player2_hp = 1000
             locked.player1_fp = 0
             locked.player2_fp = 0
-            locked.player1_passive_state = {}
-            locked.player2_passive_state = {}
+            locked.player1_passive_state = initial_passive_state_for_character(locked.player1_character)
+            locked.player2_passive_state = initial_passive_state_for_character(locked.player2_character)
             locked.timer_started_at = None
             locked.timer_duration_seconds = 10
             locked.save(update_fields=[
@@ -1214,8 +1270,6 @@ def _finalize_match_from_sets(session):
 def _start_next_set(session, user=None):
     _reset_player_for_next_set(session, BattleEvent.TARGET_PLAYER1)
     _reset_player_for_next_set(session, BattleEvent.TARGET_PLAYER2)
-    session.player1_passive_state = {}
-    session.player2_passive_state = {}
     session.timer_started_at = None
     session.timer_duration_seconds = 10
     session.sudden_death = False

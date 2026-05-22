@@ -9,12 +9,13 @@
     const i18n = i18nNode ? JSON.parse(i18nNode.textContent) : {};
     const translations = i18n.translations || {};
     const translationKeys = Object.keys(translations).sort((a, b) => b.length - a.length);
-    const ACTION_BATCH_DELAY_MS = 900;
+    const ACTION_BATCH_DELAY_MS = 500;
     const SOCKET_ACTION_TIMEOUT_MS = 15000;
     const DIRTY_STATE_DEBOUNCE_MS = 700;
     const SIM_LOG_LIMIT = 150;
     const POLLING_INITIAL_DELAY_MS = 10000;
     const POLLING_MAX_DELAY_MS = 30000;
+    const HAND_SHUFFLE_COOLDOWN_MS = 3000;
     let state = envelope.state || {};
     let events = Array.isArray(envelope.events) ? envelope.events : [];
     let eventsLoaded = Array.isArray(envelope.events);
@@ -39,9 +40,11 @@
     let dirtyStateTimer = null;
     let metadataFetchTimer = null;
     let metadataFetchInFlight = false;
+    let shuffleCooldownTimer = null;
     let realtimeToastTimer = null;
     let realtimeToastMessage = "";
     let realtimeToastCount = 0;
+    let selectedLogCard = null;
     const tooltip = document.createElement("div");
     const pendingSocketActions = new Map();
     const pendingCounters = {
@@ -51,6 +54,7 @@
 
     const phases = ["lumen", "ready", "battle", "get", "recovery"];
     const zones = ["ultimate", "lumen", "battle", "hand", "list", "side", "break"];
+    const visibilityToggleZones = new Set(["hand", "side", "battle", "lumen"]);
     tooltip.className = "v2-sim-card-tooltip";
     document.body.appendChild(tooltip);
 
@@ -92,6 +96,14 @@
         return !!envelope.can_control && !envelope.is_expired;
     }
 
+    function ownSide() {
+        return ["p1", "p2"].includes(envelope.role) ? envelope.role : "";
+    }
+
+    function opponentSide(side) {
+        return side === "p1" ? "p2" : side === "p2" ? "p1" : "";
+    }
+
     function escapeHtml(value) {
         return String(value ?? "")
             .replaceAll("&", "&amp;")
@@ -101,7 +113,11 @@
     }
 
     function playerLabel(side) {
-        return side === "p1" ? "P1" : side === "p2" ? "P2" : t("관전");
+        if (side !== "p1" && side !== "p2") return t("관전");
+        const base = side === "p1" ? "P1" : "P2";
+        if (envelope.role === side) return `${base}(${t("자신")})`;
+        if (["p1", "p2"].includes(envelope.role)) return `${base}(${t("상대")})`;
+        return base;
     }
 
     function zoneLabel(zone) {
@@ -184,6 +200,21 @@
         const hydrated = hydrateCard(card);
         if (!hydrated || hydrated.hidden) return t("비공개 카드");
         return hydrated.name || t("카드");
+    }
+
+    function isBlackoutCard(card) {
+        return cardDisplayName(card).includes("블랙아웃");
+    }
+
+    function canUseBlackoutAction(card) {
+        return !!(
+            card &&
+            canControl() &&
+            envelope.role === card.owner &&
+            card.face_up &&
+            !String(card.instance_id || "").startsWith("log-") &&
+            isBlackoutCard(card)
+        );
     }
 
     function collectVisibleCardIds() {
@@ -315,6 +346,44 @@
         return allCards().find((card) => card.instance_id === instanceId) || null;
     }
 
+    function selectCardInstance(instanceId) {
+        selectedCardId = instanceId || "";
+        selectedLogCard = null;
+        renderCardDetail();
+    }
+
+    function selectLogCard(card) {
+        selectedCardId = "";
+        selectedLogCard = card || null;
+        if (selectedLogCard && selectedLogCard.card_id) {
+            scheduleCardMetadataFetch(new Set([String(selectedLogCard.card_id)]));
+        }
+        renderCardDetail();
+    }
+
+    function logCardPayload(event) {
+        const payload = event && event.payload ? event.payload : {};
+        const instanceId = payload.card_instance_id || payload.instance_id || payload.target_card_instance_id || "";
+        const liveCard = instanceId ? findCard(instanceId) : null;
+        if (liveCard && !liveCard.hidden) return { instanceId, card: null };
+        const cardId = payload.card_id || payload.public_card_id || "";
+        const name = payload.card_label || payload.public_card_label || payload.card_name || "";
+        if (!cardId && !name) return null;
+        if (String(name) === t("비공개 카드") || String(name) === "비공개 카드") return null;
+        return {
+            instanceId: "",
+            card: {
+                instance_id: `log-${event.id || event.seq || Date.now()}`,
+                kind: "card",
+                owner: event.actor || "",
+                card_id: cardId || undefined,
+                name,
+                hidden: false,
+                face_up: true,
+            },
+        };
+    }
+
     function cardTitle(card) {
         card = hydrateCard(card);
         if (!card || card.hidden) return t("비공개 카드");
@@ -384,6 +453,32 @@
         return order;
     }
 
+    function shuffleCooldownRemaining(side) {
+        const cooldowns = state.hand_shuffle_cooldowns || {};
+        const until = cooldowns[side] ? new Date(cooldowns[side]).getTime() : 0;
+        if (!Number.isFinite(until) || until <= 0) return 0;
+        return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+    }
+
+    function setLocalShuffleCooldown(side) {
+        state.hand_shuffle_cooldowns = state.hand_shuffle_cooldowns || {};
+        state.hand_shuffle_cooldowns[side] = new Date(Date.now() + HAND_SHUFFLE_COOLDOWN_MS).toISOString();
+    }
+
+    function hasActiveShuffleCooldown() {
+        return ["p1", "p2"].some((side) => shuffleCooldownRemaining(side) > 0);
+    }
+
+    function scheduleShuffleCooldownTick() {
+        window.clearTimeout(shuffleCooldownTimer);
+        shuffleCooldownTimer = null;
+        if (!hasActiveShuffleCooldown()) return;
+        shuffleCooldownTimer = window.setTimeout(() => {
+            shuffleCooldownTimer = null;
+            render();
+        }, 1000);
+    }
+
     function findCardLocation(localState, instanceId) {
         for (const [playerSide, player] of Object.entries((localState && localState.players) || {})) {
             for (const [zone, cards] of Object.entries((player && player.zones) || {})) {
@@ -401,7 +496,76 @@
         });
     }
 
-    function setLocalCardVisibilityForZone(card, zone, localState) {
+    function localPriorityScore(localState, side) {
+        const player = (localState.players && localState.players[side]) || {};
+        const zones = player.zones || {};
+        return [
+            Number(player.fp || 0),
+            Number(player.hp || 0),
+            ((zones.hand || [])).length,
+        ];
+    }
+
+    function comparePriorityScore(left, right) {
+        for (let index = 0; index < left.length; index += 1) {
+            if (left[index] > right[index]) return 1;
+            if (left[index] < right[index]) return -1;
+        }
+        return 0;
+    }
+
+    function determineLocalPriorityPlayer(localState) {
+        const compared = comparePriorityScore(localPriorityScore(localState, "p1"), localPriorityScore(localState, "p2"));
+        if (compared > 0) return "p1";
+        if (compared < 0) return "p2";
+        return ["p1", "p2"].includes(localState.priority_player) ? localState.priority_player : "p1";
+    }
+
+    function requestLocalPriorityForPhase(localState) {
+        if (["ready", "battle"].includes(localState.phase)) return "";
+        const target = determineLocalPriorityPlayer(localState);
+        localState.priority_player = target;
+        localState.status = localState.status || {};
+        ["p1", "p2"].forEach((side) => {
+            localState.status[side] = { requested: side === target, done: false };
+        });
+        return target;
+    }
+
+    function startLocalPhase(localState, phase) {
+        localState.phase = phase;
+        resetLocalStatus(localState);
+        if (phase === "battle") {
+            Object.values(localState.players || {}).forEach((player) => {
+                ((player.zones && player.zones.battle) || []).forEach((card) => {
+                    card.face_up = true;
+                    card.hidden = false;
+                });
+            });
+        }
+        return requestLocalPriorityForPhase(localState);
+    }
+
+    function advanceLocalPhase(localState) {
+        const currentPhase = phases.includes(localState.phase) ? localState.phase : "lumen";
+        if (currentPhase === "recovery") {
+            localState.turn = Number(localState.turn || 1) + 1;
+            return startLocalPhase(localState, "lumen");
+        }
+        const nextIndex = Math.min(phases.indexOf(currentPhase) + 1, phases.length - 1);
+        return startLocalPhase(localState, phases[nextIndex]);
+    }
+
+    function shouldPreserveLocalCardVisibility(fromZone, toZone) {
+        return visibilityToggleZones.has(fromZone) && visibilityToggleZones.has(toZone);
+    }
+
+    function setLocalCardVisibilityForZone(card, zone, localState, fromZone) {
+        if (zone === "battle" && !["lumen", "ready"].includes(localState.phase)) {
+            card.face_up = true;
+            return;
+        }
+        if (shouldPreserveLocalCardVisibility(fromZone, zone)) return;
         if (["character", "passive", "list", "break", "ultimate"].includes(zone)) {
             card.face_up = true;
             return;
@@ -411,7 +575,7 @@
             return;
         }
         if (zone === "battle") {
-            card.face_up = localState.phase === "battle";
+            card.face_up = !["lumen", "ready"].includes(localState.phase);
         }
     }
 
@@ -449,12 +613,19 @@
             if (!state.players[toPlayer] || !state.players[toPlayer].zones || !state.players[toPlayer].zones[toZone]) return false;
             if (toPlayer !== owner && !["battle", "lumen"].includes(toZone)) return false;
             state.players[location.playerSide].zones[location.zone].splice(location.index, 1);
-            setLocalCardVisibilityForZone(location.card, toZone, state);
-            state.players[toPlayer].zones[toZone].push(location.card);
             localPayload.from_player = location.playerSide;
             localPayload.from_zone = location.zone;
             localPayload.to_player = toPlayer;
             localPayload.card_label = localCardLabel(location.card);
+            if (location.card.kind === "token" && toZone === "break") {
+                localPayload.deleted_token = true;
+                localPayload.was_face_up = !!location.card.face_up;
+                if (location.card.card_id) localPayload.card_id = location.card.card_id;
+                appendOptimisticEvent(action, localPayload);
+                return true;
+            }
+            setLocalCardVisibilityForZone(location.card, toZone, state, location.zone);
+            state.players[toPlayer].zones[toZone].push(location.card);
             appendOptimisticEvent(action, localPayload);
             return true;
         }
@@ -470,7 +641,7 @@
             cards.forEach((card) => {
                 const owner = card.owner || playerSide;
                 if (!state.players[owner] || !state.players[owner].zones[toZone]) return;
-                setLocalCardVisibilityForZone(card, toZone, state);
+                setLocalCardVisibilityForZone(card, toZone, state, fromZone);
                 state.players[owner].zones[toZone].push(card);
             });
             localPayload.count = cards.length;
@@ -489,30 +660,42 @@
             player.zones.hand = order.map((instanceId) => cardsById.get(instanceId));
             localPayload.order = order;
             localPayload.count = order.length;
+            setLocalShuffleCooldown(playerSide);
+            localPayload.cooldown_seconds = Math.ceil(HAND_SHUFFLE_COOLDOWN_MS / 1000);
+            appendOptimisticEvent(action, localPayload);
+            return true;
+        }
+
+        if (action === "set_hand_visibility") {
+            const target = localPayload.target || envelope.role;
+            const player = state.players[target];
+            if (!player || target !== envelope.role) return false;
+            const faceUp = !!localPayload.face_up;
+            let count = 0;
+            ((player.zones && player.zones.hand) || []).forEach((card) => {
+                if (!card || card.kind === "character" || card.owner !== target) return;
+                card.face_up = faceUp;
+                card.hidden = false;
+                count += 1;
+            });
+            localPayload.target = target;
+            localPayload.face_up = faceUp;
+            localPayload.count = count;
             appendOptimisticEvent(action, localPayload);
             return true;
         }
 
         if (action === "set_phase") {
             if (!phases.includes(localPayload.phase)) return false;
-            state.phase = localPayload.phase;
-            resetLocalStatus(state);
-            if (state.phase === "battle") {
-                Object.values(state.players || {}).forEach((player) => {
-                    ((player.zones && player.zones.battle) || []).forEach((card) => {
-                        card.face_up = true;
-                        card.hidden = false;
-                    });
-                });
-            }
+            const priority = startLocalPhase(state, localPayload.phase);
+            if (priority) localPayload.priority_player = priority;
             appendOptimisticEvent(action, localPayload);
             return true;
         }
 
         if (action === "next_turn") {
             state.turn = Number(state.turn || 1) + 1;
-            state.phase = "lumen";
-            resetLocalStatus(state);
+            startLocalPhase(state, "lumen");
             appendOptimisticEvent(action, localPayload);
             return true;
         }
@@ -531,7 +714,19 @@
             if (!state.status || !state.status[target]) return false;
             localPayload.target = target;
             state.status[target].done = !!localPayload.done;
-            if (state.status[target].done) state.status[target].requested = false;
+            if (state.status[target].done) {
+                state.status[target].requested = false;
+                const opponent = target === "p1" ? "p2" : "p1";
+                if (state.status[opponent] && state.status[opponent].done) {
+                    localPayload.auto_advanced = true;
+                    localPayload.from_phase = state.phase;
+                    localPayload.from_turn = Number(state.turn || 1);
+                    const priority = advanceLocalPhase(state);
+                    localPayload.to_phase = state.phase;
+                    localPayload.to_turn = Number(state.turn || 1);
+                    if (priority) localPayload.priority_player = priority;
+                }
+            }
             appendOptimisticEvent(action, localPayload);
             return true;
         }
@@ -628,6 +823,7 @@
             "move_card",
             "bulk_move",
             "shuffle_hand",
+            "set_hand_visibility",
             "set_phase",
             "next_turn",
             "request_action",
@@ -705,6 +901,7 @@
             "move_card",
             "bulk_move",
             "shuffle_hand",
+            "set_hand_visibility",
             "request_action",
             "set_done",
             "hp",
@@ -780,14 +977,23 @@
         if (optimisticApplied && isBatchableAction(action)) {
             return queueBatchAction(action, actionPayload, rollbackEnvelope);
         }
-        return flushActionBatch().then(() => postSocketAction(action, actionPayload)).catch((error) => {
-            if (optimisticApplied && rollbackEnvelope && error && error.serverRejected) {
-                updateEnvelope(rollbackEnvelope, { force: true });
-                fetchState(true);
-            }
-            showRealtimeToast(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
-            return null;
-        });
+        const needsAuthoritativeState = action === "set_phase" && actionPayload.phase === "battle";
+        return flushActionBatch()
+            .then(() => postSocketAction(action, actionPayload))
+            .then((result) => {
+                if (optimisticApplied && needsAuthoritativeState) {
+                    return fetchState(true).then(() => result);
+                }
+                return result;
+            })
+            .catch((error) => {
+                if (optimisticApplied && rollbackEnvelope && error && error.serverRejected) {
+                    updateEnvelope(rollbackEnvelope, { force: true });
+                    fetchState(true);
+                }
+                showRealtimeToast(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
+                return null;
+            });
     }
 
     function timerRemaining() {
@@ -895,23 +1101,49 @@
         return `<button class="v2-sim-counter ${extraClass || ""}" type="button" data-counter-kind="${kind}" data-counter-target="${side}" data-counter-amount="${amount}" data-counter-label="${escapeHtml(label)}">${label}</button>`;
     }
 
+    function playerBoardOrder() {
+        const own = ownSide();
+        if (own) return [own, opponentSide(own)];
+        return ["p1", "p2"];
+    }
+
+    function playerBoardPosition(side) {
+        return playerBoardOrder()[0] === side ? "left" : "right";
+    }
+
+    function orderPlayerBoards() {
+        const layout = document.querySelector(".v2-sim-layout");
+        if (!layout) return;
+        playerBoardOrder().forEach((side) => {
+            const board = layout.querySelector(`[data-player-board="${side}"]`);
+            if (board) layout.appendChild(board);
+        });
+    }
+
     function renderPlayer(side) {
         const rootNode = document.querySelector(`[data-player-board="${side}"]`);
         const player = state.players && state.players[side];
         if (!rootNode || !player) return;
+        const position = playerBoardPosition(side);
         const character = player.character || {};
         const bgStyle = character.img
             ? ` style="--sim-character-bg: url('${escapeHtml(String(character.img).replaceAll("'", "%27"))}')"`
             : "";
         const requested = !!(state.status && state.status[side] && state.status[side].requested);
+        const done = !!(state.status && state.status[side] && state.status[side].done);
         const requestClass = requested
             ? side === envelope.role
                 ? " is-action-requested is-own-request"
                 : " is-action-requested is-opponent-request"
             : "";
-        rootNode.className = `v2-sim-player-wrap v2-sim-${side}`;
+        const doneClass = done
+            ? side === envelope.role
+                ? " is-action-done is-own-done"
+                : " is-action-done is-opponent-done"
+            : "";
+        rootNode.className = `v2-sim-player-wrap v2-sim-${side} v2-sim-board-${position}`;
         rootNode.innerHTML = `
-            <article class="v2-panel v2-sim-player${requestClass}"${bgStyle}>
+            <article class="v2-panel v2-sim-player${requestClass}${doneClass}"${bgStyle}>
                 <header class="v2-sim-player-head">
                     <div>
                         <span>${playerLabel(side)}</span>
@@ -937,7 +1169,7 @@
             </article>
         `;
         renderPassive(side, player);
-        renderZones(side, player);
+        renderZones(side, player, position);
     }
 
     function renderPassive(side, player) {
@@ -1112,6 +1344,9 @@
             action(payload) {
                 return postAction("passive", { target: side, ...(payload || {}) });
             },
+            simulatorAction(action, payload) {
+                return postAction(action, { target: side, ...(payload || {}) });
+            },
             increment(key, delta, label) {
                 return postAction("passive", { target: side, key, delta: Number(delta || 1), label: label || key });
             },
@@ -1162,7 +1397,7 @@
         });
     }
 
-    function renderZones(side, player) {
+    function renderZones(side, player, position) {
         const holder = document.querySelector(`[data-zone-grid="${side}"]`);
         if (!holder) return;
         holder.replaceChildren();
@@ -1178,7 +1413,13 @@
                 actions.push(`<button type="button" data-bulk-player="${side}" data-bulk-target="hand">${t("손패")}</button>`);
             }
             if (zone === "hand" && canControl()) {
-                actions.push(`<button type="button" data-shuffle-hand-player="${side}">${t("셔플")}</button>`);
+                if (side === envelope.role && cards.length) {
+                    const ownHandCards = cards.filter((card) => card.kind !== "character" && card.owner === side);
+                    const handPublic = ownHandCards.length > 0 && ownHandCards.every((card) => !!card.face_up);
+                    actions.push(`<button type="button" data-hand-visibility-player="${side}" data-hand-visibility-value="${handPublic ? "false" : "true"}">${handPublic ? t("손패 비공개") : t("손패 공개")}</button>`);
+                }
+                const cooldown = shuffleCooldownRemaining(side);
+                actions.push(`<button type="button" data-shuffle-hand-player="${side}"${cooldown ? ` data-force-disabled="true" disabled` : ""}>${cooldown ? `${t("셔플")} ${cooldown}s` : t("셔플")}</button>`);
             }
             const zoneActions = actions.length
                 ? `<div class="v2-sim-zone-actions">${actions.join("")}</div>`
@@ -1198,14 +1439,22 @@
 
         const topRow = document.createElement("div");
         topRow.className = "v2-sim-zone-row v2-sim-zone-row-top";
-        topRow.append(makeZone("ultimate"), makeZone("lumen"));
+        if (position === "right") {
+            topRow.append(makeZone("lumen"), makeZone("ultimate"));
+        } else {
+            topRow.append(makeZone("ultimate"), makeZone("lumen"));
+        }
         holder.appendChild(topRow);
         holder.appendChild(makeZone("battle"));
         holder.appendChild(makeZone("hand"));
         holder.appendChild(makeZone("list"));
         const bottomRow = document.createElement("div");
         bottomRow.className = "v2-sim-zone-row v2-sim-zone-row-bottom";
-        bottomRow.append(makeZone("side"), makeZone("break"));
+        if (position === "right") {
+            bottomRow.append(makeZone("break"), makeZone("side"));
+        } else {
+            bottomRow.append(makeZone("side"), makeZone("break"));
+        }
         holder.appendChild(bottomRow);
     }
 
@@ -1293,11 +1542,22 @@
             return `${actor} ${playerLabel(payload.player)} ${zoneLabel("battle")} ${payload.count || 0}${t("장")} → ${zoneLabel(payload.to_zone)}`;
         }
         if (event.type === "shuffle_hand") return `${playerLabel(payload.player)} ${zoneLabel("hand")} ${t("셔플")}`;
+        if (event.type === "set_hand_visibility") return `${playerLabel(payload.target)} ${zoneLabel("hand")} ${payload.face_up ? t("공개") : t("비공개")} (${payload.count || 0}${t("장")})`;
         if (event.type === "set_phase") return `${phaseLabel(payload.phase)} ${t("Phase")}`;
         if (event.type === "import_card") return `${actor} ${payload.card_label || payload.card_name || t("카드")} → ${zoneLabel("lumen")}`;
+        if (event.type === "blackout_random_get") return `${actor} ${payload.source_card_label || t("블랙아웃")}: ${playerLabel(payload.opponent)} ${zoneLabel("list")} ${t("무작위")} 1${t("장")} → ${zoneLabel("hand")} - ${payload.card_label || t("카드")}`;
+        if (event.type === "yohan_declare_reveal") return `${actor} ${t("선언")} : ${payload.declaration_label || payload.declaration || ""} - ${t("공개")} : ${payload.card_label || t("카드")}`;
+        if (event.type === "yohan_foresight_reveal") return `${t("예지")} - ${payload.card_label || t("카드")}`;
+        if (event.type === "nia_lumen_cards_to_list") return `${actor} ${zoneLabel("lumen")} ${t("공격/수비")} ${payload.count || 0}${t("장")} → ${zoneLabel("list")}`;
+        if (event.type === "cmyk_new_single") return `${actor} ${payload.card_label || t("뉴 싱글")} ${payload.count || 0}${t("장")} → ${zoneLabel("lumen")}`;
         if (event.type === "next_turn") return t("다음 턴");
         if (event.type === "request_action") return `${playerLabel(payload.target)} ${t("행동")} ${payload.requested ? t("요청") : t("요청 해제")}`;
-        if (event.type === "set_done") return `${playerLabel(payload.target)} ${t("행동")} ${payload.done ? t("완료") : t("완료 취소")}`;
+        if (event.type === "set_done") {
+            const doneLabel = `${playerLabel(payload.target)} ${t("행동")} ${payload.done ? t("완료") : t("완료 취소")}`;
+            return payload.auto_advanced
+                ? `${doneLabel} → ${phaseLabel(payload.to_phase)} ${t("Phase")}`
+                : doneLabel;
+        }
         if (event.type === "hp") return `${playerLabel(payload.target)} HP ${formatSigned(payload.amount)} → ${payload.after}`;
         if (event.type === "fp") return `${playerLabel(payload.target)} FP ${formatSigned(payload.amount)} → ${formatSigned(payload.after)}`;
         if (event.type === "fp_reset") return `${playerLabel(payload.target)} ${t("FP 초기화")} (${formatSigned(payload.before)} → 0)`;
@@ -1319,7 +1579,9 @@
         if (["request_action", "set_done", "hp", "fp", "fp_reset", "passive", "timer_timeout"].includes(event.type)) return payload.target || payload.owner || "";
         if (event.type === "bulk_move") return payload.player || "";
         if (event.type === "shuffle_hand") return payload.player || "";
+        if (event.type === "set_hand_visibility") return payload.target || "";
         if (event.type === "import_card") return payload.target || event.actor || "";
+        if (["yohan_declare_reveal", "yohan_foresight_reveal", "nia_lumen_cards_to_list", "cmyk_new_single", "blackout_random_get"].includes(event.type)) return payload.target || event.actor || "";
         if (event.type === "set_visibility") return payload.owner || event.actor || "";
         if (event.type === "move_card") return payload.owner || event.actor || payload.to_player || payload.from_player || "";
         if (event.type === "timer") return payload.owner || event.actor || "";
@@ -1369,6 +1631,12 @@
             if (relatedSide === "p1") row.classList.add("is-p1");
             if (relatedSide === "p2") row.classList.add("is-p2");
             row.classList.add(logAlignmentClass(event));
+            const logCard = logCardPayload(event);
+            if (logCard) {
+                row.classList.add("has-card-link");
+                if (logCard.instanceId) row.dataset.logCardInstance = logCard.instanceId;
+                if (logCard.card) row.dataset.logCard = JSON.stringify(logCard.card);
+            }
             const label = document.createElement("strong");
             label.textContent = t(eventLabel(event));
             row.append(label);
@@ -1380,7 +1648,7 @@
         const drawer = document.querySelector("[data-card-drawer]");
         const holder = document.querySelector("[data-card-detail]");
         if (!drawer || !holder) return;
-        const card = selectedCardId ? hydrateCard(findCard(selectedCardId)) : null;
+        const card = selectedLogCard ? hydrateCard(selectedLogCard) : selectedCardId ? hydrateCard(findCard(selectedCardId)) : null;
         if (!card || card.hidden) {
             drawer.classList.remove("is-open");
             document.body.classList.remove("v2-sim-card-detail-open");
@@ -1398,9 +1666,15 @@
             details.push(`<p class="v2-sim-card-detail-line">${escapeHtml(valueOrDashLabel(card, "g_top"))} | ${escapeHtml(valueOrDashLabel(card, "g_mid"))} | ${escapeHtml(valueOrDashLabel(card, "g_bot"))}</p>`);
         }
         if (text) details.push(`<p class="v2-sim-card-detail-effect">${escapeHtml(text)}</p>`);
+        const actions = canUseBlackoutAction(card)
+            ? `<div class="v2-sim-card-detail-actions">
+                <button class="v2-button" type="button" data-card-tool="blackout_random_get" data-source-card="${escapeHtml(card.instance_id)}">${t("상대 랜덤 겟")}</button>
+            </div>`
+            : "";
         holder.innerHTML = `
             ${image ? `<img src="${escapeHtml(image)}" alt="">` : ""}
             <h2>${escapeHtml(cardDisplayName(card))}</h2>
+            ${actions}
             <section class="v2-sim-card-detail-text">${details.join("")}</section>
         `;
         drawer.classList.add("is-open");
@@ -1414,6 +1688,7 @@
         });
         document.querySelectorAll("[data-log-toggle]").forEach((button) => {
             button.textContent = logOpen ? t("접기") : t("로그");
+            button.classList.toggle("is-log-open", logOpen);
         });
         if (!logOpen) {
             sendLogSubscription(false);
@@ -1530,8 +1805,8 @@
         renderPhase();
         renderStatus();
         renderTimer();
-        renderPlayer("p2");
-        renderPlayer("p1");
+        orderPlayerBoards();
+        playerBoardOrder().forEach((side) => renderPlayer(side));
         renderLog();
         renderCardDetail();
         setLogOpen(logOpen);
@@ -1545,10 +1820,11 @@
             "[data-fp-reset]",
             "[data-bulk-player]",
             "[data-shuffle-hand-player]",
+            "[data-hand-visibility-player]",
             "[data-visibility-card]",
             "[data-sim-action='import_card']",
         ].join(", ")).forEach((button) => {
-            button.disabled = !canControl();
+            button.disabled = !canControl() || button.dataset.forceDisabled === "true";
         });
         document.querySelectorAll("[data-manual-log-input]").forEach((input) => {
             input.disabled = !canControl();
@@ -1558,6 +1834,7 @@
         });
         attachDragAndDrop();
         updateQueuedCounters();
+        scheduleShuffleCooldownTick();
     }
 
     function renderPresence() {
@@ -1584,15 +1861,154 @@
         return payload;
     }
 
+    function submitManualLog() {
+        const input = document.querySelector("[data-manual-log-input]");
+        const text = input ? input.value.trim() : "";
+        if (!text) return;
+        if (input) input.value = "";
+        postAction("log_note", { text });
+    }
+
+    function setShortcutModalOpen(open) {
+        const modal = document.querySelector("[data-shortcut-modal]");
+        if (!modal) return;
+        modal.hidden = !open;
+    }
+
+    function isEditableTarget(target) {
+        return !!(
+            target &&
+            target.closest &&
+            target.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']")
+        );
+    }
+
+    function shuffleHand(side) {
+        const player = state.players && state.players[side];
+        const cards = player && player.zones ? player.zones.hand || [] : [];
+        const cooldown = shuffleCooldownRemaining(side);
+        if (cooldown > 0) {
+            showRealtimeToast(t(`패 셔플은 ${cooldown}초 뒤에 다시 사용할 수 있습니다.`));
+            return;
+        }
+        if (cards.length <= 1) return;
+        postAction("shuffle_hand", {
+            player: side,
+            order: shuffledOrder(cards),
+        });
+    }
+
+    function completeOwnAction() {
+        const side = ownSide();
+        if (!side || !canControl()) return;
+        const status = (state.status && state.status[side]) || {};
+        postAction("set_done", { target: side, done: !status.done });
+    }
+
+    function requestOpponentAction() {
+        const side = ownSide();
+        const target = opponentSide(side);
+        if (!target || !canControl()) return;
+        const status = (state.status && state.status[target]) || {};
+        postAction("request_action", { target, requested: !status.requested });
+    }
+
+    function queueShortcutCounter(side, kind, amount) {
+        if (!side || !canControl()) return;
+        queueCounter(kind, side, amount);
+    }
+
+    function handleSimulatorShortcut(event) {
+        if (event.defaultPrevented) return;
+        if (event.key === "Escape") {
+            setShortcutModalOpen(false);
+            return;
+        }
+        const shortcutModal = document.querySelector("[data-shortcut-modal]");
+        if (shortcutModal && !shortcutModal.hidden) return;
+        if (event.ctrlKey || event.altKey || event.metaKey) return;
+        if (isEditableTarget(event.target)) return;
+
+        const side = ownSide();
+        const opponent = opponentSide(side);
+        let handled = true;
+        if (event.key === "Tab") {
+            setLogOpen(!logOpen);
+        } else if (event.key === "Enter") {
+            completeOwnAction();
+        } else if (event.code === "Space") {
+            requestOpponentAction();
+        } else if (event.code === "KeyR" && event.shiftKey) {
+            shuffleHand(side);
+        } else if (!event.shiftKey && event.code === "Digit1") {
+            queueShortcutCounter(side, "hp", -500);
+        } else if (!event.shiftKey && event.code === "Digit2") {
+            queueShortcutCounter(side, "hp", -100);
+        } else if (!event.shiftKey && event.code === "Digit3") {
+            queueShortcutCounter(side, "hp", 100);
+        } else if (!event.shiftKey && event.code === "Digit4") {
+            queueShortcutCounter(side, "hp", 500);
+        } else if (!event.shiftKey && event.code === "Digit5") {
+            queueShortcutCounter(side, "fp", -1);
+        } else if (!event.shiftKey && event.code === "Digit6") {
+            queueShortcutCounter(side, "fp", 1);
+        } else if (!event.shiftKey && event.code === "KeyQ") {
+            queueShortcutCounter(opponent, "hp", -500);
+        } else if (!event.shiftKey && event.code === "KeyW") {
+            queueShortcutCounter(opponent, "hp", -100);
+        } else if (!event.shiftKey && event.code === "KeyE") {
+            queueShortcutCounter(opponent, "hp", 100);
+        } else if (!event.shiftKey && event.code === "KeyR") {
+            queueShortcutCounter(opponent, "hp", 500);
+        } else if (!event.shiftKey && event.code === "KeyT") {
+            queueShortcutCounter(opponent, "fp", -1);
+        } else if (!event.shiftKey && event.code === "KeyY") {
+            queueShortcutCounter(opponent, "fp", 1);
+        } else {
+            handled = false;
+        }
+        if (handled) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }
+
+    document.addEventListener("keydown", handleSimulatorShortcut);
+
+    root.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || event.isComposing) return;
+        if (!event.target.closest("[data-manual-log-input]")) return;
+        event.preventDefault();
+        submitManualLog();
+    });
+
     root.addEventListener("click", (event) => {
         const button = event.target.closest("button");
         if (!button) {
+            if (event.target.closest("[data-shortcut-close]")) {
+                setShortcutModalOpen(false);
+                return;
+            }
+            const logRow = event.target.closest("[data-log-card-instance], [data-log-card]");
+            if (logRow) {
+                if (logRow.dataset.logCardInstance) {
+                    selectCardInstance(logRow.dataset.logCardInstance);
+                    return;
+                }
+                if (logRow.dataset.logCard) {
+                    try {
+                        selectLogCard(JSON.parse(logRow.dataset.logCard));
+                    } catch (error) {
+                        selectLogCard(null);
+                    }
+                    return;
+                }
+            }
             const card = event.target.closest("[data-card-open]");
             if (!card) return;
             const cardData = findCard(card.dataset.cardOpen);
             if (!cardData || cardData.hidden) return;
-            selectedCardId = card.dataset.cardOpen;
-            renderCardDetail();
+            selectCardInstance(card.dataset.cardOpen);
             return;
         }
         if (button.disabled) return;
@@ -1600,19 +2016,36 @@
         if (button.dataset.cardOpen) {
             const cardData = findCard(button.dataset.cardOpen);
             if (!cardData || cardData.hidden) return;
-            selectedCardId = button.dataset.cardOpen;
-            renderCardDetail();
+            selectCardInstance(button.dataset.cardOpen);
             return;
         }
 
         if (button.dataset.cardDrawerClose !== undefined) {
             selectedCardId = "";
+            selectedLogCard = null;
             renderCardDetail();
+            return;
+        }
+
+        if (button.dataset.cardTool === "blackout_random_get") {
+            postAction("blackout_random_get", {
+                source_card_instance_id: button.dataset.sourceCard,
+            });
             return;
         }
 
         if (button.dataset.logToggle !== undefined) {
             setLogOpen(!logOpen);
+            return;
+        }
+
+        if (button.dataset.shortcutOpen !== undefined) {
+            setShortcutModalOpen(true);
+            return;
+        }
+
+        if (button.dataset.shortcutClose !== undefined) {
+            setShortcutModalOpen(false);
             return;
         }
 
@@ -1666,13 +2099,13 @@
             return;
         }
         if (button.dataset.shuffleHandPlayer) {
-            const side = button.dataset.shuffleHandPlayer;
-            const player = state.players && state.players[side];
-            const cards = player && player.zones ? player.zones.hand || [] : [];
-            if (cards.length <= 1) return;
-            postAction("shuffle_hand", {
-                player: side,
-                order: shuffledOrder(cards),
+            shuffleHand(button.dataset.shuffleHandPlayer);
+            return;
+        }
+        if (button.dataset.handVisibilityPlayer) {
+            postAction("set_hand_visibility", {
+                target: button.dataset.handVisibilityPlayer,
+                face_up: button.dataset.handVisibilityValue === "true",
             });
             return;
         }
@@ -1731,12 +2164,7 @@
             return;
         }
         if (button.dataset.simAction === "manual_log") {
-            const input = document.querySelector("[data-manual-log-input]");
-            const text = input ? input.value.trim() : "";
-            if (!text) return;
-            postAction("log_note", { text }).then(() => {
-                if (input) input.value = "";
-            });
+            submitManualLog();
             return;
         }
         if (button.dataset.simAction === "import_card") {
@@ -1779,10 +2207,12 @@
     });
 
     document.addEventListener("click", (event) => {
-        if (!selectedCardId) return;
+        if (!selectedCardId && !selectedLogCard) return;
         if (event.target.closest("[data-card-drawer]")) return;
         if (event.target.closest("[data-card-open]")) return;
+        if (event.target.closest("[data-log-card-instance], [data-log-card]")) return;
         selectedCardId = "";
+        selectedLogCard = null;
         renderCardDetail();
     });
 
@@ -1880,7 +2310,7 @@
                     }
                     return nextEnvelope;
                 }
-                const result = updateEnvelope(nextEnvelope);
+                const result = updateEnvelope(nextEnvelope, forceFull ? { force: true } : undefined);
                 if (logOpen && !sendLogSubscription(true)) fetchEvents();
                 return result;
             })
@@ -1987,6 +2417,10 @@
             if (message.type === "presence" && message.presence) {
                 envelope.presence = message.presence;
                 renderPresence();
+                return;
+            }
+            if (message.type === "warning") {
+                showRealtimeToast(message.message || t("요청이 너무 빠르게 반복되고 있습니다."));
                 return;
             }
             if (message.type === "action_ack" || message.type === "error") resolveSocketAction(message);

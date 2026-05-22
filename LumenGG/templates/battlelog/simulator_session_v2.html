@@ -48,6 +48,7 @@
         <div class="v2-sim-control-actions">
             <button class="v2-button" type="button" data-sim-action="next_turn">{% tr "다음 턴" %}</button>
             <button class="v2-button" type="button" data-sim-action="undo">{% tr "되돌리기" %}</button>
+            <button class="v2-button" type="button" data-shortcut-open>{% tr "단축키" %}</button>
             <button class="v2-button" type="button" data-fullscreen-toggle>{% tr "전체화면" %}</button>
         </div>
     </div>
@@ -88,7 +89,28 @@
         </div>
         <div class="v2-sim-log" data-sim-log></div>
     </aside>
+    <button class="v2-sim-shortcut-fab" type="button" data-shortcut-open>{% tr "단축키" %}</button>
     <button class="v2-sim-log-fab" type="button" data-log-toggle>{% tr "로그" %}</button>
+
+    <div class="v2-sim-shortcut-modal" data-shortcut-modal hidden>
+        <div class="v2-sim-shortcut-backdrop" data-shortcut-close></div>
+        <section class="v2-panel v2-sim-shortcut-dialog" role="dialog" aria-modal="true" aria-label="{% tr "단축키" %}">
+            <div class="v2-sim-drawer-head">
+                <strong>{% tr "단축키" %}</strong>
+                <button class="v2-button" type="button" data-shortcut-close>{% tr "닫기" %}</button>
+            </div>
+            <div class="v2-sim-shortcut-grid">
+                <span>Tab</span><strong>{% tr "로그 켜기" %}</strong>
+                <span>Enter</span><strong>{% tr "내 행동 완료" %}</strong>
+                <span>Space</span><strong>{% tr "상대에게 행동 요청" %}</strong>
+                <span>Shift + R</span><strong>{% tr "손패 셔플" %}</strong>
+                <span>1 / 2 / 3 / 4</span><strong>{% tr "자신 HP -500 / -100 / +100 / +500" %}</strong>
+                <span>5 / 6</span><strong>{% tr "자신 FP -1 / +1" %}</strong>
+                <span>Q / W / E / R</span><strong>{% tr "상대 HP -500 / -100 / +100 / +500" %}</strong>
+                <span>T / Y</span><strong>{% tr "상대 FP -1 / +1" %}</strong>
+            </div>
+        </section>
+    </div>
 </section>
 
 <div

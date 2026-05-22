@@ -2,22 +2,22 @@
     display: grid;
     width: max-content;
     max-width: 100%;
-    gap: 2px;
+    gap: 4px;
 }
 
 :host .tao-counter-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 3px;
+    gap: 4px;
 }
 
 :host .tao-counter-card {
     display: grid;
-    grid-template-columns: 14px 14px 28px 14px;
+    grid-template-columns: 18px 22px 42px 22px;
     align-items: center;
-    gap: 2px;
+    gap: 3px;
     min-width: 0;
-    padding: 1px 2px;
+    padding: 3px 4px;
     border: 1px solid var(--v2-line);
     border-radius: 7px;
     background: color-mix(in srgb, var(--v2-soft-bg) 88%, transparent);
@@ -29,7 +29,7 @@
     grid-row: 1;
     flex: 0 0 auto;
     color: var(--v2-muted);
-    font-size: .58rem;
+    font-size: .68rem;
     font-weight: 900;
     line-height: 1;
 }
@@ -40,12 +40,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 16px;
+    min-height: 24px;
     border: 1px solid var(--v2-line);
     border-radius: 6px;
     color: var(--v2-text);
     background: var(--v2-surface-2);
-    font-size: .58rem;
+    font-size: .7rem;
     font-weight: 900;
     line-height: 1;
     cursor: pointer;
@@ -100,13 +100,13 @@
 
 :host button {
     min-width: 0;
-    min-height: 16px;
-    padding: 1px 3px;
+    min-height: 24px;
+    padding: 2px 6px;
     border: 1px solid var(--v2-line);
     border-radius: 6px;
     color: var(--v2-text);
     background: var(--v2-surface-2);
-    font-size: .58rem;
+    font-size: .68rem;
     font-weight: 900;
     line-height: 1;
 }
@@ -126,9 +126,9 @@
 :host .tao-harmony-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
-    gap: 2px;
+    gap: 4px;
     align-items: center;
-    padding: 2px 3px;
+    padding: 4px 5px;
     border: 1px solid rgba(91, 190, 176, .75);
     border-radius: 7px;
     background:
@@ -143,21 +143,21 @@
 
 :host .tao-harmony-row > span {
     color: var(--v2-teal);
-    font-size: .56rem;
+    font-size: .68rem;
     font-weight: 900;
     line-height: 1;
     white-space: nowrap;
 }
 
 :host .tao-harmony-row button {
-    min-height: 17px;
-    font-size: .56rem;
+    min-height: 24px;
+    font-size: .66rem;
 }
 
 @media screen and (max-width: 760px) {
     :host .tao-passive-panel {
-        width: min(200px, 100%);
-        gap: 2px;
+        width: min(240px, 100%);
+        gap: 3px;
     }
 
     :host .tao-counter-grid,
@@ -166,8 +166,8 @@
     }
 
     :host .tao-counter-card {
-        grid-template-columns: 14px 14px 27px 14px;
-        padding: 1px 2px;
+        grid-template-columns: 18px 22px 40px 22px;
+        padding: 3px 4px;
         gap: 2px;
     }
 
@@ -176,24 +176,24 @@
     :host button,
     :host .tao-harmony-row > span,
     :host .tao-harmony-row button {
-        font-size: .58rem;
+        font-size: .66rem;
     }
 
     :host button {
-        min-height: 16px;
-        padding: 1px 2px;
+        min-height: 23px;
+        padding: 2px 5px;
     }
 
     :host .tao-counter-card > strong {
         flex-basis: 30px;
-        min-height: 16px;
+        min-height: 23px;
     }
 
     :host .tao-harmony-row {
-        padding: 2px;
+        padding: 3px;
     }
 
     :host .tao-harmony-row button {
-        min-height: 17px;
+        min-height: 23px;
     }
 }

@@ -1,3 +1,6 @@
+import time
+import time
+from collections import deque
 from urllib.parse import parse_qs
 
 from asgiref.sync import async_to_sync
@@ -44,12 +47,54 @@ def _query_value(scope, key, default=''):
     return values[0] if values else default
 
 
-class BattleSessionConsumer(JsonWebsocketConsumer):
+class RequestRateWarningMixin:
+    RATE_WINDOW_SECONDS = 10
+    MESSAGE_WARNING_LIMIT = 80
+    ACTION_WARNING_LIMIT = 20
+    WARNING_COOLDOWN_SECONDS = 10
+
+    def init_rate_warning(self):
+        self._rate_warning_messages = deque()
+        self._rate_warning_actions = deque()
+        self._rate_warning_last_sent_at = 0
+
+    def maybe_send_rate_warning(self, message_type):
+        now = time.monotonic()
+        self._trim_rate_window(self._rate_warning_messages, now)
+        self._rate_warning_messages.append(now)
+        if message_type == 'action':
+            self._trim_rate_window(self._rate_warning_actions, now)
+            self._rate_warning_actions.append(now)
+
+        if now - self._rate_warning_last_sent_at < self.WARNING_COOLDOWN_SECONDS:
+            return
+        if len(self._rate_warning_actions) > self.ACTION_WARNING_LIMIT:
+            self._rate_warning_last_sent_at = now
+            self.send_warning('조작 요청이 너무 빠르게 반복되고 있습니다. 잠시 천천히 조작해주세요.')
+            return
+        if len(self._rate_warning_messages) > self.MESSAGE_WARNING_LIMIT:
+            self._rate_warning_last_sent_at = now
+            self.send_warning('요청이 너무 빠르게 반복되고 있습니다. 잠시 기다려주세요.')
+
+    def _trim_rate_window(self, queue, now):
+        cutoff = now - self.RATE_WINDOW_SECONDS
+        while queue and queue[0] < cutoff:
+            queue.popleft()
+
+    def send_warning(self, message):
+        self.send_json({
+            'type': 'warning',
+            'message': ui_text(message, self.language),
+        })
+
+
+class BattleSessionConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
     def connect(self):
         self.view_token = self.scope['url_route']['kwargs']['view_token']
         self.control_token = _query_value(self.scope, 'control_token')
         self.language = normalize_language(_query_value(self.scope, 'language'))
         self.group_name = battle_session_group(self.view_token)
+        self.init_rate_warning()
 
         try:
             self.session = battle_session_queryset().get(view_token=self.view_token)
@@ -77,6 +122,7 @@ class BattleSessionConsumer(JsonWebsocketConsumer):
     def receive_json(self, content, **kwargs):
         message_type = content.get('type')
         request_id = content.get('request_id')
+        self.maybe_send_rate_warning(message_type)
 
         if message_type == 'state':
             self.send_state(request_id=request_id)
@@ -180,7 +226,7 @@ class TournamentBattleStateConsumer(JsonWebsocketConsumer):
         })
 
 
-class LumenSimulatorConsumer(JsonWebsocketConsumer):
+class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
     def connect(self):
         self.view_token = self.scope['url_route']['kwargs']['view_token']
         self.seat = _query_value(self.scope, 'seat')
@@ -189,6 +235,7 @@ class LumenSimulatorConsumer(JsonWebsocketConsumer):
         self.group_name = simulator_session_group(self.view_token)
         self.log_subscribed = False
         self.log_since_seq = 0
+        self.init_rate_warning()
 
         try:
             self.session = simulator_queryset().get(view_token=self.view_token)
@@ -213,6 +260,7 @@ class LumenSimulatorConsumer(JsonWebsocketConsumer):
     def receive_json(self, content, **kwargs):
         message_type = content.get('type')
         request_id = content.get('request_id')
+        self.maybe_send_rate_warning(message_type)
 
         if message_type == 'state':
             self.send_state(request_id=request_id)

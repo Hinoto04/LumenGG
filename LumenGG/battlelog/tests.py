@@ -13,7 +13,7 @@ from tournament.models import Tournament, TournamentDeckSubmission, TournamentMa
 from .models import BattleEvent, BattleSession, LumenSimulatorSession, RealtimePresence
 from .event_buffer import flush_session_events
 from .presence import battle_presence_counts, register_presence, simulator_presence_counts, unregister_presence
-from .services import cleanup_expired_sessions, get_or_create_tournament_session
+from .services import _passive_ui, cleanup_expired_sessions, create_standalone_session, get_or_create_tournament_session
 from .simulator_services import create_simulator_session, serialize_simulator_card_metadata, serialize_simulator_session
 
 
@@ -110,6 +110,51 @@ class BattleCalculatorTests(TestCase):
         self.assertEqual(session.player1_fp, 2)
         self.assertEqual(session.player1_passive_state['count']['count'], 3)
         self.assertEqual(session.version, 2)
+
+    def test_calculator_passive_ui_can_disable_cmyk_and_toggle_yohan_disaster_one(self):
+        cmyk = Character.objects.create(
+            name='CMYK',
+            description='',
+            group='',
+            datas={
+                'battle_passive_ui': {'disabled': True},
+                'simulator_passive_ui': {
+                    'template': 'battlelog/passive_ui/cmyk_simulator.html',
+                    'css': 'battlelog/passive_ui/character_simulator.css',
+                    'js': 'battlelog/passive_ui/cmyk_simulator.js',
+                },
+            },
+            img='https://example.com/cmyk.png',
+        )
+        yohan = Character.objects.create(
+            name='요한',
+            description='',
+            group='',
+            datas={
+                'battle_passive_ui': {
+                    'template': 'battlelog/passive_ui/configurable.html',
+                    'css': 'battlelog/passive_ui/configurable.css',
+                    'js': 'battlelog/passive_ui/configurable.js',
+                    'options': {
+                        'title': '예지',
+                        'controls': [
+                            {'type': 'counter', 'key': 'foresight_counter', 'label': '예지 카운터', 'max': 10},
+                            {'type': 'toggle', 'key': 'disaster_one', 'label': '디제스터 원'},
+                        ],
+                    },
+                },
+            },
+            img='https://example.com/yohan.png',
+        )
+
+        self.assertEqual(_passive_ui(cmyk, context='battle'), {})
+        self.assertTrue(_passive_ui(cmyk, context='simulator')['html'])
+        yohan_controls = _passive_ui(yohan, context='battle')['options']['controls']
+        self.assertEqual([control['key'] for control in yohan_controls], ['foresight_counter', 'disaster_one'])
+        self.assertEqual(yohan_controls[1]['type'], 'toggle')
+
+        session = create_standalone_session('요한', '상대', yohan, self.char_b)
+        self.assertEqual(session.player1_passive_state['foresight_counter']['count'], 2)
 
     def test_undo_reverts_last_hp_event(self):
         session = BattleSession.objects.create(
@@ -431,6 +476,13 @@ class LumenSimulatorTests(TestCase):
         self.assertEqual(len(state['players']['p1']['zones']['passive']), 1)
         passive_options = state['players']['p1']['character']['passive_ui']['options']
         self.assertEqual(passive_options['controls'][0]['key'], 'sim_counter')
+        requested = [
+            side for side in ('p1', 'p2')
+            if state['status'][side]['requested']
+        ]
+        self.assertEqual(len(requested), 1)
+        self.assertFalse(state['status'][requested[0]]['done'])
+        self.assertEqual(state['priority_player'], requested[0])
 
     def test_simulator_private_cards_are_filtered_by_role(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
@@ -446,6 +498,60 @@ class LumenSimulatorTests(TestCase):
         self.assertEqual(p1_hand['card_id'], self.card_a.id)
         metadata = serialize_simulator_card_metadata([p1_hand['card_id']])
         self.assertEqual(metadata[str(self.card_a.id)]['name'], 'A 공격')
+
+    def test_hand_visibility_action_reveals_and_hides_own_hand(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+
+        response = self.post_json(action_url, {
+            'action': 'set_hand_visibility',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'target': 'p1',
+                'face_up': True,
+            },
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        hand = session.document['state']['players']['p1']['zones']['hand']
+        self.assertTrue(all(card['face_up'] for card in hand))
+        self.assertEqual(session.document['events'][-1]['type'], 'set_hand_visibility')
+        self.assertEqual(session.document['events'][-1]['payload']['count'], len(hand))
+        viewer_hand = serialize_simulator_session(session)['state']['players']['p1']['zones']['hand'][0]
+        self.assertFalse(viewer_hand['hidden'])
+        self.assertEqual(viewer_hand['card_id'], self.card_a.id)
+
+        response = self.post_json(action_url, {
+            'action': 'set_hand_visibility',
+            'seat': 'p2',
+            'seat_token': session.player2_token,
+            'payload': {
+                'target': 'p1',
+                'face_up': False,
+            },
+        })
+        self.assertEqual(response.status_code, 403)
+
+        response = self.post_json(action_url, {
+            'action': 'set_hand_visibility',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'target': 'p1',
+                'face_up': False,
+            },
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertFalse(any(
+            card['face_up']
+            for card in session.document['state']['players']['p1']['zones']['hand']
+        ))
+        viewer_hand = serialize_simulator_session(session)['state']['players']['p1']['zones']['hand'][0]
+        self.assertTrue(viewer_hand['hidden'])
 
     def test_simulator_card_metadata_is_loaded_separately(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
@@ -529,6 +635,150 @@ class LumenSimulatorTests(TestCase):
         session.refresh_from_db()
         self.assertEqual(len(session.document['state']['players']['p1']['zones']['hand']), 1)
         self.assertEqual(len(session.document['events']), 0)
+
+    def test_battle_zone_card_enters_face_up_after_ready_phase(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+
+        response = self.post_json(action_url, {
+            'action': 'set_phase',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {'phase': 'get'},
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+
+        hand_card = session.document['state']['players']['p1']['zones']['hand'][0]
+        response = self.post_json(action_url, {
+            'action': 'move_card',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'card_instance_id': hand_card['instance_id'],
+                'to_player': 'p1',
+                'to_zone': 'battle',
+            },
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        spectator = serialize_simulator_session(session)['state']
+        battle_card = spectator['players']['p1']['zones']['battle'][0]
+        self.assertFalse(battle_card['hidden'])
+        self.assertTrue(battle_card['face_up'])
+
+    def test_public_card_name_stays_visible_in_move_log_when_moved_private(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+        list_card = session.document['state']['players']['p1']['zones']['list'][0]
+
+        response = self.post_json(action_url, {
+            'action': 'move_card',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'card_instance_id': list_card['instance_id'],
+                'to_player': 'p1',
+                'to_zone': 'hand',
+            },
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        spectator = serialize_simulator_session(session)
+        moved_card = next(
+            card
+            for card in spectator['state']['players']['p1']['zones']['hand']
+            if card['instance_id'] == list_card['instance_id']
+        )
+        self.assertTrue(moved_card['hidden'])
+        self.assertEqual(spectator['events'][-1]['payload']['card_label'], 'A 공격')
+
+    def test_phase_start_requests_priority_player_except_ready(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+        document = session.document
+        state = document['state']
+        state['players']['p1']['fp'] = 1
+        state['players']['p2']['fp'] = 3
+        state['priority_player'] = 'p1'
+        session.document = document
+        session.save(update_fields=['document'])
+
+        response = self.post_json(action_url, {
+            'action': 'set_phase',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {'phase': 'get'},
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        state = session.document['state']
+        self.assertTrue(state['status']['p2']['requested'])
+        self.assertFalse(state['status']['p1']['requested'])
+        self.assertEqual(state['priority_player'], 'p2')
+        self.assertEqual(session.document['events'][-1]['payload']['priority_player'], 'p2')
+
+        response = self.post_json(action_url, {
+            'action': 'set_phase',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {'phase': 'ready'},
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertFalse(session.document['state']['status']['p1']['requested'])
+        self.assertFalse(session.document['state']['status']['p2']['requested'])
+
+        response = self.post_json(action_url, {
+            'action': 'set_phase',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {'phase': 'battle'},
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertFalse(session.document['state']['status']['p1']['requested'])
+        self.assertFalse(session.document['state']['status']['p2']['requested'])
+
+    def test_done_auto_advances_phase_when_opponent_is_done(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+        document = session.document
+        state = document['state']
+        state['phase'] = 'recovery'
+        state['turn'] = 1
+        state['priority_player'] = 'p2'
+        state['players']['p1']['hp'] = 5000
+        state['players']['p2']['hp'] = 5000
+        state['players']['p1']['fp'] = 0
+        state['players']['p2']['fp'] = 0
+        state['status'] = {
+            'p1': {'requested': True, 'done': False},
+            'p2': {'requested': False, 'done': True},
+        }
+        session.document = document
+        session.save(update_fields=['document'])
+
+        response = self.post_json(action_url, {
+            'action': 'set_done',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {'done': True},
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        state = session.document['state']
+        event_payload = session.document['events'][-1]['payload']
+        self.assertEqual(state['turn'], 2)
+        self.assertEqual(state['phase'], 'lumen')
+        self.assertTrue(state['status']['p2']['requested'])
+        self.assertFalse(state['status']['p1']['done'])
+        self.assertTrue(event_payload['auto_advanced'])
+        self.assertEqual(event_payload['from_phase'], 'recovery')
+        self.assertEqual(event_payload['to_phase'], 'lumen')
 
     def test_import_card_creates_face_up_card_in_actor_lumen_zone(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
@@ -682,6 +932,7 @@ class LumenSimulatorTests(TestCase):
         self.assertEqual(session.document['state']['players']['p2']['zones']['battle'], [])
         self.assertEqual(len(session.document['state']['players']['p1']['zones']['hand']), 1)
         self.assertEqual(session.document['state']['players']['p1']['zones']['hand'][0]['owner'], 'p1')
+        self.assertTrue(session.document['state']['players']['p1']['zones']['hand'][0]['face_up'])
 
     def test_public_card_becomes_private_when_moved_to_private_zone(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
@@ -712,6 +963,87 @@ class LumenSimulatorTests(TestCase):
             if card['instance_id'] == list_card['instance_id']
         ][0]
         self.assertTrue(viewer_card['hidden'])
+
+    def test_visibility_is_preserved_between_toggleable_zones(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+        hand_card = session.document['state']['players']['p1']['zones']['hand'][0]
+
+        response = self.post_json(action_url, {
+            'action': 'set_visibility',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'card_instance_id': hand_card['instance_id'],
+                'face_up': True,
+            },
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertTrue(session.document['state']['players']['p1']['zones']['hand'][0]['face_up'])
+
+        response = self.post_json(action_url, {
+            'action': 'move_card',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'card_instance_id': hand_card['instance_id'],
+                'to_player': 'p1',
+                'to_zone': 'lumen',
+            },
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertTrue(session.document['state']['players']['p1']['zones']['lumen'][0]['face_up'])
+
+    def test_blackout_random_get_moves_random_opponent_list_card_to_public_hand(self):
+        blackout = Card.objects.create(
+            name='블랙아웃',
+            type='특수 기술',
+            text='상대 리스트를 뒷면으로 셔플한다.',
+            character=self.char_a,
+            img='https://example.com/blackout.png',
+        )
+        CardInDeck.objects.create(deck=self.deck_a, card=blackout, count=1)
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+        source_card = [
+            card for card in session.document['state']['players']['p1']['zones']['list']
+            if card['name'] == '블랙아웃'
+        ][0]
+        opponent_card = session.document['state']['players']['p2']['zones']['list'][0]
+
+        response = self.post_json(action_url, {
+            'action': 'blackout_random_get',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'source_card_instance_id': source_card['instance_id'],
+            },
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        state = session.document['state']
+        self.assertEqual(state['players']['p2']['zones']['list'], [])
+        moved_card = [
+            card for card in state['players']['p2']['zones']['hand']
+            if card['instance_id'] == opponent_card['instance_id']
+        ][0]
+        self.assertTrue(moved_card['face_up'])
+        event = session.document['events'][-1]
+        self.assertEqual(event['type'], 'blackout_random_get')
+        self.assertEqual(event['payload']['source_card_label'], '블랙아웃')
+        self.assertEqual(event['payload']['card_label'], 'B 수비')
+
+        response = self.post_json(action_url, {
+            'action': 'undo',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(len(session.document['state']['players']['p2']['zones']['list']), 1)
 
     def test_shuffle_hand_reorders_hand_and_replays_with_undo(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
@@ -768,6 +1100,266 @@ class LumenSimulatorTests(TestCase):
             [card['instance_id'] for card in session.document['state']['players']['p1']['zones']['hand']],
             before_order,
         )
+
+    def test_shuffle_hand_has_short_cooldown(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+
+        for source_zone in ('list', 'side'):
+            card = session.document['state']['players']['p1']['zones'][source_zone][0]
+            response = self.post_json(action_url, {
+                'action': 'move_card',
+                'seat': 'p1',
+                'seat_token': session.player1_token,
+                'payload': {
+                    'card_instance_id': card['instance_id'],
+                    'to_player': 'p1',
+                    'to_zone': 'hand',
+                },
+            })
+            self.assertEqual(response.status_code, 200)
+            session.refresh_from_db()
+
+        order = [
+            card['instance_id']
+            for card in session.document['state']['players']['p1']['zones']['hand']
+        ]
+        first_response = self.post_json(action_url, {
+            'action': 'shuffle_hand',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'player': 'p1',
+                'order': list(reversed(order)),
+            },
+        })
+        self.assertEqual(first_response.status_code, 200)
+        session.refresh_from_db()
+        self.assertIn('p1', session.document['state']['hand_shuffle_cooldowns'])
+
+        second_response = self.post_json(action_url, {
+            'action': 'shuffle_hand',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'player': 'p1',
+                'order': order,
+            },
+        })
+        self.assertEqual(second_response.status_code, 400)
+
+    def test_yohan_declaration_reveals_random_opponent_private_hand_card(self):
+        yohan = Character.objects.create(
+            name='요한',
+            description='',
+            group='',
+            datas={'hand': {'5000': 6}},
+            img='https://example.com/yohan.png',
+        )
+        yohan_deck = Deck.objects.create(name='요한 덱', author=self.user, character=yohan)
+        session = create_simulator_session('요한', 'B', yohan_deck, self.deck_b)
+        self.assertEqual(
+            session.document['state']['players']['p1']['passive_state']['foresight_counter']['count'],
+            2,
+        )
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+
+        response = self.post_json(action_url, {
+            'action': 'yohan_declare_reveal',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'target': 'p1',
+                'declaration': 'odd',
+            },
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        revealed = session.document['state']['players']['p2']['zones']['hand'][0]
+        event = session.document['events'][-1]
+        self.assertTrue(revealed['face_up'])
+        self.assertEqual(event['type'], 'yohan_declare_reveal')
+        self.assertEqual(event['payload']['declaration_label'], '홀수')
+        self.assertEqual(event['payload']['card_instance_id'], revealed['instance_id'])
+        self.assertEqual(event['payload']['card_label'], 'B 수비')
+
+        viewer_events = serialize_simulator_session(session)['events']
+        self.assertEqual(viewer_events[-1]['payload']['card_label'], 'B 수비')
+
+    def test_yohan_foresight_reveals_random_opponent_private_hand_card(self):
+        yohan = Character.objects.create(
+            name='요한',
+            description='',
+            group='',
+            datas={'hand': {'5000': 6}},
+            img='https://example.com/yohan.png',
+        )
+        yohan_deck = Deck.objects.create(name='요한 덱', author=self.user, character=yohan)
+        session = create_simulator_session('요한', 'B', yohan_deck, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+
+        response = self.post_json(action_url, {
+            'action': 'yohan_foresight_reveal',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'target': 'p1',
+            },
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        revealed = session.document['state']['players']['p2']['zones']['hand'][0]
+        event = session.document['events'][-1]
+        self.assertTrue(revealed['face_up'])
+        self.assertEqual(event['type'], 'yohan_foresight_reveal')
+        self.assertEqual(event['payload']['card_instance_id'], revealed['instance_id'])
+        self.assertEqual(event['payload']['card_label'], 'B 수비')
+
+    def test_nia_moves_attack_and_defense_cards_from_lumen_to_owner_list(self):
+        nia = Character.objects.create(
+            name='니아',
+            description='',
+            group='',
+            datas={'hand': {'5000': 6}},
+            img='https://example.com/nia-sim.png',
+        )
+        attack = Card.objects.create(
+            name='니아 공격',
+            type='공격',
+            character=nia,
+            img='https://example.com/nia-attack.png',
+        )
+        defense = Card.objects.create(
+            name='니아 수비',
+            type='수비',
+            character=nia,
+            img='https://example.com/nia-defense.png',
+        )
+        special = Card.objects.create(
+            name='니아 특수',
+            type='특수 기술',
+            character=nia,
+            img='https://example.com/nia-special.png',
+        )
+        nia_deck = Deck.objects.create(name='니아 덱', author=self.user, character=nia)
+        CardInDeck.objects.create(deck=nia_deck, card=attack, count=1)
+        CardInDeck.objects.create(deck=nia_deck, card=defense, count=1)
+        CardInDeck.objects.create(deck=nia_deck, card=special, count=1)
+        session = create_simulator_session('니아', 'B', nia_deck, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+
+        for card in list(session.document['state']['players']['p1']['zones']['list']):
+            response = self.post_json(action_url, {
+                'action': 'move_card',
+                'seat': 'p1',
+                'seat_token': session.player1_token,
+                'payload': {
+                    'card_instance_id': card['instance_id'],
+                    'to_player': 'p1',
+                    'to_zone': 'lumen',
+                },
+            })
+            self.assertEqual(response.status_code, 200)
+            session.refresh_from_db()
+
+        response = self.post_json(action_url, {
+            'action': 'nia_lumen_cards_to_list',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {'target': 'p1'},
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        state = session.document['state']
+        self.assertEqual([card['name'] for card in state['players']['p1']['zones']['lumen']], ['니아 특수'])
+        self.assertEqual(
+            sorted(card['name'] for card in state['players']['p1']['zones']['list']),
+            ['니아 공격', '니아 수비'],
+        )
+        self.assertEqual(session.document['events'][-1]['payload']['count'], 2)
+
+    def test_cmyk_new_single_creates_ten_tokens_once_and_can_be_undone(self):
+        cmyk = Character.objects.create(
+            name='CMYK',
+            description='',
+            group='',
+            datas={'hand': {'5000': 6}},
+            img='https://example.com/cmyk.png',
+        )
+        new_single = Card.objects.create(
+            name='뉴 싱글',
+            type='토큰',
+            character=cmyk,
+            img='https://example.com/new-single.png',
+        )
+        cmyk_deck = Deck.objects.create(name='CMYK 덱', author=self.user, character=cmyk)
+        session = create_simulator_session('CMYK', 'B', cmyk_deck, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+
+        response = self.post_json(action_url, {
+            'action': 'cmyk_new_single',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {'target': 'p1'},
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        lumen_cards = session.document['state']['players']['p1']['zones']['lumen']
+        passive_state = session.document['state']['players']['p1']['passive_state']
+        self.assertEqual(len(lumen_cards), 10)
+        self.assertTrue(all(card['card_id'] == new_single.id for card in lumen_cards))
+        self.assertTrue(all(card['face_up'] for card in lumen_cards))
+        self.assertTrue(passive_state['new_single_created']['value'])
+        self.assertEqual(session.document['events'][-1]['payload']['count'], 10)
+        self.assertEqual(len(session.document['events'][-1]['payload']['cards']), 10)
+
+        token_card = lumen_cards[0]
+        response = self.post_json(action_url, {
+            'action': 'move_card',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'card_instance_id': token_card['instance_id'],
+                'to_player': 'p1',
+                'to_zone': 'break',
+            },
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(len(session.document['state']['players']['p1']['zones']['lumen']), 9)
+        self.assertEqual(session.document['state']['players']['p1']['zones']['break'], [])
+        self.assertTrue(session.document['events'][-1]['payload']['deleted_token'])
+
+        response = self.post_json(action_url, {
+            'action': 'undo',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(len(session.document['state']['players']['p1']['zones']['lumen']), 10)
+
+        response = self.post_json(action_url, {
+            'action': 'cmyk_new_single',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {'target': 'p1'},
+        })
+        self.assertEqual(response.status_code, 400)
+
+        response = self.post_json(action_url, {
+            'action': 'undo',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(session.document['state']['players']['p1']['zones']['lumen'], [])
+        self.assertNotIn('new_single_created', session.document['state']['players']['p1']['passive_state'])
 
     def test_batch_action_applies_simulator_actions_in_order(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)

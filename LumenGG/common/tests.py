@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from card.models import Card, CardTranslation, Character
-from common.language import LANGUAGE_COOKIE_NAME, game_term, translated_card_field
+from common.language import LANGUAGE_COOKIE_NAME, game_term, javascript_translations, translated_card_field, ui_text
 from common.models import TermTranslation
 
 
@@ -62,6 +62,14 @@ class TranslationLookupTests(TestCase):
         self.assertEqual(game_term('방어', 'en'), 'Guard')
         self.assertEqual(game_term('상단·중단 상쇄', 'en'), 'High/Mid Clash')
         self.assertEqual(game_term('하단 회피/그랩', 'ja'), '下段 回避/投げ')
+
+    def test_yohan_passive_short_labels_are_translated(self):
+        self.assertEqual(ui_text('홀', 'en'), 'Odd')
+        self.assertEqual(ui_text('짝', 'en'), 'Even')
+        self.assertEqual(ui_text('공', 'ja'), '攻')
+        self.assertEqual(ui_text('수', 'ja'), '防')
+        self.assertEqual(javascript_translations('en')['선언'], 'Declare')
+        self.assertEqual(javascript_translations('ja')['예지'], '予知')
 
     def test_game_term_uses_custom_term_translation(self):
         TermTranslation.objects.create(

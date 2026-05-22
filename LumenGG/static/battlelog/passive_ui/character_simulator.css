@@ -1,0 +1,191 @@
+:host .character-passive-panel {
+    display: grid;
+    width: max-content;
+    max-width: 100%;
+    gap: 3px;
+}
+
+:host .yohan-passive-top {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    gap: 4px;
+    align-items: stretch;
+}
+
+:host .character-passive-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 2px 3px;
+    border: 1px solid var(--v2-line);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--v2-soft-bg) 88%, transparent);
+}
+
+:host .character-passive-row.is-wide {
+    grid-template-columns: auto max-content;
+}
+
+:host .character-passive-row.is-counter {
+    grid-template-columns: auto max-content;
+}
+
+:host .character-passive-row > span {
+    color: var(--v2-muted);
+    font-size: .58rem;
+    font-weight: 900;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+:host .character-passive-buttons {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
+}
+
+:host .character-passive-counter-actions {
+    display: grid;
+    grid-template-columns: 18px 42px 18px;
+    gap: 2px;
+    align-items: center;
+}
+
+:host .character-passive-counter-actions > strong {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 17px;
+    border: 1px solid var(--v2-line);
+    border-radius: 6px;
+    color: var(--v2-text);
+    background: var(--v2-surface-2);
+    font-size: .58rem;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+}
+
+:host .character-passive-counter-actions > strong.is-disabled {
+    color: var(--v2-faint);
+    cursor: default;
+    opacity: .72;
+}
+
+:host button {
+    min-width: 0;
+    min-height: 17px;
+    padding: 1px 5px;
+    border: 1px solid var(--v2-line);
+    border-radius: 6px;
+    color: var(--v2-text);
+    background: var(--v2-surface-2);
+    font-size: .58rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+:host button:hover:not(:disabled),
+:host button.is-active {
+    border-color: rgba(91, 190, 176, .72);
+    color: var(--v2-teal);
+}
+
+:host button.is-active {
+    background:
+        linear-gradient(135deg, rgba(91, 190, 176, .16), rgba(224, 180, 91, .08)),
+        var(--v2-surface-2);
+}
+
+:host button:disabled {
+    color: var(--v2-faint);
+    cursor: not-allowed;
+    opacity: .58;
+}
+
+:host .yohan-passive-panel {
+    gap: 4px;
+}
+
+:host .yohan-passive-panel .character-passive-row {
+    padding: 3px 5px;
+    gap: 6px;
+}
+
+:host .yohan-passive-panel .character-passive-row > span {
+    font-size: .66rem;
+}
+
+:host .yohan-passive-panel button {
+    min-height: 23px;
+    padding: 2px 8px;
+    font-size: .68rem;
+}
+
+:host .yohan-passive-panel .character-passive-counter-actions {
+    grid-template-columns: 24px 52px 24px;
+    gap: 3px;
+}
+
+:host .yohan-passive-panel .character-passive-counter-actions > strong {
+    min-height: 23px;
+    font-size: .68rem;
+}
+
+:host .yohan-passive-panel .character-passive-buttons {
+    grid-template-columns: repeat(5, 38px);
+    gap: 3px;
+}
+
+:host .cmyk-passive-panel .character-passive-row {
+    padding: 4px 6px;
+    gap: 8px;
+}
+
+:host .cmyk-passive-panel .character-passive-row > span {
+    font-size: .68rem;
+}
+
+:host .cmyk-passive-panel button {
+    min-height: 28px;
+    padding: 3px 12px;
+    font-size: .72rem;
+}
+
+:host .nia-passive-panel .character-passive-row {
+    padding: 4px 6px;
+    gap: 8px;
+}
+
+:host .nia-passive-panel .character-passive-row > span {
+    font-size: .68rem;
+}
+
+:host .nia-passive-panel button {
+    min-height: 28px;
+    padding: 3px 12px;
+    font-size: .72rem;
+}
+
+@media screen and (max-width: 760px) {
+    :host .character-passive-row,
+    :host .character-passive-row.is-counter,
+    :host .character-passive-row.is-wide {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 3px;
+    }
+
+    :host .character-passive-buttons {
+        grid-template-columns: repeat(4, 24px);
+    }
+
+    :host .yohan-passive-top {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    :host .yohan-passive-panel .character-passive-buttons {
+        grid-template-columns: repeat(5, 38px);
+    }
+}
