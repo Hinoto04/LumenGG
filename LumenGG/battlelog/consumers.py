@@ -32,6 +32,7 @@ from .services import (
 from .simulator_services import (
     perform_simulator_action,
     role_for_token,
+    serialize_simulator_events_since,
     serialize_simulator_session,
     simulator_queryset,
 )
@@ -186,6 +187,8 @@ class LumenSimulatorConsumer(JsonWebsocketConsumer):
         self.seat_token = _query_value(self.scope, 'seat_token')
         self.language = normalize_language(_query_value(self.scope, 'language'))
         self.group_name = simulator_session_group(self.view_token)
+        self.log_subscribed = False
+        self.log_since_seq = 0
 
         try:
             self.session = simulator_queryset().get(view_token=self.view_token)
@@ -218,6 +221,14 @@ class LumenSimulatorConsumer(JsonWebsocketConsumer):
             touch_presence(self.channel_name)
             self.send_presence()
             return
+        if message_type == 'log_subscribe':
+            self.log_subscribed = True
+            self.log_since_seq = self._safe_int(content.get('since_seq'))
+            self.send_log_events(self.log_since_seq)
+            return
+        if message_type == 'log_unsubscribe':
+            self.log_subscribed = False
+            return
 
         if message_type != 'action':
             self.send_error('알 수 없는 요청입니다.', request_id=request_id)
@@ -244,7 +255,13 @@ class LumenSimulatorConsumer(JsonWebsocketConsumer):
         broadcast_simulator_session(session)
 
     def simulator_changed(self, event):
-        self.send_state()
+        self.send_json({
+            'type': 'state_dirty',
+            'version': event.get('version'),
+            'event_count': event.get('event_count'),
+        })
+        if self.log_subscribed:
+            self.send_log_events(self.log_since_seq)
 
     def presence_changed(self, event):
         self.send_presence()
@@ -263,8 +280,34 @@ class LumenSimulatorConsumer(JsonWebsocketConsumer):
         self.send_json({
             'type': 'state',
             'request_id': request_id,
-            'state': serialize_simulator_session(session, self.seat, self.seat_token, language=self.language),
+            'state': serialize_simulator_session(session, self.seat, self.seat_token, language=self.language, include_events=False),
         })
+
+    def send_log_events(self, since_seq=0):
+        try:
+            session = simulator_queryset().get(view_token=self.view_token)
+        except LumenSimulatorSession.DoesNotExist:
+            return
+        payload = serialize_simulator_events_since(
+            session,
+            self.seat,
+            self.seat_token,
+            since_seq=since_seq,
+            language=self.language,
+        )
+        self.log_since_seq = self._safe_int(payload.get('event_count'))
+        if payload.get('events') or payload.get('reset'):
+            self.send_json({
+                'type': 'log_events',
+                **payload,
+            })
+
+    @staticmethod
+    def _safe_int(value):
+        try:
+            return max(0, int(value or 0))
+        except (TypeError, ValueError):
+            return 0
 
     def send_error(self, message, request_id=None):
         self.send_json({

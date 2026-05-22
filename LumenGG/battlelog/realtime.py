@@ -19,6 +19,16 @@ def simulator_session_group(view_token):
     return f'lumen_simulator_{view_token}'
 
 
+def _simulator_event_count(session):
+    document = session.document or {}
+    events = document.get('events') if isinstance(document, dict) else []
+    try:
+        archived = max(0, int(document.get('archived_event_count') or 0))
+    except (TypeError, ValueError):
+        archived = 0
+    return archived + (len(events) if isinstance(events, list) else 0)
+
+
 def broadcast_battle_session(session):
     channel_layer = get_channel_layer()
     if channel_layer is None:
@@ -45,6 +55,10 @@ def broadcast_simulator_session(session):
 
     group_name = simulator_session_group(session.view_token)
     try:
-        async_to_sync(channel_layer.group_send)(group_name, {'type': 'simulator.changed'})
+        async_to_sync(channel_layer.group_send)(group_name, {
+            'type': 'simulator.changed',
+            'version': session.version,
+            'event_count': _simulator_event_count(session),
+        })
     except Exception:
         logger.exception('Failed to broadcast simulator update to %s', group_name)

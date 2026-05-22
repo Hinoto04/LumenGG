@@ -14,7 +14,7 @@ from .models import BattleEvent, BattleSession, LumenSimulatorSession, RealtimeP
 from .event_buffer import flush_session_events
 from .presence import battle_presence_counts, register_presence, simulator_presence_counts, unregister_presence
 from .services import cleanup_expired_sessions, get_or_create_tournament_session
-from .simulator_services import create_simulator_session, serialize_simulator_session
+from .simulator_services import create_simulator_session, serialize_simulator_card_metadata, serialize_simulator_session
 
 
 class BattleCalculatorTests(TestCase):
@@ -78,6 +78,38 @@ class BattleCalculatorTests(TestCase):
         self.assertEqual(session.player1_hp, 4700)
         flush_session_events(session.id)
         self.assertEqual(BattleEvent.objects.filter(event_type=BattleEvent.EVENT_HP).count(), 1)
+
+    def test_batch_action_applies_calculator_actions_once(self):
+        session = BattleSession.objects.create(
+            session_type=BattleSession.SESSION_STANDALONE,
+            view_token='batch-view',
+            control_token='batch-control',
+            player1_character=self.char_a,
+            player2_character=self.char_b,
+            player1_initial_hp=5000,
+            player2_initial_hp=4500,
+            player1_hp=5000,
+            player2_hp=4500,
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+        action_url = reverse('battlelog:sessionAction', kwargs={'view_token': session.view_token})
+
+        response = self.post_json(action_url, {
+            'action': 'batch',
+            'control_token': session.control_token,
+            'actions': [
+                {'action': 'hp', 'target': 'p1', 'amount': -100},
+                {'action': 'fp', 'target': 'p1', 'amount': 2},
+                {'action': 'passive', 'target': 'p1', 'key': 'count', 'delta': 3, 'label': '카운트'},
+            ],
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(session.player1_hp, 4900)
+        self.assertEqual(session.player1_fp, 2)
+        self.assertEqual(session.player1_passive_state['count']['count'], 3)
+        self.assertEqual(session.version, 2)
 
     def test_undo_reverts_last_hp_event(self):
         session = BattleSession.objects.create(
@@ -411,9 +443,11 @@ class LumenSimulatorTests(TestCase):
         self.assertTrue(viewer_hand['hidden'])
         self.assertNotIn('card_id', viewer_hand)
         self.assertFalse(p1_hand['hidden'])
-        self.assertEqual(p1_hand['name'], 'A 공격')
+        self.assertEqual(p1_hand['card_id'], self.card_a.id)
+        metadata = serialize_simulator_card_metadata([p1_hand['card_id']])
+        self.assertEqual(metadata[str(self.card_a.id)]['name'], 'A 공격')
 
-    def test_simulator_serialization_hydrates_legacy_card_metadata(self):
+    def test_simulator_card_metadata_is_loaded_separately(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
         document = session.document
         metadata_fields = [
@@ -432,15 +466,19 @@ class LumenSimulatorTests(TestCase):
         attack = viewer_state['players']['p1']['zones']['list'][0]
         defense = viewer_state['players']['p2']['zones']['list'][0]
 
-        self.assertEqual(attack['hit'], '+2')
-        self.assertEqual(attack['guard'], '-1')
-        self.assertEqual(attack['counter'], '+4')
-        self.assertEqual(attack['text'], 'A 효과')
-        self.assertEqual(attack['detail_text'], 'A 상세')
-        self.assertEqual(defense['g_top'], 'O')
-        self.assertEqual(defense['g_mid'], '-')
-        self.assertEqual(defense['g_bot'], 'X')
-        self.assertEqual(defense['text'], 'B 효과')
+        self.assertEqual(attack['card_id'], self.card_a.id)
+        self.assertNotIn('hit', attack)
+        self.assertNotIn('text', attack)
+        metadata = serialize_simulator_card_metadata([attack['card_id'], defense['card_id']])
+        self.assertEqual(metadata[str(self.card_a.id)]['hit'], '+2')
+        self.assertEqual(metadata[str(self.card_a.id)]['guard'], '-1')
+        self.assertEqual(metadata[str(self.card_a.id)]['counter'], '+4')
+        self.assertEqual(metadata[str(self.card_a.id)]['text'], 'A 효과')
+        self.assertEqual(metadata[str(self.card_a.id)]['detail_text'], 'A 상세')
+        self.assertEqual(metadata[str(self.card_b.id)]['g_top'], 'O')
+        self.assertEqual(metadata[str(self.card_b.id)]['g_mid'], '-')
+        self.assertEqual(metadata[str(self.card_b.id)]['g_bot'], 'X')
+        self.assertEqual(metadata[str(self.card_b.id)]['text'], 'B 효과')
 
     def test_simulator_actions_reveal_battle_phase_and_undo(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
@@ -514,7 +552,8 @@ class LumenSimulatorTests(TestCase):
         viewer_state = serialize_simulator_session(session)['state']
         viewer_card = viewer_state['players']['p1']['zones']['lumen'][0]
         self.assertFalse(viewer_card['hidden'])
-        self.assertEqual(viewer_card['text'], '외부 효과')
+        metadata = serialize_simulator_card_metadata([viewer_card['card_id']])
+        self.assertEqual(metadata[str(self.external_card.id)]['text'], '외부 효과')
 
         response = self.post_json(action_url, {
             'action': 'undo',
@@ -729,6 +768,88 @@ class LumenSimulatorTests(TestCase):
             [card['instance_id'] for card in session.document['state']['players']['p1']['zones']['hand']],
             before_order,
         )
+
+    def test_batch_action_applies_simulator_actions_in_order(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+        list_card = session.document['state']['players']['p1']['zones']['list'][0]
+        side_card = session.document['state']['players']['p1']['zones']['side'][0]
+
+        response = self.post_json(action_url, {
+            'action': 'batch',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'actions': [
+                    {
+                        'action': 'move_card',
+                        'payload': {
+                            'card_instance_id': list_card['instance_id'],
+                            'to_player': 'p1',
+                            'to_zone': 'hand',
+                        },
+                    },
+                    {
+                        'action': 'move_card',
+                        'payload': {
+                            'card_instance_id': side_card['instance_id'],
+                            'to_player': 'p1',
+                            'to_zone': 'hand',
+                        },
+                    },
+                    {
+                        'action': 'passive',
+                        'payload': {
+                            'target': 'p1',
+                            'key': 'sim_counter',
+                            'delta': 2,
+                            'label': '시뮬 카운터',
+                        },
+                    },
+                ],
+            },
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(len(session.document['state']['players']['p1']['zones']['hand']), 3)
+        self.assertEqual(session.document['state']['players']['p1']['passive_state']['sim_counter']['count'], 2)
+        self.assertEqual([event['type'] for event in session.document['events'][-3:]], ['move_card', 'move_card', 'passive'])
+        self.assertEqual(session.version, 2)
+
+    def test_simulator_compacts_large_event_log(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+        batch = [
+            {
+                'action': 'passive',
+                'payload': {
+                    'target': 'p1',
+                    'key': 'sim_counter',
+                    'delta': 1,
+                    'label': '시뮬 카운터',
+                },
+            }
+            for _ in range(100)
+        ]
+
+        for _ in range(9):
+            response = self.post_json(action_url, {
+                'action': 'batch',
+                'seat': 'p1',
+                'seat_token': session.player1_token,
+                'payload': {'actions': batch},
+            })
+            self.assertEqual(response.status_code, 200)
+            session.refresh_from_db()
+
+        document = session.document
+        self.assertEqual(document['state']['players']['p1']['passive_state']['sim_counter']['count'], 900)
+        self.assertEqual(document['archived_event_count'], 400)
+        self.assertEqual(len(document['events']), 500)
+        payload = serialize_simulator_session(session, 'p1', session.player1_token)
+        self.assertEqual(payload['event_count'], 900)
+        self.assertEqual(len(payload['events']), 150)
 
     def test_cleanup_removes_expired_simulator_sessions(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)

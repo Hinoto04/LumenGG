@@ -1382,7 +1382,7 @@ def update_passive(session, target, card_id=None, delta=0, note='', key='', valu
         return locked
 
 
-def perform_session_action(session, body, user=None, control_token=''):
+def _perform_single_session_action(session, body, user=None, control_token=''):
     action = body.get('action', '')
 
     if action == 'hp':
@@ -1444,6 +1444,29 @@ def perform_session_action(session, body, user=None, control_token=''):
         session = select_character(session, target, character, user)
     else:
         raise ValueError('알 수 없는 요청입니다.')
+
+    return session
+
+
+def perform_session_action(session, body, user=None, control_token=''):
+    action = body.get('action', '')
+    if action == 'batch':
+        actions = body.get('actions') or []
+        if not isinstance(actions, list) or not actions:
+            raise ValueError('처리할 행동이 없습니다.')
+        if len(actions) > 100:
+            raise ValueError('한 번에 처리할 행동이 너무 많습니다.')
+        with transaction.atomic():
+            for item in actions:
+                if not isinstance(item, dict):
+                    raise ValueError('행동 형식이 올바르지 않습니다.')
+                if item.get('action') == 'batch':
+                    raise ValueError('중첩된 일괄 처리는 지원하지 않습니다.')
+                item = dict(item)
+                item['control_token'] = control_token
+                session = _perform_single_session_action(session, item, user, control_token)
+    else:
+        session = _perform_single_session_action(session, body, user, control_token)
 
     BattleSession.objects.filter(id=session.id).update(
         version=F('version') + 1,

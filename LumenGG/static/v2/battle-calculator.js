@@ -3,13 +3,17 @@
     const optionsNode = document.getElementById("battle-character-options");
     const i18nNode = document.getElementById("battle-i18n");
     const config = window.v2BattleConfig || {};
-    if (!stateNode || !optionsNode || !config.stateUrl || !config.actionUrl) return;
+    if (!stateNode || !optionsNode || !config.stateUrl) return;
 
     let state = JSON.parse(stateNode.textContent);
     const characterOptions = JSON.parse(optionsNode.textContent);
     const i18n = i18nNode ? JSON.parse(i18nNode.textContent) : {};
     const translations = i18n.translations || {};
     const translationKeys = Object.keys(translations).sort((a, b) => b.length - a.length);
+    const ACTION_BATCH_DELAY_MS = 900;
+    const SOCKET_ACTION_TIMEOUT_MS = 15000;
+    const POLLING_INITIAL_DELAY_MS = 10000;
+    const POLLING_MAX_DELAY_MS = 30000;
     let historyFilter = "all";
     let historyOpen = false;
     let shareOpen = false;
@@ -24,11 +28,16 @@
     let reconnectAttempts = 0;
     let reconnectTimer = null;
     let pollingTimer = null;
+    let pollingActive = false;
+    let pollingDelayMs = POLLING_INITIAL_DELAY_MS;
     let nextRequestId = 1;
     let activeTimerSourceKey = null;
-
-    const csrfInput = document.querySelector("[name=csrfmiddlewaretoken]");
-    const csrfToken = csrfInput ? csrfInput.value : "";
+    let actionBatchTimer = null;
+    let queuedActionBatch = [];
+    let queuedActionRollbackState = null;
+    let realtimeToastTimer = null;
+    let realtimeToastMessage = "";
+    let realtimeToastCount = 0;
 
     function t(value) {
         if (value === null || value === undefined) return "";
@@ -36,6 +45,32 @@
         if (!raw) return raw;
         if (translations[raw]) return translations[raw];
         return translationKeys.reduce((output, key) => output.replaceAll(key, translations[key]), raw);
+    }
+
+    function showRealtimeToast(message) {
+        const text = message || t("네트워크 오류가 발생했습니다.");
+        let toast = document.querySelector("[data-realtime-toast]");
+        if (!toast) {
+            toast = document.createElement("div");
+            toast.className = "v2-realtime-toast";
+            toast.dataset.realtimeToast = "true";
+            toast.setAttribute("role", "status");
+            document.body.appendChild(toast);
+        }
+        if (realtimeToastMessage === text) {
+            realtimeToastCount += 1;
+        } else {
+            realtimeToastMessage = text;
+            realtimeToastCount = 1;
+        }
+        toast.textContent = realtimeToastCount > 1 ? `${text} (${realtimeToastCount})` : text;
+        toast.classList.add("is-visible");
+        window.clearTimeout(realtimeToastTimer);
+        realtimeToastTimer = window.setTimeout(() => {
+            toast.classList.remove("is-visible");
+            realtimeToastMessage = "";
+            realtimeToastCount = 0;
+        }, 3600);
     }
 
     function buildWebSocketUrl(path) {
@@ -579,36 +614,13 @@
         document.body.classList.toggle("v2-battle-share-open", shareOpen);
     }
 
-    function postHttpAction(payload) {
-        return fetch(config.actionUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRFToken": csrfToken,
-            },
-            body: JSON.stringify({ ...payload, control_token: config.controlToken || "" }),
-        })
-            .then((response) => response.json().then((data) => ({ response, data })))
-            .then(({ response, data }) => {
-                if (!response.ok || !data.ok) {
-                    const error = new Error(data.error || t("요청을 처리하지 못했습니다."));
-                    error.serverRejected = true;
-                    throw error;
-                }
-                keepEventsAndApplyState(data.state);
-                renderState();
-                if (historyOpen) fetchHistory(true);
-                return data;
-            })
-            .catch((error) => {
-                if (error && error.serverRejected) throw error;
-                throw new Error(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
-            });
+    function canSendSocketAction() {
+        return !!(socketReady && socket && "WebSocket" in window && socket.readyState === WebSocket.OPEN);
     }
 
     function postSocketAction(payload) {
-        if (!socketReady || !socket || socket.readyState !== WebSocket.OPEN) {
-            return postHttpAction(payload);
+        if (!canSendSocketAction()) {
+            return Promise.reject(new Error(t("실시간 연결이 복구되는 중입니다.")));
         }
 
         const requestId = String(nextRequestId++);
@@ -616,7 +628,7 @@
             const timeout = window.setTimeout(() => {
                 pendingSocketActions.delete(requestId);
                 reject(new Error(t("요청 응답 시간이 초과되었습니다.")));
-            }, 5000);
+            }, SOCKET_ACTION_TIMEOUT_MS);
             pendingSocketActions.set(requestId, { resolve, reject, timeout });
             try {
                 socket.send(JSON.stringify({
@@ -632,23 +644,76 @@
         });
     }
 
+    function isBatchableAction(payload) {
+        return ["hp", "fp", "fp_reset", "passive"].includes(payload && payload.action);
+    }
+
+    function flushActionBatch() {
+        if (!queuedActionBatch.length) return Promise.resolve(null);
+        if (!canSendSocketAction()) {
+            showRealtimeToast(t("실시간 연결이 복구되는 중입니다."));
+            return Promise.resolve(null);
+        }
+        if (actionBatchTimer) {
+            window.clearTimeout(actionBatchTimer);
+            actionBatchTimer = null;
+        }
+        const batch = queuedActionBatch;
+        const rollbackState = queuedActionRollbackState;
+        queuedActionBatch = [];
+        queuedActionRollbackState = null;
+        return postSocketAction({
+            action: "batch",
+            actions: batch.map((item) => item.payload),
+        })
+            .then((result) => {
+                batch.forEach((item) => item.resolve(result));
+                return result;
+            })
+            .catch((error) => {
+                if (rollbackState && error && error.serverRejected) {
+                    keepEventsAndApplyState(rollbackState, { force: true });
+                    pollState(true);
+                    renderState();
+                }
+                showRealtimeToast(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
+                batch.forEach((item) => item.resolve(null));
+                return null;
+            });
+    }
+
+    function queueBatchAction(payload, rollbackState) {
+        if (!queuedActionRollbackState && rollbackState) {
+            queuedActionRollbackState = rollbackState;
+        }
+        const promise = new Promise((resolve, reject) => {
+            queuedActionBatch.push({ payload, resolve, reject });
+        });
+        if (actionBatchTimer) window.clearTimeout(actionBatchTimer);
+        actionBatchTimer = window.setTimeout(flushActionBatch, ACTION_BATCH_DELAY_MS);
+        return promise;
+    }
+
     function postAction(payload, optimisticUpdate, rollbackState) {
         const previousState = rollbackState || (optimisticUpdate ? cloneState() : null);
         if (optimisticUpdate) {
             optimisticUpdate(state);
-            bumpLocalVersion();
+            if (!isBatchableAction(payload) || !queuedActionBatch.length) {
+                bumpLocalVersion();
+            }
             renderState();
         }
-        const request = config.wsPath && "WebSocket" in window
-            ? postSocketAction(payload)
-            : postHttpAction(payload);
+        if (optimisticUpdate && isBatchableAction(payload)) {
+            return queueBatchAction(payload, previousState);
+        }
+        const request = flushActionBatch().then(() => postSocketAction(payload));
         return request.catch((error) => {
             if (previousState && error && error.serverRejected) {
                 keepEventsAndApplyState(previousState, { force: true });
-                pollState();
+                pollState(true);
                 renderState();
             }
-            window.alert(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
+            showRealtimeToast(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
         });
     }
 
@@ -757,28 +822,55 @@
             });
     }
 
-    function pollState() {
+    function pollState(forceFull) {
         const url = new URL(config.stateUrl, window.location.origin);
         if (config.controlToken) url.searchParams.set("control_token", config.controlToken);
-        fetch(url)
+        if (!forceFull && stateVersion(state)) url.searchParams.set("since_version", stateVersion(state));
+        return fetch(url)
             .then((response) => response.json())
             .then((nextState) => {
+                pollingDelayMs = POLLING_INITIAL_DELAY_MS;
+                if (nextState && nextState.unchanged) {
+                    if (nextState.presence) {
+                        state.presence = nextState.presence;
+                        renderPresence();
+                    }
+                    return nextState;
+                }
                 keepEventsAndApplyState(nextState);
                 renderState();
                 if (historyOpen) fetchHistory(true);
+                return nextState;
             })
-            .catch(() => {});
+            .catch(() => {
+                pollingDelayMs = Math.min(POLLING_MAX_DELAY_MS, Math.max(POLLING_INITIAL_DELAY_MS, pollingDelayMs * 2));
+                return null;
+            });
+    }
+
+    function schedulePollingFallback(delay) {
+        if (!pollingActive) return;
+        window.clearTimeout(pollingTimer);
+        pollingTimer = window.setTimeout(() => {
+            pollState().finally(() => {
+                if (pollingActive) schedulePollingFallback(pollingDelayMs);
+            });
+        }, delay);
     }
 
     function startPollingFallback() {
-        if (pollingTimer) return;
-        pollState();
-        pollingTimer = window.setInterval(pollState, 2000);
+        if (pollingActive) return;
+        pollingActive = true;
+        pollingDelayMs = POLLING_INITIAL_DELAY_MS;
+        pollState().finally(() => {
+            if (pollingActive) schedulePollingFallback(pollingDelayMs);
+        });
     }
 
     function stopPollingFallback() {
+        pollingActive = false;
         if (!pollingTimer) return;
-        window.clearInterval(pollingTimer);
+        window.clearTimeout(pollingTimer);
         pollingTimer = null;
     }
 
@@ -818,6 +910,7 @@
             socketReady = true;
             reconnectAttempts = 0;
             stopPollingFallback();
+            flushActionBatch();
         });
 
         socket.addEventListener("message", (event) => {

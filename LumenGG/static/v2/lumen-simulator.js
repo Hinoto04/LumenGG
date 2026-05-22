@@ -3,24 +3,45 @@
     const i18nNode = document.getElementById("lumen-simulator-i18n");
     const root = document.querySelector("[data-lumen-simulator]");
     const config = window.lumenSimulatorConfig || {};
-    if (!stateNode || !root || !config.stateUrl || !config.actionUrl) return;
+    if (!stateNode || !root || !config.stateUrl) return;
 
     let envelope = JSON.parse(stateNode.textContent);
     const i18n = i18nNode ? JSON.parse(i18nNode.textContent) : {};
     const translations = i18n.translations || {};
     const translationKeys = Object.keys(translations).sort((a, b) => b.length - a.length);
+    const ACTION_BATCH_DELAY_MS = 900;
+    const SOCKET_ACTION_TIMEOUT_MS = 15000;
+    const DIRTY_STATE_DEBOUNCE_MS = 700;
+    const SIM_LOG_LIMIT = 150;
+    const POLLING_INITIAL_DELAY_MS = 10000;
+    const POLLING_MAX_DELAY_MS = 30000;
     let state = envelope.state || {};
     let events = Array.isArray(envelope.events) ? envelope.events : [];
+    let eventsLoaded = Array.isArray(envelope.events);
+    let lastLogSeq = maxEventSeq(events);
+    const cardMetadataCache = new Map();
+    const pendingMetadataIds = new Set();
     let socket = null;
     let socketReady = false;
     let reconnectAttempts = 0;
     let reconnectTimer = null;
     let pollingTimer = null;
+    let pollingActive = false;
+    let pollingDelayMs = POLLING_INITIAL_DELAY_MS;
     let nextRequestId = 1;
     let logOpen = false;
     let selectedCardId = "";
     let pendingTimerTimeoutKey = "";
     let reportedTimerTimeoutKey = "";
+    let actionBatchTimer = null;
+    let queuedActionBatch = [];
+    let queuedActionRollbackEnvelope = null;
+    let dirtyStateTimer = null;
+    let metadataFetchTimer = null;
+    let metadataFetchInFlight = false;
+    let realtimeToastTimer = null;
+    let realtimeToastMessage = "";
+    let realtimeToastCount = 0;
     const tooltip = document.createElement("div");
     const pendingSocketActions = new Map();
     const pendingCounters = {
@@ -30,8 +51,6 @@
 
     const phases = ["lumen", "ready", "battle", "get", "recovery"];
     const zones = ["ultimate", "lumen", "battle", "hand", "list", "side", "break"];
-    const csrfInput = document.querySelector("[name=csrfmiddlewaretoken]");
-    const csrfToken = csrfInput ? csrfInput.value : "";
     tooltip.className = "v2-sim-card-tooltip";
     document.body.appendChild(tooltip);
 
@@ -41,6 +60,32 @@
         if (!raw) return raw;
         if (translations[raw]) return translations[raw];
         return translationKeys.reduce((output, key) => output.replaceAll(key, translations[key]), raw);
+    }
+
+    function showRealtimeToast(message) {
+        const text = message || t("네트워크 오류가 발생했습니다.");
+        let toast = document.querySelector("[data-realtime-toast]");
+        if (!toast) {
+            toast = document.createElement("div");
+            toast.className = "v2-realtime-toast";
+            toast.dataset.realtimeToast = "true";
+            toast.setAttribute("role", "status");
+            document.body.appendChild(toast);
+        }
+        if (realtimeToastMessage === text) {
+            realtimeToastCount += 1;
+        } else {
+            realtimeToastMessage = text;
+            realtimeToastCount = 1;
+        }
+        toast.textContent = realtimeToastCount > 1 ? `${text} (${realtimeToastCount})` : text;
+        toast.classList.add("is-visible");
+        window.clearTimeout(realtimeToastTimer);
+        realtimeToastTimer = window.setTimeout(() => {
+            toast.classList.remove("is-visible");
+            realtimeToastMessage = "";
+            realtimeToastCount = 0;
+        }, 3600);
     }
 
     function canControl() {
@@ -76,6 +121,10 @@
     function formatSigned(value) {
         const number = Number(value || 0);
         return number > 0 ? `+${number}` : String(number);
+    }
+
+    function maxEventSeq(rows) {
+        return Math.max(0, ...(rows || []).map((event) => Number(event && event.seq || 0)).filter(Number.isFinite));
     }
 
     function hasValue(value) {
@@ -116,6 +165,74 @@
 
     function effectText(card) {
         return hasValue(card.text) ? t(card.text) : "";
+    }
+
+    function cacheCardMetadata(cards) {
+        Object.entries(cards || {}).forEach(([cardId, metadata]) => {
+            if (!cardId || !metadata || typeof metadata !== "object") return;
+            cardMetadataCache.set(String(cardId), metadata);
+        });
+    }
+
+    function hydrateCard(card) {
+        if (!card || card.hidden || !card.card_id) return card;
+        const metadata = cardMetadataCache.get(String(card.card_id));
+        return metadata ? { ...metadata, ...card } : card;
+    }
+
+    function cardDisplayName(card) {
+        const hydrated = hydrateCard(card);
+        if (!hydrated || hydrated.hidden) return t("비공개 카드");
+        return hydrated.name || t("카드");
+    }
+
+    function collectVisibleCardIds() {
+        const ids = new Set();
+        Object.values((state && state.players) || {}).forEach((player) => {
+            Object.values((player && player.zones) || {}).forEach((cards) => {
+                (cards || []).forEach((card) => {
+                    if (!card || card.hidden || !card.card_id) return;
+                    const cardId = String(card.card_id);
+                    if (!cardMetadataCache.has(cardId)) ids.add(cardId);
+                });
+            });
+        });
+        return ids;
+    }
+
+    function scheduleCardMetadataFetch(ids) {
+        if (!config.metadataUrl) return;
+        (ids || []).forEach((cardId) => pendingMetadataIds.add(String(cardId)));
+        if (!pendingMetadataIds.size || metadataFetchTimer || metadataFetchInFlight) return;
+        metadataFetchTimer = window.setTimeout(fetchPendingCardMetadata, 0);
+    }
+
+    function ensureVisibleCardMetadata() {
+        scheduleCardMetadataFetch(collectVisibleCardIds());
+    }
+
+    function fetchPendingCardMetadata() {
+        metadataFetchTimer = null;
+        if (!pendingMetadataIds.size || metadataFetchInFlight || !config.metadataUrl) return;
+        const ids = Array.from(pendingMetadataIds).slice(0, 200);
+        ids.forEach((cardId) => pendingMetadataIds.delete(cardId));
+        metadataFetchInFlight = true;
+        const url = new URL(config.metadataUrl, window.location.origin);
+        url.searchParams.set("ids", ids.join(","));
+        if (config.language) url.searchParams.set("language", config.language);
+        fetch(url)
+            .then((response) => response.json())
+            .then((data) => {
+                cacheCardMetadata(data.cards || {});
+                render();
+            })
+            .catch(() => {
+                ids.forEach((cardId) => pendingMetadataIds.add(cardId));
+            })
+            .finally(() => {
+                metadataFetchInFlight = false;
+                if (pendingMetadataIds.size) scheduleCardMetadataFetch([]);
+            });
     }
 
     function passiveOptions(passiveUi) {
@@ -188,7 +305,7 @@
         const cards = [];
         Object.values((state && state.players) || {}).forEach((player) => {
             Object.entries((player && player.zones) || {}).forEach(([zone, zoneCards]) => {
-                (zoneCards || []).forEach((card) => cards.push({ ...card, zone }));
+                (zoneCards || []).forEach((card) => cards.push(hydrateCard({ ...card, zone })));
             });
         });
         return cards;
@@ -199,6 +316,7 @@
     }
 
     function cardTitle(card) {
+        card = hydrateCard(card);
         if (!card || card.hidden) return t("비공개 카드");
         if (isAttackCard(card)) {
             const result = `${valueOrDashLabel(card, "hit")}|${valueOrDashLabel(card, "guard")}|${valueOrDashLabel(card, "counter")}`;
@@ -207,7 +325,7 @@
         if (isDefenseCard(card)) {
             return `${card.name}(${valueOrDashLabel(card, "g_top")}|${valueOrDashLabel(card, "g_mid")}|${valueOrDashLabel(card, "g_bot")})`;
         }
-        return card.name;
+        return cardDisplayName(card);
     }
 
     function buildActionBody(action, payload) {
@@ -234,9 +352,18 @@
         if (!(options && options.force) && incomingVersion && currentVersion && incomingVersion <= currentVersion) {
             return envelope;
         }
+        const previousEvents = events;
+        const previousEventCount = Number(envelope.event_count || previousEvents.length || 0);
         envelope = nextEnvelope || envelope;
         state = envelope.state || {};
-        events = Array.isArray(envelope.events) ? envelope.events : [];
+        if (Array.isArray(envelope.events)) {
+            events = envelope.events;
+        } else {
+            events = previousEvents;
+            envelope.events = previousEvents;
+            if (envelope.event_count === undefined) envelope.event_count = previousEventCount;
+        }
+        ensureVisibleCardMetadata();
         render();
         return envelope;
     }
@@ -290,10 +417,11 @@
 
     function localCardLabel(card) {
         if (!card || card.hidden) return t("비공개 카드");
-        return card.name || t("카드");
+        return cardDisplayName(card);
     }
 
     function appendOptimisticEvent(action, payload) {
+        envelope.event_count = Number(envelope.event_count || events.length || 0) + 1;
         events.push({
             id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             type: action,
@@ -301,6 +429,11 @@
             payload: cloneData(payload || {}),
             optimistic: true,
         });
+        const limit = Number(envelope.event_limit || SIM_LOG_LIMIT);
+        if (limit > 0 && events.length > limit) {
+            events.splice(0, events.length - limit);
+        }
+        envelope.events = events;
     }
 
     function applyOptimisticAction(action, payload) {
@@ -509,11 +642,30 @@
         ].includes(action);
     }
 
-    function stateUrl() {
+    function stateUrl(forceFull) {
         const url = new URL(config.stateUrl, window.location.origin);
         if (config.seat) url.searchParams.set("seat", config.seat);
         if (config.seatToken) url.searchParams.set("seat_token", config.seatToken);
+        if (!forceFull && envelopeVersion(envelope)) url.searchParams.set("since_version", envelopeVersion(envelope));
         return url.toString();
+    }
+
+    function eventsUrl() {
+        if (!config.eventsUrl) return "";
+        const url = new URL(config.eventsUrl, window.location.origin);
+        if (config.seat) url.searchParams.set("seat", config.seat);
+        if (config.seatToken) url.searchParams.set("seat_token", config.seatToken);
+        url.searchParams.set("event_limit", String(SIM_LOG_LIMIT));
+        return url.toString();
+    }
+
+    function sendLogSubscription(enabled) {
+        if (!socketReady || !socket || socket.readyState !== WebSocket.OPEN) return false;
+        socket.send(JSON.stringify({
+            type: enabled ? "log_subscribe" : "log_unsubscribe",
+            since_seq: lastLogSeq,
+        }));
+        return true;
     }
 
     function buildWebSocketUrl(path) {
@@ -525,33 +677,20 @@
         return url.toString();
     }
 
-    function postHttpAction(action, payload) {
-        return fetch(config.actionUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRFToken": csrfToken,
-            },
-            body: JSON.stringify(buildActionBody(action, payload)),
-        })
-            .then((response) => response.json().then((data) => ({ response, data })))
-            .then(({ response, data }) => {
-                if (!response.ok || !data.ok) throw new Error(data.error || t("요청을 처리하지 못했습니다."));
-                updateEnvelope(data.state);
-                return data;
-            });
+    function canSendSocketAction() {
+        return !!(socketReady && socket && "WebSocket" in window && socket.readyState === WebSocket.OPEN);
     }
 
     function postSocketAction(action, payload) {
-        if (!socketReady || !socket || socket.readyState !== WebSocket.OPEN) {
-            return postHttpAction(action, payload);
+        if (!canSendSocketAction()) {
+            return Promise.reject(new Error(t("실시간 연결이 복구되는 중입니다.")));
         }
         const requestId = String(nextRequestId++);
         return new Promise((resolve, reject) => {
             const timeout = window.setTimeout(() => {
                 pendingSocketActions.delete(requestId);
                 reject(new Error(t("요청 응답 시간이 초과되었습니다.")));
-            }, 5000);
+            }, SOCKET_ACTION_TIMEOUT_MS);
             pendingSocketActions.set(requestId, { resolve, reject, timeout });
             socket.send(JSON.stringify({
                 type: "action",
@@ -559,6 +698,69 @@
                 payload: buildActionBody(action, payload),
             }));
         });
+    }
+
+    function isBatchableAction(action) {
+        return [
+            "move_card",
+            "bulk_move",
+            "shuffle_hand",
+            "request_action",
+            "set_done",
+            "hp",
+            "fp",
+            "fp_reset",
+            "passive",
+            "set_visibility",
+            "log_note",
+        ].includes(action);
+    }
+
+    function flushActionBatch() {
+        if (!queuedActionBatch.length) return Promise.resolve(null);
+        if (!canSendSocketAction()) {
+            showRealtimeToast(t("실시간 연결이 복구되는 중입니다."));
+            return Promise.resolve(null);
+        }
+        if (actionBatchTimer) {
+            window.clearTimeout(actionBatchTimer);
+            actionBatchTimer = null;
+        }
+        const batch = queuedActionBatch;
+        const rollbackEnvelope = queuedActionRollbackEnvelope;
+        queuedActionBatch = [];
+        queuedActionRollbackEnvelope = null;
+        return postSocketAction("batch", {
+            actions: batch.map((item) => ({
+                action: item.action,
+                payload: item.payload,
+            })),
+        })
+            .then((result) => {
+                batch.forEach((item) => item.resolve(result));
+                return result;
+            })
+            .catch((error) => {
+                if (error && error.serverRejected && rollbackEnvelope) {
+                    updateEnvelope(rollbackEnvelope, { force: true });
+                    fetchState(true);
+                }
+                showRealtimeToast(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
+                batch.forEach((item) => item.resolve(null));
+                return null;
+            });
+    }
+
+    function queueBatchAction(action, payload, rollbackEnvelope) {
+        if (!queuedActionRollbackEnvelope && rollbackEnvelope) {
+            queuedActionRollbackEnvelope = rollbackEnvelope;
+        }
+        const promise = new Promise((resolve, reject) => {
+            queuedActionBatch.push({ action, payload, resolve, reject });
+        });
+        if (actionBatchTimer) window.clearTimeout(actionBatchTimer);
+        actionBatchTimer = window.setTimeout(flushActionBatch, ACTION_BATCH_DELAY_MS);
+        return promise;
     }
 
     function postAction(action, payload) {
@@ -569,16 +771,21 @@
         if (rollbackEnvelope) {
             optimisticApplied = applyOptimisticAction(action, cloneData(actionPayload));
             if (optimisticApplied) {
-                bumpLocalVersion();
+                if (!isBatchableAction(action) || !queuedActionBatch.length) {
+                    bumpLocalVersion();
+                }
                 render();
             }
         }
-        return postSocketAction(action, actionPayload).catch((error) => {
-            if (optimisticApplied && rollbackEnvelope) {
+        if (optimisticApplied && isBatchableAction(action)) {
+            return queueBatchAction(action, actionPayload, rollbackEnvelope);
+        }
+        return flushActionBatch().then(() => postSocketAction(action, actionPayload)).catch((error) => {
+            if (optimisticApplied && rollbackEnvelope && error && error.serverRejected) {
                 updateEnvelope(rollbackEnvelope, { force: true });
-                fetchState();
+                fetchState(true);
             }
-            window.alert(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
+            showRealtimeToast(error && error.message ? error.message : t("네트워크 오류가 발생했습니다."));
             return null;
         });
     }
@@ -772,6 +979,7 @@
     }
 
     function renderPassiveCard(card) {
+        card = hydrateCard(card);
         const image = card.img_sm || card.img;
         return `
             <button class="v2-sim-passive-card" type="button" data-card-open="${escapeHtml(card.instance_id)}" data-card-tooltip="${escapeHtml(cardTitle(card))}">
@@ -1002,6 +1210,7 @@
     }
 
     function renderCard(card) {
+        card = hydrateCard(card);
         const draggable = canControl() && card.kind !== "character";
         const classes = ["v2-sim-card"];
         if (card.hidden) classes.push("is-hidden");
@@ -1131,6 +1340,13 @@
         const holder = document.querySelector("[data-sim-log]");
         if (!holder) return;
         holder.replaceChildren();
+        if (logOpen && !eventsLoaded) {
+            const loading = document.createElement("p");
+            loading.className = "v2-battle-empty";
+            loading.textContent = t("로그를 불러오는 중입니다.");
+            holder.appendChild(loading);
+            return;
+        }
         const rows = events.slice().reverse();
         if (!rows.length) {
             const empty = document.createElement("p");
@@ -1138,6 +1354,13 @@
             empty.textContent = t("표시할 로그가 없습니다.");
             holder.appendChild(empty);
             return;
+        }
+        const omitted = Math.max(0, Number(envelope.event_count || rows.length) - rows.length);
+        if (omitted) {
+            const notice = document.createElement("p");
+            notice.className = "v2-battle-empty";
+            notice.textContent = t(`이전 로그 ${omitted}개는 생략되었습니다.`);
+            holder.appendChild(notice);
         }
         rows.forEach((event) => {
             const row = document.createElement("div");
@@ -1157,7 +1380,7 @@
         const drawer = document.querySelector("[data-card-drawer]");
         const holder = document.querySelector("[data-card-detail]");
         if (!drawer || !holder) return;
-        const card = selectedCardId ? findCard(selectedCardId) : null;
+        const card = selectedCardId ? hydrateCard(findCard(selectedCardId)) : null;
         if (!card || card.hidden) {
             drawer.classList.remove("is-open");
             document.body.classList.remove("v2-sim-card-detail-open");
@@ -1177,7 +1400,7 @@
         if (text) details.push(`<p class="v2-sim-card-detail-effect">${escapeHtml(text)}</p>`);
         holder.innerHTML = `
             ${image ? `<img src="${escapeHtml(image)}" alt="">` : ""}
-            <h2>${escapeHtml(card.name)}</h2>
+            <h2>${escapeHtml(cardDisplayName(card))}</h2>
             <section class="v2-sim-card-detail-text">${details.join("")}</section>
         `;
         drawer.classList.add("is-open");
@@ -1192,6 +1415,14 @@
         document.querySelectorAll("[data-log-toggle]").forEach((button) => {
             button.textContent = logOpen ? t("접기") : t("로그");
         });
+        if (!logOpen) {
+            sendLogSubscription(false);
+            return;
+        }
+        const subscribed = sendLogSubscription(true);
+        if (!subscribed && (!eventsLoaded || Number(envelope.event_count || 0) > events.length)) {
+            fetchEvents();
+        }
     }
 
     function attachDragAndDrop() {
@@ -1227,7 +1458,7 @@
                 if (!dragged || !dragged.instanceId) return;
                 const canDropToOpponent = ["battle", "lumen"].includes(zone.dataset.dropZone);
                 if (dragged.owner !== zone.dataset.dropPlayer && !canDropToOpponent) {
-                    window.alert(t("상대 플레이어의 루멘 존 또는 배틀 존으로만 이동할 수 있습니다."));
+                    showRealtimeToast(t("상대 플레이어의 루멘 존 또는 배틀 존으로만 이동할 수 있습니다."));
                     return;
                 }
                 postAction("move_card", {
@@ -1257,11 +1488,13 @@
         ["hp", "fp"].forEach((kind) => {
             pendingCounters[kind].forEach((queued, side) => {
                 const amount = Number(queued.amount || 0);
-                document.querySelectorAll(`[data-counter-kind="${kind}"][data-counter-target="${side}"]`).forEach((button) => {
-                    const step = Number(button.dataset.counterAmount || 0);
-                    const sameDirection = (amount > 0 && step > 0) || (amount < 0 && step < 0);
-                    button.textContent = sameDirection ? formatSigned(amount) : (button.dataset.counterLabel || button.textContent);
-                });
+                if (kind !== "hp") {
+                    document.querySelectorAll(`[data-counter-kind="${kind}"][data-counter-target="${side}"]`).forEach((button) => {
+                        const step = Number(button.dataset.counterAmount || 0);
+                        const sameDirection = (amount > 0 && step > 0) || (amount < 0 && step < 0);
+                        button.textContent = sameDirection ? formatSigned(amount) : (button.dataset.counterLabel || button.textContent);
+                    });
+                }
                 const value = document.querySelector(`[data-counter-value="${kind}:${side}"]`);
                 if (value && amount) {
                     value.dataset.pendingAmount = formatSigned(amount);
@@ -1290,6 +1523,7 @@
     }
 
     function render() {
+        ensureVisibleCardMetadata();
         const role = document.querySelector("[data-sim-role]");
         if (role) role.textContent = roleText();
         renderPresence();
@@ -1592,23 +1826,105 @@
     window.addEventListener("resize", scheduleFitCardGrids);
     document.addEventListener("fullscreenchange", scheduleFitCardGrids);
 
-    function fetchState() {
-        return fetch(stateUrl())
+    function fetchEvents() {
+        const url = eventsUrl();
+        if (!url) return Promise.resolve(null);
+        return fetch(url)
             .then((response) => response.json())
-            .then(updateEnvelope)
-            .catch(() => {});
+            .then((data) => {
+                applyLogEvents(data, true);
+                return data;
+            })
+            .catch(() => null);
+    }
+
+    function applyLogEvents(data, forceReset) {
+        const incoming = Array.isArray(data && data.events) ? data.events : [];
+        const reset = forceReset || !!(data && data.reset);
+        if (reset) {
+            events = incoming;
+        } else if (incoming.length) {
+            const seenIds = new Set(events.map((event) => event && event.id).filter(Boolean));
+            const seenSeqs = new Set(events.map((event) => Number(event && event.seq || 0)).filter((seq) => seq > 0));
+            events = events.filter((event) => !(event && event.optimistic));
+            incoming.forEach((event) => {
+                const seq = Number(event && event.seq || 0);
+                if (event && event.id && seenIds.has(event.id)) return;
+                if (seq && seenSeqs.has(seq)) return;
+                events.push(event);
+                if (event && event.id) seenIds.add(event.id);
+                if (seq) seenSeqs.add(seq);
+            });
+            const limit = Number(data.event_limit || envelope.event_limit || SIM_LOG_LIMIT);
+            if (limit > 0 && events.length > limit) {
+                events.splice(0, events.length - limit);
+            }
+        }
+        eventsLoaded = true;
+        envelope.events = events;
+        envelope.event_count = Number(data && data.event_count || envelope.event_count || events.length || 0);
+        envelope.event_limit = Number(data && data.event_limit || envelope.event_limit || SIM_LOG_LIMIT);
+        lastLogSeq = Math.max(lastLogSeq, maxEventSeq(events), Number(envelope.event_count || 0));
+        renderLog();
+    }
+
+    function fetchState(forceFull) {
+        return fetch(stateUrl(forceFull))
+            .then((response) => response.json())
+            .then((nextEnvelope) => {
+                pollingDelayMs = POLLING_INITIAL_DELAY_MS;
+                if (nextEnvelope && nextEnvelope.unchanged) {
+                    if (nextEnvelope.presence) {
+                        envelope.presence = nextEnvelope.presence;
+                        renderPresence();
+                    }
+                    return nextEnvelope;
+                }
+                const result = updateEnvelope(nextEnvelope);
+                if (logOpen && !sendLogSubscription(true)) fetchEvents();
+                return result;
+            })
+            .catch(() => {
+                pollingDelayMs = Math.min(POLLING_MAX_DELAY_MS, Math.max(POLLING_INITIAL_DELAY_MS, pollingDelayMs * 2));
+                return null;
+            });
+    }
+
+    function schedulePollingFallback(delay) {
+        if (!pollingActive) return;
+        window.clearTimeout(pollingTimer);
+        pollingTimer = window.setTimeout(() => {
+            fetchState().finally(() => {
+                if (pollingActive) schedulePollingFallback(pollingDelayMs);
+            });
+        }, delay);
     }
 
     function startPollingFallback() {
-        if (pollingTimer) return;
-        fetchState();
-        pollingTimer = window.setInterval(fetchState, 2500);
+        if (pollingActive) return;
+        pollingActive = true;
+        pollingDelayMs = POLLING_INITIAL_DELAY_MS;
+        fetchState().finally(() => {
+            if (pollingActive) schedulePollingFallback(pollingDelayMs);
+        });
     }
 
     function stopPollingFallback() {
+        pollingActive = false;
         if (!pollingTimer) return;
-        window.clearInterval(pollingTimer);
+        window.clearTimeout(pollingTimer);
         pollingTimer = null;
+    }
+
+    function scheduleDirtyStateFetch(version) {
+        const incomingVersion = Number(version || 0);
+        const currentVersion = envelopeVersion(envelope);
+        if (incomingVersion && currentVersion && incomingVersion < currentVersion) return;
+        window.clearTimeout(dirtyStateTimer);
+        dirtyStateTimer = window.setTimeout(() => {
+            dirtyStateTimer = null;
+            fetchState();
+        }, DIRTY_STATE_DEBOUNCE_MS);
     }
 
     function resolveSocketAction(message) {
@@ -1618,7 +1934,9 @@
         window.clearTimeout(pending.timeout);
         pendingSocketActions.delete(String(message.request_id));
         if (message.type === "error" || message.ok === false) {
-            pending.reject(new Error(message.error || t("요청을 처리하지 못했습니다.")));
+            const error = new Error(message.error || t("요청을 처리하지 못했습니다."));
+            error.serverRejected = true;
+            pending.reject(error);
             return;
         }
         pending.resolve(message);
@@ -1643,6 +1961,8 @@
             socketReady = true;
             reconnectAttempts = 0;
             stopPollingFallback();
+            flushActionBatch();
+            if (logOpen) sendLogSubscription(true);
         });
         socket.addEventListener("message", (event) => {
             let message = null;
@@ -1653,6 +1973,15 @@
             }
             if (message.type === "state" && message.state) {
                 updateEnvelope(message.state);
+                return;
+            }
+            if (message.type === "state_dirty") {
+                if (message.event_count !== undefined) envelope.event_count = Number(message.event_count || 0);
+                scheduleDirtyStateFetch(message.version);
+                return;
+            }
+            if (message.type === "log_events") {
+                applyLogEvents(message, !!message.reset);
                 return;
             }
             if (message.type === "presence" && message.presence) {

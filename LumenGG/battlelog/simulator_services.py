@@ -27,6 +27,10 @@ from .services import _passive_ui, hand_limit_for_hp, initial_hp_for_character
 
 
 SIMULATOR_SESSION_LIFETIME = timedelta(hours=24)
+SIMULATOR_DEFAULT_EVENT_LIMIT = 150
+SIMULATOR_MAX_EVENT_LIMIT = 300
+SIMULATOR_STORED_EVENT_LIMIT = 800
+SIMULATOR_STORED_EVENT_KEEP = 500
 PLAYER_SIDES = ('p1', 'p2')
 PHASES = ('lumen', 'ready', 'battle', 'get', 'recovery')
 PHASE_LABELS = {
@@ -80,6 +84,7 @@ def _card_image(card):
 def _card_metadata(card):
     image = _card_image(card)
     return {
+        'card_id': card.id,
         'name': card.name,
         'code': card.code,
         'type': card.type,
@@ -276,6 +281,24 @@ def _document(session):
     return document
 
 
+def _document_for_read(session):
+    document = session.document or {}
+    initial_state = document.get('initial_state')
+    state = document.get('state')
+    events = document.get('events')
+    if not isinstance(initial_state, dict) or not isinstance(state, dict) or not isinstance(events, list):
+        initial_state = {'turn': 1, 'phase': 'lumen', 'status': {}, 'timer': {}, 'players': {}}
+        return {'initial_state': initial_state, 'state': copy.deepcopy(initial_state), 'events': []}
+    return document
+
+
+def _archived_event_count(document):
+    try:
+        return max(0, int((document or {}).get('archived_event_count') or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _make_event(event_type, actor, payload):
     return {
         'id': str(uuid.uuid4()),
@@ -331,6 +354,8 @@ def _apply_move_card(state, payload):
         raise ValueError('이동할 플레이어가 올바르지 않습니다.')
     if target_player != owner and to_zone not in CROSS_PLAYER_ZONES:
         raise ValueError('상대 플레이어의 루멘 존 또는 배틀 존으로만 이동할 수 있습니다.')
+    payload['owner'] = owner
+    payload['card_label'] = card.get('name') or '카드'
     state['players'][player_side]['zones'][from_zone].pop(index)
     _set_card_visibility_for_zone(card, to_zone, state)
     state['players'][target_player]['zones'][to_zone].append(card)
@@ -544,6 +569,7 @@ def _apply_visibility(state, payload, actor):
         raise ValueError('공개 존의 카드는 비공개로 전환할 수 없습니다.')
     card['face_up'] = bool(payload.get('face_up'))
     payload['owner'] = card.get('owner')
+    payload['card_label'] = card.get('name') or '카드'
 
 
 def _apply_log_note(payload):
@@ -665,6 +691,23 @@ def _replay(initial_state, events):
     return state
 
 
+def _compact_document_events(document):
+    events = list(document.get('events') or [])
+    if len(events) <= SIMULATOR_STORED_EVENT_LIMIT:
+        document['events'] = events
+        return document
+
+    keep_count = min(SIMULATOR_STORED_EVENT_KEEP, len(events))
+    prune_count = len(events) - keep_count
+    pruned_events = events[:prune_count]
+    kept_events = events[prune_count:]
+    checkpoint_state = _replay(document['initial_state'], pruned_events)
+    document['initial_state'] = checkpoint_state
+    document['events'] = kept_events
+    document['archived_event_count'] = _archived_event_count(document) + prune_count
+    return document
+
+
 def _actor_from_body(session, body):
     role = role_for_token(session, str(body.get('seat') or ''), str(body.get('seat_token') or ''))
     if role not in PLAYER_SIDES:
@@ -692,7 +735,25 @@ def perform_simulator_action(session, body):
         else:
             state = copy.deepcopy(document['state'])
             payload = dict(body.get('payload') or {})
-            if action == 'timer':
+            if action == 'batch':
+                actions = body.get('actions') or payload.get('actions') or []
+                if not isinstance(actions, list) or not actions:
+                    raise ValueError('처리할 행동이 없습니다.')
+                if len(actions) > 100:
+                    raise ValueError('한 번에 처리할 행동이 너무 많습니다.')
+                for item in actions:
+                    if not isinstance(item, dict):
+                        raise ValueError('행동 형식이 올바르지 않습니다.')
+                    item_action = str(item.get('action') or '')
+                    if item_action in ('batch', 'undo', 'timer', 'timer_timeout'):
+                        raise ValueError('일괄 처리할 수 없는 행동입니다.')
+                    item_payload = dict(item.get('payload') or {})
+                    if item_action == 'set_done':
+                        item_payload.setdefault('target', actor)
+                    event = _make_event(item_action, actor, item_payload)
+                    _apply_event(state, event)
+                    events.append(event)
+            elif action == 'timer':
                 timer = state.get('timer') or {}
                 running = _timer_is_running(timer)
                 payload = {
@@ -710,12 +771,14 @@ def perform_simulator_action(session, body):
                     return locked
             if action == 'set_done':
                 payload.setdefault('target', actor)
-            event = _make_event(action, actor, payload)
-            _apply_event(state, event)
+            if action != 'batch':
+                event = _make_event(action, actor, payload)
+                _apply_event(state, event)
+                events.append(event)
             document['state'] = state
-            events.append(event)
             document['events'] = events
 
+        document = _compact_document_events(document)
         locked.document = document
         locked.version += 1
         locked.save(update_fields=['document', 'version', 'updated_at'])
@@ -728,9 +791,24 @@ def _card_visible_to(card, viewer_side):
 
 def _filtered_card(card, zone, viewer_side):
     if _card_visible_to(card, viewer_side):
-        visible = dict(card)
-        visible['zone'] = zone
-        visible['hidden'] = False
+        visible = {
+            'instance_id': card.get('instance_id'),
+            'kind': card.get('kind') or 'card',
+            'owner': card.get('owner'),
+            'zone': zone,
+            'hidden': False,
+            'face_up': bool(card.get('face_up')),
+        }
+        if card.get('kind') == 'character':
+            for field in ('character_id', 'name', 'img', 'icon_img', 'color'):
+                if field in card:
+                    visible[field] = card.get(field)
+        elif card.get('card_id'):
+            visible['card_id'] = card.get('card_id')
+        else:
+            for field in ('name', 'img', 'img_sm', 'type', 'text', 'detail_text'):
+                if field in card:
+                    visible[field] = card.get(field)
         return visible
     return {
         'instance_id': card.get('instance_id'),
@@ -813,10 +891,37 @@ def _localized_card_term_labels(card, language):
         card[f'{field}_label'] = game_term(card.get(field), language)
 
 
+def _localized_card_metadata(card, language):
+    language = normalize_language(language)
+    metadata = _card_metadata(card)
+    if language != DEFAULT_LANGUAGE:
+        metadata['name'] = translated_card_field(card, language, 'name')
+        metadata['text'] = translated_card_field(card, language, 'text')
+        metadata['detail_text'] = translated_card_field(card, language, 'detail_text')
+        _localized_card_term_labels(metadata, language)
+    return metadata
+
+
+def serialize_simulator_card_metadata(card_ids, language=DEFAULT_LANGUAGE):
+    normalized_ids = []
+    for card_id in card_ids:
+        try:
+            normalized_ids.append(int(card_id))
+        except (TypeError, ValueError):
+            continue
+    if not normalized_ids:
+        return {}
+
+    cards = Card.objects.prefetch_related('translations').in_bulk(normalized_ids)
+    return {
+        str(card_id): _localized_card_metadata(card, language)
+        for card_id, card in cards.items()
+    }
+
+
 def _localize_filtered_state(state, language):
     language = normalize_language(language)
 
-    card_ids = set()
     character_ids = set()
     for player in (state.get('players') or {}).values():
         character_id = (player.get('character') or {}).get('id')
@@ -830,12 +935,7 @@ def _localize_filtered_state(state, language):
                     character_id = card.get('character_id')
                     if character_id:
                         character_ids.add(character_id)
-                    continue
-                card_id = card.get('card_id')
-                if card_id:
-                    card_ids.add(card_id)
 
-    cards_by_id = Card.objects.prefetch_related('translations').in_bulk(card_ids) if card_ids else {}
     characters_by_id = Character.objects.prefetch_related('translations').in_bulk(character_ids) if character_ids else {}
 
     for player in (state.get('players') or {}).values():
@@ -856,21 +956,11 @@ def _localize_filtered_state(state, language):
                     character = characters_by_id.get(card.get('character_id'))
                     if character and language != DEFAULT_LANGUAGE:
                         card['name'] = translated_character_field(character, language, 'name')
-                    continue
-
-                model_card = cards_by_id.get(card.get('card_id'))
-                if model_card and language != DEFAULT_LANGUAGE:
-                    card['name'] = translated_card_field(model_card, language, 'name')
-                    card['text'] = translated_card_field(model_card, language, 'text')
-                    card['detail_text'] = translated_card_field(model_card, language, 'detail_text')
-                if language != DEFAULT_LANGUAGE:
-                    _localized_card_term_labels(card, language)
     return state
 
 
 def _filtered_state(state, viewer_side, language=DEFAULT_LANGUAGE):
     state = _with_serialized_hand_limits(state)
-    state = _hydrate_serialized_card_metadata(state)
     for player_side, player in (state.get('players') or {}).items():
         zones = player.get('zones') or {}
         for zone, cards in zones.items():
@@ -920,16 +1010,49 @@ def _filtered_event(event, state, viewer_side, language=DEFAULT_LANGUAGE):
     payload = filtered.get('payload') or {}
     event_type = filtered.get('type')
     if event_type in ('move_card', 'set_visibility'):
-        payload['card_label'] = _visible_card_name(state, payload.get('card_instance_id'), viewer_side, language)
+        _, _, _, card = _find_card_location(state, payload.get('card_instance_id'))
+        if not card or not _card_visible_to(card, viewer_side):
+            payload['card_label'] = ui_text('비공개 카드', language)
+        elif payload.get('card_label') and normalize_language(language) == DEFAULT_LANGUAGE:
+            payload['card_label'] = payload.get('card_label')
+        else:
+            payload['card_label'] = _visible_card_name(state, payload.get('card_instance_id'), viewer_side, language)
     filtered['payload'] = payload
     return filtered
 
 
-def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LANGUAGE):
+def _event_limit(value):
+    try:
+        limit = int(value)
+    except (TypeError, ValueError):
+        limit = SIMULATOR_DEFAULT_EVENT_LIMIT
+    return max(0, min(SIMULATOR_MAX_EVENT_LIMIT, limit))
+
+
+def _limited_events(events, limit):
+    limit = _event_limit(limit)
+    if limit <= 0:
+        return []
+    return list(events[-limit:])
+
+
+def _event_seq(archived_event_count, index):
+    return archived_event_count + index + 1
+
+
+def _filtered_event_with_seq(event, state, viewer_side, language, seq):
+    filtered = _filtered_event(event, state, viewer_side, language)
+    filtered['seq'] = seq
+    return filtered
+
+
+def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LANGUAGE, include_events=True, event_limit=SIMULATOR_DEFAULT_EVENT_LIMIT):
     language = normalize_language(language)
     role = role_for_token(session, seat, token)
-    document = _document(session)
+    document = _document_for_read(session)
     state = document['state']
+    raw_events = document.get('events') or []
+    archived_event_count = _archived_event_count(document)
     player1_url = ''
     player2_url = ''
     if role == 'p1':
@@ -943,7 +1066,7 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
             'seat': 'p2',
             'seat_token': session.player2_token,
         })
-    return {
+    payload = {
         'id': session.id,
         'version': session.version,
         'presence': simulator_presence_counts(session.view_token),
@@ -956,10 +1079,75 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
         'phase_labels': _localized_phase_labels(language),
         'zone_labels': _localized_zone_labels(language),
         'state': _filtered_state(state, role, language),
+        'event_count': archived_event_count + len(raw_events),
+    }
+    if include_events:
+        limited_events = _limited_events(raw_events, event_limit)
+        first_index = len(raw_events) - len(limited_events)
+        payload['events'] = [
+            _filtered_event_with_seq(event, state, role, language, _event_seq(archived_event_count, first_index + index))
+            for index, event in enumerate(limited_events)
+        ]
+        payload['event_limit'] = _event_limit(event_limit)
+    return payload
+
+
+def serialize_simulator_events(session, seat='', token='', language=DEFAULT_LANGUAGE, event_limit=SIMULATOR_DEFAULT_EVENT_LIMIT):
+    language = normalize_language(language)
+    role = role_for_token(session, seat, token)
+    document = _document_for_read(session)
+    state = document['state']
+    raw_events = document.get('events') or []
+    archived_event_count = _archived_event_count(document)
+    limited_events = _limited_events(raw_events, event_limit)
+    first_index = len(raw_events) - len(limited_events)
+    return {
+        'id': session.id,
+        'version': session.version,
+        'event_count': archived_event_count + len(raw_events),
+        'event_limit': _event_limit(event_limit),
         'events': [
-            _filtered_event(event, state, role, language)
-            for event in document.get('events', [])
+            _filtered_event_with_seq(event, state, role, language, _event_seq(archived_event_count, first_index + index))
+            for index, event in enumerate(limited_events)
         ],
+        'reset': True,
+    }
+
+
+def serialize_simulator_events_since(session, seat='', token='', since_seq=0, language=DEFAULT_LANGUAGE, event_limit=SIMULATOR_DEFAULT_EVENT_LIMIT):
+    language = normalize_language(language)
+    role = role_for_token(session, seat, token)
+    document = _document_for_read(session)
+    state = document['state']
+    raw_events = document.get('events') or []
+    archived_event_count = _archived_event_count(document)
+    event_count = archived_event_count + len(raw_events)
+    try:
+        since_seq = max(0, int(since_seq or 0))
+    except (TypeError, ValueError):
+        since_seq = 0
+
+    if since_seq < archived_event_count:
+        return serialize_simulator_events(session, seat, token, language=language, event_limit=event_limit)
+
+    selected = [
+        (index, event)
+        for index, event in enumerate(raw_events)
+        if _event_seq(archived_event_count, index) > since_seq
+    ]
+    if len(selected) > _event_limit(event_limit):
+        return serialize_simulator_events(session, seat, token, language=language, event_limit=event_limit)
+
+    return {
+        'id': session.id,
+        'version': session.version,
+        'event_count': event_count,
+        'event_limit': _event_limit(event_limit),
+        'events': [
+            _filtered_event_with_seq(event, state, role, language, _event_seq(archived_event_count, index))
+            for index, event in selected
+        ],
+        'reset': False,
     }
 
 

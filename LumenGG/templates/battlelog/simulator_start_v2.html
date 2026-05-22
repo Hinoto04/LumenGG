@@ -1,4 +1,5 @@
 {% extends "base_v2.html" %}
+{% load static %}
 {% load language_tags %}
 {% block title %}{% tr "루멘콘덴서 시뮬레이터" %} - LumenDB{% endblock title %}
 {% block content %}
@@ -42,4 +43,14 @@
         <button class="v2-button v2-button-primary" type="submit">{% tr "시뮬레이터 시작" %}</button>
     </div>
 </form>
+
+<section class="v2-panel v2-session-history" data-session-history data-session-history-kind="simulator" hidden>
+    <header>
+        <strong>{% tr "최근 접속한 시뮬레이터" %}</strong>
+        <span>{% tr "이 기기에 저장된 최근 5개 세션입니다." %}</span>
+    </header>
+    <div class="v2-session-history-list" data-session-history-list></div>
+</section>
+
+<script src="{% static "v2/session-history.js" %}"></script>
 {% endblock content %}

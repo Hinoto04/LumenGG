@@ -124,6 +124,14 @@
     </div>
 </section>
 
+<div
+    data-session-history-record
+    data-session-history-kind="battle"
+    data-session-title="{{ session.player1_name }} vs {{ session.player2_name }}"
+    data-session-role="{% if control_token %}조작{% else %}관전{% endif %}"
+    data-session-url="{{ current_url }}"
+    hidden
+></div>
 {{ state|json_script:"battle-initial-state" }}
 {{ character_options|json_script:"battle-character-options" }}
 {{ battle_i18n|json_script:"battle-i18n" }}
@@ -137,5 +145,6 @@
         language: "{{ current_language|escapejs }}",
     };
 </script>
+<script src="{% static "v2/session-history.js" %}"></script>
 <script src="{% static "v2/battle-calculator.js" %}"></script>
 {% endblock content %}

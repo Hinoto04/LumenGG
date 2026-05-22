@@ -91,11 +91,21 @@
     <button class="v2-sim-log-fab" type="button" data-log-toggle>{% tr "로그" %}</button>
 </section>
 
+<div
+    data-session-history-record
+    data-session-history-kind="simulator"
+    data-session-title="{{ session.player1_name }} vs {{ session.player2_name }}"
+    data-session-role="{% if state.role == "p1" %}P1{% elif state.role == "p2" %}P2{% else %}관전{% endif %}"
+    data-session-url="{{ current_url }}"
+    hidden
+></div>
 {{ state|json_script:"lumen-simulator-state" }}
 {{ simulator_i18n|json_script:"lumen-simulator-i18n" }}
 <script>
     window.lumenSimulatorConfig = {
         stateUrl: "{% url "battlelog:simulatorState" session.view_token %}",
+        eventsUrl: "{% url "battlelog:simulatorEvents" session.view_token %}",
+        metadataUrl: "{% url "battlelog:simulatorCardMetadata" session.view_token %}",
         actionUrl: "{% url "battlelog:simulatorAction" session.view_token %}",
         wsPath: "/ws/battlelog/simulator/{{ session.view_token|escapejs }}/",
         seat: "{{ seat|escapejs }}",
@@ -103,5 +113,6 @@
         language: "{{ current_language|escapejs }}",
     };
 </script>
+<script src="{% static "v2/session-history.js" %}"></script>
 <script src="{% static "v2/lumen-simulator.js" %}"></script>
 {% endblock content %}

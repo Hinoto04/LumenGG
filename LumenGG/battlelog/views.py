@@ -11,6 +11,7 @@ from common.language import get_language, javascript_i18n, ui_text
 from deck.models import CardInDeck, Deck
 
 from .event_buffer import recent_battle_event_payloads
+from .presence import battle_presence_counts, simulator_presence_counts
 from .realtime import broadcast_battle_session
 from .realtime import broadcast_simulator_session
 from .services import (
@@ -27,6 +28,8 @@ from .simulator_services import (
     create_simulator_session,
     perform_simulator_action,
     role_for_token,
+    serialize_simulator_card_metadata,
+    serialize_simulator_events,
     serialize_simulator_session,
     simulator_queryset,
 )
@@ -110,6 +113,28 @@ def _get_simulator_session(view_token):
     return get_object_or_404(simulator_queryset(), view_token=view_token)
 
 
+def _simulator_event_limit(req):
+    try:
+        return int(req.GET.get('event_limit') or 150)
+    except (TypeError, ValueError):
+        return 150
+
+
+def _simulator_card_ids(req):
+    raw_values = req.GET.getlist('ids')
+    if not raw_values:
+        raw_values = [req.GET.get('ids', '')]
+    card_ids = []
+    for raw in raw_values:
+        for value in str(raw or '').split(','):
+            value = value.strip()
+            if value:
+                card_ids.append(value)
+            if len(card_ids) >= 200:
+                return card_ids
+    return card_ids
+
+
 def simulatorView(req, view_token):
     return _render_simulator(req, view_token, '', '')
 
@@ -124,7 +149,7 @@ def simulatorSeat(req, view_token, seat, seat_token):
 def _render_simulator(req, view_token, seat, seat_token):
     language = get_language(req)
     session = _get_simulator_session(view_token)
-    state = serialize_simulator_session(session, seat, seat_token, language=language)
+    state = serialize_simulator_session(session, seat, seat_token, language=language, include_events=False)
     context = {
         'session': session,
         'state': state,
@@ -133,6 +158,7 @@ def _render_simulator(req, view_token, seat, seat_token):
         'view_url': req.build_absolute_uri(state['view_url']),
         'player1_url': req.build_absolute_uri(state['player1_url']) if state.get('player1_url') else '',
         'player2_url': req.build_absolute_uri(state['player2_url']) if state.get('player2_url') else '',
+        'current_url': req.build_absolute_uri(),
         'simulator_i18n': javascript_i18n(language),
     }
     return render(req, 'battlelog/simulator_session_v2.html', context)
@@ -143,7 +169,42 @@ def simulatorState(req, view_token):
     session = _get_simulator_session(view_token)
     seat = req.GET.get('seat', '')
     seat_token = req.GET.get('seat_token', '')
-    return JsonResponse(serialize_simulator_session(session, seat, seat_token, language=get_language(req)))
+    since_version = req.GET.get('since_version')
+    if since_version and str(since_version) == str(session.version):
+        return JsonResponse({
+            'id': session.id,
+            'version': session.version,
+            'unchanged': True,
+            'presence': simulator_presence_counts(session.view_token),
+        })
+    return JsonResponse(serialize_simulator_session(
+        session,
+        seat,
+        seat_token,
+        language=get_language(req),
+        include_events=False,
+        event_limit=_simulator_event_limit(req),
+    ))
+
+
+@require_GET
+def simulatorEvents(req, view_token):
+    session = _get_simulator_session(view_token)
+    return JsonResponse(serialize_simulator_events(
+        session,
+        req.GET.get('seat', ''),
+        req.GET.get('seat_token', ''),
+        language=get_language(req),
+        event_limit=_simulator_event_limit(req),
+    ))
+
+
+@require_GET
+def simulatorCardMetadata(req, view_token):
+    _get_simulator_session(view_token)
+    return JsonResponse({
+        'cards': serialize_simulator_card_metadata(_simulator_card_ids(req), language=get_language(req)),
+    })
 
 
 @require_POST
@@ -163,7 +224,7 @@ def simulatorAction(req, view_token):
     broadcast_simulator_session(session)
     return JsonResponse({
         'ok': True,
-        'state': serialize_simulator_session(session, seat, seat_token, language=get_language(req)),
+        'state': serialize_simulator_session(session, seat, seat_token, language=get_language(req), include_events=False),
     })
 
 
@@ -189,6 +250,7 @@ def _render_session(req, view_token, control_token):
         'character_options': character_options,
         'view_url': req.build_absolute_uri(state['view_url']),
         'control_url': req.build_absolute_uri(state['control_url']),
+        'current_url': req.build_absolute_uri(),
         'battle_i18n': javascript_i18n(language),
     }
     return render(req, 'battlelog/session_v2.html', context)
@@ -198,6 +260,14 @@ def _render_session(req, view_token, control_token):
 def sessionState(req, view_token):
     session = _get_session(view_token)
     control_token = req.GET.get('control_token', '')
+    since_version = req.GET.get('since_version')
+    if since_version and str(since_version) == str(session.version):
+        return JsonResponse({
+            'id': session.id,
+            'version': session.version,
+            'unchanged': True,
+            'presence': battle_presence_counts(session.view_token),
+        })
     return JsonResponse(serialize_session(session, req.user, control_token, include_events=False, language=get_language(req)))
 
 
