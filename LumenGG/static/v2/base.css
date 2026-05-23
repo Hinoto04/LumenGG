@@ -3968,6 +3968,13 @@ label:has(> input.검색체크:checked) {
     padding: 18px;
 }
 
+.v2-simulator-start-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+    gap: 14px;
+    align-items: start;
+}
+
 .v2-battle-start-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3978,6 +3985,110 @@ label:has(> input.검색체크:checked) {
     display: flex;
     justify-content: flex-end;
     margin-top: 14px;
+}
+
+.v2-simulator-deck-search-panel {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+}
+
+.v2-simulator-deck-search-head {
+    display: grid;
+    gap: 4px;
+}
+
+.v2-simulator-deck-search-head strong {
+    color: var(--v2-text);
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+.v2-simulator-deck-search-head span {
+    color: var(--v2-muted);
+    font-size: .82rem;
+    line-height: 1.45;
+}
+
+.v2-simulator-deck-search-results {
+    display: grid;
+    gap: 7px;
+    max-height: 380px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-color: rgba(224, 180, 91, .55) var(--v2-surface-2);
+    scrollbar-width: thin;
+}
+
+.v2-simulator-deck-search-results::-webkit-scrollbar {
+    width: 8px;
+}
+
+.v2-simulator-deck-search-results::-webkit-scrollbar-track {
+    border-radius: 8px;
+    background: var(--v2-surface-2);
+}
+
+.v2-simulator-deck-search-results::-webkit-scrollbar-thumb {
+    border: 2px solid var(--v2-surface-2);
+    border-radius: 8px;
+    background: rgba(224, 180, 91, .62);
+}
+
+.v2-simulator-deck-result,
+.v2-simulator-deck-search-empty {
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    background: var(--v2-surface-2);
+}
+
+.v2-simulator-deck-result {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+}
+
+.v2-simulator-deck-result-body {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.v2-simulator-deck-result-body strong {
+    overflow: hidden;
+    color: var(--v2-text);
+    font-size: .9rem;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.v2-simulator-deck-result-body span {
+    overflow: hidden;
+    color: var(--v2-muted);
+    font-size: .78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.v2-simulator-deck-result-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.v2-simulator-deck-result-actions .v2-button {
+    min-height: 32px;
+    padding: 6px 9px;
+    font-size: .78rem;
+    font-weight: 900;
+}
+
+.v2-simulator-deck-search-empty {
+    padding: 12px;
+    color: var(--v2-muted);
+    font-size: .86rem;
 }
 
 .v2-battle-share,
@@ -5602,6 +5713,7 @@ label:has(> input.검색체크:checked) {
     }
 
     .v2-battle-layout,
+    .v2-simulator-start-layout,
     .v2-battle-start-grid {
         grid-template-columns: 1fr;
     }

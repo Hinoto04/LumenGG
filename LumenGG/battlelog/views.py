@@ -1,13 +1,14 @@
 import json
 
 from django.core.exceptions import PermissionDenied
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
 from card.models import Card, Character
 from card.search import card_matches_search
-from common.language import get_language, javascript_i18n, ui_text
+from common.language import get_language, javascript_i18n, translated_character_field, ui_text
 from deck.models import CardInDeck, Deck
 
 from .event_buffer import recent_battle_event_payloads
@@ -107,6 +108,55 @@ def simulatorStart(req):
 
     context['errors'] = [ui_text(error, language) for error in context['errors']]
     return render(req, 'battlelog/simulator_start_v2.html', context)
+
+
+@require_GET
+def simulatorDeckSearch(req):
+    query = req.GET.get('q', '').strip()
+    query_is_id = query.isdigit()
+    if len(query) < 2 and not query_is_id:
+        return JsonResponse([], safe=False)
+
+    if query_is_id:
+        search_q = Q(id=int(query))
+    else:
+        search_q = (
+            Q(name__icontains=query)
+            | Q(author__username__icontains=query)
+            | Q(character__name__icontains=query)
+        )
+
+    decks = (
+        Deck.objects.filter(deleted=False)
+        .filter(search_q)
+        .select_related('author', 'character')
+        .order_by('-created', '-id')[:40]
+    )
+    if not req.user.is_authenticated or not req.user.is_staff:
+        decks = [deck for deck in decks if can_view_deck_for_simulator(req.user, deck)]
+        if not query_is_id:
+            decks = [
+                deck for deck in decks
+                if deck.visibility == Deck.VISIBILITY_PUBLIC
+                or (req.user.is_authenticated and deck.author_id == req.user.id)
+            ]
+    else:
+        decks = list(decks)
+
+    language = get_language(req)
+    data = [
+        {
+            'id': deck.id,
+            'name': deck.name,
+            'author': deck.author.username,
+            'character': translated_character_field(deck.character, language, 'name'),
+            'version': deck.version,
+            'visibility': ui_text(deck.get_visibility_display(), language),
+            'is_owner': req.user.is_authenticated and deck.author_id == req.user.id,
+        }
+        for deck in decks[:20]
+    ]
+    return JsonResponse(data, safe=False)
 
 
 def _get_simulator_session(view_token):

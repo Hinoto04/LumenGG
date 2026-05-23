@@ -468,6 +468,8 @@ class LumenSimulatorTests(TestCase):
         self.assertEqual(response.status_code, 302)
         session = LumenSimulatorSession.objects.get()
         state = session.document['state']
+        self.assertEqual(state['players']['p1']['name'], 'A(시뮬A)')
+        self.assertEqual(state['players']['p2']['name'], 'B(시뮬B)')
         self.assertEqual(state['players']['p1']['hp'], 5000)
         self.assertEqual(len(state['players']['p1']['zones']['hand']), 1)
         self.assertEqual(len(state['players']['p1']['zones']['side']), 1)
@@ -483,6 +485,15 @@ class LumenSimulatorTests(TestCase):
         self.assertEqual(len(requested), 1)
         self.assertFalse(state['status'][requested[0]]['done'])
         self.assertEqual(state['priority_player'], requested[0])
+
+    def test_simulator_deck_search_returns_assignable_decks(self):
+        response = self.client.get(reverse('battlelog:simulatorDeckSearch'), {'q': '시뮬A'})
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data[0]['id'], self.deck_a.id)
+        self.assertEqual(data[0]['character'], '시뮬A')
+        self.assertEqual(data[0]['author'], self.user.username)
 
     def test_simulator_private_cards_are_filtered_by_role(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)

@@ -6,6 +6,7 @@ app_name = 'battlelog'
 
 urlpatterns = [
     path('simulator/', views.simulatorStart, name='simulatorStart'),
+    path('simulator/deck-search/', views.simulatorDeckSearch, name='simulatorDeckSearch'),
     path('simulator/<str:view_token>/state/', views.simulatorState, name='simulatorState'),
     path('simulator/<str:view_token>/events/', views.simulatorEvents, name='simulatorEvents'),
     path('simulator/<str:view_token>/card-metadata/', views.simulatorCardMetadata, name='simulatorCardMetadata'),

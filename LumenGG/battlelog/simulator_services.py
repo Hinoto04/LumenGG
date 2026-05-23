@@ -141,11 +141,22 @@ def _character_payload(character, owner):
     }
 
 
+def _player_display_name(side, name, character):
+    fallback = '플레이어1' if side == 'p1' else '플레이어2'
+    base_name = (name or '').strip() or fallback
+    character_suffix = f'({character.name})'
+    if base_name.endswith(character_suffix):
+        return base_name
+    if base_name.endswith(')') and '(' in base_name:
+        base_name = base_name[:base_name.rfind('(')].strip() or fallback
+    return f'{base_name}{character_suffix}'
+
+
 def _player_skeleton(side, name, deck):
     character = deck.character
     initial_hp = initial_hp_for_character(character)
     return {
-        'name': (name or '').strip() or ('플레이어1' if side == 'p1' else '플레이어2'),
+        'name': _player_display_name(side, name, character),
         'deck_id': deck.id,
         'deck_name': deck.name,
         'character': {

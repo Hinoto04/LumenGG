@@ -19,30 +19,44 @@
 </div>
 {% endif %}
 
-<form class="v2-panel v2-battle-start" action="{% url "battlelog:simulatorStart" %}" method="post">
-    {% csrf_token %}
-    <div class="v2-battle-start-grid">
-        <div class="v2-admin-field">
-            <label for="player1_name">{% tr "플레이어1 이름" %}</label>
-            <input id="player1_name" name="player1_name" type="text" value="{{ player1_name|default:"플레이어1"|ui:current_language }}" maxlength="60">
+<div class="v2-simulator-start-layout" data-simulator-start data-deck-search-url="{% url "battlelog:simulatorDeckSearch" %}">
+    <form class="v2-panel v2-battle-start" action="{% url "battlelog:simulatorStart" %}" method="post">
+        {% csrf_token %}
+        <div class="v2-battle-start-grid">
+            <div class="v2-admin-field">
+                <label for="player1_name">{% tr "플레이어1 이름" %}</label>
+                <input id="player1_name" name="player1_name" type="text" value="{{ player1_name|default:"플레이어1"|ui:current_language }}" maxlength="60" data-player-name="p1">
+            </div>
+            <div class="v2-admin-field">
+                <label for="player1_deck">{% tr "플레이어1 덱 ID" %}</label>
+                <input id="player1_deck" name="player1_deck" type="number" value="{{ player1_deck|default:"" }}" min="1" required data-player-deck="p1">
+            </div>
+            <div class="v2-admin-field">
+                <label for="player2_name">{% tr "플레이어2 이름" %}</label>
+                <input id="player2_name" name="player2_name" type="text" value="{{ player2_name|default:"플레이어2"|ui:current_language }}" maxlength="60" data-player-name="p2">
+            </div>
+            <div class="v2-admin-field">
+                <label for="player2_deck">{% tr "플레이어2 덱 ID" %}</label>
+                <input id="player2_deck" name="player2_deck" type="number" value="{{ player2_deck|default:"" }}" min="1" required data-player-deck="p2">
+            </div>
         </div>
-        <div class="v2-admin-field">
-            <label for="player1_deck">{% tr "플레이어1 덱 ID" %}</label>
-            <input id="player1_deck" name="player1_deck" type="number" value="{{ player1_deck|default:"" }}" min="1" required>
+        <div class="v2-battle-start-actions">
+            <button class="v2-button v2-button-primary" type="submit">{% tr "시뮬레이터 시작" %}</button>
         </div>
+    </form>
+
+    <aside class="v2-panel v2-simulator-deck-search-panel">
+        <header class="v2-simulator-deck-search-head">
+            <strong>{% tr "덱 검색" %}</strong>
+            <span>{% tr "검색 결과에서 P1 또는 P2를 눌러 덱을 넣을 수 있습니다." %}</span>
+        </header>
         <div class="v2-admin-field">
-            <label for="player2_name">{% tr "플레이어2 이름" %}</label>
-            <input id="player2_name" name="player2_name" type="text" value="{{ player2_name|default:"플레이어2"|ui:current_language }}" maxlength="60">
+            <label for="simulator_deck_search">{% tr "덱 이름, 유저명, 캐릭터명, 덱 ID" %}</label>
+            <input id="simulator_deck_search" type="search" placeholder="{% tr "예: 요한, 유저명, 1002" %}" data-simulator-deck-search-input autocomplete="off">
         </div>
-        <div class="v2-admin-field">
-            <label for="player2_deck">{% tr "플레이어2 덱 ID" %}</label>
-            <input id="player2_deck" name="player2_deck" type="number" value="{{ player2_deck|default:"" }}" min="1" required>
-        </div>
-    </div>
-    <div class="v2-battle-start-actions">
-        <button class="v2-button v2-button-primary" type="submit">{% tr "시뮬레이터 시작" %}</button>
-    </div>
-</form>
+        <div class="v2-simulator-deck-search-results" data-simulator-deck-search-results></div>
+    </aside>
+</div>
 
 <section class="v2-panel v2-session-history" data-session-history data-session-history-kind="simulator" hidden>
     <header>
@@ -53,4 +67,5 @@
 </section>
 
 <script src="{% static "v2/session-history.js" %}"></script>
+<script src="{% static "v2/simulator-start.js" %}"></script>
 {% endblock content %}
