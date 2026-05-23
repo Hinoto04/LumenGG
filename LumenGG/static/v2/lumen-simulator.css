@@ -38,6 +38,16 @@
     gap: 6px;
 }
 
+.v2-sim-help-stack {
+    display: grid;
+    gap: 5px;
+}
+
+.v2-sim-help-stack .v2-button {
+    justify-content: center;
+    min-height: 31px;
+}
+
 .v2-sim-presence {
     display: flex;
     flex-wrap: wrap;
@@ -63,7 +73,7 @@
 
 .v2-sim-controlbar {
     display: grid;
-    grid-template-columns: auto minmax(280px, 1fr) auto minmax(260px, 400px) auto;
+    grid-template-columns: auto minmax(280px, 1fr) minmax(220px, .9fr) auto minmax(260px, 400px) auto;
     gap: 10px;
     align-items: center;
     margin-bottom: 10px;
@@ -99,6 +109,20 @@
     border-color: var(--v2-accent);
     color: var(--v2-accent);
     background: rgba(224, 180, 91, .12);
+}
+
+.v2-sim-phase-guide {
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-muted);
+    background: rgba(255, 255, 255, .04);
+    font-size: .82rem;
+    font-weight: 800;
+    line-height: 1.35;
 }
 
 .v2-sim-import-card {
@@ -406,6 +430,35 @@
     color: var(--v2-text);
     background: var(--v2-surface);
     font-weight: 900;
+}
+
+.v2-sim-counter-main {
+    pointer-events: none;
+}
+
+.v2-sim-turn-change {
+    position: absolute;
+    left: 4px;
+    top: -10px;
+    padding: 1px 5px;
+    border: 1px solid var(--v2-line);
+    border-radius: 999px;
+    background: rgba(9, 13, 22, .92);
+    font-size: .68rem;
+    line-height: 1.25;
+    pointer-events: none;
+}
+
+.v2-sim-turn-change.is-positive {
+    color: #8ef2d1;
+}
+
+.v2-sim-turn-change.is-negative {
+    color: #ffb0b0;
+}
+
+.v2-sim-turn-change.is-neutral {
+    color: var(--v2-muted);
 }
 
 .v2-sim-hp strong[data-pending-amount]::after,
@@ -985,6 +1038,7 @@
     display: block;
     font-size: .86rem;
     line-height: 1.35;
+    white-space: pre-line;
 }
 
 .v2-sim-log-row.is-own-log {
@@ -1160,6 +1214,70 @@
 
 .v2-sim-card-tooltip.is-visible {
     display: block;
+}
+
+.v2-sim-phase-overlay {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    z-index: 180;
+    display: grid;
+    place-items: center;
+    min-width: min(520px, calc(100vw - 40px));
+    padding: 26px 34px;
+    border: 1px solid rgba(224, 180, 91, .62);
+    border-radius: 12px;
+    color: var(--v2-text);
+    background:
+        linear-gradient(135deg, rgba(91, 190, 176, .14), rgba(224, 180, 91, .18)),
+        color-mix(in srgb, var(--v2-surface) 94%, transparent);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .46);
+    font-size: clamp(2.2rem, 8vw, 5.2rem);
+    font-weight: 950;
+    letter-spacing: 0;
+    text-align: center;
+    text-transform: uppercase;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(.92);
+}
+
+.v2-sim-phase-overlay.is-visible {
+    animation: v2-sim-phase-pop 1.1s ease both;
+}
+
+.v2-sim-signal-overlay {
+    gap: 8px;
+    min-width: min(420px, calc(100vw - 40px));
+    padding: 24px 32px 28px;
+    text-transform: none;
+}
+
+.v2-sim-signal-overlay span {
+    color: var(--v2-muted);
+    font-size: clamp(.88rem, 1.8vw, 1.1rem);
+    font-weight: 800;
+}
+
+.v2-sim-signal-overlay strong {
+    font-size: clamp(2rem, 7vw, 4.7rem);
+    line-height: 1;
+}
+
+@keyframes v2-sim-phase-pop {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(.86);
+    }
+    16%,
+    72% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.04);
+    }
 }
 
 .v2-sim-share .is-copied::after {

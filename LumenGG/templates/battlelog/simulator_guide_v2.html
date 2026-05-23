@@ -1,0 +1,79 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% load language_tags %}
+{% block title %}{% tr "시뮬레이터 가이드" %} - LumenDB{% endblock title %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">LUMEN CONDENSOR SIMULATOR GUIDE</div>
+        <h1 class="v2-title">{% tr "시뮬레이터 가이드" %}</h1>
+        <p class="v2-subtitle">{% tr "루멘콘덴서 웹 시뮬레이터는 카드 효과를 자동 판정하지 않고, 두 플레이어가 같은 보드와 로그를 보며 진행을 맞추는 도구입니다." %}</p>
+    </div>
+    <div>
+        <a class="v2-button" href="{% url "battlelog:simulatorStart" %}">{% tr "시뮬레이터" %}</a>
+    </div>
+</section>
+
+<div class="v2-guide-layout">
+    <aside class="v2-panel v2-guide-toc">
+        <strong>{% tr "목차" %}</strong>
+        <a href="#move-cards">{% tr "카드를 움직이는 법" %}</a>
+        <a href="#action-flow">{% tr "행동 요청과 행동 완료" %}</a>
+        <a href="#log">{% tr "로그 확인" %}</a>
+        <a href="#passive">{% tr "패시브 효과" %}</a>
+        <a href="#card-effect">{% tr "카드 효과" %}</a>
+    </aside>
+
+    <section class="v2-guide-content">
+        <article id="move-cards" class="v2-panel v2-guide-section">
+            <h2>{% tr "카드를 움직이는 법" %}</h2>
+            <p>{% tr "카드는 드래그해서 원하는 영역으로 옮깁니다. 자신의 카드는 자신의 영역 대부분으로 이동할 수 있고, 상대 영역으로는 루멘 존과 배틀 존까지 이동할 수 있습니다." %}</p>
+            <p>{% tr "손패, 사이드 덱, 루멘 존, 배틀 존은 공개와 비공개를 선택할 수 있는 영역입니다. 카드를 우클릭하거나 카드 오른쪽 위의 눈 모양 버튼을 누르면 공개 상태를 바꿀 수 있습니다. 공개 여부를 바꿀 권한은 카드의 소유자에게 있습니다." %}</p>
+            <p>{% tr "배틀 존 전체를 리스트나 손패로 보내는 일괄 버튼도 사용할 수 있습니다. 배틀 페이즈가 끝날 때는 배틀 페이즈 돌입 시 이미 배틀 존에 있던 카드는 손패로 돌아가고, 이후 배틀 존에 놓인 카드는 리스트로 이동합니다." %}</p>
+            <figure class="v2-guide-image-slot">
+                <img src="{% static guide_images.move_cards %}" alt="{% tr "카드를 움직이는 법" %}">
+            </figure>
+        </article>
+
+        <article id="action-flow" class="v2-panel v2-guide-section">
+            <h2>{% tr "행동 요청과 행동 완료" %}</h2>
+            <p>{% tr "행동 요청은 현재 어느 플레이어가 선택이나 조작을 해야 하는지 표시하는 기능입니다. 행동이 요구된 플레이어 영역은 강조 표시됩니다." %}</p>
+            <p>{% tr "자신의 행동이 끝났다면 내 행동 완료를 누릅니다. 한쪽이 완료한 상태에서 상대가 아직 완료하지 않았다면, 상대에게 행동 요청이 자동으로 표시됩니다. 양쪽이 모두 완료하면 다음 페이즈로 넘어갑니다." %}</p>
+            <p>{% tr "단축키로는 Space가 내 행동 완료, Shift + Space가 상대에게 행동 요청입니다. Z, X, C는 각각 효과 발동, 콤보 타임, 캐치 타임 신호를 보내며 양쪽 화면 중앙에 크게 표시됩니다." %}</p>
+            <figure class="v2-guide-image-slot">
+                <img src="{% static guide_images.action_flow %}" alt="{% tr "행동 요청과 행동 완료" %}">
+            </figure>
+        </article>
+
+        <article id="log" class="v2-panel v2-guide-section">
+            <h2>{% tr "로그 확인" %}</h2>
+            <p>{% tr "로그 버튼을 누르면 오른쪽에서 로그 창이 열립니다. 카드 이동, 페이즈 변경, 공개/비공개 전환, HP/FP 변화, 수동 기록이 순서대로 표시됩니다." %}</p>
+            <p>{% tr "내 행동과 관련된 로그는 내 쪽 정렬, 상대 행동과 관련된 로그는 상대 쪽 정렬, 페이즈 전환처럼 공통인 로그는 중앙 정렬로 표시됩니다. 카드명이 포함된 로그는 클릭해서 카드 정보를 확인할 수 있습니다." %}</p>
+            <p>{% tr "로그 입력칸에 내용을 입력하고 Enter를 누르면 직접 기록을 남길 수 있습니다. 빠른 로그 버튼으로 히트, 카운터, 방어, 회피 같은 결과도 바로 남길 수 있습니다." %}</p>
+            <figure class="v2-guide-image-slot">
+                <img src="{% static guide_images.log %}" alt="{% tr "로그 확인" %}">
+            </figure>
+        </article>
+
+        <article id="passive" class="v2-panel v2-guide-section">
+            <h2>{% tr "패시브 효과" %}</h2>
+            <p>{% tr "패시브 영역에는 캐릭터의 패시브 카드와 관련 조작이 표시됩니다. 카운터를 쌓거나 상태를 켜고 끄는 패시브는 버튼으로 관리할 수 있습니다." %}</p>
+            <p>{% tr "캐릭터별로 별도 조작이 필요한 경우 전용 UI가 표시됩니다. 예를 들어 요한은 예지와 디제스터 원 관련 조작을, 니아와 CMYK는 캐릭터 패시브에 맞는 전용 버튼을 사용할 수 있습니다." %}</p>
+            <p>{% tr "패시브 버튼은 상태 표시를 돕기 위한 기능이며, 게임 규칙의 적법성이나 카드 효과의 성공 여부를 자동 판정하지 않습니다. 필요한 판단은 플레이어가 직접 확인하고 로그로 남겨주세요." %}</p>
+            <figure class="v2-guide-image-slot">
+                <img src="{% static guide_images.passive %}" alt="{% tr "패시브 효과" %}">
+            </figure>
+        </article>
+
+        <article id="card-effect" class="v2-panel v2-guide-section">
+            <h2>{% tr "카드 효과" %}</h2>
+            <p>{% tr "시뮬레이터는 카드 효과를 자동으로 계산하지 않습니다. 공개된 카드를 클릭하면 카드 이미지와 주요 텍스트를 확인할 수 있고, 그 내용을 바탕으로 플레이어가 직접 처리합니다." %}</p>
+            <p>{% tr "일부 자주 쓰는 복잡한 처리는 카드 정보 창의 기능 버튼으로 보조할 수 있습니다. 예를 들어 블랙아웃처럼 실제 절차가 번거로운 효과는 버튼을 통해 대체 처리를 빠르게 수행할 수 있습니다." %}</p>
+            <p>{% tr "효과 처리를 시작할 때는 Z를 눌러 효과 발동 신호를 보내면 상대 화면에도 같은 신호가 표시됩니다. 처리 결과는 로그 입력 또는 빠른 로그 버튼으로 남겨두는 것이 좋습니다." %}</p>
+            <figure class="v2-guide-image-slot">
+                <img src="{% static guide_images.card_effect %}" alt="{% tr "카드 효과" %}">
+            </figure>
+        </article>
+    </section>
+</div>
+{% endblock content %}

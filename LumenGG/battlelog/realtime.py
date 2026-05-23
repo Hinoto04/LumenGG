@@ -54,11 +54,23 @@ def broadcast_simulator_session(session):
         return
 
     group_name = simulator_session_group(session.view_token)
+    events = ((session.document or {}).get('events') or [])
+    latest_event = events[-1] if events else {}
+    signal = None
+    if latest_event.get('type') == 'signal':
+        payload = latest_event.get('payload') or {}
+        signal = {
+            'id': latest_event.get('id'),
+            'actor': latest_event.get('actor'),
+            'signal': payload.get('signal'),
+            'label': payload.get('label'),
+        }
     try:
         async_to_sync(channel_layer.group_send)(group_name, {
             'type': 'simulator.changed',
             'version': session.version,
             'event_count': _simulator_event_count(session),
+            'signal': signal,
         })
     except Exception:
         logger.exception('Failed to broadcast simulator update to %s', group_name)

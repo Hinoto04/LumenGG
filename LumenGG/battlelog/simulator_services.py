@@ -23,7 +23,7 @@ from deck.models import CardInDeck, Deck
 
 from .models import LumenSimulatorSession
 from .presence import simulator_presence_counts
-from .services import _passive_ui, hand_limit_for_hp, initial_hp_for_character, initial_passive_state_for_character
+from .services import _passive_ui, character_hand_table, hand_limit_for_hp, initial_hp_for_character, initial_passive_state_for_character
 
 
 SIMULATOR_SESSION_LIFETIME = timedelta(hours=24)
@@ -62,6 +62,11 @@ YOHAN_DECLARATION_LABELS = {
     'even': '짝수',
     'attack': '공격',
     'defense': '수비',
+}
+SIMULATOR_SIGNAL_LABELS = {
+    'effect': '효과 발동',
+    'combo': '콤보 타임',
+    'catch': '캐치 타임',
 }
 CARD_METADATA_FIELDS = (
     'name', 'code', 'type', 'frame', 'damage', 'pos', 'body', 'special',
@@ -141,6 +146,20 @@ def _character_payload(character, owner):
     }
 
 
+def _initial_turn_changes():
+    return {
+        side: {'hp': 0, 'fp': 0, 'hp_changed': False, 'fp_changed': False}
+        for side in PLAYER_SIDES
+    }
+
+
+def _initial_counter_revisions():
+    return {
+        side: {'hp': 0, 'fp': 0}
+        for side in PLAYER_SIDES
+    }
+
+
 def _player_display_name(side, name, character):
     fallback = '플레이어1' if side == 'p1' else '플레이어2'
     base_name = (name or '').strip() or fallback
@@ -165,6 +184,7 @@ def _player_skeleton(side, name, deck):
             'img': character.body_img or character.sd_img or character.img,
             'icon_img': character.icon_img,
             'color': character.color,
+            'hand_table': character_hand_table(character),
             'passive_ui': _passive_ui(character, context='simulator'),
         },
         'initial_hp': initial_hp,
@@ -230,6 +250,8 @@ def _initial_state(player1_name, player2_name, player1_deck, player2_deck):
             'started_at': None,
             'duration_seconds': 10,
         },
+        'turn_changes': _initial_turn_changes(),
+        'counter_revisions': _initial_counter_revisions(),
         'players': {
             'p1': _player_skeleton('p1', player1_name, player1_deck),
             'p2': _player_skeleton('p2', player2_name, player2_deck),
@@ -368,23 +390,168 @@ def _request_priority_for_phase(state):
     return target
 
 
-def _start_phase(state, phase):
+def _ensure_turn_changes(state):
+    changes = state.setdefault('turn_changes', {})
+    for side in PLAYER_SIDES:
+        side_changes = changes.setdefault(side, {})
+        side_changes['hp'] = int(side_changes.get('hp') or 0)
+        side_changes['fp'] = int(side_changes.get('fp') or 0)
+        side_changes['hp_changed'] = bool(side_changes.get('hp_changed'))
+        side_changes['fp_changed'] = bool(side_changes.get('fp_changed'))
+    return changes
+
+
+def _record_turn_change(state, side, kind, amount):
+    if side not in PLAYER_SIDES or kind not in ('hp', 'fp') or not amount:
+        return
+    changes = _ensure_turn_changes(state)
+    changes[side][kind] = int(changes[side].get(kind) or 0) + int(amount)
+    changes[side][f'{kind}_changed'] = True
+
+
+def _reset_turn_changes(state):
+    state['turn_changes'] = _initial_turn_changes()
+
+
+def _ensure_counter_revisions(state):
+    revisions = state.setdefault('counter_revisions', {})
+    for side in PLAYER_SIDES:
+        side_revisions = revisions.setdefault(side, {})
+        side_revisions['hp'] = int(side_revisions.get('hp') or 0)
+        side_revisions['fp'] = int(side_revisions.get('fp') or 0)
+    return revisions
+
+
+def _advance_counter_revision(state, payload, target, kind):
+    revisions = _ensure_counter_revisions(state)
+    current = int(revisions[target].get(kind) or 0)
+    if 'base_revision' in payload:
+        try:
+            base_revision = int(payload.get('base_revision'))
+        except (TypeError, ValueError):
+            raise ValueError('계산기 상태가 오래되었습니다.')
+        if base_revision != current:
+            raise ValueError('이미 다른 계산기 조작이 먼저 반영되었습니다.')
+    else:
+        base_revision = current
+    revisions[target][kind] = current + 1
+    payload['base_revision'] = base_revision
+    payload['revision'] = revisions[target][kind]
+
+
+def _start_battle_phase(state, payload=None):
+    ready_cards = {}
+    revealed_counts = {}
+    revealed_cards = {side: [] for side in PLAYER_SIDES}
+    for side, player in (state.get('players') or {}).items():
+        if side not in PLAYER_SIDES:
+            continue
+        battle_cards = player.get('zones', {}).get('battle', [])
+        ready_cards[side] = [
+            card.get('instance_id')
+            for card in battle_cards
+            if card.get('instance_id')
+        ]
+        revealed_count = 0
+        for card in battle_cards:
+            if not bool(card.get('face_up')):
+                revealed_count += 1
+            revealed_cards[side].append({
+                'card_instance_id': card.get('instance_id'),
+                'card_id': card.get('card_id'),
+                'card_label': _card_label(card),
+                'owner': card.get('owner') or side,
+            })
+            card['face_up'] = True
+            card['hidden'] = False
+        revealed_counts[side] = revealed_count
+    state['battle_phase_ready_cards'] = ready_cards
+    if payload is not None:
+        payload['battle_ready_cards'] = copy.deepcopy(ready_cards)
+        payload['revealed_counts'] = revealed_counts
+        payload['revealed_cards'] = revealed_cards
+
+
+def _cleanup_battle_phase(state, payload=None):
+    ready_map = state.get('battle_phase_ready_cards') or {}
+    ready_ids = {
+        str(instance_id)
+        for instance_ids in ready_map.values()
+        for instance_id in (instance_ids or [])
+        if instance_id
+    }
+    moved_to_hand = {side: 0 for side in PLAYER_SIDES}
+    moved_to_list = {side: 0 for side in PLAYER_SIDES}
+    for zone_owner in PLAYER_SIDES:
+        player = state.get('players', {}).get(zone_owner) or {}
+        zones = player.setdefault('zones', {})
+        battle_cards = list(zones.get('battle') or [])
+        zones['battle'] = []
+        for card in battle_cards:
+            owner = card.get('owner') if card.get('owner') in PLAYER_SIDES else zone_owner
+            owner_zones = state['players'][owner].setdefault('zones', {})
+            if str(card.get('instance_id') or '') in ready_ids:
+                card['face_up'] = False
+                card['hidden'] = False
+                owner_zones.setdefault('hand', []).append(card)
+                moved_to_hand[owner] += 1
+            else:
+                _set_card_visibility_for_zone(card, 'list', state)
+                owner_zones.setdefault('list', []).append(card)
+                moved_to_list[owner] += 1
+    state.pop('battle_phase_ready_cards', None)
+    if payload is not None:
+        payload['battle_cleanup'] = {
+            'hand': moved_to_hand,
+            'list': moved_to_list,
+        }
+
+
+def _hide_all_hands(state, payload=None):
+    counts = {side: 0 for side in PLAYER_SIDES}
+    for side in PLAYER_SIDES:
+        hand = state.get('players', {}).get(side, {}).get('zones', {}).get('hand', [])
+        for card in hand:
+            if card.get('kind') == 'character':
+                continue
+            card['face_up'] = False
+            card['hidden'] = False
+            counts[side] += 1
+    if payload is not None:
+        payload['hidden_hand_counts'] = counts
+
+
+def _start_phase(state, phase, payload=None):
     state['phase'] = phase
     _reset_status(state)
     if phase == 'battle':
-        for player in state.get('players', {}).values():
-            for card in player.get('zones', {}).get('battle', []):
-                card['face_up'] = True
+        _start_battle_phase(state, payload)
     return _request_priority_for_phase(state)
 
 
-def _advance_phase(state):
+def _advance_phase(state, payload=None):
     current_phase = state.get('phase') if state.get('phase') in PHASES else 'lumen'
+    from_turn = int(state.get('turn') or 1)
+    if payload is not None:
+        payload['from_phase'] = current_phase
+        payload['from_turn'] = from_turn
+    if current_phase == 'battle':
+        _cleanup_battle_phase(state, payload)
+    if current_phase == 'get':
+        _hide_all_hands(state, payload)
     if current_phase == 'recovery':
         state['turn'] = int(state.get('turn') or 1) + 1
-        return _start_phase(state, 'lumen')
-    next_index = min(PHASES.index(current_phase) + 1, len(PHASES) - 1)
-    return _start_phase(state, PHASES[next_index])
+        _reset_turn_changes(state)
+        priority = _start_phase(state, 'lumen', payload)
+    else:
+        next_index = min(PHASES.index(current_phase) + 1, len(PHASES) - 1)
+        priority = _start_phase(state, PHASES[next_index], payload)
+    if payload is not None:
+        payload['to_phase'] = state.get('phase')
+        payload['to_turn'] = int(state.get('turn') or 1)
+        if priority:
+            payload['priority_player'] = priority
+    return priority
 
 
 def _find_card_location(state, instance_id):
@@ -444,6 +611,10 @@ def _is_attack_or_defense_card(card):
 
 
 def _set_card_visibility_for_zone(card, zone, state):
+    if zone == 'hand' and state.get('phase') == 'get':
+        card['face_up'] = True
+        card['hidden'] = False
+        return
     if zone in PUBLIC_ON_ENTER_ZONES:
         card['face_up'] = True
         return
@@ -494,7 +665,10 @@ def _apply_move_card(state, payload):
         if card.get('card_id'):
             payload['card_id'] = card.get('card_id')
         return
-    if to_zone == 'battle' and state.get('phase') not in ('lumen', 'ready'):
+    if to_zone == 'hand' and state.get('phase') == 'get':
+        card['face_up'] = True
+        card['hidden'] = False
+    elif to_zone == 'battle' and state.get('phase') not in ('lumen', 'ready'):
         card['face_up'] = True
     elif not _should_preserve_card_visibility(from_zone, to_zone):
         _set_card_visibility_for_zone(card, to_zone, state)
@@ -519,7 +693,10 @@ def _apply_bulk_move(state, payload):
     cards = state['players'][player_side]['zones'][from_zone]
     state['players'][player_side]['zones'][from_zone] = []
     for card in cards:
-        if not _should_preserve_card_visibility(from_zone, to_zone):
+        if to_zone == 'hand' and state.get('phase') == 'get':
+            card['face_up'] = True
+            card['hidden'] = False
+        elif not _should_preserve_card_visibility(from_zone, to_zone):
             _set_card_visibility_for_zone(card, to_zone, state)
         owner = card.get('owner') or player_side
         state['players'][owner]['zones'][to_zone].append(card)
@@ -602,13 +779,27 @@ def _apply_phase(state, payload):
     phase = str(payload.get('phase') or '')
     if phase not in PHASES:
         raise ValueError('페이즈가 올바르지 않습니다.')
-    priority = _start_phase(state, phase)
+    from_phase = state.get('phase') if state.get('phase') in PHASES else 'lumen'
+    payload['from_phase'] = from_phase
+    payload['from_turn'] = int(state.get('turn') or 1)
+    if from_phase == 'battle' and phase != 'battle':
+        _cleanup_battle_phase(state, payload)
+    if from_phase == 'get' and phase != 'get':
+        _hide_all_hands(state, payload)
+    priority = _start_phase(state, phase, payload)
+    payload['to_phase'] = state.get('phase')
+    payload['to_turn'] = int(state.get('turn') or 1)
     if priority:
         payload['priority_player'] = priority
 
 
 def _apply_next_turn(state):
+    if state.get('phase') == 'battle':
+        _cleanup_battle_phase(state)
+    if state.get('phase') == 'get':
+        _hide_all_hands(state)
     state['turn'] = int(state.get('turn') or 1) + 1
+    _reset_turn_changes(state)
     _start_phase(state, 'lumen')
 
 
@@ -632,17 +823,15 @@ def _apply_done(state, payload):
     if state['status'][target]['done']:
         state['status'][target]['requested'] = False
         opponent = _opponent_side(target)
-        if state.get('status', {}).get(opponent, {}).get('done'):
-            from_phase = state.get('phase') if state.get('phase') in PHASES else 'lumen'
-            from_turn = int(state.get('turn') or 1)
-            priority = _advance_phase(state)
-            payload['auto_advanced'] = True
-            payload['from_phase'] = from_phase
-            payload['from_turn'] = from_turn
-            payload['to_phase'] = state.get('phase')
-            payload['to_turn'] = int(state.get('turn') or 1)
-            if priority:
-                payload['priority_player'] = priority
+        if not state.get('status', {}).get(opponent, {}).get('done'):
+            state.setdefault('status', {}).setdefault(opponent, {'requested': False, 'done': False})
+            state['status'][opponent]['requested'] = True
+            state['status'][opponent]['done'] = False
+            payload['requested_opponent'] = opponent
+
+
+def _apply_phase_advance(state, payload):
+    _advance_phase(state, payload)
 
 
 def _apply_hp(state, payload):
@@ -651,8 +840,10 @@ def _apply_hp(state, payload):
     if target not in PLAYER_SIDES or amount == 0 or abs(amount) > 50000:
         raise ValueError('체력 변경값이 올바르지 않습니다.')
     player = state['players'][target]
+    _advance_counter_revision(state, payload, target, 'hp')
     before = int(player.get('hp') or 0)
     player['hp'] = before + amount
+    _record_turn_change(state, target, 'hp', amount)
     payload['before'] = before
     payload['after'] = player['hp']
 
@@ -663,8 +854,10 @@ def _apply_fp(state, payload):
     if target not in PLAYER_SIDES or amount == 0 or abs(amount) > 100:
         raise ValueError('FP 변경값이 올바르지 않습니다.')
     player = state['players'][target]
+    _advance_counter_revision(state, payload, target, 'fp')
     before = int(player.get('fp') or 0)
     player['fp'] = before + amount
+    _record_turn_change(state, target, 'fp', amount)
     payload['before'] = before
     payload['after'] = player['fp']
 
@@ -674,8 +867,10 @@ def _apply_fp_reset(state, payload):
     if target not in PLAYER_SIDES:
         raise ValueError('FP 초기화 대상이 올바르지 않습니다.')
     player = state['players'][target]
+    _advance_counter_revision(state, payload, target, 'fp')
     before = int(player.get('fp') or 0)
     player['fp'] = 0
+    _record_turn_change(state, target, 'fp', -before)
     payload['before'] = before
     payload['after'] = 0
 
@@ -767,9 +962,12 @@ def _apply_visibility(state, payload, actor):
         raise PermissionDenied()
     if not bool(payload.get('face_up')) and zone in PUBLIC_ON_ENTER_ZONES:
         raise ValueError('공개 존의 카드는 비공개로 전환할 수 없습니다.')
+    was_face_up = bool(card.get('face_up'))
     card['face_up'] = bool(payload.get('face_up'))
     payload['owner'] = card.get('owner')
-    payload['card_label'] = card.get('name') or '카드'
+    payload['was_face_up'] = was_face_up
+    payload['card_id'] = card.get('card_id')
+    payload['card_label'] = _card_label(card)
 
 
 def _apply_log_note(payload):
@@ -777,6 +975,20 @@ def _apply_log_note(payload):
     if not text:
         raise ValueError('기록할 내용을 입력해주세요.')
     payload['text'] = text[:300]
+
+
+def _apply_signal(state, payload, actor, event_id):
+    signal = str(payload.get('signal') or '').strip()
+    if signal not in SIMULATOR_SIGNAL_LABELS:
+        raise ValueError('신호가 올바르지 않습니다.')
+    payload['signal'] = signal
+    payload['label'] = SIMULATOR_SIGNAL_LABELS[signal]
+    state['last_signal'] = {
+        'id': event_id,
+        'actor': actor,
+        'signal': signal,
+        'label': payload['label'],
+    }
 
 
 def _find_external_card(query):
@@ -1050,6 +1262,8 @@ def _apply_event(state, event):
         _apply_request_action(state, payload)
     elif event_type == 'set_done':
         _apply_done(state, payload)
+    elif event_type == 'phase_advance':
+        _apply_phase_advance(state, payload)
     elif event_type == 'hp':
         _apply_hp(state, payload)
     elif event_type == 'fp':
@@ -1066,6 +1280,8 @@ def _apply_event(state, event):
         _apply_visibility(state, payload, actor)
     elif event_type == 'log_note':
         _apply_log_note(payload)
+    elif event_type == 'signal':
+        _apply_signal(state, payload, actor, event.get('id'))
     elif event_type == 'import_card':
         _apply_import_card(state, payload, actor)
     elif event_type == 'yohan_declare_reveal':
@@ -1113,6 +1329,16 @@ def _actor_from_body(session, body):
     return role
 
 
+def _append_phase_advance_if_ready(state, events, actor):
+    status = state.get('status') or {}
+    if not all(bool((status.get(side) or {}).get('done')) for side in PLAYER_SIDES):
+        return None
+    event = _make_event('phase_advance', actor, {})
+    _apply_event(state, event)
+    events.append(event)
+    return event
+
+
 def perform_simulator_action(session, body):
     action = str(body.get('action') or '')
     actor = _actor_from_body(session, body)
@@ -1153,6 +1379,8 @@ def perform_simulator_action(session, body):
                         _prepare_shuffle_hand_payload(state, item_payload, event.get('created_at'))
                     _apply_event(state, event)
                     events.append(event)
+                    if item_action == 'set_done' and bool(item_payload.get('done', True)):
+                        _append_phase_advance_if_ready(state, events, actor)
             elif action == 'timer':
                 timer = state.get('timer') or {}
                 running = _timer_is_running(timer)
@@ -1177,6 +1405,8 @@ def perform_simulator_action(session, body):
                     _prepare_shuffle_hand_payload(state, payload, event.get('created_at'))
                 _apply_event(state, event)
                 events.append(event)
+                if action == 'set_done' and bool(payload.get('done', True)):
+                    _append_phase_advance_if_ready(state, events, actor)
             document['state'] = state
             document['events'] = events
 
@@ -1212,7 +1442,7 @@ def _filtered_card(card, zone, viewer_side):
                 if field in card:
                     visible[field] = card.get(field)
         return visible
-    return {
+    hidden = {
         'instance_id': card.get('instance_id'),
         'kind': card.get('kind') or 'card',
         'owner': card.get('owner'),
@@ -1221,6 +1451,9 @@ def _filtered_card(card, zone, viewer_side):
         'name': '비공개 카드',
         'face_up': False,
     }
+    if viewer_side in PLAYER_SIDES and card.get('card_id'):
+        hidden['card_id'] = card.get('card_id')
+    return hidden
 
 
 def _with_serialized_hand_limits(state):
@@ -1363,6 +1596,8 @@ def _localize_filtered_state(state, language):
 
 def _filtered_state(state, viewer_side, language=DEFAULT_LANGUAGE):
     state = _with_serialized_hand_limits(state)
+    _ensure_turn_changes(state)
+    _ensure_counter_revisions(state)
     for player_side, player in (state.get('players') or {}).items():
         zones = player.get('zones') or {}
         for zone, cards in zones.items():
@@ -1407,6 +1642,28 @@ def _visible_card_name(state, instance_id, viewer_side, language=DEFAULT_LANGUAG
     return game_term(card.get('name') or '카드', language)
 
 
+def _payload_card_label(payload, language=DEFAULT_LANGUAGE, label_key='card_label', card_id_key='card_id'):
+    language = normalize_language(language)
+    if payload.get(card_id_key) and language != DEFAULT_LANGUAGE:
+        model_card = Card.objects.prefetch_related('translations').filter(id=payload.get(card_id_key)).first()
+        if model_card:
+            return translated_card_field(model_card, language, 'name')
+    return payload.get(label_key) or ui_text('카드', language)
+
+
+def _localize_revealed_cards(payload, language=DEFAULT_LANGUAGE):
+    revealed_cards = payload.get('revealed_cards')
+    if not isinstance(revealed_cards, dict):
+        return
+    for cards in revealed_cards.values():
+        if not isinstance(cards, list):
+            continue
+        for card in cards:
+            if not isinstance(card, dict):
+                continue
+            card['card_label'] = _payload_card_label(card, language)
+
+
 def _filtered_event(event, state, viewer_side, language=DEFAULT_LANGUAGE):
     filtered = copy.deepcopy(event)
     payload = filtered.get('payload') or {}
@@ -1428,12 +1685,16 @@ def _filtered_event(event, state, viewer_side, language=DEFAULT_LANGUAGE):
                 payload['card_label'] = translated_card_field(model_card, language, 'name') if model_card else payload.get('public_card_label') or ui_text('카드', language)
             else:
                 payload['card_label'] = payload.get('public_card_label') or ui_text('카드', language)
+        elif event_type == 'set_visibility' and payload.get('card_label') and (payload.get('face_up') or payload.get('was_face_up')):
+            payload['card_label'] = _payload_card_label(payload, language)
         elif not card or not _card_visible_to(card, viewer_side):
             payload['card_label'] = ui_text('비공개 카드', language)
         elif payload.get('card_label') and normalize_language(language) == DEFAULT_LANGUAGE:
             payload['card_label'] = payload.get('card_label')
         else:
             payload['card_label'] = _visible_card_name(state, payload.get('card_instance_id'), viewer_side, language)
+    if event_type in ('set_phase', 'phase_advance'):
+        _localize_revealed_cards(payload, language)
     if event_type == 'yohan_declare_reveal':
         declaration = payload.get('declaration')
         if declaration in YOHAN_DECLARATION_LABELS:

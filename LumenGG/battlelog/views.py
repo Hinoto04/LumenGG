@@ -111,6 +111,23 @@ def simulatorStart(req):
 
 
 @require_GET
+def simulatorGuide(req):
+    language = get_language(req)
+    image_suffix = {
+        'en': 'EN',
+        'ja': 'JP',
+    }.get(language, 'KR')
+    guide_images = {
+        'move_cards': f'images/가이드1{image_suffix}.png',
+        'action_flow': f'images/가이드2{image_suffix}.png',
+        'log': f'images/가이드3{image_suffix}.png',
+        'passive': f'images/가이드4{image_suffix}.png',
+        'card_effect': f'images/가이드5{image_suffix}.png',
+    }
+    return render(req, 'battlelog/simulator_guide_v2.html', {'guide_images': guide_images})
+
+
+@require_GET
 def simulatorDeckSearch(req):
     query = req.GET.get('q', '').strip()
     query_is_id = query.isdigit()

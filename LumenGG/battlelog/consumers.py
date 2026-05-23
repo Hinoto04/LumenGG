@@ -303,6 +303,15 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
         broadcast_simulator_session(session)
 
     def simulator_changed(self, event):
+        signal = event.get('signal')
+        if signal:
+            self.send_json({
+                'type': 'signal',
+                'id': signal.get('id'),
+                'actor': signal.get('actor'),
+                'signal': signal.get('signal'),
+                'label': ui_text(signal.get('label') or '', self.language),
+            })
         self.send_json({
             'type': 'state_dirty',
             'version': event.get('version'),

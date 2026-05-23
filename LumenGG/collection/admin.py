@@ -3,9 +3,9 @@ from .models import CollectionCard, Collected, Pack, PackTranslation
 
 # Register your models here.
 class CollectionCardAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'pack', 'rare')
-    list_filter = ('pack', 'rare')
-    search_fields = ('name', 'code')
+    list_display = ('name', 'code', 'pack', 'rare', 'character', 'item_type')
+    list_filter = ('pack', 'rare', 'item_type', 'character')
+    search_fields = ('name', 'code', 'card__name', 'character__name')
     ordering = ('pack__released', 'code')
 
 class CollectedAdmin(admin.ModelAdmin):

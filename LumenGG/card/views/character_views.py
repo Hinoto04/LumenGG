@@ -63,17 +63,30 @@ def detail(req, id):
             for card in cards
         ]
     
-    skinImgs = CollectionCard.objects.filter(
+    skinImgs = list(CollectionCard.objects.filter(
+        character=char,
+        card_id=None,
+        item_type=CollectionCard.ITEM_TYPE_SKIN,
+    ).order_by('pack__released'))
+    tokenImgs = list(CollectionCard.objects.filter(
+        character=char,
+        card_id=None,
+        item_type=CollectionCard.ITEM_TYPE_TOKEN,
+    ).order_by('pack__released'))
+
+    skin_ids = [collection_card.id for collection_card in skinImgs]
+    token_ids = [collection_card.id for collection_card in tokenImgs]
+    skinImgs += list(CollectionCard.objects.filter(
         Q(name__contains=char.name)
         & Q(card_id=None)
         & ~Q(rare="N")
         & ~Q(name__contains="토큰")
-    ).order_by('pack__released')
-    tokenImgs = CollectionCard.objects.filter(
+    ).exclude(id__in=skin_ids).order_by('pack__released'))
+    tokenImgs += list(CollectionCard.objects.filter(
         Q(name__contains=char.name)
         & Q(card_id=None)
         & Q(name__contains="토큰")
-    ).order_by('pack__released')
+    ).exclude(id__in=token_ids).order_by('pack__released'))
     passive = [
         {
             'id': card.id,

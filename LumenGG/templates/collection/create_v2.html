@@ -31,6 +31,16 @@
             <label for="{{ form.imageFile.id_for_label }}">{% tr "이미지(webp)" %}</label>
             {{ form.imageFile }}
         </div>
+        <div class="v2-admin-field v2-admin-combo v2-admin-combo-2">
+            <div>
+                <label for="{{ form.character.id_for_label }}">{% tr "캐릭터" %}</label>
+                {{ form.character }}
+            </div>
+            <div>
+                <label for="{{ form.item_type.id_for_label }}">{% tr "분류" %}</label>
+                {{ form.item_type }}
+            </div>
+        </div>
         <div class="v2-admin-field v2-admin-combo v2-admin-combo-2 v2-admin-collection-release">
             <div>
                 <label for="{{ form.code.id_for_label }}">{% tr "수록 정보" %}</label>

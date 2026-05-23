@@ -120,12 +120,17 @@ class CollectionCreateForm(forms.ModelForm):
     
     class Meta:
         model = CollectionCard
-        fields = ['name', 'code']
+        fields = ['name', 'code', 'character', 'item_type']
 
     def __init__(self, *args, language=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['name'].label = ui_text('카드명', language)
         self.fields['code'].label = ui_text('수록 정보', language)
+        self.fields['character'].label = ui_text('캐릭터', language)
+        self.fields['character'].queryset = Character.objects.order_by('name')
+        _localize_character_field(self.fields['character'], language)
+        self.fields['item_type'].label = ui_text('분류', language)
+        self.fields['item_type'].choices = _translated_choices(self.fields['item_type'].choices, language)
         self.fields['pack'].label = ui_text('팩', language)
         _localize_pack_field(self.fields['pack'], language)
         self.fields['rare'].label = ui_text('레어도', language)

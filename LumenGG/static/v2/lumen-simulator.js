@@ -45,6 +45,8 @@
     let realtimeToastMessage = "";
     let realtimeToastCount = 0;
     let selectedLogCard = null;
+    let lastPhaseOverlayKey = `${state.turn || 1}:${state.phase || ""}`;
+    let lastSignalOverlayKey = "";
     const tooltip = document.createElement("div");
     const pendingSocketActions = new Map();
     const pendingCounters = {
@@ -55,6 +57,13 @@
     const phases = ["lumen", "ready", "battle", "get", "recovery"];
     const zones = ["ultimate", "lumen", "battle", "hand", "list", "side", "break"];
     const visibilityToggleZones = new Set(["hand", "side", "battle", "lumen"]);
+    const phaseGuideLabels = {
+        lumen: "루멘 페이즈에 처리할 효과를 처리하세요",
+        ready: "기술을 배틀 존에 레디하세요",
+        battle: "상대와의 배틀 결과를 처리하세요",
+        get: "리스트에서 기술을 획득하세요",
+        recovery: "리커버리 페이즈에 처리할 효과를 처리하세요",
+    };
     tooltip.className = "v2-sim-card-tooltip";
     document.body.appendChild(tooltip);
 
@@ -126,6 +135,19 @@
 
     function phaseLabel(phase) {
         return (envelope.phase_labels && envelope.phase_labels[phase]) || phase;
+    }
+
+    function phaseGuideText(phase) {
+        return t(phaseGuideLabels[phase] || "");
+    }
+
+    function signalLabel(signal, fallback) {
+        const labels = {
+            effect: "효과 발동",
+            combo: "콤보 타임",
+            catch: "캐치 타임",
+        };
+        return t(fallback || labels[signal] || signal || "신호");
     }
 
     function roleText() {
@@ -217,12 +239,12 @@
         );
     }
 
-    function collectVisibleCardIds() {
+    function collectKnownCardIds() {
         const ids = new Set();
         Object.values((state && state.players) || {}).forEach((player) => {
             Object.values((player && player.zones) || {}).forEach((cards) => {
                 (cards || []).forEach((card) => {
-                    if (!card || card.hidden || !card.card_id) return;
+                    if (!card || !card.card_id) return;
                     const cardId = String(card.card_id);
                     if (!cardMetadataCache.has(cardId)) ids.add(cardId);
                 });
@@ -238,8 +260,8 @@
         metadataFetchTimer = window.setTimeout(fetchPendingCardMetadata, 0);
     }
 
-    function ensureVisibleCardMetadata() {
-        scheduleCardMetadataFetch(collectVisibleCardIds());
+    function ensureKnownCardMetadata() {
+        scheduleCardMetadataFetch(collectKnownCardIds());
     }
 
     function fetchPendingCardMetadata() {
@@ -432,7 +454,7 @@
             envelope.events = previousEvents;
             if (envelope.event_count === undefined) envelope.event_count = previousEventCount;
         }
-        ensureVisibleCardMetadata();
+        ensureKnownCardMetadata();
         render();
         return envelope;
     }
@@ -532,28 +554,191 @@
         return target;
     }
 
-    function startLocalPhase(localState, phase) {
+    function initialTurnChanges() {
+        return {
+            p1: { hp: 0, fp: 0, hp_changed: false, fp_changed: false },
+            p2: { hp: 0, fp: 0, hp_changed: false, fp_changed: false },
+        };
+    }
+
+    function ensureLocalTurnChanges(localState) {
+        localState.turn_changes = localState.turn_changes || {};
+        ["p1", "p2"].forEach((side) => {
+            localState.turn_changes[side] = localState.turn_changes[side] || {};
+            localState.turn_changes[side].hp = Number(localState.turn_changes[side].hp || 0);
+            localState.turn_changes[side].fp = Number(localState.turn_changes[side].fp || 0);
+            localState.turn_changes[side].hp_changed = !!localState.turn_changes[side].hp_changed;
+            localState.turn_changes[side].fp_changed = !!localState.turn_changes[side].fp_changed;
+        });
+        return localState.turn_changes;
+    }
+
+    function recordLocalTurnChange(localState, side, kind, amount) {
+        const delta = Number(amount || 0);
+        if (!["p1", "p2"].includes(side) || !["hp", "fp"].includes(kind) || !delta) return;
+        const changes = ensureLocalTurnChanges(localState);
+        changes[side][kind] = Number(changes[side][kind] || 0) + delta;
+        changes[side][`${kind}_changed`] = true;
+    }
+
+    function resetLocalTurnChanges(localState) {
+        localState.turn_changes = initialTurnChanges();
+    }
+
+    function initialCounterRevisions() {
+        return {
+            p1: { hp: 0, fp: 0 },
+            p2: { hp: 0, fp: 0 },
+        };
+    }
+
+    function ensureLocalCounterRevisions(localState) {
+        localState.counter_revisions = localState.counter_revisions || initialCounterRevisions();
+        ["p1", "p2"].forEach((side) => {
+            localState.counter_revisions[side] = localState.counter_revisions[side] || {};
+            localState.counter_revisions[side].hp = Number(localState.counter_revisions[side].hp || 0);
+            localState.counter_revisions[side].fp = Number(localState.counter_revisions[side].fp || 0);
+        });
+        return localState.counter_revisions;
+    }
+
+    function counterRevision(kind, side, localState) {
+        const revisions = ensureLocalCounterRevisions(localState || state);
+        return Number(((revisions[side] || {})[kind]) || 0);
+    }
+
+    function advanceLocalCounterRevision(localState, side, kind, payload) {
+        const revisions = ensureLocalCounterRevisions(localState);
+        const current = Number(((revisions[side] || {})[kind]) || 0);
+        if (payload.base_revision === undefined || payload.base_revision === null || payload.base_revision === "") {
+            payload.base_revision = current;
+        }
+        const baseRevision = Number(payload.base_revision);
+        if (!Number.isFinite(baseRevision) || baseRevision !== current) return false;
+        revisions[side][kind] = current + 1;
+        payload.revision = revisions[side][kind];
+        return true;
+    }
+
+    function startLocalBattlePhase(localState, payload) {
+        const readyCards = {};
+        const revealedCounts = {};
+        const revealedCards = { p1: [], p2: [] };
+        Object.entries(localState.players || {}).forEach(([side, player]) => {
+            if (!["p1", "p2"].includes(side)) return;
+            const battleCards = (player.zones && player.zones.battle) || [];
+            readyCards[side] = battleCards.map((card) => card.instance_id).filter(Boolean);
+            let revealedCount = 0;
+            battleCards.forEach((card) => {
+                if (!card.face_up) revealedCount += 1;
+                revealedCards[side].push({
+                    card_instance_id: card.instance_id,
+                    card_id: card.card_id,
+                    card_label: localRevealedCardLabel(card),
+                    owner: card.owner || side,
+                });
+                card.face_up = true;
+                card.hidden = false;
+            });
+            revealedCounts[side] = revealedCount;
+        });
+        localState.battle_phase_ready_cards = readyCards;
+        if (payload) {
+            payload.battle_ready_cards = cloneData(readyCards);
+            payload.revealed_counts = revealedCounts;
+            payload.revealed_cards = revealedCards;
+        }
+    }
+
+    function cleanupLocalBattlePhase(localState, payload) {
+        const readyMap = localState.battle_phase_ready_cards || {};
+        const readyIds = new Set();
+        Object.values(readyMap).forEach((instanceIds) => {
+            (instanceIds || []).forEach((instanceId) => {
+                if (instanceId) readyIds.add(String(instanceId));
+            });
+        });
+        const movedToHand = { p1: 0, p2: 0 };
+        const movedToList = { p1: 0, p2: 0 };
+        ["p1", "p2"].forEach((zoneOwner) => {
+            const player = localState.players && localState.players[zoneOwner];
+            if (!player || !player.zones) return;
+            const battleCards = [...(player.zones.battle || [])];
+            player.zones.battle = [];
+            battleCards.forEach((card) => {
+                const owner = ["p1", "p2"].includes(card.owner) ? card.owner : zoneOwner;
+                if (!localState.players[owner] || !localState.players[owner].zones) return;
+                if (readyIds.has(String(card.instance_id || ""))) {
+                    card.face_up = false;
+                    card.hidden = owner !== envelope.role;
+                    localState.players[owner].zones.hand.push(card);
+                    movedToHand[owner] += 1;
+                } else {
+                    setLocalCardVisibilityForZone(card, "list", localState, "battle");
+                    localState.players[owner].zones.list.push(card);
+                    movedToList[owner] += 1;
+                }
+            });
+        });
+        delete localState.battle_phase_ready_cards;
+        if (payload) {
+            payload.battle_cleanup = {
+                hand: movedToHand,
+                list: movedToList,
+            };
+        }
+    }
+
+    function hideAllLocalHands(localState, payload) {
+        const counts = { p1: 0, p2: 0 };
+        ["p1", "p2"].forEach((side) => {
+            const hand = (((localState.players || {})[side] || {}).zones || {}).hand || [];
+            hand.forEach((card) => {
+                if (!card || card.kind === "character") return;
+                card.face_up = false;
+                card.hidden = card.owner !== envelope.role;
+                counts[side] += 1;
+            });
+        });
+        if (payload) payload.hidden_hand_counts = counts;
+    }
+
+    function startLocalPhase(localState, phase, payload) {
         localState.phase = phase;
         resetLocalStatus(localState);
         if (phase === "battle") {
-            Object.values(localState.players || {}).forEach((player) => {
-                ((player.zones && player.zones.battle) || []).forEach((card) => {
-                    card.face_up = true;
-                    card.hidden = false;
-                });
-            });
+            startLocalBattlePhase(localState, payload);
         }
         return requestLocalPriorityForPhase(localState);
     }
 
-    function advanceLocalPhase(localState) {
+    function advanceLocalPhase(localState, payload) {
         const currentPhase = phases.includes(localState.phase) ? localState.phase : "lumen";
+        if (payload) {
+            payload.from_phase = currentPhase;
+            payload.from_turn = Number(localState.turn || 1);
+        }
+        if (currentPhase === "battle") {
+            cleanupLocalBattlePhase(localState, payload);
+        }
+        if (currentPhase === "get") {
+            hideAllLocalHands(localState, payload);
+        }
+        let priority = "";
         if (currentPhase === "recovery") {
             localState.turn = Number(localState.turn || 1) + 1;
-            return startLocalPhase(localState, "lumen");
+            resetLocalTurnChanges(localState);
+            priority = startLocalPhase(localState, "lumen", payload);
+        } else {
+            const nextIndex = Math.min(phases.indexOf(currentPhase) + 1, phases.length - 1);
+            priority = startLocalPhase(localState, phases[nextIndex], payload);
         }
-        const nextIndex = Math.min(phases.indexOf(currentPhase) + 1, phases.length - 1);
-        return startLocalPhase(localState, phases[nextIndex]);
+        if (payload) {
+            payload.to_phase = localState.phase;
+            payload.to_turn = Number(localState.turn || 1);
+            if (priority) payload.priority_player = priority;
+        }
+        return priority;
     }
 
     function shouldPreserveLocalCardVisibility(fromZone, toZone) {
@@ -563,25 +748,40 @@
     function setLocalCardVisibilityForZone(card, zone, localState, fromZone) {
         if (zone === "battle" && !["lumen", "ready"].includes(localState.phase)) {
             card.face_up = true;
+            card.hidden = false;
+            return;
+        }
+        if (zone === "hand" && localState.phase === "get") {
+            card.face_up = true;
+            card.hidden = false;
             return;
         }
         if (shouldPreserveLocalCardVisibility(fromZone, zone)) return;
         if (["character", "passive", "list", "break", "ultimate"].includes(zone)) {
             card.face_up = true;
+            card.hidden = false;
             return;
         }
         if (["hand", "side", "lumen"].includes(zone)) {
             card.face_up = false;
+            card.hidden = card.owner !== envelope.role;
             return;
         }
         if (zone === "battle") {
             card.face_up = !["lumen", "ready"].includes(localState.phase);
+            card.hidden = !card.face_up && card.owner !== envelope.role;
         }
     }
 
     function localCardLabel(card) {
         if (!card || card.hidden) return t("비공개 카드");
         return cardDisplayName(card);
+    }
+
+    function localRevealedCardLabel(card) {
+        if (!card) return t("카드");
+        const revealedCard = card.card_id ? hydrateCard({ ...card, hidden: false }) : hydrateCard(card);
+        return (revealedCard && revealedCard.name) || t("카드");
     }
 
     function appendOptimisticEvent(action, payload) {
@@ -687,15 +887,29 @@
 
         if (action === "set_phase") {
             if (!phases.includes(localPayload.phase)) return false;
-            const priority = startLocalPhase(state, localPayload.phase);
+            const fromPhase = phases.includes(state.phase) ? state.phase : "lumen";
+            localPayload.from_phase = fromPhase;
+            localPayload.from_turn = Number(state.turn || 1);
+            if (fromPhase === "battle" && localPayload.phase !== "battle") {
+                cleanupLocalBattlePhase(state, localPayload);
+            }
+            if (fromPhase === "get" && localPayload.phase !== "get") {
+                hideAllLocalHands(state, localPayload);
+            }
+            const priority = startLocalPhase(state, localPayload.phase, localPayload);
+            localPayload.to_phase = state.phase;
+            localPayload.to_turn = Number(state.turn || 1);
             if (priority) localPayload.priority_player = priority;
             appendOptimisticEvent(action, localPayload);
             return true;
         }
 
         if (action === "next_turn") {
+            if (state.phase === "battle") cleanupLocalBattlePhase(state, localPayload);
+            if (state.phase === "get") hideAllLocalHands(state, localPayload);
             state.turn = Number(state.turn || 1) + 1;
-            startLocalPhase(state, "lumen");
+            resetLocalTurnChanges(state);
+            startLocalPhase(state, "lumen", localPayload);
             appendOptimisticEvent(action, localPayload);
             return true;
         }
@@ -718,13 +932,16 @@
                 state.status[target].requested = false;
                 const opponent = target === "p1" ? "p2" : "p1";
                 if (state.status[opponent] && state.status[opponent].done) {
-                    localPayload.auto_advanced = true;
-                    localPayload.from_phase = state.phase;
-                    localPayload.from_turn = Number(state.turn || 1);
-                    const priority = advanceLocalPhase(state);
-                    localPayload.to_phase = state.phase;
-                    localPayload.to_turn = Number(state.turn || 1);
-                    if (priority) localPayload.priority_player = priority;
+                    appendOptimisticEvent(action, localPayload);
+                    const advancePayload = {};
+                    advanceLocalPhase(state, advancePayload);
+                    appendOptimisticEvent("phase_advance", advancePayload);
+                    return true;
+                }
+                if (state.status[opponent]) {
+                    state.status[opponent].requested = true;
+                    state.status[opponent].done = false;
+                    localPayload.requested_opponent = opponent;
                 }
             }
             appendOptimisticEvent(action, localPayload);
@@ -736,8 +953,10 @@
             const player = state.players[target];
             const amount = Number(localPayload.amount || 0);
             if (!player || !amount) return false;
+            if (!advanceLocalCounterRevision(state, target, action, localPayload)) return false;
             const before = Number(player[action] || 0);
             player[action] = before + amount;
+            recordLocalTurnChange(state, target, action, amount);
             localPayload.before = before;
             localPayload.after = player[action];
             appendOptimisticEvent(action, localPayload);
@@ -748,8 +967,10 @@
             const target = localPayload.target;
             const player = state.players[target];
             if (!player) return false;
+            if (!advanceLocalCounterRevision(state, target, "fp", localPayload)) return false;
             localPayload.before = Number(player.fp || 0);
             player.fp = 0;
+            recordLocalTurnChange(state, target, "fp", -localPayload.before);
             localPayload.after = 0;
             appendOptimisticEvent(action, localPayload);
             return true;
@@ -799,10 +1020,12 @@
         if (action === "set_visibility") {
             const location = findCardLocation(state, localPayload.card_instance_id);
             if (!location || !location.card || location.card.owner !== envelope.role) return false;
+            localPayload.was_face_up = !!location.card.face_up;
+            localPayload.card_id = location.card.card_id;
+            localPayload.card_label = localCardLabel(location.card);
             location.card.face_up = !!localPayload.face_up;
             location.card.hidden = false;
             localPayload.owner = location.card.owner;
-            localPayload.card_label = localCardLabel(location.card);
             appendOptimisticEvent(action, localPayload);
             return true;
         }
@@ -811,6 +1034,18 @@
             const text = String(localPayload.text || "").trim();
             if (!text) return false;
             localPayload.text = text.slice(0, 300);
+            appendOptimisticEvent(action, localPayload);
+            return true;
+        }
+
+        if (action === "signal") {
+            const signal = String(localPayload.signal || "");
+            const label = signalLabel(signal, localPayload.label);
+            if (!["effect", "combo", "catch"].includes(signal)) return false;
+            localPayload.signal = signal;
+            localPayload.label = label;
+            const id = `local-signal-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            state.last_signal = { id, actor: envelope.role, signal, label };
             appendOptimisticEvent(action, localPayload);
             return true;
         }
@@ -835,6 +1070,7 @@
             "passive",
             "set_visibility",
             "log_note",
+            "signal",
         ].includes(action);
     }
 
@@ -935,6 +1171,9 @@
         })
             .then((result) => {
                 batch.forEach((item) => item.resolve(result));
+                if (batch.some((item) => item.action === "set_done")) {
+                    return fetchState(true).then(() => result);
+                }
                 return result;
             })
             .catch((error) => {
@@ -977,7 +1216,7 @@
         if (optimisticApplied && isBatchableAction(action)) {
             return queueBatchAction(action, actionPayload, rollbackEnvelope);
         }
-        const needsAuthoritativeState = action === "set_phase" && actionPayload.phase === "battle";
+        const needsAuthoritativeState = (action === "set_phase" && actionPayload.phase === "battle") || action === "set_done";
         return flushActionBatch()
             .then(() => postSocketAction(action, actionPayload))
             .then((result) => {
@@ -1047,8 +1286,12 @@
         const turn = document.querySelector("[data-sim-turn]");
         const current = document.querySelector("[data-sim-phase-current]");
         const holder = document.querySelector("[data-sim-phase-buttons]");
+        const guide = document.querySelector("[data-sim-phase-guide]");
         if (turn) turn.textContent = String(state.turn || 1);
         if (current) current.textContent = `${phaseLabel(state.phase)} ${t("Phase")}`;
+        if (guide) guide.textContent = phaseGuideText(state.phase);
+        maybeShowPhaseOverlay();
+        maybeShowSignalOverlay();
         if (!holder) return;
         holder.replaceChildren();
         phases.forEach((phase) => {
@@ -1061,6 +1304,55 @@
             button.classList.toggle("is-active", state.phase === phase);
             holder.appendChild(button);
         });
+    }
+
+    function maybeShowPhaseOverlay() {
+        const key = `${state.turn || 1}:${state.phase || ""}`;
+        if (!key || key === lastPhaseOverlayKey) return;
+        lastPhaseOverlayKey = key;
+        let overlay = document.querySelector("[data-phase-overlay]");
+        if (!overlay) {
+            overlay = document.createElement("div");
+            overlay.className = "v2-sim-phase-overlay";
+            overlay.dataset.phaseOverlay = "true";
+            overlay.setAttribute("aria-hidden", "true");
+            document.body.appendChild(overlay);
+        }
+        overlay.textContent = `${phaseLabel(state.phase)} ${t("Phase")}`;
+        overlay.classList.remove("is-visible");
+        void overlay.offsetWidth;
+        overlay.classList.add("is-visible");
+        window.setTimeout(() => overlay.classList.remove("is-visible"), 1150);
+    }
+
+    function showSignalOverlay(actor, label, key) {
+        if (!actor || !label) return;
+        const overlayKey = key || `${actor}:${label}:${Date.now()}`;
+        if (overlayKey === lastSignalOverlayKey) return;
+        lastSignalOverlayKey = overlayKey;
+        let overlay = document.querySelector("[data-signal-overlay]");
+        if (!overlay) {
+            overlay = document.createElement("div");
+            overlay.className = "v2-sim-phase-overlay v2-sim-signal-overlay";
+            overlay.dataset.signalOverlay = "true";
+            overlay.setAttribute("aria-hidden", "true");
+            document.body.appendChild(overlay);
+        }
+        overlay.innerHTML = `
+            <span>${escapeHtml(playerLabel(actor))}</span>
+            <strong>${escapeHtml(label)}</strong>
+        `;
+        overlay.classList.remove("is-visible");
+        void overlay.offsetWidth;
+        overlay.classList.add("is-visible");
+        window.setTimeout(() => overlay.classList.remove("is-visible"), 1150);
+    }
+
+    function maybeShowSignalOverlay() {
+        const signal = state.last_signal || {};
+        const label = signalLabel(signal.signal, signal.label);
+        if (!signal.id || !signal.actor || !label) return;
+        showSignalOverlay(signal.actor, label, signal.id);
     }
 
     function renderStatus() {
@@ -1099,6 +1391,28 @@
 
     function counterButton(label, side, kind, amount, extraClass) {
         return `<button class="v2-sim-counter ${extraClass || ""}" type="button" data-counter-kind="${kind}" data-counter-target="${side}" data-counter-amount="${amount}" data-counter-label="${escapeHtml(label)}">${label}</button>`;
+    }
+
+    function turnChangeAmount(side, kind) {
+        const changes = (state.turn_changes && state.turn_changes[side]) || {};
+        return Number(changes[kind] || 0);
+    }
+
+    function turnChangeTouched(side, kind) {
+        const changes = (state.turn_changes && state.turn_changes[side]) || {};
+        return !!changes[`${kind}_changed`] || !!turnChangeAmount(side, kind);
+    }
+
+    function turnChangeBadge(side, kind) {
+        const amount = turnChangeAmount(side, kind);
+        if (!turnChangeTouched(side, kind)) return "";
+        const className = amount > 0 ? "is-positive" : amount < 0 ? "is-negative" : "is-neutral";
+        return `<span class="v2-sim-turn-change ${className}" title="${escapeHtml(t("이번 턴 변화"))}">${formatSigned(amount)}</span>`;
+    }
+
+    function counterValueMarkup(kind, side, value) {
+        const label = kind === "fp" ? `${formatSigned(value || 0)} FP` : String(Number(value || 0));
+        return `<span class="v2-sim-counter-main">${escapeHtml(label)}</span>${turnChangeBadge(side, kind)}`;
     }
 
     function playerBoardOrder() {
@@ -1155,13 +1469,13 @@
                     <div class="v2-sim-hp">
                         ${counterButton("-500", side, "hp", -500, "is-damage")}
                         ${counterButton("-", side, "hp", -100, "is-damage")}
-                        <strong data-counter-value="hp:${side}">${Number(player.hp || 0)}</strong>
+                        <strong data-counter-value="hp:${side}">${counterValueMarkup("hp", side, player.hp)}</strong>
                         ${counterButton("+", side, "hp", 100, "is-heal")}
                         ${counterButton("+500", side, "hp", 500, "is-heal")}
                     </div>
                     <div class="v2-sim-fp">
                         ${counterButton("-", side, "fp", -1, "")}
-                        <button class="v2-sim-fp-value" type="button" data-fp-reset="${side}" data-counter-value="fp:${side}">${formatSigned(player.fp || 0)} FP</button>
+                        <button class="v2-sim-fp-value" type="button" data-fp-reset="${side}" data-counter-value="fp:${side}">${counterValueMarkup("fp", side, player.fp)}</button>
                         ${counterButton("+", side, "fp", 1, "")}
                     </div>
                 </div>
@@ -1397,6 +1711,33 @@
         });
     }
 
+    function handLimitForPlayer(player) {
+        const character = (player && player.character) || {};
+        const table = character.hand_table || {};
+        const hp = Number(player && player.hp || 0);
+        const thresholds = Object.keys(table)
+            .map((key) => Number(key))
+            .filter((value) => Number.isFinite(value))
+            .sort((a, b) => a - b);
+        if (thresholds.length) {
+            for (const threshold of thresholds) {
+                if (hp <= threshold) return table[String(threshold)] ?? table[threshold];
+            }
+            const highest = thresholds[thresholds.length - 1];
+            return table[String(highest)] ?? table[highest];
+        }
+        return character.hand_limit;
+    }
+
+    function zoneCountText(zone, cards, player) {
+        const count = (cards || []).length;
+        if (zone === "hand") {
+            const limit = handLimitForPlayer(player);
+            if (limit !== null && limit !== undefined && limit !== "") return `${count}/${limit}`;
+        }
+        return String(count);
+    }
+
     function renderZones(side, player, position) {
         const holder = document.querySelector(`[data-zone-grid="${side}"]`);
         if (!holder) return;
@@ -1427,7 +1768,7 @@
             zoneNode.innerHTML = `
                 <header>
                     <strong>${zone === "ultimate" ? "ULTIMATE" : zoneLabel(zone)}</strong>
-                    ${zone === "ultimate" ? "" : `<span>${cards.length}</span>`}
+                    ${zone === "ultimate" ? "" : `<span>${escapeHtml(zoneCountText(zone, cards, player))}</span>`}
                     ${zoneActions}
                 </header>
                 <div class="v2-sim-card-grid">
@@ -1526,6 +1867,32 @@
         window.requestAnimationFrame(fitCardGrids);
     }
 
+    function countSummary(counts) {
+        if (!counts || typeof counts !== "object") return "";
+        return ["p1", "p2"]
+            .map((side) => {
+                const count = Number(counts[side] || 0);
+                return count > 0 ? `${playerLabel(side)} ${count}${t("장")}` : "";
+            })
+            .filter(Boolean)
+            .join(", ");
+    }
+
+    function revealedCardSummary(revealedCards) {
+        if (!revealedCards || typeof revealedCards !== "object") return "";
+        const namesFor = (side) => ((revealedCards[side] || [])
+            .map((card) => card && card.card_label)
+            .filter(Boolean)
+            .join(", ")) || "-";
+        return `P1 ${namesFor("p1")} : ${namesFor("p2")} P2`;
+    }
+
+    function phaseEventLabel(phase, payload) {
+        const base = `${phaseLabel(phase)} ${t("Phase")}`;
+        const revealed = revealedCardSummary(payload.revealed_cards) || countSummary(payload.revealed_counts);
+        return revealed ? `${base} ${t("배틀 카드 공개")}\n${revealed}` : base;
+    }
+
     function eventLabel(event) {
         const payload = event.payload || {};
         const actor = playerLabel(event.actor);
@@ -1543,7 +1910,8 @@
         }
         if (event.type === "shuffle_hand") return `${playerLabel(payload.player)} ${zoneLabel("hand")} ${t("셔플")}`;
         if (event.type === "set_hand_visibility") return `${playerLabel(payload.target)} ${zoneLabel("hand")} ${payload.face_up ? t("공개") : t("비공개")} (${payload.count || 0}${t("장")})`;
-        if (event.type === "set_phase") return `${phaseLabel(payload.phase)} ${t("Phase")}`;
+        if (event.type === "set_phase") return phaseEventLabel(payload.phase, payload);
+        if (event.type === "phase_advance") return phaseEventLabel(payload.to_phase, payload);
         if (event.type === "import_card") return `${actor} ${payload.card_label || payload.card_name || t("카드")} → ${zoneLabel("lumen")}`;
         if (event.type === "blackout_random_get") return `${actor} ${payload.source_card_label || t("블랙아웃")}: ${playerLabel(payload.opponent)} ${zoneLabel("list")} ${t("무작위")} 1${t("장")} → ${zoneLabel("hand")} - ${payload.card_label || t("카드")}`;
         if (event.type === "yohan_declare_reveal") return `${actor} ${t("선언")} : ${payload.declaration_label || payload.declaration || ""} - ${t("공개")} : ${payload.card_label || t("카드")}`;
@@ -1554,8 +1922,8 @@
         if (event.type === "request_action") return `${playerLabel(payload.target)} ${t("행동")} ${payload.requested ? t("요청") : t("요청 해제")}`;
         if (event.type === "set_done") {
             const doneLabel = `${playerLabel(payload.target)} ${t("행동")} ${payload.done ? t("완료") : t("완료 취소")}`;
-            return payload.auto_advanced
-                ? `${doneLabel} → ${phaseLabel(payload.to_phase)} ${t("Phase")}`
+            return payload.requested_opponent
+                ? `${doneLabel} / ${playerLabel(payload.requested_opponent)} ${t("행동")} ${t("요청")}`
                 : doneLabel;
         }
         if (event.type === "hp") return `${playerLabel(payload.target)} HP ${formatSigned(payload.amount)} → ${payload.after}`;
@@ -1569,13 +1937,14 @@
             return `${playerLabel(payload.target)} ${payload.label || payload.key || t("패시브")} ${value}`;
         }
         if (event.type === "set_visibility") return `${actor} ${payload.card_label || t("카드")} ${payload.face_up ? t("공개") : t("비공개")}`;
+        if (event.type === "signal") return `${actor} : ${signalLabel(payload.signal, payload.label)}`;
         if (event.type === "log_note") return t(payload.text || "기록");
         return event.type;
     }
 
     function eventRelatedSide(event) {
         const payload = event.payload || {};
-        if (["set_phase", "next_turn"].includes(event.type)) return "";
+        if (["set_phase", "phase_advance", "next_turn"].includes(event.type)) return "";
         if (["request_action", "set_done", "hp", "fp", "fp_reset", "passive", "timer_timeout"].includes(event.type)) return payload.target || payload.owner || "";
         if (event.type === "bulk_move") return payload.player || "";
         if (event.type === "shuffle_hand") return payload.player || "";
@@ -1583,6 +1952,7 @@
         if (event.type === "import_card") return payload.target || event.actor || "";
         if (["yohan_declare_reveal", "yohan_foresight_reveal", "nia_lumen_cards_to_list", "cmyk_new_single", "blackout_random_get"].includes(event.type)) return payload.target || event.actor || "";
         if (event.type === "set_visibility") return payload.owner || event.actor || "";
+        if (event.type === "signal") return event.actor || "";
         if (event.type === "move_card") return payload.owner || event.actor || payload.to_player || payload.from_player || "";
         if (event.type === "timer") return payload.owner || event.actor || "";
         if (event.type === "log_note") return event.actor || "";
@@ -1781,7 +2151,7 @@
     function queueCounter(kind, side, amount) {
         if (!canControl()) return;
         const queue = pendingCounters[kind];
-        const queued = queue.get(side) || { amount: 0, timer: null };
+        const queued = queue.get(side) || { amount: 0, timer: null, baseRevision: counterRevision(kind, side) };
         queued.amount += amount;
         window.clearTimeout(queued.timer);
         if (!queued.amount) {
@@ -1790,15 +2160,16 @@
         }
         queued.timer = window.setTimeout(() => {
             const finalAmount = queued.amount;
+            const baseRevision = queued.baseRevision;
             clearQueuedCounter(kind, side);
-            postAction(kind, { target: side, amount: finalAmount });
+            postAction(kind, { target: side, amount: finalAmount, base_revision: baseRevision });
         }, kind === "hp" ? 900 : 700);
         queue.set(side, queued);
         updateQueuedCounters();
     }
 
     function render() {
-        ensureVisibleCardMetadata();
+        ensureKnownCardMetadata();
         const role = document.querySelector("[data-sim-role]");
         if (role) role.textContent = roleText();
         renderPresence();
@@ -1913,6 +2284,11 @@
         postAction("request_action", { target, requested: !status.requested });
     }
 
+    function sendSignal(signal) {
+        if (!ownSide() || !canControl()) return;
+        postAction("signal", { signal });
+    }
+
     function queueShortcutCounter(side, kind, amount) {
         if (!side || !canControl()) return;
         queueCounter(kind, side, amount);
@@ -1934,10 +2310,10 @@
         let handled = true;
         if (event.key === "Tab") {
             setLogOpen(!logOpen);
-        } else if (event.key === "Enter") {
-            completeOwnAction();
-        } else if (event.code === "Space") {
+        } else if (event.code === "Space" && event.shiftKey) {
             requestOpponentAction();
+        } else if (event.code === "Space") {
+            completeOwnAction();
         } else if (event.code === "KeyR" && event.shiftKey) {
             shuffleHand(side);
         } else if (!event.shiftKey && event.code === "Digit1") {
@@ -1964,6 +2340,12 @@
             queueShortcutCounter(opponent, "fp", -1);
         } else if (!event.shiftKey && event.code === "KeyY") {
             queueShortcutCounter(opponent, "fp", 1);
+        } else if (!event.shiftKey && event.code === "KeyZ") {
+            sendSignal("effect");
+        } else if (!event.shiftKey && event.code === "KeyX") {
+            sendSignal("combo");
+        } else if (!event.shiftKey && event.code === "KeyC") {
+            sendSignal("catch");
         } else {
             handled = false;
         }
@@ -2086,8 +2468,10 @@
             return;
         }
         if (button.dataset.fpReset) {
-            clearQueuedCounter("fp", button.dataset.fpReset);
-            postAction("fp_reset", { target: button.dataset.fpReset });
+            const target = button.dataset.fpReset;
+            const baseRevision = counterRevision("fp", target);
+            clearQueuedCounter("fp", target);
+            postAction("fp_reset", { target, base_revision: baseRevision });
             return;
         }
         if (button.dataset.bulkPlayer) {
@@ -2421,6 +2805,12 @@
             }
             if (message.type === "warning") {
                 showRealtimeToast(message.message || t("요청이 너무 빠르게 반복되고 있습니다."));
+                return;
+            }
+            if (message.type === "signal") {
+                if (message.actor !== envelope.role) {
+                    showSignalOverlay(message.actor, signalLabel(message.signal, message.label), message.id);
+                }
                 return;
             }
             if (message.type === "action_ack" || message.type === "error") resolveSocketAction(message);

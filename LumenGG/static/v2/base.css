@@ -755,6 +755,86 @@ label:has(> input.검색체크:checked) {
     line-height: 1.7;
 }
 
+.v2-guide-layout {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.v2-guide-toc {
+    position: sticky;
+    top: 16px;
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+}
+
+.v2-guide-toc strong {
+    color: var(--v2-text);
+    font-size: .96rem;
+    font-weight: 900;
+}
+
+.v2-guide-toc a {
+    display: block;
+    padding: 8px 10px;
+    border: 1px solid var(--v2-line);
+    border-radius: 8px;
+    color: var(--v2-muted);
+    background: var(--v2-soft-bg);
+    font-size: .88rem;
+    font-weight: 800;
+}
+
+.v2-guide-toc a:hover {
+    border-color: var(--v2-accent);
+    color: var(--v2-accent);
+}
+
+.v2-guide-content {
+    display: grid;
+    gap: 14px;
+}
+
+.v2-guide-section {
+    display: grid;
+    gap: 12px;
+    padding: 20px;
+    scroll-margin-top: 18px;
+}
+
+.v2-guide-section h2 {
+    margin: 0;
+    color: var(--v2-text);
+    font-size: 1.35rem;
+    font-weight: 900;
+}
+
+.v2-guide-section p {
+    color: var(--v2-muted);
+    line-height: 1.75;
+}
+
+.v2-guide-image-slot {
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    min-height: 180px;
+    margin: 0;
+    border: 1px solid color-mix(in srgb, var(--v2-line) 82%, var(--v2-accent));
+    border-radius: 8px;
+    color: var(--v2-faint);
+    background: var(--v2-soft-bg-2);
+    font-weight: 800;
+}
+
+.v2-guide-image-slot img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
 .v2-release-list {
     display: grid;
     gap: 8px;
@@ -5322,6 +5402,14 @@ label:has(> input.검색체크:checked) {
 
     .v2-error-code {
         min-height: 128px;
+    }
+
+    .v2-guide-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .v2-guide-toc {
+        position: static;
     }
 
     .v2-collection-filter-grid {

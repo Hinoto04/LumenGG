@@ -40,6 +40,7 @@
                 <button class="v2-button" type="button" data-sim-action="import_card">{% tr "루멘에 생성" %}</button>
             </div>
         </div>
+        <div class="v2-sim-phase-guide" data-sim-phase-guide></div>
         <button class="v2-sim-timer" type="button" data-sim-action="timer">
             <span>{% tr "10초" %}</span>
             <strong data-sim-timer>10</strong>
@@ -48,7 +49,10 @@
         <div class="v2-sim-control-actions">
             <button class="v2-button" type="button" data-sim-action="next_turn">{% tr "다음 턴" %}</button>
             <button class="v2-button" type="button" data-sim-action="undo">{% tr "되돌리기" %}</button>
-            <button class="v2-button" type="button" data-shortcut-open>{% tr "단축키" %}</button>
+            <div class="v2-sim-help-stack">
+                <button class="v2-button" type="button" data-shortcut-open>{% tr "단축키" %}</button>
+                <a class="v2-button" href="{% url "battlelog:simulatorGuide" %}" target="_blank" rel="noopener">{% tr "가이드" %}</a>
+            </div>
             <button class="v2-button" type="button" data-fullscreen-toggle>{% tr "전체화면" %}</button>
         </div>
     </div>
@@ -89,7 +93,6 @@
         </div>
         <div class="v2-sim-log" data-sim-log></div>
     </aside>
-    <button class="v2-sim-shortcut-fab" type="button" data-shortcut-open>{% tr "단축키" %}</button>
     <button class="v2-sim-log-fab" type="button" data-log-toggle>{% tr "로그" %}</button>
 
     <div class="v2-sim-shortcut-modal" data-shortcut-modal hidden>
@@ -101,13 +104,15 @@
             </div>
             <div class="v2-sim-shortcut-grid">
                 <span>Tab</span><strong>{% tr "로그 켜기" %}</strong>
-                <span>Enter</span><strong>{% tr "내 행동 완료" %}</strong>
-                <span>Space</span><strong>{% tr "상대에게 행동 요청" %}</strong>
+                <span>Space</span><strong>{% tr "내 행동 완료" %}</strong>
+                <span>Shift + Space</span><strong>{% tr "상대에게 행동 요청" %}</strong>
                 <span>Shift + R</span><strong>{% tr "손패 셔플" %}</strong>
+                <span>{% tr "카드 우클릭" %}</span><strong>{% tr "카드 공개/비공개 전환" %}</strong>
                 <span>1 / 2 / 3 / 4</span><strong>{% tr "자신 HP -500 / -100 / +100 / +500" %}</strong>
                 <span>5 / 6</span><strong>{% tr "자신 FP -1 / +1" %}</strong>
                 <span>Q / W / E / R</span><strong>{% tr "상대 HP -500 / -100 / +100 / +500" %}</strong>
                 <span>T / Y</span><strong>{% tr "상대 FP -1 / +1" %}</strong>
+                <span>Z / X / C</span><strong>{% tr "효과 발동 / 콤보 타임 / 캐치 타임" %}</strong>
             </div>
         </section>
     </div>

@@ -26,6 +26,7 @@ def index(req, template_name='collection/index.html'):
     if form.data.get('char'):
         q1 = Q()
         q1.add(Q(card__character=form.data.get('char')), q.OR)
+        q1.add(Q(character=form.data.get('char')), q.OR)
         try:
             q1.add(Q(name__contains=Character.objects.get(id=form.data.get('char')).name)&Q(card=None), q.OR)
             q1.add(Q(name__contains="("+Character.objects.get(id=form.data.get('char')).name), q.OR)
@@ -108,8 +109,25 @@ def create(req, template_name='collection/create.html', success_route='collectio
                                             (form.cleaned_data['code']+'.webp')), 213, 100)
             
             for r in form.data.getlist('rare'):
+                linked_card = form.cleaned_data['card']
+                linked_character = form.cleaned_data['character']
+                item_type = form.cleaned_data['item_type']
+                if linked_card and not linked_character:
+                    linked_character = linked_card.character
+                if linked_card and item_type == CollectionCard.ITEM_TYPE_OTHER:
+                    item_type = CollectionCard.ITEM_TYPE_CARD
+                if not linked_card and item_type == CollectionCard.ITEM_TYPE_CARD:
+                    if '토큰' in form.cleaned_data['name']:
+                        item_type = CollectionCard.ITEM_TYPE_TOKEN
+                    elif linked_character:
+                        item_type = CollectionCard.ITEM_TYPE_SKIN
+                    else:
+                        item_type = CollectionCard.ITEM_TYPE_OTHER
+
                 newCC = CollectionCard(
-                    card = form.cleaned_data['card'],
+                    card = linked_card,
+                    character = linked_character,
+                    item_type = item_type,
                     code = form.cleaned_data['code'],
                     name = form.cleaned_data['name'],
                     rare = r,

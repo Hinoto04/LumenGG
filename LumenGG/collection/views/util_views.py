@@ -57,6 +57,8 @@ def export_cards(req):
             newCC = CollectionCard(
                 code=card_code,
                 card=card,
+                character=card.character if card else None,
+                item_type=CollectionCard.ITEM_TYPE_CARD if card else CollectionCard.ITEM_TYPE_OTHER,
                 image=card_image,
                 rare=rare_table[i],
             )
@@ -76,6 +78,8 @@ def initinit(req):
         newCC = CollectionCard(
             code=pack + '-0' + str(i),
             card=card,
+            character=card.character,
+            item_type=CollectionCard.ITEM_TYPE_CARD,
             image=card.img,
             rare='N',
             name=card.name
