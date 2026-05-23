@@ -53,7 +53,10 @@
                 <button class="v2-button" type="button" data-shortcut-open>{% tr "단축키" %}</button>
                 <a class="v2-button" href="{% url "battlelog:simulatorGuide" %}" target="_blank" rel="noopener">{% tr "가이드" %}</a>
             </div>
-            <button class="v2-button" type="button" data-fullscreen-toggle>{% tr "전체화면" %}</button>
+            <div class="v2-sim-display-stack">
+                <button class="v2-button" type="button" data-fullscreen-toggle>{% tr "전체화면" %}</button>
+                <a class="v2-button" href="{{ mobile_url }}">{% tr "모바일" %}</a>
+            </div>
         </div>
     </div>
 

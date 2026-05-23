@@ -4,6 +4,7 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from card.models import Card, Character
@@ -213,7 +214,30 @@ def simulatorSeat(req, view_token, seat, seat_token):
     return _render_simulator(req, view_token, seat, seat_token)
 
 
-def _render_simulator(req, view_token, seat, seat_token):
+def simulatorMobileView(req, view_token):
+    return _render_simulator(req, view_token, '', '', template_name='battlelog/simulator_mobile_v2.html')
+
+
+def simulatorMobileSeat(req, view_token, seat, seat_token):
+    session = _get_simulator_session(view_token)
+    if role_for_token(session, seat, seat_token) not in ('p1', 'p2'):
+        raise PermissionDenied()
+    return _render_simulator(req, view_token, seat, seat_token, template_name='battlelog/simulator_mobile_v2.html')
+
+
+def _simulator_page_url(req, view_token, seat, seat_token, mobile=False):
+    if seat in ('p1', 'p2') and seat_token:
+        route = 'battlelog:simulatorMobileSeat' if mobile else 'battlelog:simulatorSeat'
+        return req.build_absolute_uri(reverse(route, kwargs={
+            'view_token': view_token,
+            'seat': seat,
+            'seat_token': seat_token,
+        }))
+    route = 'battlelog:simulatorMobileView' if mobile else 'battlelog:simulatorView'
+    return req.build_absolute_uri(reverse(route, kwargs={'view_token': view_token}))
+
+
+def _render_simulator(req, view_token, seat, seat_token, template_name='battlelog/simulator_session_v2.html'):
     language = get_language(req)
     session = _get_simulator_session(view_token)
     state = serialize_simulator_session(session, seat, seat_token, language=language, include_events=False)
@@ -225,10 +249,12 @@ def _render_simulator(req, view_token, seat, seat_token):
         'view_url': req.build_absolute_uri(state['view_url']),
         'player1_url': req.build_absolute_uri(state['player1_url']) if state.get('player1_url') else '',
         'player2_url': req.build_absolute_uri(state['player2_url']) if state.get('player2_url') else '',
+        'desktop_url': _simulator_page_url(req, view_token, seat, seat_token, mobile=False),
+        'mobile_url': _simulator_page_url(req, view_token, seat, seat_token, mobile=True),
         'current_url': req.build_absolute_uri(),
         'simulator_i18n': javascript_i18n(language),
     }
-    return render(req, 'battlelog/simulator_session_v2.html', context)
+    return render(req, template_name, context)
 
 
 @require_GET

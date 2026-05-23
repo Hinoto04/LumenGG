@@ -1,0 +1,92 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% load language_tags %}
+{% block title %}{{ session.player1_name }} vs {{ session.player2_name }} - {% tr "모바일 시뮬레이터" %}{% endblock title %}
+{% block body_class %}v2-simulator-mobile-mode{% endblock body_class %}
+{% block style %}
+<link rel="stylesheet" href="{% static "v2/lumen-simulator-mobile.css" %}">
+{% endblock style %}
+{% block content %}
+<section class="v2-mobile-sim" data-lumen-simulator-mobile>
+    {% csrf_token %}
+    <header class="v2-mobile-session">
+        <div class="v2-mobile-session-main">
+            <div>
+                <span>Turn</span>
+                <strong data-mobile-turn>1</strong>
+            </div>
+            <div>
+                <span>{% tr "Phase" %}</span>
+                <strong data-mobile-phase>Lumen</strong>
+            </div>
+            <div>
+                <span>{% tr "접속" %}</span>
+                <strong data-mobile-role></strong>
+            </div>
+        </div>
+        <div class="v2-mobile-session-actions">
+            <a class="v2-button" href="{{ desktop_url }}">{% tr "데스크톱" %}</a>
+            <button class="v2-button" type="button" data-mobile-log-toggle>{% tr "로그" %}</button>
+            <button class="v2-button" type="button" data-mobile-done-button>{% tr "내 행동 완료" %}</button>
+        </div>
+    </header>
+
+    <main class="v2-mobile-board" data-mobile-board></main>
+
+    <aside class="v2-mobile-zone-modal" data-mobile-zone-modal hidden>
+        <div class="v2-mobile-zone-backdrop" data-mobile-modal-close></div>
+        <section class="v2-panel v2-mobile-zone-dialog" role="dialog" aria-modal="true">
+            <header>
+                <div>
+                    <span data-mobile-modal-player></span>
+                    <strong data-mobile-modal-title></strong>
+                </div>
+                <button class="v2-button" type="button" data-mobile-modal-close>{% tr "닫기" %}</button>
+            </header>
+            <div class="v2-mobile-zone-cards" data-mobile-modal-cards></div>
+        </section>
+    </aside>
+
+    <aside class="v2-mobile-card-detail-modal" data-mobile-card-detail-modal hidden>
+        <div class="v2-mobile-zone-backdrop" data-mobile-detail-close></div>
+        <section class="v2-panel v2-mobile-card-detail-dialog" role="dialog" aria-modal="true">
+            <header>
+                <strong>{% tr "카드 정보" %}</strong>
+                <button class="v2-button" type="button" data-mobile-detail-close>{% tr "닫기" %}</button>
+            </header>
+            <div class="v2-mobile-card-detail" data-mobile-card-detail></div>
+        </section>
+    </aside>
+
+    <aside class="v2-mobile-log-modal" data-mobile-log-modal hidden>
+        <div class="v2-mobile-zone-backdrop" data-mobile-log-close></div>
+        <section class="v2-panel v2-mobile-log-dialog" role="dialog" aria-modal="true">
+            <header>
+                <strong>{% tr "로그" %}</strong>
+                <button class="v2-button" type="button" data-mobile-log-close>{% tr "닫기" %}</button>
+            </header>
+            <div class="v2-mobile-log-list" data-mobile-log-list></div>
+            <form class="v2-mobile-log-form" data-mobile-log-form>
+                <input type="text" data-mobile-log-input placeholder="{% tr "로그 입력" %}" autocomplete="off">
+                <button class="v2-button" type="submit">{% tr "전송" %}</button>
+            </form>
+        </section>
+    </aside>
+</section>
+
+{{ state|json_script:"lumen-simulator-state" }}
+{{ simulator_i18n|json_script:"lumen-simulator-i18n" }}
+<script>
+    window.lumenSimulatorMobileConfig = {
+        stateUrl: "{% url "battlelog:simulatorState" session.view_token %}",
+        eventsUrl: "{% url "battlelog:simulatorEvents" session.view_token %}",
+        metadataUrl: "{% url "battlelog:simulatorCardMetadata" session.view_token %}",
+        actionUrl: "{% url "battlelog:simulatorAction" session.view_token %}",
+        wsPath: "/ws/battlelog/simulator/{{ session.view_token|escapejs }}/",
+        seat: "{{ seat|escapejs }}",
+        seatToken: "{{ seat_token|escapejs }}",
+        language: "{{ current_language|escapejs }}",
+    };
+</script>
+<script src="{% static "v2/lumen-simulator-mobile.js" %}"></script>
+{% endblock content %}

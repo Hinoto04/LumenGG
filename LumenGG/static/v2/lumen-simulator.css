@@ -38,12 +38,14 @@
     gap: 6px;
 }
 
-.v2-sim-help-stack {
+.v2-sim-help-stack,
+.v2-sim-display-stack {
     display: grid;
     gap: 5px;
 }
 
-.v2-sim-help-stack .v2-button {
+.v2-sim-help-stack .v2-button,
+.v2-sim-display-stack .v2-button {
     justify-content: center;
     min-height: 31px;
 }
