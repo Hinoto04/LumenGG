@@ -9,6 +9,7 @@
 {% block content %}
 <section class="v2-mobile-sim" data-lumen-simulator-mobile>
     {% csrf_token %}
+    <button class="v2-mobile-fullscreen-button" type="button" data-mobile-fullscreen-toggle aria-label="{% tr "전체화면" %}" title="{% tr "전체화면" %}"></button>
     <header class="v2-mobile-session">
         <div class="v2-mobile-session-main">
             <div>

@@ -1635,6 +1635,45 @@
         });
     }
 
+    function fullscreenElement() {
+        return document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.msFullscreenElement ||
+            null;
+    }
+
+    function callFullscreenMethod(context, method) {
+        if (!method) return Promise.reject(new Error(t("전체화면을 사용할 수 없습니다.")));
+        try {
+            const result = method.call(context);
+            return result && typeof result.then === "function" ? result : Promise.resolve(result);
+        } catch (error) {
+            return Promise.reject(error);
+        }
+    }
+
+    function updateFullscreenButton() {
+        const button = document.querySelector("[data-mobile-fullscreen-toggle]");
+        if (!button) return;
+        const active = !!fullscreenElement();
+        button.classList.toggle("is-active", active);
+        const label = active ? t("전체화면 종료") : t("전체화면");
+        button.setAttribute("aria-label", label);
+        button.title = label;
+    }
+
+    function toggleMobileFullscreen() {
+        if (fullscreenElement()) {
+            return callFullscreenMethod(document, document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen)
+                .catch(() => showToast(t("전체화면을 사용할 수 없습니다.")))
+                .finally(updateFullscreenButton);
+        }
+        const target = document.documentElement;
+        return callFullscreenMethod(target, target.requestFullscreen || target.webkitRequestFullscreen || target.msRequestFullscreen)
+            .catch(() => showToast(t("전체화면을 사용할 수 없습니다.")))
+            .finally(updateFullscreenButton);
+    }
+
     function clearLongPressTimer() {
         if (longPressTimer) window.clearTimeout(longPressTimer);
         longPressTimer = null;
@@ -1705,6 +1744,12 @@
         if (suppressNextCardOpen && event.target.closest("[data-mobile-card-instance]")) {
             event.preventDefault();
             suppressNextCardOpen = false;
+            return;
+        }
+        const fullscreenToggle = event.target.closest("[data-mobile-fullscreen-toggle]");
+        if (fullscreenToggle) {
+            event.preventDefault();
+            toggleMobileFullscreen();
             return;
         }
         const detailClose = event.target.closest("[data-mobile-detail-close]");
@@ -1821,7 +1866,11 @@
     scheduleMetadataFetch(collectMetadataIds());
     render();
     connectSocket();
+    updateFullscreenButton();
     window.addEventListener("resize", schedulePassiveHeightSync);
+    document.addEventListener("fullscreenchange", updateFullscreenButton);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
+    document.addEventListener("MSFullscreenChange", updateFullscreenButton);
     window.addEventListener("beforeunload", () => {
         if (passiveHeightFrame) window.cancelAnimationFrame(passiveHeightFrame);
         if (actionBatchTimer) window.clearTimeout(actionBatchTimer);
