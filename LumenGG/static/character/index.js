@@ -31,6 +31,35 @@ function pickDisplaySet(windowSize) {
 
 const isV2CharacterPage = document.querySelector(".v2-character-page") !== null;
 const ctx = $("#캐릭터그래프")[0].getContext('2d');
+
+function v2CssVar(name, fallback) {
+    if (!isV2CharacterPage) {
+        return fallback;
+    }
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+}
+
+function applyGraphTheme() {
+    if (!isV2CharacterPage || !graph) {
+        return;
+    }
+    const scale = graph.options.scales.r;
+    scale.grid.color = v2CssVar("--v2-line", "rgba(244, 241, 234, .16)");
+    scale.angleLines.color = v2CssVar("--v2-line", "rgba(244, 241, 234, .16)");
+    scale.ticks.color = v2CssVar("--v2-muted", "#b8b0a4");
+    scale.ticks.backdropColor = "transparent";
+    scale.ticks.font = {
+        weight: "800",
+    };
+    scale.pointLabels.color = v2CssVar("--v2-text", "#f4f1ea");
+    scale.pointLabels.font = {
+        size: 16,
+        weight: "900",
+    };
+    graph.update("none");
+}
+
 const graph = new Chart(ctx, {
     type: 'radar',
     data: {
@@ -50,20 +79,24 @@ const graph = new Chart(ctx, {
                 suggestedMin: 0,
                 suggestedMax: 10,
                 grid: {
-                    color: isV2CharacterPage ? 'rgba(244, 241, 234, .16)' : undefined,
+                    color: isV2CharacterPage ? v2CssVar("--v2-line", "rgba(244, 241, 234, .16)") : undefined,
                 },
                 angleLines: {
-                    color: isV2CharacterPage ? 'rgba(244, 241, 234, .16)' : undefined,
+                    color: isV2CharacterPage ? v2CssVar("--v2-line", "rgba(244, 241, 234, .16)") : undefined,
                 },
                 ticks: {
                     stepSize: 2,
-                    color: isV2CharacterPage ? '#b8b0a4' : undefined,
+                    color: isV2CharacterPage ? v2CssVar("--v2-muted", "#b8b0a4") : undefined,
                     backdropColor: isV2CharacterPage ? 'transparent' : undefined,
+                    font: isV2CharacterPage ? {
+                        weight: "800",
+                    } : undefined,
                 },
                 pointLabels: {
-                    color: isV2CharacterPage ? '#f4f1ea' : undefined,
+                    color: isV2CharacterPage ? v2CssVar("--v2-text", "#f4f1ea") : undefined,
                     font: {
                         size: 16,
+                        weight: isV2CharacterPage ? "900" : undefined,
                     }
                 }
             },
@@ -75,6 +108,14 @@ const graph = new Chart(ctx, {
         }
     },
 })
+
+if (isV2CharacterPage) {
+    applyGraphTheme();
+    new MutationObserver(applyGraphTheme).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme"],
+    });
+}
 
 //카드이미지 변경용
 var passiveOn = false;
