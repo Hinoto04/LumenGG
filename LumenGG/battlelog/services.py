@@ -27,6 +27,7 @@ from common.language import (
 )
 
 from .event_buffer import (
+    clear_pending_battle_events,
     flush_pending_battle_events,
     flush_session_events,
     latest_pending_event,
@@ -1436,6 +1437,50 @@ def update_passive(session, target, card_id=None, delta=0, note='', key='', valu
         return locked
 
 
+def reset_standalone_session(session):
+    if session.session_type != BattleSession.SESSION_STANDALONE:
+        raise ValueError('일반 계산기 세션만 초기화할 수 있습니다.')
+
+    clear_pending_battle_events(session.id)
+    with transaction.atomic():
+        locked = BattleSession.objects.select_for_update().select_related(
+            'player1_character',
+            'player2_character',
+        ).get(id=session.id)
+        if locked.session_type != BattleSession.SESSION_STANDALONE:
+            raise ValueError('일반 계산기 세션만 초기화할 수 있습니다.')
+
+        _set_player_character(locked, BattleEvent.TARGET_PLAYER1, locked.player1_character)
+        _set_player_character(locked, BattleEvent.TARGET_PLAYER2, locked.player2_character)
+        locked.timer_started_at = None
+        locked.timer_duration_seconds = 10
+        locked.sudden_death = False
+        locked.sudden_death_turns_remaining = 0
+        locked.round_extra_seconds = 0
+        locked.save(update_fields=[
+            'player1_initial_hp',
+            'player2_initial_hp',
+            'player1_hp',
+            'player2_hp',
+            'player1_fp',
+            'player2_fp',
+            'player1_passive_state',
+            'player2_passive_state',
+            'timer_started_at',
+            'timer_duration_seconds',
+            'sudden_death',
+            'sudden_death_turns_remaining',
+            'round_extra_seconds',
+            'updated_at',
+        ])
+        locked.sets.all().delete()
+        ensure_current_set(locked)
+        BattleEvent.objects.filter(session=locked).delete()
+
+    clear_pending_battle_events(session.id)
+    return battle_session_queryset().get(id=session.id)
+
+
 def _perform_single_session_action(session, body, user=None, control_token=''):
     action = body.get('action', '')
 
@@ -1459,6 +1504,10 @@ def _perform_single_session_action(session, body, user=None, control_token=''):
         if not can_control_session(user, session, control_token):
             raise PermissionDenied()
         session = start_ten_second_timer(session, user)
+    elif action == 'reset_session':
+        if not can_control_session(user, session, control_token):
+            raise PermissionDenied()
+        session = reset_standalone_session(session)
     elif action == 'sudden_death':
         if not can_toggle_sudden_death(user, session, control_token):
             raise PermissionDenied()

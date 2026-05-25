@@ -247,7 +247,7 @@
             const player = target && state.players ? state.players[target] : null;
             button.disabled = !state.can_control || state.is_expired || !player || !player.character;
         });
-        document.querySelectorAll("[data-battle-action='timer'], [data-battle-action='undo']").forEach((button) => {
+        document.querySelectorAll("[data-battle-action='timer'], [data-battle-action='undo'], [data-battle-reset]").forEach((button) => {
             button.disabled = !state.can_control || state.is_expired;
         });
         const suddenButton = document.querySelector("[data-battle-action='sudden']");
@@ -1004,6 +1004,18 @@
         updateQueuedButtons(kind, target, 0);
     }
 
+    function clearPendingLocalAdjustments() {
+        Array.from(pendingHp.keys()).forEach((target) => clearQueuedDelta(pendingHp, "hp", target));
+        Array.from(pendingFp.keys()).forEach((target) => clearQueuedDelta(pendingFp, "fp", target));
+        if (actionBatchTimer) {
+            window.clearTimeout(actionBatchTimer);
+            actionBatchTimer = null;
+        }
+        queuedActionBatch.forEach((item) => item.resolve(null));
+        queuedActionBatch = [];
+        queuedActionRollbackState = null;
+    }
+
     function queueDelta(queue, kind, target, step, delay, action, optimisticUpdate) {
         const queued = queue.get(target) || { amount: 0, timer: null };
         queued.amount += step;
@@ -1083,6 +1095,18 @@
                     optimisticSuddenDeath(enable),
                 );
             }
+        });
+    });
+
+    document.querySelectorAll("[data-battle-reset]").forEach((button) => {
+        button.addEventListener("click", () => {
+            if (!state.can_control || state.is_expired) return;
+            if (!window.confirm(t("계산기 세션을 초기화할까요? 현재 HP, FP, 패시브, 타이머, 로그가 초기 상태로 돌아갑니다."))) {
+                return;
+            }
+            clearPendingLocalAdjustments();
+            historyLoaded = false;
+            postAction({ action: "reset_session" });
         });
     });
 

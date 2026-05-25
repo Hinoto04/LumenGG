@@ -62,7 +62,7 @@
                 {% if session.tournament_match %}
                 <a class="v2-button" href="{% url "tournament:detail" session.tournament_match.round.tournament.id %}" data-tournament-return>{% tr "대회 복귀" %}</a>
                 {% else %}
-                <span class="v2-battle-top-spacer"></span>
+                <a class="v2-button" href="{% url "battlelog:sim" %}" data-battle-back>{% tr "돌아가기" %}</a>
                 {% endif %}
                 <div class="v2-battle-round-clock">
                     <span data-battle-set-status>{% tr "게임 시간" %}</span>
@@ -92,8 +92,12 @@
             <div class="v2-battle-character-selectors" data-character-selectors></div>
             <div class="v2-battle-history-head" data-history-panel>
                 <strong>{% tr "기록" %}</strong>
-                <button class="v2-button" type="button" data-history-toggle>{% tr "닫기" %}</button>
-                <button class="v2-button" type="button" data-history-target="all">{% tr "전체" %}</button>
+                {% if not session.tournament_match and control_token %}
+                <button class="v2-button v2-danger-button v2-battle-reset-button" type="button" data-battle-reset>{% tr "초기화" %}</button>
+                {% else %}
+                <span></span>
+                {% endif %}
+                <button class="v2-button" type="button" data-history-toggle>{% tr "로그 닫기" %}</button>
             </div>
             <div class="v2-battle-history" data-battle-history data-history-panel></div>
         </section>

@@ -4760,7 +4760,8 @@ label:has(> input.검색체크:checked) {
 }
 
 .v2-battle-center-actions [data-tournament-return]::before,
-.v2-battle-timer-top [data-tournament-return]::before {
+.v2-battle-timer-top [data-tournament-return]::before,
+.v2-battle-timer-top [data-battle-back]::before {
     content: "←";
 }
 
@@ -4984,9 +4985,24 @@ label:has(> input.검색체크:checked) {
     top: max(18px, env(safe-area-inset-top));
     left: 50%;
     z-index: 80;
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
     width: min(560px, calc(100vw - 24px));
     transform: translateX(-50%);
+}
+
+.v2-battle-history-head > strong {
+    justify-self: start;
+}
+
+.v2-battle-history-head .v2-battle-reset-button {
+    justify-self: center;
+    min-height: 34px;
+}
+
+.v2-battle-history-head [data-history-toggle] {
+    justify-self: end;
 }
 
 .v2-battle-history-open .v2-battle-history {

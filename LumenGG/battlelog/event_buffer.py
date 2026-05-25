@@ -226,6 +226,22 @@ def mark_pending_event_undone(session_id, event_uid):
     return None
 
 
+def clear_pending_battle_events(session_id):
+    client = _get_redis_client()
+    if client is None:
+        return 0
+
+    key = _pending_events_key(session_id)
+    try:
+        count = client.llen(key)
+        client.delete(key)
+        client.srem(_pending_sessions_key(), session_id)
+        return count
+    except Exception:
+        logger.exception('Failed to clear pending battle events for session %s.', session_id)
+        return 0
+
+
 def record_battle_event(
     session,
     user=None,
