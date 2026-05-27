@@ -62,6 +62,8 @@ class TranslationLookupTests(TestCase):
         self.assertEqual(game_term('방어', 'en'), 'Guard')
         self.assertEqual(game_term('상단·중단 상쇄', 'en'), 'High/Mid Clash')
         self.assertEqual(game_term('하단 회피/그랩', 'ja'), '下段 回避/投げ')
+        self.assertEqual(game_term('개러지 토큰', 'en'), 'Garage Token')
+        self.assertEqual(game_term('개러지 토큰', 'ja'), 'ガレージトークン')
 
     def test_yohan_passive_short_labels_are_translated(self):
         self.assertEqual(ui_text('홀', 'en'), 'Odd')

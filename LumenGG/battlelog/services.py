@@ -48,6 +48,10 @@ PASSIVE_UI_STATIC_PREFIX = 'battlelog/passive_ui/'
 YOHAN_INITIAL_FORESIGHT_COUNT = 2
 
 
+def standalone_session_expires_at(now=None):
+    return (now or timezone.now()) + STANDALONE_SESSION_LIFETIME
+
+
 def battle_session_queryset():
     return BattleSession.objects.select_related(
         'player1_character',
@@ -288,7 +292,7 @@ def create_standalone_session(player1_name, player2_name, player1_character, pla
         created_by=user if user and user.is_authenticated else None,
         player1_name=(player1_name or '').strip() or '플레이어1',
         player2_name=(player2_name or '').strip() or '플레이어2',
-        expires_at=timezone.now() + STANDALONE_SESSION_LIFETIME,
+        expires_at=standalone_session_expires_at(),
     )
     _set_player_character(session, BattleEvent.TARGET_PLAYER1, player1_character)
     _set_player_character(session, BattleEvent.TARGET_PLAYER2, player2_character)
@@ -1571,10 +1575,14 @@ def perform_session_action(session, body, user=None, control_token=''):
     else:
         session = _perform_single_session_action(session, body, user, control_token)
 
-    BattleSession.objects.filter(id=session.id).update(
-        version=F('version') + 1,
-        updated_at=timezone.now(),
-    )
+    now = timezone.now()
+    updates = {
+        'version': F('version') + 1,
+        'updated_at': now,
+    }
+    if session.session_type == BattleSession.SESSION_STANDALONE:
+        updates['expires_at'] = standalone_session_expires_at(now)
+    BattleSession.objects.filter(id=session.id).update(**updates)
     return battle_session_queryset().get(id=session.id)
 
 

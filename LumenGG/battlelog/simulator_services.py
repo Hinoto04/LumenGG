@@ -26,7 +26,7 @@ from .presence import simulator_presence_counts
 from .services import _passive_ui, character_hand_table, hand_limit_for_hp, initial_hp_for_character, initial_passive_state_for_character
 
 
-SIMULATOR_SESSION_LIFETIME = timedelta(hours=24)
+SIMULATOR_SESSION_LIFETIME = timedelta(hours=1)
 SIMULATOR_DEFAULT_EVENT_LIMIT = 150
 SIMULATOR_MAX_EVENT_LIMIT = 300
 SIMULATOR_STORED_EVENT_LIMIT = 800
@@ -77,6 +77,10 @@ CARD_METADATA_FIELDS = (
 
 def simulator_queryset():
     return LumenSimulatorSession.objects.all()
+
+
+def simulator_session_expires_at(now=None):
+    return (now or timezone.now()) + SIMULATOR_SESSION_LIFETIME
 
 
 def generate_token():
@@ -297,7 +301,7 @@ def create_simulator_session(player1_name, player2_name, player1_deck, player2_d
         player1_name=initial_state['players']['p1']['name'],
         player2_name=initial_state['players']['p2']['name'],
         document=document,
-        expires_at=timezone.now() + SIMULATOR_SESSION_LIFETIME,
+        expires_at=simulator_session_expires_at(),
     )
 
 
@@ -1347,6 +1351,8 @@ def perform_simulator_action(session, body):
 
     with transaction.atomic():
         locked = LumenSimulatorSession.objects.select_for_update().get(id=session.id)
+        if simulator_session_is_expired(locked):
+            raise PermissionDenied()
         document = _document(locked)
         events = list(document.get('events') or [])
 
@@ -1411,9 +1417,11 @@ def perform_simulator_action(session, body):
             document['events'] = events
 
         document = _compact_document_events(document)
+        now = timezone.now()
         locked.document = document
         locked.version += 1
-        locked.save(update_fields=['document', 'version', 'updated_at'])
+        locked.expires_at = simulator_session_expires_at(now)
+        locked.save(update_fields=['document', 'version', 'expires_at', 'updated_at'])
         return locked
 
 

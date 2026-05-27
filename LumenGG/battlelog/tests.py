@@ -1,8 +1,9 @@
 import json
+from unittest.mock import patch
 from datetime import timedelta
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -15,6 +16,23 @@ from .event_buffer import flush_session_events
 from .presence import battle_presence_counts, register_presence, simulator_presence_counts, unregister_presence
 from .services import _passive_ui, cleanup_expired_sessions, create_standalone_session, get_or_create_tournament_session
 from .simulator_services import create_simulator_session, serialize_simulator_card_metadata, serialize_simulator_session
+
+
+class ExpiredBattleSessionCleanupMiddlewareTests(SimpleTestCase):
+    def test_cleanup_runs_once_per_interval(self):
+        from .middleware import ExpiredBattleSessionCleanupMiddleware
+
+        ExpiredBattleSessionCleanupMiddleware._next_cleanup_at = None
+        middleware = ExpiredBattleSessionCleanupMiddleware(lambda request: 'ok')
+
+        try:
+            with patch('battlelog.middleware.cleanup_expired_sessions') as cleanup:
+                self.assertEqual(middleware(object()), 'ok')
+                self.assertEqual(middleware(object()), 'ok')
+
+            self.assertEqual(cleanup.call_count, 1)
+        finally:
+            ExpiredBattleSessionCleanupMiddleware._next_cleanup_at = None
 
 
 class BattleCalculatorTests(TestCase):
@@ -78,6 +96,26 @@ class BattleCalculatorTests(TestCase):
         self.assertEqual(session.player1_hp, 4700)
         flush_session_events(session.id)
         self.assertEqual(BattleEvent.objects.filter(event_type=BattleEvent.EVENT_HP).count(), 1)
+
+    def test_standalone_session_expiry_extends_one_hour_after_last_action(self):
+        session = create_standalone_session('A', 'B', self.char_a, self.char_b)
+        original_expires_at = timezone.now() + timedelta(minutes=5)
+        session.expires_at = original_expires_at
+        session.save(update_fields=['expires_at'])
+
+        action_url = reverse('battlelog:sessionAction', kwargs={'view_token': session.view_token})
+        response = self.post_json(action_url, {
+            'action': 'hp',
+            'target': 'p1',
+            'amount': -100,
+            'control_token': session.control_token,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertGreater(session.expires_at, original_expires_at)
+        self.assertGreater(session.expires_at, timezone.now() + timedelta(minutes=55))
+        self.assertLess(session.expires_at, timezone.now() + timedelta(hours=1, minutes=1))
 
     def test_batch_action_applies_calculator_actions_once(self):
         session = BattleSession.objects.create(
@@ -155,6 +193,35 @@ class BattleCalculatorTests(TestCase):
 
         session = create_standalone_session('요한', '상대', yohan, self.char_b)
         self.assertEqual(session.player1_passive_state['foresight_counter']['count'], 2)
+
+    def test_delphy_passive_ui_has_garage_token_counter_in_battle_and_simulator(self):
+        from importlib import import_module
+
+        migration = import_module('battlelog.migrations.0022_delphy_garage_token_passive')
+        datas = {
+            'battle_passive_ui': {
+                'template': 'battlelog/passive_ui/configurable.html',
+                'css': 'battlelog/passive_ui/configurable.css',
+                'js': 'battlelog/passive_ui/configurable.js',
+                'options': {
+                    'title': '다운 스탠스',
+                    'controls': [
+                        {'type': 'toggle', 'key': 'down_stance', 'label': '다운 스탠스'},
+                    ],
+                },
+            },
+        }
+        migration._ensure_delphy_controls(datas)
+        self.char_c.datas = datas
+        self.char_c.save(update_fields=['datas'])
+
+        for context in ('battle', 'simulator'):
+            controls = _passive_ui(self.char_c, context=context)['options']['controls']
+            self.assertEqual([control['key'] for control in controls], ['down_stance', 'garage_token'])
+            self.assertEqual(controls[0]['type'], 'toggle')
+            self.assertEqual(controls[1]['type'], 'counter')
+            self.assertEqual(controls[1]['max'], 3)
+            self.assertEqual(controls[1]['unit'], '장')
 
     def test_undo_reverts_last_hp_event(self):
         session = BattleSession.objects.create(
@@ -485,6 +552,27 @@ class LumenSimulatorTests(TestCase):
         self.assertEqual(len(requested), 1)
         self.assertFalse(state['status'][requested[0]]['done'])
         self.assertEqual(state['priority_player'], requested[0])
+
+    def test_simulator_session_expiry_extends_one_hour_after_last_action(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        self.assertLess(session.expires_at, timezone.now() + timedelta(hours=1, minutes=1))
+
+        original_expires_at = timezone.now() + timedelta(minutes=5)
+        session.expires_at = original_expires_at
+        session.save(update_fields=['expires_at'])
+
+        response = self.post_json(reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token}), {
+            'action': 'set_phase',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'phase': 'ready',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertGreater(session.expires_at, original_expires_at)
+        self.assertGreater(session.expires_at, timezone.now() + timedelta(minutes=55))
+        self.assertLess(session.expires_at, timezone.now() + timedelta(hours=1, minutes=1))
 
     def test_simulator_deck_search_returns_assignable_decks(self):
         response = self.client.get(reverse('battlelog:simulatorDeckSearch'), {'q': '시뮬A'})

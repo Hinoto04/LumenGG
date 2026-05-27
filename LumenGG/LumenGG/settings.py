@@ -61,6 +61,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    #'battlelog.middleware.ExpiredBattleSessionCleanupMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -269,3 +270,5 @@ MARTOR_TOOLBAR_BUTTONS = [
     'blockquote', 'unordered-list', 'ordered-list',
     'link', 'image-link', 'emoji', 'help'
 ]
+
+BATTLELOG_EXPIRED_SESSION_CLEANUP_INTERVAL_SECONDS = 
