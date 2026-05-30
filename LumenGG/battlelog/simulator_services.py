@@ -69,9 +69,10 @@ SIMULATOR_SIGNAL_LABELS = {
     'catch': '캐치 타임',
 }
 CARD_METADATA_FIELDS = (
-    'name', 'code', 'type', 'frame', 'damage', 'pos', 'body', 'special',
-    'hit', 'guard', 'counter', 'g_top', 'g_mid', 'g_bot', 'text',
-    'detail_text', 'ultimate', 'character_id', 'img', 'img_sm',
+    'name', 'original_name', 'code', 'type', 'original_type', 'frame',
+    'damage', 'pos', 'body', 'special', 'hit', 'guard', 'counter', 'g_top',
+    'g_mid', 'g_bot', 'text', 'original_text', 'detail_text',
+    'original_detail_text', 'ultimate', 'character_id', 'img', 'img_sm',
 )
 
 
@@ -103,8 +104,10 @@ def _card_metadata(card):
     return {
         'card_id': card.id,
         'name': card.name,
+        'original_name': card.name,
         'code': card.code,
         'type': card.type,
+        'original_type': card.type,
         'frame': card.frame,
         'damage': card.damage,
         'pos': card.pos,
@@ -117,7 +120,9 @@ def _card_metadata(card):
         'g_mid': card.g_mid,
         'g_bot': card.g_bot,
         'text': card.text,
+        'original_text': card.text,
         'detail_text': card.detail_text,
+        'original_detail_text': card.detail_text,
         'ultimate': card.ultimate,
         'character_id': card.character_id,
         'img': image,

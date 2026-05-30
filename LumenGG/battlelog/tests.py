@@ -7,7 +7,7 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from card.models import Card, Character
+from card.models import Card, CardTranslation, Character
 from deck.models import CardInDeck, Deck
 from tournament.models import Tournament, TournamentDeckSubmission, TournamentMatch, TournamentParticipant, TournamentRound
 
@@ -600,6 +600,28 @@ class LumenSimulatorTests(TestCase):
         self.assertEqual(p1_opponent_hand['card_id'], self.card_b.id)
         metadata = serialize_simulator_card_metadata([p1_hand['card_id']])
         self.assertEqual(metadata[str(self.card_a.id)]['name'], 'A 공격')
+
+    def test_simulator_card_metadata_keeps_original_fields_when_localized(self):
+        CardTranslation.objects.create(
+            card=self.external_card,
+            language='en',
+            name='External Card',
+            text='External effect',
+            detail_text='External detail',
+        )
+
+        metadata = serialize_simulator_card_metadata([self.external_card.id], language='en')
+        card = metadata[str(self.external_card.id)]
+
+        self.assertEqual(card['name'], 'External Card')
+        self.assertEqual(card['original_name'], '외부 카드')
+        self.assertEqual(card['type'], '특수 기술')
+        self.assertEqual(card['original_type'], '특수 기술')
+        self.assertEqual(card['text'], 'External effect')
+        self.assertEqual(card['original_text'], '외부 효과')
+        self.assertEqual(card['detail_text'], 'External detail')
+        self.assertEqual(card['original_detail_text'], '')
+        self.assertIn('Special', card['type_label'])
 
     def test_hand_visibility_action_reveals_and_hides_own_hand(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)

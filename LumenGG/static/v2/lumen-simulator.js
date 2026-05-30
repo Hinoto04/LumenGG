@@ -277,7 +277,8 @@
     }
 
     function cardType(card) {
-        return String((card && card.type) || "");
+        const hydrated = hydrateCard(card);
+        return String((hydrated && (hydrated.original_type || hydrated.type)) || "");
     }
 
     function isAttackCard(card) {
@@ -301,6 +302,8 @@
     }
 
     function effectText(card) {
+        if (!card) return "";
+        if (hasValue(card.text_label)) return String(card.text_label);
         return hasValue(card.text) ? t(card.text) : "";
     }
 
@@ -323,12 +326,17 @@
         return hydrated.name || t("카드");
     }
 
+    function originalCardName(card) {
+        const hydrated = hydrateCard(card);
+        return String((hydrated && (hydrated.original_name || hydrated.name)) || "");
+    }
+
     function isBlackoutCard(card) {
-        return cardDisplayName(card).includes("블랙아웃");
+        return originalCardName(card).includes("블랙아웃");
     }
 
     function isGwiseomCard(card) {
-        return cardDisplayName(card).includes("귀섬");
+        return originalCardName(card).includes("귀섬");
     }
 
     function canUseBlackoutAction(card) {

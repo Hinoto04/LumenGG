@@ -171,7 +171,8 @@
     }
 
     function cardType(card) {
-        return String((card && card.type) || "");
+        const hydrated = hydrateCard(card);
+        return String((hydrated && (hydrated.original_type || hydrated.type)) || "");
     }
 
     function isAttackCard(card) {
@@ -187,7 +188,9 @@
     }
 
     function effectText(card) {
-        return hasValue(card && card.text) ? t(card.text) : "";
+        if (!card) return "";
+        if (hasValue(card.text_label)) return String(card.text_label);
+        return hasValue(card.text) ? t(card.text) : "";
     }
 
     function csrfToken() {

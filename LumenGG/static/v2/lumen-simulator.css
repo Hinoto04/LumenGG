@@ -20,6 +20,11 @@
     --sim-ui-pad-y: 5px;
     --sim-ui-pad-x: 8px;
     --sim-phase-guide-height: 36px;
+    --sim-card-effect-font-size: clamp(8px, calc(var(--sim-card-width-setting) * .12), 12px);
+    --sim-card-effect-min-height: clamp(18px, calc(var(--sim-card-width-setting) * .26), 24px);
+    --sim-card-effect-pad-y: clamp(2px, calc(var(--sim-card-width-setting) * .035), 4px);
+    --sim-card-effect-pad-x: clamp(4px, calc(var(--sim-card-width-setting) * .075), 8px);
+    --sim-card-effect-gap: clamp(3px, calc(var(--sim-card-width-setting) * .045), 5px);
 }
 
 .v2-simulator-mode.v2-sim-timer-active {
@@ -1052,7 +1057,7 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 4px;
+    gap: var(--sim-card-effect-gap);
     pointer-events: none;
 }
 
@@ -1063,14 +1068,17 @@
 
 .v2-sim-card-effect-button {
     max-width: 100%;
-    min-height: 22px;
-    padding: 3px 7px;
+    min-height: var(--sim-card-effect-min-height);
+    padding: var(--sim-card-effect-pad-y) var(--sim-card-effect-pad-x);
     border: 1px solid rgba(224, 180, 91, .74);
     border-radius: 6px;
     color: #fff6dd;
     background: rgba(20, 16, 13, .86);
     box-shadow: 0 3px 9px rgba(0, 0, 0, .38);
-    font: 800 10px/1 var(--v2-font);
+    font-family: var(--v2-font);
+    font-size: var(--sim-card-effect-font-size);
+    font-weight: 800;
+    line-height: 1;
     text-align: center;
     white-space: normal;
     word-break: keep-all;
