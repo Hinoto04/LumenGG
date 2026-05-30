@@ -25,7 +25,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = SECRET_KEYS.SECRET_KEY
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+def env_bool(name, default=False):
+    value = os.environ.get(name)
+    print(name, value)
+    if value is None:
+        return default
+    return value.lower() in ('1', 'true', 'yes', 'on')
+
+DEBUG = env_bool('LUMENGG_DEBUG', default=False)
 
 ALLOWED_HOSTS = [
     'localhost',

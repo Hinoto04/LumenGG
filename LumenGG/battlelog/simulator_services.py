@@ -637,6 +637,10 @@ def _was_public_in_zone(card, zone):
     return zone in PUBLIC_ON_ENTER_ZONES or bool(card.get('face_up'))
 
 
+def _is_token_card(card):
+    return card.get('kind') == 'token' or '토큰' in str(card.get('type') or '')
+
+
 def _apply_move_card(state, payload):
     instance_id = str(payload.get('card_instance_id') or '')
     to_zone = str(payload.get('to_zone') or '')
@@ -660,7 +664,7 @@ def _apply_move_card(state, payload):
     payload['card_label'] = _card_label(card)
     was_public = _was_public_in_zone(card, from_zone)
     state['players'][player_side]['zones'][from_zone].pop(index)
-    if card.get('kind') == 'token' and to_zone == 'break':
+    if _is_token_card(card) and to_zone == 'break':
         payload['from_player'] = player_side
         payload['from_zone'] = from_zone
         payload['to_player'] = target_player
@@ -884,11 +888,18 @@ def _apply_timer(state, payload):
     if payload.get('running'):
         timer['started_at'] = payload.get('started_at')
         timer['duration_seconds'] = 10
+        timer['remaining_seconds'] = 10
+        timer['ends_at'] = None
+        timer['is_running'] = True
         timer['owner'] = payload.get('owner')
         timer['timeout_reported'] = False
     else:
         timer['started_at'] = None
         timer['duration_seconds'] = 10
+        timer['remaining_seconds'] = 10
+        timer['ends_at'] = None
+        timer['is_running'] = False
+        timer['owner'] = payload.get('owner') or timer.get('owner')
         timer['timeout_reported'] = False
 
 
@@ -1390,10 +1401,17 @@ def perform_simulator_action(session, body):
             elif action == 'timer':
                 timer = state.get('timer') or {}
                 running = _timer_is_running(timer)
+                expired = _timer_is_expired(timer)
+                remaining = timer.get('remaining_seconds')
+                try:
+                    remaining_is_zero = int(remaining) <= 0
+                except (TypeError, ValueError):
+                    remaining_is_zero = False
+                should_start = not running and not expired and not remaining_is_zero
                 payload = {
-                    'running': not running,
-                    'started_at': timezone.now().isoformat() if not running else None,
-                    'owner': actor if not running else timer.get('owner'),
+                    'running': should_start,
+                    'started_at': timezone.now().isoformat() if should_start else None,
+                    'owner': actor if should_start else timer.get('owner'),
                 }
             if action == 'timer_timeout':
                 timer = state.get('timer') or {}

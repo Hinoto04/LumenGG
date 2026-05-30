@@ -23,7 +23,14 @@
                 <button class="v2-button" type="button" data-copy-link="{{ player2_url }}">{% tr "P2 링크" %}</button>
                 {% endif %}
             </div>
-            <div class="v2-sim-presence" data-sim-presence></div>
+            <div class="v2-sim-session-tools">
+                <div class="v2-sim-presence" data-sim-presence></div>
+                <div class="v2-sim-card-size-control" aria-label="{% tr "카드 크기" %}">
+                    <button class="v2-button" type="button" data-card-size-step="-1" aria-label="{% tr "카드 축소" %}">-</button>
+                    <strong data-card-size-label>{% tr "기본" %}</strong>
+                    <button class="v2-button" type="button" data-card-size-step="1" aria-label="{% tr "카드 확대" %}">+</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -33,7 +40,6 @@
             <strong data-sim-turn>1</strong>
         </div>
         <div class="v2-sim-phase">
-            <strong data-sim-phase-current>Lumen</strong>
             <div data-sim-phase-buttons></div>
             <div class="v2-sim-import-card">
                 <input type="text" data-card-import-input maxlength="100" placeholder="{% tr "카드명" %}">

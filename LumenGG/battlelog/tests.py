@@ -1246,6 +1246,40 @@ class LumenSimulatorTests(TestCase):
         session.refresh_from_db()
         self.assertEqual(len(session.document['events']), event_count)
 
+    def test_expired_timer_click_resets_without_restarting(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+
+        response = self.post_json(action_url, {
+            'action': 'timer',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+
+        document = session.document
+        document['state']['timer']['started_at'] = (timezone.now() - timedelta(seconds=11)).isoformat()
+        session.document = document
+        session.save(update_fields=['document'])
+
+        response = self.post_json(action_url, {
+            'action': 'timer',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        timer = session.document['state']['timer']
+        self.assertIsNone(timer['started_at'])
+        self.assertFalse(timer['is_running'])
+        self.assertEqual(timer['remaining_seconds'], 10)
+        self.assertFalse(session.document['events'][-1]['payload']['running'])
+        serialized_timer = serialize_simulator_session(session)['state']['timer']
+        self.assertFalse(serialized_timer['is_running'])
+        self.assertEqual(serialized_timer['remaining_seconds'], 10)
+
     def test_card_can_move_to_opponent_lumen_or_battle_but_visibility_stays_with_owner(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
         action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
@@ -1470,6 +1504,100 @@ class LumenSimulatorTests(TestCase):
         self.assertEqual(response.status_code, 200)
         session.refresh_from_db()
         self.assertEqual(len(session.document['state']['players']['p2']['zones']['list']), 1)
+
+    def test_special_card_effect_moves_side_to_lumen_and_lumen_to_break(self):
+        CardInDeck.objects.create(deck=self.deck_a, card=self.external_card, count=1, side=1)
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+        side_card = next(
+            card for card in session.document['state']['players']['p1']['zones']['side']
+            if card['card_id'] == self.external_card.id
+        )
+
+        response = self.post_json(action_url, {
+            'action': 'move_card',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'card_instance_id': side_card['instance_id'],
+                'to_player': 'p1',
+                'to_zone': 'lumen',
+            },
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        state = session.document['state']
+        self.assertFalse(any(
+            card['instance_id'] == side_card['instance_id']
+            for card in state['players']['p1']['zones']['side']
+        ))
+        lumen_card = next(
+            card for card in state['players']['p1']['zones']['lumen']
+            if card['instance_id'] == side_card['instance_id']
+        )
+        self.assertFalse(lumen_card['face_up'])
+
+        response = self.post_json(action_url, {
+            'action': 'move_card',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'card_instance_id': side_card['instance_id'],
+                'to_player': 'p1',
+                'to_zone': 'break',
+            },
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        state = session.document['state']
+        self.assertFalse(any(
+            card['instance_id'] == side_card['instance_id']
+            for card in state['players']['p1']['zones']['lumen']
+        ))
+        break_card = next(
+            card for card in state['players']['p1']['zones']['break']
+            if card['instance_id'] == side_card['instance_id']
+        )
+        self.assertTrue(break_card['face_up'])
+
+    def test_token_type_card_moved_to_break_is_deleted(self):
+        token_card = Card.objects.create(
+            name='테스트 토큰',
+            type='토큰',
+            text='삭제 테스트',
+            character=self.char_a,
+            img='https://example.com/token.png',
+        )
+        CardInDeck.objects.create(deck=self.deck_a, card=token_card, count=1, hand=1)
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+        hand_card = next(
+            card for card in session.document['state']['players']['p1']['zones']['hand']
+            if card['card_id'] == token_card.id
+        )
+
+        response = self.post_json(action_url, {
+            'action': 'move_card',
+            'seat': 'p1',
+            'seat_token': session.player1_token,
+            'payload': {
+                'card_instance_id': hand_card['instance_id'],
+                'to_player': 'p1',
+                'to_zone': 'break',
+            },
+        })
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        state = session.document['state']
+        self.assertFalse(any(
+            card['instance_id'] == hand_card['instance_id']
+            for cards in state['players']['p1']['zones'].values()
+            for card in cards
+        ))
+        event = session.document['events'][-1]
+        self.assertEqual(event['type'], 'move_card')
+        self.assertTrue(event['payload']['deleted_token'])
 
     def test_shuffle_hand_reorders_hand_and_replays_with_undo(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)

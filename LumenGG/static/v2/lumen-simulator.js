@@ -13,9 +13,23 @@
     const SOCKET_ACTION_TIMEOUT_MS = 15000;
     const DIRTY_STATE_DEBOUNCE_MS = 700;
     const SIM_LOG_LIMIT = 150;
+    const TIMER_DEFAULT_DURATION_SECONDS = 10;
     const POLLING_INITIAL_DELAY_MS = 10000;
     const POLLING_MAX_DELAY_MS = 30000;
     const HAND_SHUFFLE_COOLDOWN_MS = 3000;
+    const CARD_SIZE_STORAGE_KEY = "lumengg.simulator.cardSize";
+    const CARD_ACTIONS_MIN_VISIBLE_PX = 52;
+    const CARD_ACTIONS_MIN_VISIBLE_RATIO = 0.68;
+    const CARD_SIZE_PRESETS = [
+        { key: "xsmall", label: "최소", width: 68, height: 96, uiFont: 11, smallFont: 10, strongFont: 14, controlHeight: 24, gap: 4, padY: 3, padX: 6, guideHeight: 32 },
+        { key: "small", label: "작게", width: 76, height: 107, uiFont: 12, smallFont: 10, strongFont: 15, controlHeight: 26, gap: 5, padY: 4, padX: 7, guideHeight: 34 },
+        { key: "default", label: "기본", width: 84, height: 118, uiFont: 12, smallFont: 11, strongFont: 16, controlHeight: 28, gap: 6, padY: 5, padX: 8, guideHeight: 36 },
+        { key: "large", label: "크게", width: 94, height: 132, uiFont: 13, smallFont: 11, strongFont: 17, controlHeight: 30, gap: 7, padY: 6, padX: 9, guideHeight: 40 },
+        { key: "xlarge", label: "최대", width: 104, height: 146, uiFont: 14, smallFont: 12, strongFont: 18, controlHeight: 32, gap: 8, padY: 7, padX: 10, guideHeight: 44 },
+    ];
+    const CARD_SIZE_DEFAULT_INDEX = 2;
+    const CARD_SIZE_FHD_INDEX = 0;
+    const CARD_SIZE_QHD_INDEX = 3;
     let state = envelope.state || {};
     let events = Array.isArray(envelope.events) ? envelope.events : [];
     let eventsLoaded = Array.isArray(envelope.events);
@@ -47,6 +61,8 @@
     let selectedLogCard = null;
     let lastPhaseOverlayKey = `${state.turn || 1}:${state.phase || ""}`;
     let lastSignalOverlayKey = "";
+    let timerSync = null;
+    let cardSizeIndex = CARD_SIZE_DEFAULT_INDEX;
     const tooltip = document.createElement("div");
     const pendingSocketActions = new Map();
     const pendingCounters = {
@@ -57,6 +73,13 @@
     const phases = ["lumen", "ready", "battle", "get", "recovery"];
     const zones = ["ultimate", "lumen", "battle", "hand", "list", "side", "break"];
     const visibilityToggleZones = new Set(["hand", "side", "battle", "lumen"]);
+    const cardEffectLabels = {
+        blackout: "암전",
+        specialBreak: "브레이크",
+        specialLumen: "루멘",
+        gwiseomSide: "사이드",
+        tokenDelete: "삭제",
+    };
     const phaseGuideLabels = {
         lumen: "루멘 페이즈에 처리할 효과를 처리하세요",
         ready: "기술을 배틀 존에 레디하세요",
@@ -99,6 +122,74 @@
             realtimeToastMessage = "";
             realtimeToastCount = 0;
         }, 3600);
+    }
+
+    function clampCardSizeIndex(index) {
+        const next = Number(index);
+        if (!Number.isFinite(next)) return CARD_SIZE_DEFAULT_INDEX;
+        return Math.max(0, Math.min(CARD_SIZE_PRESETS.length - 1, Math.round(next)));
+    }
+
+    function initialCardSizeIndexForViewport() {
+        const width = Math.max(
+            Number(window.innerWidth || 0),
+            Number(document.documentElement && document.documentElement.clientWidth || 0)
+        );
+        const height = Math.max(
+            Number(window.innerHeight || 0),
+            Number(document.documentElement && document.documentElement.clientHeight || 0)
+        );
+        if (width >= 2300 && height >= 1200) return CARD_SIZE_QHD_INDEX;
+        if (width >= 1700 && height >= 850) return CARD_SIZE_FHD_INDEX;
+        return CARD_SIZE_DEFAULT_INDEX;
+    }
+
+    function loadCardSizeSetting() {
+        try {
+            const stored = window.localStorage && window.localStorage.getItem(CARD_SIZE_STORAGE_KEY);
+            const storedIndex = CARD_SIZE_PRESETS.findIndex((preset) => preset.key === stored);
+            cardSizeIndex = storedIndex >= 0 ? storedIndex : initialCardSizeIndexForViewport();
+        } catch (error) {
+            cardSizeIndex = initialCardSizeIndexForViewport();
+        }
+    }
+
+    function renderCardSizeControls() {
+        const preset = CARD_SIZE_PRESETS[cardSizeIndex] || CARD_SIZE_PRESETS[CARD_SIZE_DEFAULT_INDEX];
+        document.querySelectorAll("[data-card-size-label]").forEach((node) => {
+            node.textContent = t(preset.label);
+        });
+        document.querySelectorAll("[data-card-size-step]").forEach((button) => {
+            const step = Number(button.dataset.cardSizeStep || 0);
+            button.disabled = (step < 0 && cardSizeIndex <= 0) || (step > 0 && cardSizeIndex >= CARD_SIZE_PRESETS.length - 1);
+        });
+    }
+
+    function applyCardSizeSetting() {
+        const preset = CARD_SIZE_PRESETS[cardSizeIndex] || CARD_SIZE_PRESETS[CARD_SIZE_DEFAULT_INDEX];
+        root.style.setProperty("--sim-card-width-setting", `${preset.width}px`);
+        root.style.setProperty("--sim-card-height-setting", `${preset.height}px`);
+        root.style.setProperty("--sim-ui-font-size", `${preset.uiFont}px`);
+        root.style.setProperty("--sim-ui-small-font-size", `${preset.smallFont}px`);
+        root.style.setProperty("--sim-ui-strong-font-size", `${preset.strongFont}px`);
+        root.style.setProperty("--sim-ui-control-height", `${preset.controlHeight}px`);
+        root.style.setProperty("--sim-ui-gap", `${preset.gap}px`);
+        root.style.setProperty("--sim-ui-pad-y", `${preset.padY}px`);
+        root.style.setProperty("--sim-ui-pad-x", `${preset.padX}px`);
+        root.style.setProperty("--sim-phase-guide-height", `${preset.guideHeight}px`);
+        root.dataset.cardSize = preset.key;
+        renderCardSizeControls();
+        scheduleFitCardGrids();
+    }
+
+    function setCardSizeIndex(index) {
+        cardSizeIndex = clampCardSizeIndex(index);
+        try {
+            if (window.localStorage) window.localStorage.setItem(CARD_SIZE_STORAGE_KEY, CARD_SIZE_PRESETS[cardSizeIndex].key);
+        } catch (error) {
+            // Local display settings are optional.
+        }
+        applyCardSizeSetting();
     }
 
     function canControl() {
@@ -197,6 +288,14 @@
         return cardType(card).includes("수비");
     }
 
+    function isSpecialCard(card) {
+        return cardType(card).includes("특수");
+    }
+
+    function isTokenCard(card) {
+        return !!(card && (card.kind === "token" || cardType(card).includes("토큰")));
+    }
+
     function joinPresent(values, separator) {
         return values.filter(hasValue).map((value) => String(value)).join(separator || " / ");
     }
@@ -228,6 +327,10 @@
         return cardDisplayName(card).includes("블랙아웃");
     }
 
+    function isGwiseomCard(card) {
+        return cardDisplayName(card).includes("귀섬");
+    }
+
     function canUseBlackoutAction(card) {
         return !!(
             card &&
@@ -237,6 +340,84 @@
             !String(card.instance_id || "").startsWith("log-") &&
             isBlackoutCard(card)
         );
+    }
+
+    function canUseCardEffectAction(card) {
+        return !!(
+            card &&
+            canControl() &&
+            envelope.role === card.owner &&
+            !card.hidden &&
+            card.kind !== "character" &&
+            !String(card.instance_id || "").startsWith("log-")
+        );
+    }
+
+    function cardEffectActions(card) {
+        card = hydrateCard(card);
+        const actions = [];
+        if (canUseBlackoutAction(card)) {
+            actions.push({
+                key: "blackout",
+                label: cardEffectLabels.blackout,
+                tool: "blackout_random_get",
+                tone: "dark",
+            });
+        }
+        if (!canUseCardEffectAction(card)) return actions;
+        const gwiseom = isGwiseomCard(card);
+        if (isSpecialCard(card) && card.zone === "lumen") {
+            actions.push({
+                key: "special_break",
+                label: cardEffectLabels.specialBreak,
+                tool: "move_card",
+                toZone: "break",
+                tone: "danger",
+            });
+        }
+        if (gwiseom && card.zone === "lumen") {
+            actions.push({
+                key: "gwiseom_side",
+                label: cardEffectLabels.gwiseomSide,
+                tool: "move_card",
+                toZone: "side",
+                tone: "primary",
+            });
+        }
+        if ((isSpecialCard(card) || gwiseom) && card.zone === "side") {
+            actions.push({
+                key: gwiseom ? "gwiseom_lumen" : "special_lumen",
+                label: cardEffectLabels.specialLumen,
+                tool: "move_card",
+                toZone: "lumen",
+                tone: "primary",
+            });
+        }
+        if (isTokenCard(card)) {
+            actions.push({
+                key: "token_delete",
+                label: cardEffectLabels.tokenDelete,
+                tool: "move_card",
+                toZone: "break",
+                tone: "danger",
+            });
+        }
+        return actions;
+    }
+
+    function renderCardEffectButtons(card, compact) {
+        const actions = cardEffectActions(card);
+        if (!actions.length) return "";
+        const className = compact ? "v2-sim-card-effects" : "v2-sim-card-detail-actions";
+        const buttons = actions.map((action) => {
+            const moveAttrs = action.tool === "move_card"
+                ? ` data-target-player="${escapeHtml(card.owner || envelope.role || "")}" data-target-zone="${escapeHtml(action.toZone || "")}"`
+                : "";
+            const toneClass = action.tone ? ` is-${action.tone}` : "";
+            const buttonClass = compact ? `v2-sim-card-effect-button${toneClass}` : "v2-button";
+            return `<button class="${buttonClass}" type="button" data-card-effect="${escapeHtml(action.key)}" data-card-tool="${escapeHtml(action.tool)}" data-source-card="${escapeHtml(card.instance_id)}"${moveAttrs} aria-label="${escapeHtml(t(action.label))}">${escapeHtml(t(action.label))}</button>`;
+        }).join("");
+        return `<div class="${className}">${buttons}</div>`;
     }
 
     function collectKnownCardIds() {
@@ -437,6 +618,39 @@
         envelope.version = envelopeVersion(envelope) + 1;
     }
 
+    function monotonicNow() {
+        return window.performance && typeof window.performance.now === "function"
+            ? window.performance.now()
+            : Date.now();
+    }
+
+    function timerDuration(timer) {
+        const duration = Number(timer && timer.duration_seconds);
+        return Number.isFinite(duration) && duration > 0 ? duration : TIMER_DEFAULT_DURATION_SECONDS;
+    }
+
+    function timerKey(timer) {
+        if (!timer) return "";
+        return `${timer.started_at || ""}:${timer.owner || ""}:${timerDuration(timer)}`;
+    }
+
+    function syncTimerFromState() {
+        const timer = state.timer || {};
+        if (!timer.is_running || !timer.started_at) {
+            timerSync = null;
+            return;
+        }
+        const duration = timerDuration(timer);
+        const rawRemaining = Number(timer.remaining_seconds);
+        const remaining = Number.isFinite(rawRemaining) ? rawRemaining : duration;
+        timerSync = {
+            key: timerKey(timer),
+            duration,
+            remaining: Math.max(0, Math.min(duration, remaining)),
+            capturedAtMs: monotonicNow(),
+        };
+    }
+
     function updateEnvelope(nextEnvelope, options) {
         const incomingVersion = envelopeVersion(nextEnvelope);
         const currentVersion = envelopeVersion(envelope);
@@ -447,6 +661,7 @@
         const previousEventCount = Number(envelope.event_count || previousEvents.length || 0);
         envelope = nextEnvelope || envelope;
         state = envelope.state || {};
+        syncTimerFromState();
         if (Array.isArray(envelope.events)) {
             events = envelope.events;
         } else {
@@ -817,7 +1032,7 @@
             localPayload.from_zone = location.zone;
             localPayload.to_player = toPlayer;
             localPayload.card_label = localCardLabel(location.card);
-            if (location.card.kind === "token" && toZone === "break") {
+            if (isTokenCard(hydrateCard(location.card)) && toZone === "break") {
                 localPayload.deleted_token = true;
                 localPayload.was_face_up = !!location.card.face_up;
                 if (location.card.card_id) localPayload.card_id = location.card.card_id;
@@ -825,6 +1040,8 @@
                 return true;
             }
             setLocalCardVisibilityForZone(location.card, toZone, state, location.zone);
+            location.card.zone = toZone;
+            location.card.zone_owner = toPlayer;
             state.players[toPlayer].zones[toZone].push(location.card);
             appendOptimisticEvent(action, localPayload);
             return true;
@@ -842,6 +1059,8 @@
                 const owner = card.owner || playerSide;
                 if (!state.players[owner] || !state.players[owner].zones[toZone]) return;
                 setLocalCardVisibilityForZone(card, toZone, state, fromZone);
+                card.zone = toZone;
+                card.zone_owner = owner;
                 state.players[owner].zones[toZone].push(card);
             });
             localPayload.count = cards.length;
@@ -978,8 +1197,10 @@
 
         if (action === "timer") {
             const timer = state.timer || {};
-            const duration = Number(timer.duration_seconds || 10);
-            const running = !timer.is_running;
+            const duration = timerDuration(timer);
+            const remaining = timerRemaining();
+            const expired = remaining <= 0 && (!!timer.started_at || Number(timer.remaining_seconds) <= 0);
+            const running = !timer.is_running && !expired;
             const now = Date.now();
             state.timer = {
                 ...timer,
@@ -991,6 +1212,7 @@
                 owner: running ? envelope.role : timer.owner,
                 timeout_reported: false,
             };
+            syncTimerFromState();
             localPayload.running = running;
             localPayload.owner = state.timer.owner;
             appendOptimisticEvent(action, localPayload);
@@ -1237,12 +1459,56 @@
 
     function timerRemaining() {
         const timer = state.timer || {};
-        const duration = Number(timer.duration_seconds || 10);
-        if (timer.is_running && timer.ends_at) {
-            const endsAt = new Date(timer.ends_at).getTime();
-            if (!Number.isNaN(endsAt)) return Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+        const duration = timerDuration(timer);
+        if (timer.is_running && timer.started_at) {
+            const key = timerKey(timer);
+            if (!timerSync || timerSync.key !== key) syncTimerFromState();
+            if (timerSync) {
+                const elapsed = Math.max(0, (monotonicNow() - timerSync.capturedAtMs) / 1000);
+                return Math.max(0, Math.min(timerSync.duration, Math.ceil(timerSync.remaining - elapsed)));
+            }
         }
         return Math.max(0, Math.min(duration, Number(timer.remaining_seconds ?? duration) || 0));
+    }
+
+    function timerColor(progress) {
+        const start = [37, 99, 235];
+        const end = [220, 38, 38];
+        return start.map((value, index) => Math.round(value + (end[index] - value) * progress));
+    }
+
+    function timerProgress(remaining) {
+        const duration = timerDuration(state.timer || {});
+        if (!duration) return 0;
+        return Math.max(0, Math.min(1, (duration - remaining) / duration));
+    }
+
+    function ensureTimerCountdown() {
+        let countdown = root.querySelector("[data-sim-timer-countdown]") || document.querySelector("[data-sim-timer-countdown]");
+        if (!countdown) {
+            countdown = document.createElement("div");
+            countdown.className = "v2-sim-timer-countdown";
+            countdown.dataset.simTimerCountdown = "true";
+            countdown.setAttribute("aria-hidden", "true");
+        }
+        if (countdown.parentElement !== root) root.appendChild(countdown);
+        return countdown;
+    }
+
+    function updateTimerPresentation(remaining, active) {
+        const progress = timerProgress(remaining);
+        const color = timerColor(progress);
+        document.body.style.setProperty("--v2-sim-timer-rgb", color.join(", "));
+        document.body.style.setProperty("--v2-sim-timer-progress", progress.toFixed(3));
+        root.style.setProperty("--v2-sim-timer-rgb", color.join(", "));
+        root.style.setProperty("--v2-sim-timer-progress", progress.toFixed(3));
+        document.body.classList.toggle("v2-sim-timer-active", active);
+        root.classList.toggle("is-timer-active", active);
+
+        const countdown = ensureTimerCountdown();
+        countdown.textContent = String(remaining);
+        countdown.classList.toggle("is-visible", active);
+        countdown.classList.toggle("is-urgent", active && remaining <= 3);
     }
 
     function maybeReportTimerTimeout(remaining) {
@@ -1273,12 +1539,14 @@
         const timerNode = document.querySelector("[data-sim-timer]");
         const timerButton = document.querySelector("[data-sim-action='timer']");
         const remaining = timerRemaining();
+        const timerActive = !!(state.timer && state.timer.is_running && remaining > 0);
         if (timerNode) timerNode.textContent = String(remaining);
         if (timerButton) {
             timerButton.disabled = !canControl();
-            timerButton.classList.toggle("is-active", !!(state.timer && state.timer.is_running));
-            timerButton.classList.toggle("is-danger", !!(state.timer && state.timer.is_running && remaining <= 3));
+            timerButton.classList.toggle("is-active", timerActive);
+            timerButton.classList.toggle("is-danger", timerActive && remaining <= 3);
         }
+        updateTimerPresentation(remaining, timerActive);
         maybeReportTimerTimeout(remaining);
     }
 
@@ -1772,7 +2040,7 @@
                     ${zoneActions}
                 </header>
                 <div class="v2-sim-card-grid">
-                    ${cards.map((card) => renderCard(card)).join("")}
+                    ${cards.map((card) => renderCard({ ...card, zone })).join("")}
                 </div>
             `;
             return zoneNode;
@@ -1813,10 +2081,12 @@
         const visibility = canToggleCardVisibility(card)
             ? `<button class="v2-sim-card-toggle ${card.face_up ? "is-public" : "is-private"}" type="button" data-visibility-card="${escapeHtml(card.instance_id)}" data-visibility-value="${card.face_up ? "false" : "true"}" aria-label="${card.face_up ? t("비공개로 전환") : t("공개로 전환")}"></button>`
             : "";
+        const effects = renderCardEffectButtons(card, true);
         return `
             <div class="${classes.join(" ")}" data-card-instance="${escapeHtml(card.instance_id)}" data-card-owner="${escapeHtml(card.owner)}" data-card-open="${escapeHtml(card.instance_id)}" data-card-tooltip="${escapeHtml(cardTitle(card))}" draggable="${draggable ? "true" : "false"}">
                 ${image}
                 ${visibility}
+                ${effects}
             </div>
         `;
     }
@@ -1842,9 +2112,12 @@
 
     function fitCardGrids() {
         document.querySelectorAll(".v2-sim-card-grid").forEach((grid) => {
-            const cards = grid.querySelectorAll(".v2-sim-card").length;
+            const cardNodes = Array.from(grid.querySelectorAll(".v2-sim-card"));
+            const cards = cardNodes.length;
             if (!cards) {
                 grid.style.removeProperty("--sim-card-fit-step");
+                grid.style.removeProperty("--sim-card-visible-width");
+                grid.classList.remove("is-overlapped");
                 return;
             }
             const style = window.getComputedStyle(grid);
@@ -1860,6 +2133,18 @@
                 : fullStep;
             const step = Math.max(minStep, Math.min(fullStep, fitStep));
             grid.style.setProperty("--sim-card-fit-step", `${Math.floor(step)}px`);
+            const overlapped = step < cardWidth;
+            const overlappedWidth = Math.floor(Math.min(cardWidth, step));
+            const fullWidth = Math.floor(cardWidth);
+            grid.style.setProperty("--sim-card-visible-width", `${overlapped ? overlappedWidth : fullWidth}px`);
+            grid.classList.toggle("is-overlapped", overlapped);
+            cardNodes.forEach((node, index) => {
+                const hasCardToRight = index + rows < cards;
+                const visibleWidth = overlapped && hasCardToRight ? overlappedWidth : fullWidth;
+                const minActionsWidth = Math.min(fullWidth, Math.max(CARD_ACTIONS_MIN_VISIBLE_PX, Math.ceil(cardWidth * CARD_ACTIONS_MIN_VISIBLE_RATIO)));
+                node.style.setProperty("--sim-card-visible-width", `${visibleWidth}px`);
+                node.classList.toggle("is-actions-hidden", visibleWidth < minActionsWidth);
+            });
         });
     }
 
@@ -2036,11 +2321,7 @@
             details.push(`<p class="v2-sim-card-detail-line">${escapeHtml(valueOrDashLabel(card, "g_top"))} | ${escapeHtml(valueOrDashLabel(card, "g_mid"))} | ${escapeHtml(valueOrDashLabel(card, "g_bot"))}</p>`);
         }
         if (text) details.push(`<p class="v2-sim-card-detail-effect">${escapeHtml(text)}</p>`);
-        const actions = canUseBlackoutAction(card)
-            ? `<div class="v2-sim-card-detail-actions">
-                <button class="v2-button" type="button" data-card-tool="blackout_random_get" data-source-card="${escapeHtml(card.instance_id)}">${t("상대 랜덤 겟")}</button>
-            </div>`
-            : "";
+        const actions = renderCardEffectButtons(card, false);
         holder.innerHTML = `
             ${image ? `<img src="${escapeHtml(image)}" alt="">` : ""}
             <h2>${escapeHtml(cardDisplayName(card))}</h2>
@@ -2180,6 +2461,7 @@
         playerBoardOrder().forEach((side) => renderPlayer(side));
         renderLog();
         renderCardDetail();
+        renderCardSizeControls();
         setLogOpen(logOpen);
         scheduleFitCardGrids();
         document.querySelectorAll([
@@ -2416,6 +2698,15 @@
             return;
         }
 
+        if (button.dataset.cardTool === "move_card") {
+            postAction("move_card", {
+                card_instance_id: button.dataset.sourceCard,
+                to_player: button.dataset.targetPlayer || envelope.role,
+                to_zone: button.dataset.targetZone,
+            });
+            return;
+        }
+
         if (button.dataset.logToggle !== undefined) {
             setLogOpen(!logOpen);
             return;
@@ -2562,6 +2853,10 @@
         }
         if (button.dataset.simAction === "timer") {
             postAction("timer", {});
+            return;
+        }
+        if (button.dataset.cardSizeStep !== undefined) {
+            setCardSizeIndex(cardSizeIndex + Number(button.dataset.cardSizeStep || 0));
             return;
         }
         if (button.dataset.simAction === "next_turn") {
@@ -2831,6 +3126,8 @@
         });
     }
 
+    loadCardSizeSetting();
+    applyCardSizeSetting();
     render();
     connectSocket();
     window.setInterval(() => {

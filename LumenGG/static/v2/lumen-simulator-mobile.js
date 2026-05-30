@@ -33,6 +33,9 @@
     let lastSignalOverlayKey = "";
     let phaseOverlayTimer = null;
     let signalOverlayTimer = null;
+    let timerSync = null;
+    let pendingTimerTimeoutKey = "";
+    let reportedTimerTimeoutKey = "";
     let passiveHeightFrame = 0;
     let longPressTimer = null;
     let longPressCardId = "";
@@ -51,6 +54,7 @@
         fp: new Map(),
     };
     const MOBILE_LOG_LIMIT = 80;
+    const TIMER_DEFAULT_DURATION_SECONDS = 10;
 
     const zoneCodes = {
         battle: "BT",
@@ -306,6 +310,39 @@
         return url.toString();
     }
 
+    function monotonicNow() {
+        return window.performance && typeof window.performance.now === "function"
+            ? window.performance.now()
+            : Date.now();
+    }
+
+    function timerDuration(timer) {
+        const duration = Number(timer && timer.duration_seconds);
+        return Number.isFinite(duration) && duration > 0 ? duration : TIMER_DEFAULT_DURATION_SECONDS;
+    }
+
+    function timerKey(timer) {
+        if (!timer) return "";
+        return `${timer.started_at || ""}:${timer.owner || ""}:${timerDuration(timer)}`;
+    }
+
+    function syncTimerFromState() {
+        const timer = state.timer || {};
+        if (!timer.is_running || !timer.started_at) {
+            timerSync = null;
+            return;
+        }
+        const duration = timerDuration(timer);
+        const rawRemaining = Number(timer.remaining_seconds);
+        const remaining = Number.isFinite(rawRemaining) ? rawRemaining : duration;
+        timerSync = {
+            key: timerKey(timer),
+            duration,
+            remaining: Math.max(0, Math.min(duration, remaining)),
+            capturedAtMs: monotonicNow(),
+        };
+    }
+
     function updateEnvelope(nextEnvelope) {
         if (!nextEnvelope || nextEnvelope.unchanged) {
             if (nextEnvelope && nextEnvelope.presence) envelope.presence = nextEnvelope.presence;
@@ -313,6 +350,7 @@
         }
         envelope = nextEnvelope;
         state = envelope.state || {};
+        syncTimerFromState();
         if (Array.isArray(envelope.events)) {
             events = envelope.events;
             eventsLoaded = true;
@@ -401,6 +439,96 @@
         envelope.event_count = Number(data && data.event_count || envelope.event_count || events.length || 0);
         lastLogSeq = Math.max(lastLogSeq, maxEventSeq(events), Number(envelope.event_count || 0));
         renderLog();
+    }
+
+    function timerRemaining() {
+        const timer = state.timer || {};
+        const duration = timerDuration(timer);
+        if (timer.is_running && timer.started_at) {
+            const key = timerKey(timer);
+            if (!timerSync || timerSync.key !== key) syncTimerFromState();
+            if (timerSync) {
+                const elapsed = Math.max(0, (monotonicNow() - timerSync.capturedAtMs) / 1000);
+                return Math.max(0, Math.min(timerSync.duration, Math.ceil(timerSync.remaining - elapsed)));
+            }
+        }
+        return Math.max(0, Math.min(duration, Number(timer.remaining_seconds ?? duration) || 0));
+    }
+
+    function timerColor(progress) {
+        const start = [37, 99, 235];
+        const end = [220, 38, 38];
+        return start.map((value, index) => Math.round(value + (end[index] - value) * progress));
+    }
+
+    function timerProgress(remaining) {
+        const duration = timerDuration(state.timer || {});
+        if (!duration) return 0;
+        return Math.max(0, Math.min(1, (duration - remaining) / duration));
+    }
+
+    function ensureTimerCountdown() {
+        let countdown = document.querySelector("[data-mobile-timer-countdown]");
+        if (!countdown) {
+            countdown = document.createElement("div");
+            countdown.className = "v2-mobile-timer-countdown";
+            countdown.dataset.mobileTimerCountdown = "true";
+            countdown.setAttribute("aria-hidden", "true");
+            document.body.appendChild(countdown);
+        }
+        return countdown;
+    }
+
+    function updateTimerPresentation(remaining, active) {
+        const progress = timerProgress(remaining);
+        const color = timerColor(progress);
+        document.body.style.setProperty("--v2-mobile-timer-rgb", color.join(", "));
+        document.body.style.setProperty("--v2-mobile-timer-progress", progress.toFixed(3));
+        document.body.classList.toggle("v2-mobile-timer-active", active);
+        root.classList.toggle("is-timer-active", active);
+
+        const countdown = ensureTimerCountdown();
+        countdown.textContent = String(remaining);
+        countdown.classList.toggle("is-visible", active);
+        countdown.classList.toggle("is-urgent", active && remaining <= 3);
+    }
+
+    function maybeReportTimerTimeout(remaining) {
+        const timer = state.timer || {};
+        const owner = timer.owner;
+        const key = `${timer.started_at || ""}:${owner || ""}`;
+        if (
+            !canControl() ||
+            !["p1", "p2"].includes(envelope.role) ||
+            remaining > 0 ||
+            !timer.started_at ||
+            !owner ||
+            owner === envelope.role ||
+            timer.timeout_reported ||
+            pendingTimerTimeoutKey === key ||
+            reportedTimerTimeoutKey === key
+        ) {
+            return;
+        }
+        pendingTimerTimeoutKey = key;
+        postAction("timer_timeout", { started_at: timer.started_at }).then((result) => {
+            pendingTimerTimeoutKey = "";
+            if (result) reportedTimerTimeoutKey = key;
+        });
+    }
+
+    function renderTimer() {
+        const timerNode = document.querySelector("[data-mobile-timer]");
+        const timerBox = document.querySelector("[data-mobile-timer-box]");
+        const remaining = timerRemaining();
+        const timerActive = !!(state.timer && state.timer.is_running && remaining > 0);
+        if (timerNode) timerNode.textContent = String(remaining);
+        if (timerBox) {
+            timerBox.classList.toggle("is-active", timerActive);
+            timerBox.classList.toggle("is-danger", timerActive && remaining <= 3);
+        }
+        updateTimerPresentation(remaining, timerActive);
+        maybeReportTimerTimeout(remaining);
     }
 
     function sendLogSubscription(enabled) {
@@ -1552,6 +1680,7 @@
         if (modalSide && modalZone) renderModal();
         renderCardDetail();
         renderLog();
+        renderTimer();
         maybeShowPhaseOverlay();
         maybeShowSignalOverlay();
     }
@@ -1867,6 +1996,7 @@
     render();
     connectSocket();
     updateFullscreenButton();
+    window.setInterval(renderTimer, 1000);
     window.addEventListener("resize", schedulePassiveHeightSync);
     document.addEventListener("fullscreenchange", updateFullscreenButton);
     document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
