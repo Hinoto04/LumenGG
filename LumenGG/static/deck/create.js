@@ -120,6 +120,16 @@ function listSearch(pk) {
     }
 }
 
+function isUltimateCard(pk) {
+    const card = listSearch(pk) || {};
+    return card["ultimate"] === true || card["ultimate"] === "true" || card["ultimate"] === 1 || card["ultimate"] === "1";
+}
+
+function isForcedSideCard(pk) {
+    const card = listSearch(pk) || {};
+    return !isUltimateCard(pk) && String(card["type"] || "").includes("특수");
+}
+
 function getTemplate(pk) {
     return $(`
         <tr id="in_deck_${pk}">
@@ -186,22 +196,30 @@ function Increase(pk) {
         alert(`덱 매수는 최대 ${maxDeckSize}장입니다.`);
         return;
     }
+    const forcedSide = isForcedSideCard(pk);
     if(Object.keys(deckList).includes(String(pk))) { //Key 존재 시,
         if(Object.keys(exceptList).includes(String(pk))) {
             if(deckList[pk]['count'] < exceptList[pk]) {
                 deckList[pk]['count']++;
                 $(`#in_deck_count_${pk}`).text(deckList[pk]['count'])
                 listCount++;
+                if(forcedSide) {
+                    deckList[pk]['side']++;
+                    $(`#in_side_count_${pk}`).text(deckList[pk]['side']);
+                    sideCount++;
+                }
             }
         }
     } else {
         deckList[pk] = {
             'count': 1,
             'hand': 0,
-            'side': 0
+            'side': forcedSide ? 1 : 0
         }
         listCount++;
+        if(forcedSide) sideCount++;
         $("#MainDeckList").append(getTemplate(pk));
+        $(`#in_side_count_${pk}`).text(deckList[pk]['side']);
         sortList()
     }
     CountCheck();
@@ -209,11 +227,18 @@ function Increase(pk) {
 
 function Decrease(pk) {
     if(Object.keys(deckList).includes(String(pk))) { //Key 존재 시,
+        const forcedSide = isForcedSideCard(pk);
         if(deckList[pk]["count"] == 1) {
             handCount-=deckList[pk]['hand'];
             sideCount-=deckList[pk]['side'];
             delete deckList[pk]
             $(`#in_deck_${pk}`).remove()
+        } else if(forcedSide) {
+            deckList[pk]['count']--;
+            deckList[pk]['side']--;
+            sideCount--;
+            $(`#in_deck_count_${pk}`).text(deckList[pk]['count'])
+            $(`#in_side_count_${pk}`).text(deckList[pk]['side'])
         } else {
             deckList[pk]['count']--;
             handCount-=deckList[pk]['hand'];
@@ -230,6 +255,18 @@ function Decrease(pk) {
 }
 
 function sIncrease(pk, mode) {
+    if(isForcedSideCard(pk)) {
+        if(Object.keys(deckList).includes(String(pk))) {
+            handCount -= deckList[pk]['hand'];
+            sideCount += deckList[pk]['count'] - deckList[pk]['side'];
+            deckList[pk]['hand'] = 0;
+            deckList[pk]['side'] = deckList[pk]['count'];
+            $(`#in_hand_count_${pk}`).text(0);
+            $(`#in_side_count_${pk}`).text(deckList[pk]['side']);
+            CountCheck();
+        }
+        return;
+    }
     if(mode == 'h') {
         if(handCount==5) {
             alert("손패 매수는 최대 5장입니다.");
@@ -261,6 +298,10 @@ function sIncrease(pk, mode) {
 }
 
 function sDecrease(pk, mode) {
+    if(isForcedSideCard(pk)) {
+        alert("특수 타입 카드는 사이드 덱에만 넣을 수 있습니다.");
+        return;
+    }
     if(mode == 'h') {
         if(Object.keys(deckList).includes(String(pk))) { //Key 존재 시,
             if(deckList[pk]['hand'] >= 1) {
@@ -289,6 +330,10 @@ function deckSubmit() {
     var arr = [];
     for (var key in deckList) {
         if (deckList.hasOwnProperty(key)) {
+            if(isForcedSideCard(key)) {
+                deckList[key]['hand'] = 0;
+                deckList[key]['side'] = deckList[key]['count'];
+            }
             arr.push( [ key, deckList[key] ] );
         }
     }

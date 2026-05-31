@@ -1,0 +1,136 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% load language_tags %}
+{% block body_class %}v2-deck-mobile-builder-mode{% endblock body_class %}
+{% block title %}{% if is_update %}{% tr "수정" %}{% else %}{% tr "덱 만들기" %}{% endif %} - LumenDB V2{% endblock title %}
+{% block legacy_href %}{% if is_update %}{% url "deck:legacyUpdate" deck.id %}{% else %}{% url "deck:legacyCreate" %}{% endif %}{% endblock legacy_href %}
+{% block style %}
+<link rel="stylesheet" href="{% static "v2/deck-builder-mobile.css" %}?v=20260601-native-callout-off">
+{% endblock style %}
+{% block content %}
+<section class="v2-deck-mobile-builder" data-mobile-deck-builder>
+    <header class="v2-deck-mobile-topbar">
+        <div class="v2-deck-mobile-title">
+            <strong>{% if is_update %}{% tr "수정" %}{% else %}{% tr "덱 만들기" %}{% endif %}</strong>
+            <span>{% tr "전체" %} <b id="CardCount">0</b></span>
+        </div>
+        <div class="v2-deck-mobile-actions">
+            <button class="v2-button" type="button" data-mobile-deck-meta-open>{% tr "덱 정보" %}</button>
+            <button class="v2-button" type="button" data-mobile-deck-fullscreen>{% tr "전체화면" %}</button>
+            <a class="v2-button" href="{% if is_update %}{% url "deck:update" deck.id %}{% else %}{% url "deck:create" %}{% endif %}?desktop=1">{% tr "PC 버전" %}</a>
+            {% if is_update %}
+            <a class="v2-button" href="{% url "deck:detail" deck.id %}">{% tr "상세" %}</a>
+            {% endif %}
+            <button class="v2-button v2-button-primary" type="button" id="v2DeckSubmit">{% if is_update %}{% tr "수정 저장" %}{% else %}{% tr "덱 생성" %}{% endif %}</button>
+        </div>
+    </header>
+
+    <aside class="v2-deck-mobile-meta-modal" data-mobile-deck-meta-modal hidden>
+        <div class="v2-deck-mobile-modal-backdrop" data-mobile-deck-meta-close></div>
+        <section class="v2-panel v2-deck-mobile-meta-dialog" role="dialog" aria-modal="true" aria-labelledby="v2DeckMobileMetaTitle">
+            <header class="v2-deck-mobile-meta-dialog-head">
+                <strong id="v2DeckMobileMetaTitle">{% tr "덱 정보" %}</strong>
+                <button class="v2-button" type="button" data-mobile-deck-meta-close>{% tr "닫기" %}</button>
+            </header>
+            <form action="{% if is_update %}{% url "deck:updateMobileV2" deck.id %}{% else %}{% url "deck:createMobileV2" %}{% endif %}" method="post" id="submitForm" class="v2-deck-mobile-meta-form">
+                {% csrf_token %}
+                <label>
+                    <span>{% tr "캐릭터" %}</span>
+                    <select name="char" id="id_char" data-mobile-character-select>
+                        {% for character in form.char.field.queryset %}
+                        <option value="{{ character.id }}" {% if selected_character_id == character.id %}selected{% endif %}>{{ character|character_name:current_language }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
+                    <span>{% tr "덱 이름" %}</span>
+                    {{ form.name }}
+                </label>
+                <label>
+                    <span>{% tr "공개 범위" %}</span>
+                    {{ form.visibility }}
+                </label>
+                <label>
+                    <span>{% tr "태그" %}</span>
+                    {{ form.keyword }}
+                </label>
+                <label class="v2-deck-mobile-description-field">
+                    <span>{% tr "덱 설명" %}</span>
+                    {{ form.description }}
+                </label>
+            </form>
+        </section>
+    </aside>
+
+    <main class="v2-deck-mobile-workbench">
+        <aside class="v2-deck-mobile-search v2-panel">
+            <form id="v2DeckSearchForm" class="v2-deck-mobile-search-form">
+                <input type="hidden" name="char" id="v2_search_char" value="">
+                <label class="v2-deck-mobile-search-keyword">
+                    <span class="visually-hidden">{% tr "카드명" %}</span>
+                    <input type="text" name="keyword" id="v2_search_keyword" placeholder="{% tr "카드명" %}" aria-label="{% tr "카드명" %}">
+                </label>
+                <label class="v2-qna-faq-toggle" for="v2_search_neutral">
+                    <input type="checkbox" name="neutral" value="1" id="v2_search_neutral">
+                    N
+                </label>
+                <button class="v2-button v2-button-primary" type="button" id="v2DeckSearchButton">{% tr "검색" %}</button>
+            </form>
+            <div class="v2-deck-mobile-search-results" id="v2DeckSearchResults"></div>
+        </aside>
+
+        <section class="v2-deck-mobile-zones">
+            <section class="v2-deck-mobile-zone v2-panel" data-zone="list">
+                <div class="v2-deck-builder-section-head">
+                    <h2>{% tr "리스트" %}</h2>
+                    <span id="v2ListCount">0</span>
+                </div>
+                <div class="v2-deck-mobile-card-row" id="v2ZoneList"></div>
+            </section>
+            <div class="v2-deck-mobile-bottom-zones">
+                <section class="v2-deck-mobile-zone v2-panel" data-zone="hand">
+                    <div class="v2-deck-builder-section-head">
+                        <h2>{% tr "손패" %}</h2>
+                        <span id="v2HandZoneCount">0</span>
+                    </div>
+                    <div class="v2-deck-mobile-card-row" id="v2ZoneHand"></div>
+                </section>
+                <section class="v2-deck-mobile-zone v2-panel" data-zone="side">
+                    <div class="v2-deck-builder-section-head">
+                        <h2>{% tr "사이드" %}</h2>
+                        <span id="v2SideZoneCount">0</span>
+                    </div>
+                    <div class="v2-deck-mobile-card-row" id="v2ZoneSide"></div>
+                </section>
+            </div>
+        </section>
+    </main>
+</section>
+
+{{ initial_cards|json_script:"v2InitialDeck" }}
+<script>
+    window.v2DeckBuilderConfig = {
+        createSearchUrl: "{% url "deck:createSearch" %}",
+        exceptList: {{ exceptList|safe }},
+        selectedCharacterId: "{{ selected_character_id|default:'' }}",
+        translations: {
+            list: "{% tr "리스트" %}",
+            hand: "{% tr "손패" %}",
+            side: "{% tr "사이드" %}",
+            maxDeckSize: "{% tr "덱 매수는 최대 {count}장입니다." %}",
+            maxUltimate: "{% tr "얼티밋 카드는 1장까지만 넣을 수 있습니다." %}",
+            maxHand: "{% tr "손패 매수는 최대 5장입니다." %}",
+            cannotAdd: "{% tr "이 카드는 더 넣을 수 없습니다." %}",
+            ultimateNotice: "{% tr "얼티밋 카드는 얼티밋 영역에 별도로 표시됩니다." %}",
+            specialSideOnly: "{% tr "특수 타입 카드는 사이드 덱에만 넣을 수 있습니다." %}",
+            ultimate: "{% tr "얼티밋" %}",
+            remove: "{% tr "삭제" %}",
+            addToList: "{% tr "리스트에 추가" %}",
+            addToHand: "{% tr "손패에 추가" %}",
+            addToSide: "{% tr "사이드에 추가" %}"
+        }
+    };
+</script>
+<script src="{% static "v2/deck-builder-mobile.js" %}?v=20260601-touch-drag-stability"></script>
+<script src="{% static "deck/deckCardLink.js" %}?v=20260601-summernote-guard"></script>
+{% endblock content %}

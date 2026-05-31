@@ -39,6 +39,7 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     'lumen.hinoto.kr',
     'test.hinoto.kr',
+    '192.168.0.3'
 ]
 
 # Application definition

@@ -13,7 +13,7 @@ from django.db.models import Case, When
 from card.models import Card, Character
 from card.search import card_matches_search
 from common.language import DEFAULT_LANGUAGE, get_language, translated_card_field
-from ..models import Deck, CardInDeck, DeckLike, DeckComment
+from ..models import Deck, CardInDeck, DeckLike, DeckComment, is_forced_side_card
 from ..forms import DeckSearchForm, DeckMakeForm
 from ..capture import generate_deck_capture, get_deck_capture_public_url
 from ..utils import get_deck_version_from_entries
@@ -22,6 +22,34 @@ from statistic.models import CSDeck
 from common.models import SiteSettings
 
 import json
+
+MOBILE_UA_KEYWORDS = (
+    'android',
+    'iphone',
+    'ipod',
+    'ipad',
+    'mobile',
+    'tablet',
+    'windows phone',
+)
+
+
+def is_mobile_deck_builder_request(req):
+    if req.GET.get('mobile') in ('1', 'true', 'yes'):
+        return True
+    if req.GET.get('desktop') in ('1', 'true', 'yes'):
+        return False
+    if req.META.get('HTTP_SEC_CH_UA_MOBILE') == '?1':
+        return True
+    platform = req.META.get('HTTP_SEC_CH_UA_PLATFORM', '').strip('"').lower()
+    if platform in ('android', 'ios'):
+        return True
+    user_agent = req.META.get('HTTP_USER_AGENT', '').lower()
+    return any(keyword in user_agent for keyword in MOBILE_UA_KEYWORDS)
+
+
+def should_redirect_to_mobile_builder(req):
+    return req.method == 'GET' and is_mobile_deck_builder_request(req)
 
 # Create your views here.
 def index(req, template_name='deck/list.html'):
@@ -272,6 +300,41 @@ def normalize_deck_visibility(value):
         return Deck.VISIBILITY_PRIVATE
     return Deck.VISIBILITY_PUBLIC
 
+def get_max_deck_size(character_id):
+    try:
+        character_id = int(character_id)
+    except (TypeError, ValueError):
+        return 21
+    if character_id == 5:
+        return 24
+    if character_id == 15:
+        return 33
+    if character_id == 16:
+        return 26
+    if character_id == 17:
+        return 25
+    return 21
+
+def count_main_deck_cards(deck_entries):
+    card_ids = [card_id for card_id, _count, _hand, _side in deck_entries]
+    ultimate_card_ids = set(
+        Card.objects.filter(id__in=card_ids, ultimate=True).values_list('id', flat=True)
+    )
+    return sum(
+        count
+        for card_id, count, _hand, _side in deck_entries
+        if card_id not in ultimate_card_ids
+    )
+
+def validate_submitted_deck_size(deck_entries, character_id):
+    main_deck_count = count_main_deck_cards(deck_entries)
+    if main_deck_count < 5:
+        return '덱 매수가 너무 적습니다.'
+    max_deck_size = get_max_deck_size(character_id)
+    if main_deck_count > max_deck_size:
+        return f'덱 매수는 최대 {max_deck_size}장입니다.'
+    return None
+
 def normalize_submitted_deck(deck_data):
     card_ids = []
     for item in deck_data:
@@ -305,6 +368,9 @@ def normalize_submitted_deck(deck_data):
             ultimate_count += count
             hand = 0
             side = 0
+        elif is_forced_side_card(card):
+            hand = 0
+            side = count
         elif hand + side > count:
             return None, '손패와 사이드의 카드 갯수가 덱에 들어간 카드보다 많을 수 없습니다.'
         
@@ -359,24 +425,26 @@ def _create(req, template_name='deck/create.html', detail_route='deck:detail'):
             'exceptList': exceptList,
             'initial_cards': [],
             'is_update': False,
+            'selected_character_id': form.fields['char'].initial,
         })
     else:
         data = json.loads(req.body)
         errorContent = { 'status': 200 }
-        if not ('char' in data.keys()) or not ('name' in data.keys()):
+        if not ('char' in data.keys()) or not ('name' in data.keys()) or not ('deck' in data.keys()):
             errorContent['msg'] =  '형식이 올바르지 못합니다.'
             return JsonResponse(errorContent)
         if data['char'] == '' or data['name'] == '':
             errorContent['msg'] =  '존재하지 않는 데이터가 있습니다.'
-            return JsonResponse(errorContent)
-        if len(data['deck']) < 5 or len(data['deck']) > 40:
-            errorContent['msg'] =  '덱 매수가 너무 적거나 너무 많습니다.'
             return JsonResponse(errorContent)
         normalized_deck, error_msg = normalize_submitted_deck(data['deck'])
         if error_msg:
             errorContent['msg'] = error_msg
             return JsonResponse(errorContent)
         normalized_deck, error_msg = merge_deck_entries(normalized_deck)
+        if error_msg:
+            errorContent['msg'] = error_msg
+            return JsonResponse(errorContent)
+        error_msg = validate_submitted_deck_size(normalized_deck, data['char'])
         if error_msg:
             errorContent['msg'] = error_msg
             return JsonResponse(errorContent)
@@ -417,7 +485,13 @@ def createLegacy(req):
 
 @login_required(login_url='common:login', redirect_field_name='next')
 def createV2(req):
+    if should_redirect_to_mobile_builder(req):
+        return redirect('deck:createMobileV2')
     return _create(req, 'deck/create_v2.html', 'deck:detail')
+
+@login_required(login_url='common:login', redirect_field_name='next')
+def createMobileV2(req):
+    return _create(req, 'deck/create_mobile_v2.html', 'deck:detail')
 
 def createSearch(req):
     language = get_language(req)
@@ -461,6 +535,7 @@ def createSearch(req):
             'frame': card.frame,
             'img_sm': card.img_sm,
             'character': card.character_id,
+            'type': card.type,
             'ultimate': card.ultimate,
         }
         for card in cards
@@ -483,6 +558,7 @@ def get_initial_cards_for_language(card_in_deck, language):
                 'frame': cid.card.frame,
                 'img_sm': cid.card.img_sm,
                 'character': cid.card.character_id,
+                'type': cid.card.type,
                 'ultimate': cid.card.ultimate,
                 'count': 0,
                 'hand': 0,
@@ -524,20 +600,21 @@ def _update(req, id=0, template_name='deck/update.html', detail_route='deck:deta
     else:
         data = json.loads(req.body)
         errorContent = { 'status': 200 }
-        if not ('char' in data.keys()) or not ('name' in data.keys()):
+        if not ('char' in data.keys()) or not ('name' in data.keys()) or not ('deck' in data.keys()):
             errorContent['msg'] =  '형식이 올바르지 못합니다.'
             return JsonResponse(errorContent)
         if data['char'] == '' or data['name'] == '':
             errorContent['msg'] =  '존재하지 않는 데이터가 있습니다.'
-            return JsonResponse(errorContent)
-        if len(data['deck']) < 5 or len(data['deck']) > 40:
-            errorContent['msg'] =  '덱 매수가 너무 적거나 너무 많습니다.'
             return JsonResponse(errorContent)
         normalized_deck, error_msg = normalize_submitted_deck(data['deck'])
         if error_msg:
             errorContent['msg'] = error_msg
             return JsonResponse(errorContent)
         normalized_deck, error_msg = merge_deck_entries(normalized_deck)
+        if error_msg:
+            errorContent['msg'] = error_msg
+            return JsonResponse(errorContent)
+        error_msg = validate_submitted_deck_size(normalized_deck, data['char'])
         if error_msg:
             errorContent['msg'] = error_msg
             return JsonResponse(errorContent)
@@ -569,7 +646,13 @@ def updateLegacy(req, id=0):
 
 @login_required(login_url='common:login', redirect_field_name='next')
 def updateV2(req, id=0):
+    if should_redirect_to_mobile_builder(req):
+        return redirect('deck:updateMobileV2', id=id)
     return _update(req, id, 'deck/create_v2.html', 'deck:detail')
+
+@login_required(login_url='common:login', redirect_field_name='next')
+def updateMobileV2(req, id=0):
+    return _update(req, id, 'deck/create_mobile_v2.html', 'deck:detail')
 
 @login_required(login_url='common:login', redirect_field_name='next')
 def delete(req, id):

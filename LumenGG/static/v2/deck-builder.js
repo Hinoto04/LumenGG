@@ -38,6 +38,10 @@ function isUltimateCard(card) {
     return card && (card.ultimate === true || card.ultimate === "true" || card.ultimate === 1 || card.ultimate === "1");
 }
 
+function isForcedSideCard(card) {
+    return !!(card && !isUltimateCard(card) && String(card.type || "").includes("특수"));
+}
+
 function countUltimateEntries() {
     return deckEntries.filter((entry) => isUltimateCard(cardStore.get(String(entry.pk)))).length;
 }
@@ -84,15 +88,18 @@ function countEntries(zone = null) {
     return deckEntries.filter((entry) => !zone || entry.zone === zone).length;
 }
 
+function countDeckSizeEntries(zone = null) {
+    return deckEntries.filter((entry) => {
+        if (zone && entry.zone !== zone) return false;
+        return !isUltimateCard(cardStore.get(String(entry.pk)));
+    }).length;
+}
+
 function countCard(pk) {
     return deckEntries.filter((entry) => String(entry.pk) === String(pk)).length;
 }
 
 function canAddCard(card, zone) {
-    if (countEntries() >= maxDeckSize) {
-        alert(t("maxDeckSize", "덱 매수는 최대 {count}장입니다.", { count: maxDeckSize }));
-        return false;
-    }
     if (isUltimateCard(card) && countUltimateEntries() >= 1) {
         alert(t("maxUltimate", "얼티밋 카드는 1장까지만 넣을 수 있습니다."));
         return false;
@@ -116,6 +123,7 @@ function canAddCard(card, zone) {
 function addCard(card, zone = "list") {
     cardStore.set(String(card.pk), card);
     if (isUltimateCard(card)) zone = "list";
+    else if (isForcedSideCard(card)) zone = "side";
     if (!canAddCard(card, zone)) return;
     deckEntries.push({
         entryId: nextEntryId++,
@@ -131,6 +139,10 @@ function moveEntry(entryId, zone) {
     const card = cardStore.get(String(entry.pk));
     if (isUltimateCard(card) && zone !== "list") {
         alert(t("ultimateNotice", "얼티밋 카드는 얼티밋 영역에 별도로 표시됩니다."));
+        return;
+    }
+    if (isForcedSideCard(card) && zone !== "side") {
+        alert(t("specialSideOnly", "특수 타입 카드는 사이드 덱에만 넣을 수 있습니다."));
         return;
     }
     if (zone === "hand" && countEntries("hand") >= 5) {
@@ -153,6 +165,9 @@ function sortEntries(entries) {
     return [...entries].sort((a, b) => {
         const cardA = cardStore.get(String(a.pk)) || {};
         const cardB = cardStore.get(String(b.pk)) || {};
+        const ultimateA = isUltimateCard(cardA);
+        const ultimateB = isUltimateCard(cardB);
+        if (ultimateA !== ultimateB) return ultimateA ? -1 : 1;
         const frameA = cardA.frame ?? 999;
         const frameB = cardB.frame ?? 999;
         if (frameA !== frameB) return frameA - frameB;
@@ -192,6 +207,11 @@ function makeDeckCard(entry) {
         badge.className = "v2-builder-ultimate-badge";
         badge.textContent = t("ultimate", "얼티밋");
         controls.appendChild(badge);
+    } else if (isForcedSideCard(card)) {
+        const badge = document.createElement("span");
+        badge.className = "v2-builder-zone-badge";
+        badge.textContent = zoneLabels.side;
+        controls.appendChild(badge);
     } else {
         Object.keys(zoneLabels).forEach((zone) => {
             if (zone === entry.zone) return;
@@ -215,12 +235,12 @@ function renderDeck() {
     Object.keys(zoneElements).forEach((zone) => {
         const zoneEntries = sortEntries(deckEntries.filter((entry) => entry.zone === zone));
         zoneEntries.forEach((entry) => zoneElements[zone].appendChild(makeDeckCard(entry)));
-        if (zoneCountElements[zone]) zoneCountElements[zone].textContent = zoneEntries.length;
+        if (zoneCountElements[zone]) zoneCountElements[zone].textContent = countDeckSizeEntries(zone);
     });
 
-    document.getElementById("CardCount").textContent = countEntries();
-    document.getElementById("HandCount").textContent = countEntries("hand");
-    document.getElementById("SideCount").textContent = countEntries("side");
+    document.getElementById("CardCount").textContent = countDeckSizeEntries();
+    document.getElementById("HandCount").textContent = countDeckSizeEntries("hand");
+    document.getElementById("SideCount").textContent = countDeckSizeEntries("side");
 }
 
 function makeSearchCard(card) {
@@ -307,12 +327,22 @@ function aggregateDeck() {
         if (entry.zone === "hand") aggregate[entry.pk].hand += 1;
         if (entry.zone === "side") aggregate[entry.pk].side += 1;
     });
+    Object.entries(aggregate).forEach(([pk, values]) => {
+        if (isForcedSideCard(cardStore.get(String(pk)))) {
+            values.hand = 0;
+            values.side = values.count;
+        }
+    });
     return Object.keys(aggregate).map((pk) => [pk, aggregate[pk]]);
 }
 
 function submitDeck() {
     const form = document.getElementById("submitForm");
     if (!form) return;
+    if (countDeckSizeEntries() > maxDeckSize) {
+        alert(t("maxDeckSize", "덱 매수는 최대 {count}장입니다.", { count: maxDeckSize }));
+        return;
+    }
     const formData = new FormData(form);
     const payload = {};
     formData.forEach((value, key) => {
@@ -350,6 +380,10 @@ function loadInitialDeck() {
         cardStore.set(String(card.pk), card);
         if (isUltimateCard(card)) {
             if (card.count > 0 && countUltimateEntries() === 0) addInitialEntry(card.pk, "list");
+            return;
+        }
+        if (isForcedSideCard(card)) {
+            for (let i = 0; i < card.count; i++) addInitialEntry(card.pk, "side");
             return;
         }
         for (let i = 0; i < card.hand; i++) addInitialEntry(card.pk, "hand");

@@ -192,6 +192,9 @@
     font-size: 20px;
     font-weight: 700;
 }
+.hpfp > span.fp-positive { color: #12845f; }
+.hpfp > span.fp-negative { color: #c83838; }
+.hpfp > span.fp-zero { color: inherit; }
 .black {color: black; }
 .red {color: red; }
 .blue {color: blue; }

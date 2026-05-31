@@ -156,7 +156,13 @@ function processCardLinks($editor) {
 }
 
 $(document).ready(function () {
-    $('#id_description').summernote({
+    const $description = $('#id_description');
+    if (!$description.length || !$.fn.summernote) {
+        $('p').css('margin-bottom','0');
+        return;
+    }
+
+    $description.summernote({
         placeholder: '내용을 입력해주세요.',
         height: 500,
         lang: 'ko-KR',

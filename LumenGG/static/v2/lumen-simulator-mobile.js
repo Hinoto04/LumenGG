@@ -146,6 +146,24 @@
         return number > 0 ? `+${number}` : String(number);
     }
 
+    function clampRatio(value) {
+        return Math.max(0, Math.min(1, Number(value) || 0));
+    }
+
+    function hpToneStyle(player) {
+        const initialHp = Number(player && player.initial_hp || 0);
+        const ratio = initialHp > 0 ? clampRatio(Number(player && player.hp || 0) / initialHp) : 0.5;
+        const hue = Math.round(4 + (ratio * 136));
+        return ` style="--mobile-hp-ratio:${ratio.toFixed(3)}; --mobile-hp-percent:${(ratio * 100).toFixed(1)}%; --mobile-hp-hue:${hue}"`;
+    }
+
+    function valueSignClass(value) {
+        const number = Number(value || 0);
+        if (number > 0) return "is-positive";
+        if (number < 0) return "is-negative";
+        return "is-zero";
+    }
+
     function cloneData(value) {
         return JSON.parse(JSON.stringify(value));
     }
@@ -997,10 +1015,10 @@
         return `<button class="v2-mobile-counter" type="button" data-mobile-counter-kind="${kind}" data-mobile-counter-side="${side}" data-mobile-counter-amount="${amount}">${escapeHtml(label)}</button>`;
     }
 
-    function renderCounterPanel(side, kind, value) {
+    function renderCounterPanel(side, kind, value, player) {
         if (kind === "hp") {
             return `
-                <div class="v2-mobile-hp">
+                <div class="v2-mobile-hp"${hpToneStyle(player)}>
                     ${counterButton(side, "hp", -100, "-")}
                     <div class="v2-mobile-counter-value">${escapeHtml(Number(value || 0))}${counterDelta(side, "hp")}${counterPending(side, "hp")}</div>
                     ${counterButton(side, "hp", 100, "+")}
@@ -1010,7 +1028,7 @@
         return `
             <div class="v2-mobile-fp">
                 ${counterButton(side, "fp", 1, "+")}
-                <button class="v2-mobile-counter-value" type="button" data-mobile-fp-reset="${side}">${escapeHtml(formatSigned(value || 0))} FP${counterDelta(side, "fp")}${counterPending(side, "fp")}</button>
+                <button class="v2-mobile-counter-value ${valueSignClass(value)}" type="button" data-mobile-fp-reset="${side}">${escapeHtml(formatSigned(value || 0))} FP${counterDelta(side, "fp")}${counterPending(side, "fp")}</button>
                 ${counterButton(side, "fp", -1, "-")}
             </div>
         `;
@@ -1382,13 +1400,13 @@
         return `
             <section class="v2-mobile-player is-${position}${statusClass}" data-mobile-player="${side}">
                 <div class="v2-mobile-player-name">${escapeHtml(playerLabel(side))} ${escapeHtml(player.name || "")}</div>
-                ${renderCounterPanel(side, "hp", player.hp)}
+                ${renderCounterPanel(side, "hp", player.hp, player)}
                 <div class="v2-mobile-combat-line is-${position}">
-                    ${position === "left" ? renderCounterPanel(side, "fp", player.fp) : ""}
+                    ${position === "left" ? renderCounterPanel(side, "fp", player.fp, player) : ""}
                     <div class="v2-mobile-battle">
                         <div class="v2-mobile-battle-cards">${battleHtml}</div>
                     </div>
-                    ${position === "right" ? renderCounterPanel(side, "fp", player.fp) : ""}
+                    ${position === "right" ? renderCounterPanel(side, "fp", player.fp, player) : ""}
                 </div>
                 <div class="v2-mobile-passive" data-mobile-passive-panel="${side}"></div>
                 <div class="v2-mobile-zone-buttons">${zoneButtons}</div>

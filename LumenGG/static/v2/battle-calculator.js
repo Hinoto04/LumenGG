@@ -497,6 +497,9 @@
             if (fp) {
                 const value = document.createElement("strong");
                 value.textContent = player.fp > 0 ? `+${player.fp}` : String(player.fp);
+                fp.classList.toggle("is-positive", Number(player.fp || 0) > 0);
+                fp.classList.toggle("is-negative", Number(player.fp || 0) < 0);
+                fp.classList.toggle("is-zero", Number(player.fp || 0) === 0);
                 fp.replaceChildren(value);
             }
             if (hand) {

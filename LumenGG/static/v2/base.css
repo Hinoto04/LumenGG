@@ -1795,7 +1795,8 @@ label:has(> input.검색체크:checked) {
     text-align: center;
 }
 
-.v2-builder-ultimate-badge {
+.v2-builder-ultimate-badge,
+.v2-builder-zone-badge {
     display: inline-flex;
     grid-column: 1 / -1;
     align-items: center;
@@ -1807,6 +1808,12 @@ label:has(> input.검색체크:checked) {
     background: var(--v2-accent);
     font-size: .78rem;
     font-weight: 900;
+}
+
+.v2-builder-zone-badge {
+    border-color: rgba(91, 190, 176, .66);
+    color: #d7fff8;
+    background: rgba(13, 65, 63, .9);
 }
 
 .v2-builder-card-actions button:hover {
@@ -4594,6 +4601,22 @@ label:has(> input.검색체크:checked) {
 }
 
 .v2-battle-fp-value {
+    color: var(--v2-muted);
+}
+
+.v2-battle-fp-value.is-positive {
+    border-color: rgba(91, 190, 176, .64);
+    color: var(--v2-teal);
+    background: linear-gradient(135deg, rgba(91, 190, 176, .2), color-mix(in srgb, var(--v2-surface-2) 84%, transparent) 72%);
+}
+
+.v2-battle-fp-value.is-negative {
+    border-color: rgba(217, 105, 105, .68);
+    color: var(--v2-red);
+    background: linear-gradient(135deg, rgba(217, 105, 105, .22), color-mix(in srgb, var(--v2-surface-2) 84%, transparent) 72%);
+}
+
+.v2-battle-fp-value.is-zero {
     color: var(--v2-purple);
 }
 

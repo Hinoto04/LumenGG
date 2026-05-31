@@ -46,6 +46,15 @@ var timeoutId = null; // 유예시간 타이머 ID
 var nowControl = null;
 var accumulatedValue = 0; // 버튼 안의 숫자 누적 값
 
+function updateFpTone(target) {
+    let fp = $(target);
+    let value = Number(fp.text());
+    fp.removeClass('fp-positive fp-negative fp-zero');
+    if(value > 0) fp.addClass('fp-positive');
+    else if(value < 0) fp.addClass('fp-negative');
+    else fp.addClass('fp-zero');
+}
+
 function hpfpChange(type, sign, accsign, event, obj) {
     event.preventDefault(); // 기본 동작 방지
     let button = $(obj);
@@ -70,6 +79,7 @@ function hpfpChange(type, sign, accsign, event, obj) {
         let player = hpElement.attr('id').substr(0,2);
         let currentHp = parseInt(hpElement.text()); // 현재 HP 가져오기
         hpElement.text(currentHp + accumulatedValue*Number(sign+'1')); // HP에 누적 값 더하기
+        if(type == 'FP') updateFpTone(hpElement);
         playerInfoChangeLog(type, player, accumulatedValue*Number(sign+'1'), hpElement.text());
         button.text(sign); // 버튼 숫자 초기화
         accumulatedValue = 0; // 누적 값 초기화
@@ -109,12 +119,16 @@ $(document).ready(function () {
         let fp = $(this).find('span').text();
         console.log(fp);
         $(this).find('span').text(0);
+        updateFpTone($(this).find('span'));
         console.log(Number(fp)*-1);
         playerFPResetLog('P1', Number(fp));
     });
     $('#P2FPReset').on('click', function(event) {
         let fp = $(this).find('span').text();
         $(this).find('span').text(0);
+        updateFpTone($(this).find('span'));
         playerFPResetLog('P2', Number(fp));
     });
+    updateFpTone('#P1_fp');
+    updateFpTone('#P2_fp');
 });

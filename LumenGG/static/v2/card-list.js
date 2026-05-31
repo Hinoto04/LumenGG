@@ -13,7 +13,8 @@ const filterGrid = document.getElementById("v2FilterGrid");
 if (filterToggle && filterGrid) {
     const params = new URLSearchParams(window.location.search);
     const hasFilter = [...params.keys()].some((key) => key !== "page" && key !== "keyword" && key !== "sort");
-    if (hasFilter) {
+    const isCompactViewport = window.matchMedia("(max-width: 760px)").matches;
+    if (hasFilter && !isCompactViewport) {
         filterGrid.classList.add("is-open");
     }
 

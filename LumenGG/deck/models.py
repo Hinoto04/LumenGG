@@ -4,6 +4,10 @@ from django.contrib.auth.models import User
 from card.models import Character, Card
 
 # Create your models here.
+def is_forced_side_card(card):
+    return bool(card and not card.ultimate and '특수' in (card.type or ''))
+
+
 class Deck(models.Model):
     VISIBILITY_PUBLIC = 'public'
     VISIBILITY_UNLISTED = 'unlisted'
@@ -46,9 +50,10 @@ class Deck(models.Model):
         if not created:
             # If the card already exists, increment the count
             card_in_deck.count += 1
-            card_in_deck.save()
-        else:
-            card_in_deck.save()
+        if is_forced_side_card(card):
+            card_in_deck.hand = 0
+            card_in_deck.side = card_in_deck.count
+        card_in_deck.save()
         return card_in_deck
 
 class CardInDeck(models.Model):

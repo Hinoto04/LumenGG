@@ -252,6 +252,24 @@
         return number > 0 ? `+${number}` : String(number);
     }
 
+    function clampRatio(value) {
+        return Math.max(0, Math.min(1, Number(value) || 0));
+    }
+
+    function hpToneStyle(player) {
+        const initialHp = Number(player && player.initial_hp || 0);
+        const ratio = initialHp > 0 ? clampRatio(Number(player && player.hp || 0) / initialHp) : 0.5;
+        const hue = Math.round(4 + (ratio * 136));
+        return ` style="--sim-hp-ratio:${ratio.toFixed(3)}; --sim-hp-percent:${(ratio * 100).toFixed(1)}%; --sim-hp-hue:${hue}"`;
+    }
+
+    function valueSignClass(value) {
+        const number = Number(value || 0);
+        if (number > 0) return "is-positive";
+        if (number < 0) return "is-negative";
+        return "is-zero";
+    }
+
     function maxEventSeq(rows) {
         return Math.max(0, ...(rows || []).map((event) => Number(event && event.seq || 0)).filter(Number.isFinite));
     }
@@ -1745,13 +1763,13 @@
                     <div class="v2-sim-hp">
                         ${counterButton("-500", side, "hp", -500, "is-damage")}
                         ${counterButton("-", side, "hp", -100, "is-damage")}
-                        <strong data-counter-value="hp:${side}">${counterValueMarkup("hp", side, player.hp)}</strong>
+                        <strong data-counter-value="hp:${side}"${hpToneStyle(player)}>${counterValueMarkup("hp", side, player.hp)}</strong>
                         ${counterButton("+", side, "hp", 100, "is-heal")}
                         ${counterButton("+500", side, "hp", 500, "is-heal")}
                     </div>
                     <div class="v2-sim-fp">
                         ${counterButton("-", side, "fp", -1, "")}
-                        <button class="v2-sim-fp-value" type="button" data-fp-reset="${side}" data-counter-value="fp:${side}">${counterValueMarkup("fp", side, player.fp)}</button>
+                        <button class="v2-sim-fp-value ${valueSignClass(player.fp)}" type="button" data-fp-reset="${side}" data-counter-value="fp:${side}">${counterValueMarkup("fp", side, player.fp)}</button>
                         ${counterButton("+", side, "fp", 1, "")}
                     </div>
                 </div>

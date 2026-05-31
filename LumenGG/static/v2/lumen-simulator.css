@@ -543,6 +543,34 @@
     font-weight: 900;
 }
 
+.v2-sim-hp strong {
+    border-color: hsl(var(--sim-hp-hue, 140) 58% 38% / .7);
+    color: hsl(var(--sim-hp-hue, 140) 72% 86%);
+    background:
+        radial-gradient(circle at 50% 0, hsl(var(--sim-hp-hue, 140) 72% 42% / .34), transparent 70%),
+        linear-gradient(90deg,
+            hsl(var(--sim-hp-hue, 140) 64% 34% / .42) 0%,
+            hsl(var(--sim-hp-hue, 140) 64% 34% / .42) var(--sim-hp-percent, 50%),
+            var(--v2-surface) var(--sim-hp-percent, 50%),
+            var(--v2-surface) 100%);
+}
+
+.v2-sim-fp-value.is-positive {
+    border-color: rgba(91, 190, 176, .7);
+    color: #9af5dc;
+    background: linear-gradient(135deg, rgba(91, 190, 176, .22), var(--v2-soft-bg) 72%);
+}
+
+.v2-sim-fp-value.is-negative {
+    border-color: rgba(217, 105, 105, .72);
+    color: #ffb0b0;
+    background: linear-gradient(135deg, rgba(217, 105, 105, .24), var(--v2-soft-bg) 72%);
+}
+
+.v2-sim-fp-value.is-zero {
+    color: var(--v2-text);
+}
+
 .v2-sim-counter-main {
     pointer-events: none;
 }

@@ -144,7 +144,7 @@
     const loadingImgLink = '{% static "Image Loading.png" %}' 
 </script>
 <script src="{% static "deck/create.js" %}"></script>
-<script src="{% static "deck/deckCardLink.js" %}"></script>
+<script src="{% static "deck/deckCardLink.js" %}?v=20260601-summernote-guard"></script>
 <script src="{% static "imgloading.js" %}"></script>
 <script>
     $('label').each(function() {
@@ -168,6 +168,8 @@
             'name': "{{ card.card.name }}",
             'img': "{{ card.card.img_sm }}",
             'character': {{ card.card.character.id }},
+            'type': "{{ card.card.type }}",
+            'ultimate': {{ card.card.ultimate|yesno:"true,false" }},
         });
         for (let i = 0; i < {{ card.count }}; i++) {
             Increase({{ card.card.id }});
