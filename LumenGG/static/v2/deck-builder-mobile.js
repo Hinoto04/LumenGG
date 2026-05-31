@@ -16,7 +16,7 @@ const zoneLabels = {
 };
 
 const mobileZoneButtonLabels = {
-    list: zoneLabels.list,
+    list: "L",
     hand: "H",
     side: "S",
 };

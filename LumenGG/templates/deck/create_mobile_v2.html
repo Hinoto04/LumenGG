@@ -5,7 +5,7 @@
 {% block title %}{% if is_update %}{% tr "수정" %}{% else %}{% tr "덱 만들기" %}{% endif %} - LumenDB V2{% endblock title %}
 {% block legacy_href %}{% if is_update %}{% url "deck:legacyUpdate" deck.id %}{% else %}{% url "deck:legacyCreate" %}{% endif %}{% endblock legacy_href %}
 {% block style %}
-<link rel="stylesheet" href="{% static "v2/deck-builder-mobile.css" %}?v=20260601-native-callout-off">
+<link rel="stylesheet" href="{% static "v2/deck-builder-mobile.css" %}?v=20260601-zone-card-fit">
 {% endblock style %}
 {% block content %}
 <section class="v2-deck-mobile-builder" data-mobile-deck-builder>
@@ -131,6 +131,6 @@
         }
     };
 </script>
-<script src="{% static "v2/deck-builder-mobile.js" %}?v=20260601-touch-drag-stability"></script>
+<script src="{% static "v2/deck-builder-mobile.js" %}?v=20260601-mobile-zone-initials"></script>
 <script src="{% static "deck/deckCardLink.js" %}?v=20260601-summernote-guard"></script>
 {% endblock content %}

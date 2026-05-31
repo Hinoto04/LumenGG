@@ -349,6 +349,8 @@
 .v2-deck-mobile-zone {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
+    min-width: 0;
+    overflow: hidden;
 }
 
 .v2-deck-mobile-zone.is-drag-over {
@@ -371,6 +373,7 @@
 
 .v2-mobile-builder-card {
     position: relative;
+    align-self: start;
     flex: 0 0 var(--mobile-deck-card-width);
     width: var(--mobile-deck-card-width);
     overflow: hidden;
@@ -382,6 +385,11 @@
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
+}
+
+.v2-deck-mobile-bottom-zones .v2-mobile-builder-card {
+    flex-basis: min(var(--mobile-deck-card-width), 100%);
+    width: min(var(--mobile-deck-card-width), 100%);
 }
 
 .v2-mobile-builder-card.is-ultimate {
@@ -514,26 +522,37 @@
 
     .v2-deck-mobile-card-row {
         flex-direction: column;
+        flex-wrap: nowrap;
+        align-content: flex-start;
         overflow-x: hidden;
         overflow-y: auto;
         align-items: flex-start;
+        overscroll-behavior: contain;
     }
 
     .v2-mobile-builder-card {
         flex: 0 0 auto;
     }
 
+    .v2-deck-mobile-bottom-zones .v2-mobile-builder-card {
+        width: min(100%, clamp(46px, 15vw, 64px));
+    }
+
     .v2-deck-mobile-zone[data-zone="list"] .v2-deck-mobile-card-row {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, var(--mobile-portrait-list-card-width)));
+        grid-auto-rows: max-content;
         align-content: start;
         align-items: start;
         justify-content: start;
+        justify-items: stretch;
+        gap: 6px;
         overflow-x: hidden;
         overflow-y: auto;
     }
 
     .v2-deck-mobile-zone[data-zone="list"] .v2-mobile-builder-card {
+        min-width: 0;
         width: 100%;
     }
 
