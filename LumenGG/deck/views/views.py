@@ -35,7 +35,7 @@ MOBILE_UA_KEYWORDS = (
 
 NEUTRAL_CHARACTER_ID = 1
 KIMERA_CHARACTER_ID = 15
-KIMERA_SHARED_CARD_TYPES = ('공격')
+KIMERA_SHARED_CARD_TYPES = ('공격',)
 
 
 def is_mobile_deck_builder_request(req):
