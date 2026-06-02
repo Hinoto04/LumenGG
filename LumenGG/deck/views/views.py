@@ -33,6 +33,10 @@ MOBILE_UA_KEYWORDS = (
     'windows phone',
 )
 
+NEUTRAL_CHARACTER_ID = 1
+KIMERA_CHARACTER_ID = 15
+KIMERA_SHARED_CARD_TYPES = ('공격')
+
 
 def is_mobile_deck_builder_request(req):
     if req.GET.get('mobile') in ('1', 'true', 'yes'):
@@ -504,13 +508,18 @@ def createSearch(req):
     q = Q()
     c = Q()
     if neutral != '':
-        c.add(Q(character__id=1), c.OR)
-    if char == '15':
-        for i in range(2, Character.objects.count()+1):
-            if i != 15:
-                c.add(Q(character__id=i)&Q(ultimate=False)&Q(type='공격'), c.OR)
-            else:
-                c.add(Q(character__id=i), c.OR)
+        c.add(Q(character__id=NEUTRAL_CHARACTER_ID), c.OR)
+    if char == str(KIMERA_CHARACTER_ID):
+        other_character_ids = Character.objects.exclude(
+            id__in=[NEUTRAL_CHARACTER_ID, KIMERA_CHARACTER_ID],
+        ).values_list('id', flat=True)
+        c.add(Q(character__id=KIMERA_CHARACTER_ID), c.OR)
+        c.add(
+            Q(character__id__in=other_character_ids)
+            & Q(ultimate=False)
+            & Q(type__in=KIMERA_SHARED_CARD_TYPES),
+            c.OR,
+        )
     elif char != '':
         c.add(Q(character__id=int(char)), c.OR)
     q.add(c, q.AND)
