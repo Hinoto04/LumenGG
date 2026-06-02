@@ -7,6 +7,8 @@ var listCount = 0;
 var handCount = 0;
 var sideCount = 0;
 var maxDeckSize = 21;
+const KIMERA_CHARACTER_ID = "15";
+const NEUTRAL_CHARACTER_ID = "1";
 
 var exceptList = {};
 
@@ -44,7 +46,7 @@ function charChange() {
     
     for(pk of Object.keys(deckList)) {
         let card = listSearch(pk)
-        if(card['fields']['character'] != 1) {
+        if(card && !canUseCardForCharacter(card, $(this).val())) {
             listCount -= deckList[pk]['count'];
             handCount -= deckList[pk]['hand'];
             sideCount -= deckList[pk]['side'];
@@ -123,6 +125,21 @@ function listSearch(pk) {
 function isUltimateCard(pk) {
     const card = listSearch(pk) || {};
     return card["ultimate"] === true || card["ultimate"] === "true" || card["ultimate"] === 1 || card["ultimate"] === "1";
+}
+
+function isUltimateCardData(card) {
+    return card && (card["ultimate"] === true || card["ultimate"] === "true" || card["ultimate"] === 1 || card["ultimate"] === "1");
+}
+
+function isAttackOrDefenseCard(card) {
+    const type = String(card?.["type"] || "");
+    return type.includes("공격") || type.includes("수비");
+}
+
+function canUseCardForCharacter(card, characterId) {
+    if (!card) return false;
+    if (String(card["character"]) === NEUTRAL_CHARACTER_ID || String(card["character"]) === String(characterId)) return true;
+    return String(characterId) === KIMERA_CHARACTER_ID && !isUltimateCardData(card) && isAttackOrDefenseCard(card);
 }
 
 function isForcedSideCard(pk) {

@@ -33,9 +33,22 @@ const deckEntries = [];
 const touchOnly = window.matchMedia("(pointer: coarse)").matches;
 let nextEntryId = 1;
 let maxDeckSize = 21;
+const KIMERA_CHARACTER_ID = "15";
+const NEUTRAL_CHARACTER_ID = "1";
 
 function isUltimateCard(card) {
     return card && (card.ultimate === true || card.ultimate === "true" || card.ultimate === 1 || card.ultimate === "1");
+}
+
+function isAttackOrDefenseCard(card) {
+    const type = String(card?.type || "");
+    return type.includes("공격") || type.includes("수비");
+}
+
+function canUseCardForCharacter(card, characterId) {
+    if (!card) return false;
+    if (String(card.character) === NEUTRAL_CHARACTER_ID || String(card.character) === String(characterId)) return true;
+    return String(characterId) === KIMERA_CHARACTER_ID && !isUltimateCard(card) && isAttackOrDefenseCard(card);
 }
 
 function isForcedSideCard(card) {
@@ -76,7 +89,7 @@ function syncSearchCharacter(pruneCards = false) {
     if (pruneCards) {
         for (let i = deckEntries.length - 1; i >= 0; i--) {
             const card = cardStore.get(String(deckEntries[i].pk));
-            if (card && String(card.character) !== "1" && String(card.character) !== String(characterId)) {
+            if (card && !canUseCardForCharacter(card, characterId)) {
                 deckEntries.splice(i, 1);
             }
         }
