@@ -302,6 +302,25 @@
         panel.style.setProperty("--battle-hp-strong-color", `hsl(${hue} 78% 62%)`);
     }
 
+    function handLimitForPlayer(player) {
+        const character = player && player.character;
+        if (!character) return null;
+        const table = character.hand_table || {};
+        const hp = Number(player.hp || 0);
+        const thresholds = Object.keys(table)
+            .map((key) => Number(key))
+            .filter((value) => Number.isFinite(value))
+            .sort((a, b) => a - b);
+        if (thresholds.length) {
+            for (const threshold of thresholds) {
+                if (hp <= threshold) return table[String(threshold)] ?? table[threshold];
+            }
+            const highest = thresholds[thresholds.length - 1];
+            return table[String(highest)] ?? table[highest];
+        }
+        return character.hand_limit;
+    }
+
     function showHpDelta(target, amount) {
         if (!amount) return;
         const hpBox = document.querySelector(`[data-player-hp="${target}"]`)?.closest(".v2-battle-hp > div");
@@ -503,7 +522,7 @@
                 fp.replaceChildren(value);
             }
             if (hand) {
-                const limit = player.character ? player.character.hand_limit : null;
+                const limit = handLimitForPlayer(player);
                 hand.textContent = limit ? `${t("손패")} ${limit}` : t("손패 -");
             }
             renderCharacter(target);
@@ -723,7 +742,9 @@
     function optimisticHp(target, amount) {
         return (draft) => {
             if (!draft.players || !draft.players[target]) return;
-            draft.players[target].hp += amount;
+            const player = draft.players[target];
+            player.hp += amount;
+            if (player.character) player.character.hand_limit = handLimitForPlayer(player);
             draft.suggested_winner = "";
             if (draft.players.p1.hp <= 0 && draft.players.p2.hp > 0) draft.suggested_winner = "p2";
             if (draft.players.p2.hp <= 0 && draft.players.p1.hp > 0) draft.suggested_winner = "p1";
@@ -780,9 +801,11 @@
             if (enabled && draft.players) {
                 ["p1", "p2"].forEach((target) => {
                     if (!draft.players[target]) return;
-                    draft.players[target].hp = 1000;
-                    draft.players[target].fp = 0;
-                    draft.players[target].passive_state = {};
+                    const player = draft.players[target];
+                    player.hp = 1000;
+                    player.fp = 0;
+                    player.passive_state = {};
+                    if (player.character) player.character.hand_limit = handLimitForPlayer(player);
                 });
             }
         };

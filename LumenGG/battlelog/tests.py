@@ -14,7 +14,13 @@ from tournament.models import Tournament, TournamentDeckSubmission, TournamentMa
 from .models import BattleEvent, BattleSession, LumenSimulatorSession, RealtimePresence
 from .event_buffer import flush_session_events
 from .presence import battle_presence_counts, register_presence, simulator_presence_counts, unregister_presence
-from .services import _passive_ui, cleanup_expired_sessions, create_standalone_session, get_or_create_tournament_session
+from .services import (
+    _passive_ui,
+    cleanup_expired_sessions,
+    create_standalone_session,
+    get_or_create_tournament_session,
+    serialize_session,
+)
 from .simulator_services import create_simulator_session, serialize_simulator_card_metadata, serialize_simulator_session
 
 
@@ -96,6 +102,27 @@ class BattleCalculatorTests(TestCase):
         self.assertEqual(session.player1_hp, 4700)
         flush_session_events(session.id)
         self.assertEqual(BattleEvent.objects.filter(event_type=BattleEvent.EVENT_HP).count(), 1)
+
+    def test_calculator_serializes_hand_table_and_updates_limit_by_hp(self):
+        session = create_standalone_session('A', 'B', self.char_a, self.char_b)
+        state = serialize_session(session, control_token=session.control_token, include_events=False)
+
+        self.assertEqual(state['players']['p1']['character']['hand_table'], {5000: 6, 4000: 7, 3000: 8})
+        self.assertEqual(state['players']['p1']['character']['hand_limit'], 6)
+
+        action_url = reverse('battlelog:sessionAction', kwargs={'view_token': session.view_token})
+        response = self.post_json(action_url, {
+            'action': 'hp',
+            'target': 'p1',
+            'amount': -1000,
+            'control_token': session.control_token,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        next_state = response.json()['state']
+        self.assertEqual(next_state['players']['p1']['hp'], 4000)
+        self.assertEqual(next_state['players']['p1']['character']['hand_table'], {'5000': 6, '4000': 7, '3000': 8})
+        self.assertEqual(next_state['players']['p1']['character']['hand_limit'], 7)
 
     def test_standalone_session_expiry_extends_one_hour_after_last_action(self):
         session = create_standalone_session('A', 'B', self.char_a, self.char_b)

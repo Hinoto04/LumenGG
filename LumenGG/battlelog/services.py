@@ -747,6 +747,7 @@ def _character_payload(character, hp, language=DEFAULT_LANGUAGE):
         'img': character.body_img or character.sd_img or character.img,
         'icon_img': character.icon_img,
         'color': character.color,
+        'hand_table': character_hand_table(character),
         'hand_limit': hand_limit_for_hp(character, hp),
         'passive_ui': _passive_ui(character, language),
         'passive_cards': _passive_cards(character, language),
