@@ -2,9 +2,11 @@ from django import template
 
 from common.language import (
     game_term,
+    render_localized_markup,
     translated_card_field,
     translated_character_field,
     translated_pack_field,
+    translate_key,
     ui_text,
 )
 
@@ -16,6 +18,11 @@ def tr(context, text):
     return ui_text(text, context.get('current_language'))
 
 
+@register.simple_tag(takes_context=True)
+def tr_key(context, key, fallback=''):
+    return translate_key(key, context.get('current_language'), fallback=fallback or None)
+
+
 @register.filter(name='ui')
 def ui(value, language):
     return ui_text(value, language)
@@ -24,6 +31,11 @@ def ui(value, language):
 @register.filter(name='term')
 def term(value, language):
     return game_term(value, language)
+
+
+@register.filter(name='localized_text')
+def localized_text(value, language):
+    return render_localized_markup(value, language)
 
 
 @register.filter(name='card_name')

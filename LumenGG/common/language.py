@@ -3,6 +3,18 @@ from functools import lru_cache
 
 from django.db.utils import OperationalError, ProgrammingError
 
+from .localization import (
+    clear_localization_cache,
+    render_localized_markup,
+    source_translations_for_language,
+    translate_card_field as catalog_card_field,
+    translate_character_datas as catalog_character_datas,
+    translate_character_field as catalog_character_field,
+    translate_key,
+    translate_source,
+    translate_text_by_parts as catalog_translate_text_by_parts,
+)
+
 LANGUAGE_KOREAN = 'ko'
 LANGUAGE_ENGLISH = 'en'
 LANGUAGE_JAPANESE = 'ja'
@@ -1517,6 +1529,9 @@ def ui_text(text, language):
     language = normalize_language(language)
     if language == DEFAULT_LANGUAGE:
         return text
+    catalog_value = translate_source(text, language, category='ui')
+    if catalog_value is not None:
+        return catalog_value
     translated = UI_TRANSLATIONS.get(language, {}).get(str(text))
     if translated is not None:
         return translated
@@ -1543,6 +1558,7 @@ def custom_term_translations(language):
 
 def clear_term_translation_cache():
     custom_term_translations.cache_clear()
+    clear_localization_cache()
 
 
 def javascript_translations(language):
@@ -1555,6 +1571,15 @@ def javascript_translations(language):
     translations.update(GAME_TERM_TRANSLATIONS.get(language, {}))
     translations.update(PACK_TERM_TRANSLATIONS.get(language, {}))
     translations.update(custom_term_translations(language))
+    translations.update(source_translations_for_language(
+        language,
+        categories=['ui', 'general', 'pack', 'card_type', 'position', 'body', 'special', 'result', 'tag'],
+    ))
+    translations.update(source_translations_for_language(
+        language,
+        categories=['card', 'character'],
+        field_names=['name'],
+    ))
     return translations
 
 
@@ -1576,6 +1601,15 @@ def _translate_by_parts(text, language, dictionaries):
     text = str(text)
     if text in ('', '-', 'X'):
         return text
+
+    catalog_translated = catalog_translate_text_by_parts(
+        text,
+        language,
+        categories=['general', 'pack', 'card_type', 'position', 'body', 'special', 'result', 'tag', 'card', 'character'],
+        field_names=['name', 'general', 'pack', 'card_type', 'position', 'body', 'special', 'result', 'tag'],
+    )
+    if catalog_translated != text:
+        return catalog_translated
 
     translations = {}
     for dictionary in dictionaries:
@@ -1644,14 +1678,32 @@ def translated_field(obj, related_name, language, field_name, fallback=None):
 
 
 def translated_card_field(card, language, field_name):
-    return translated_field(card, 'translations', language, field_name)
+    language = normalize_language(language)
+    value = catalog_card_field(card, language, field_name)
+    if (
+        language != DEFAULT_LANGUAGE
+        and value == getattr(card, field_name, '')
+    ):
+        value = translated_field(card, 'translations', language, field_name)
+        if field_name in ('text', 'detail_text'):
+            value = render_localized_markup(value, language)
+    return value
 
 
 def translated_character_field(character, language, field_name):
-    fallback = getattr(character, field_name, '') if character is not None else ''
-    if field_name in ('name', 'group'):
-        fallback = game_term(fallback, language)
-    return translated_field(character, 'translations', language, field_name, fallback=fallback)
+    language = normalize_language(language)
+    value = catalog_character_field(character, language, field_name)
+    if (
+        language != DEFAULT_LANGUAGE
+        and value == (getattr(character, field_name, '') if character is not None else '')
+    ):
+        fallback = getattr(character, field_name, '') if character is not None else ''
+        if field_name in ('name', 'group'):
+            fallback = game_term(fallback, language)
+        value = translated_field(character, 'translations', language, field_name, fallback=fallback)
+        if field_name in ('description', 'group'):
+            value = render_localized_markup(value, language)
+    return value
 
 
 def translated_pack_field(pack, language, field_name):
@@ -1661,12 +1713,16 @@ def translated_pack_field(pack, language, field_name):
 
 
 def translated_character_datas(character, language):
+    language = normalize_language(language)
+    catalog_datas = catalog_character_datas(character, language)
+    if language == DEFAULT_LANGUAGE:
+        return catalog_datas
     base_datas = deepcopy(character.datas or {})
-    translation = related_translation(character, 'translations', language)
-    if not translation or not translation.datas:
-        return base_datas
-    translated_datas = deepcopy(translation.datas)
-    if not isinstance(translated_datas, dict):
-        return base_datas
-    base_datas.update(translated_datas)
-    return base_datas
+    if catalog_datas == base_datas:
+        translation = related_translation(character, 'translations', language)
+        if translation and translation.datas:
+            translated_datas = deepcopy(translation.datas)
+            if isinstance(translated_datas, dict):
+                base_datas.update(translated_datas)
+                return base_datas
+    return catalog_datas

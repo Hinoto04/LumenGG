@@ -5,6 +5,7 @@ from django.db.models import Avg
 # Create your models here.
 class Character(models.Model):
     name = models.CharField(max_length=100) #캐릭터명
+    localization_key = models.CharField(max_length=50, blank=True, db_index=True)
     description = models.TextField() #캐릭터 설명
     group = models.CharField(max_length=100) #캐릭터 소속 (루멘콘덴서, 뉴트럴 등)
     datas = models.JSONField() #상세 페이지에서만 불러올 데이터
@@ -17,6 +18,15 @@ class Character(models.Model):
     
     def __str__(self):
         return self.name
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['localization_key'],
+                condition=~models.Q(localization_key=''),
+                name='unique_character_localization_key',
+            ),
+        ]
 
 class CharacterComment(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE)
@@ -63,6 +73,13 @@ class Card(models.Model):
         return self.code + " / " + self.name
 
     class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['code'],
+                condition=~models.Q(code=''),
+                name='unique_nonblank_card_code',
+            ),
+        ]
         permissions = [
             ("tag_update", "태그 수정")
         ]

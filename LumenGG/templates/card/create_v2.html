@@ -50,10 +50,18 @@
     <div class="v2-admin-field">
         <label for="{{ form.text.id_for_label }}">{{ form.text.label }}</label>
         {{ form.text }}
+        {% if translation_preview.text %}
+        <div class="v2-kicker">미리보기</div>
+        <div class="v2-text-panel">{{ translation_preview.text|linebreaks }}</div>
+        {% endif %}
     </div>
     <div class="v2-admin-field">
         <label for="{{ form.detail_text.id_for_label }}">{{ form.detail_text.label }}</label>
         {{ form.detail_text }}
+        {% if translation_preview.detail_text %}
+        <div class="v2-kicker">미리보기</div>
+        <div class="v2-text-panel">{{ translation_preview.detail_text|linebreaks }}</div>
+        {% endif %}
     </div>
     {% else %}
     <div class="v2-admin-grid">

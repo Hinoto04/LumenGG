@@ -1,4 +1,5 @@
 from common.text_search import search_contains, search_equals
+from common.localization import SUPPORTED_TRANSLATION_LANGUAGES, card_translation_key, translate_key
 
 
 BASE_CARD_SEARCH_FIELDS = ('code', 'name', 'ruby')
@@ -18,6 +19,15 @@ def card_search_values(card, include_keywords=True):
     if include_keywords:
         values.extend(getattr(card, field, '') for field in CARD_KEYWORD_SEARCH_FIELDS)
 
+    for language in SUPPORTED_TRANSLATION_LANGUAGES:
+        for field in CARD_TRANSLATION_SEARCH_FIELDS:
+            if include_keywords or field not in CARD_KEYWORD_SEARCH_FIELDS:
+                key = card_translation_key(card, field)
+                translated = translate_key(key, language, fallback='')
+                if translated:
+                    values.append(translated)
+
+    # Legacy rows remain as a safety net while old write paths are phased out.
     for translation in _card_translations(card):
         for field in CARD_TRANSLATION_SEARCH_FIELDS:
             if include_keywords or field not in CARD_KEYWORD_SEARCH_FIELDS:

@@ -29,6 +29,7 @@ from common.language import (
     SUPPORTED_LANGUAGES,
     get_language,
     normalize_language,
+    render_localized_markup,
     translated_character_field,
     ui_text,
 )
@@ -617,6 +618,15 @@ def create(req, template_name='card/create.html', detail_route='card:detail'):
 def createV2(req):
     return create(req, 'card/create_v2.html', 'card:detail')
 
+
+def _card_translation_preview(form, language):
+    return {
+        field_name: render_localized_markup(form[field_name].value() or '', language)
+        for field_name in ('text', 'detail_text')
+        if field_name in form.fields
+    }
+
+
 @permission_required('card.change_card')
 def update(req, id=0, template_name='card/create.html', detail_route='card:detail'):
     language = get_language(req)
@@ -642,13 +652,21 @@ def update(req, id=0, template_name='card/create.html', detail_route='card:detai
 
         if req.method == 'GET':
             form = CardTranslationUpdateForm(instance=translation, card=card, language=language)
-            return render(req, template_name, context={**context_base, 'form': form})
+            return render(req, template_name, context={
+                **context_base,
+                'form': form,
+                'translation_preview': _card_translation_preview(form, language),
+            })
 
         form = CardTranslationUpdateForm(req.POST, instance=translation, card=card, language=language)
         if form.is_valid():
             form.save()
             return redirect(detail_route, card.id)
-        return render(req, template_name, context={**context_base, 'form': form})
+        return render(req, template_name, context={
+            **context_base,
+            'form': form,
+            'translation_preview': _card_translation_preview(form, language),
+        })
     
     if req.method == 'GET':
         form = CardUpdateForm(instance=card)

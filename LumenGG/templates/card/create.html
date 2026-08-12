@@ -45,10 +45,18 @@
     <div class="option">
         <label for="{{ form.text.id_for_label }}">{{ form.text.label }}</label>
         {{ form.text }}
+        {% if translation_preview.text %}
+        <div class="small text-muted">미리보기</div>
+        <div>{{ translation_preview.text|linebreaks }}</div>
+        {% endif %}
     </div>
     <div class="option">
         <label for="{{ form.detail_text.id_for_label }}">{{ form.detail_text.label }}</label>
         {{ form.detail_text }}
+        {% if translation_preview.detail_text %}
+        <div class="small text-muted">미리보기</div>
+        <div>{{ translation_preview.detail_text|linebreaks }}</div>
+        {% endif %}
     </div>
     {% else %}
     <div class="행">
