@@ -5,7 +5,8 @@ from django.urls import reverse
 from card.models import Card, CardTranslation, Character, CharacterTranslation
 from card.search import card_matches_search
 from common.language import LANGUAGE_COOKIE_NAME, game_term, javascript_translations, translated_card_field, translated_character_field, ui_text
-from common.localization import card_translation_key
+from common.localization import card_translation_key, render_localized_markup
+from common.management.commands.convert_localized_references import Command as ConvertLocalizedReferencesCommand
 from common.models import TermTranslation, TranslationSource, TranslationValue
 
 
@@ -114,13 +115,13 @@ class TranslationLookupTests(TestCase):
             img='https://example.com/source.webp',
         )
 
-        self.assertEqual(translated_card_field(source, 'en', 'text'), 'Use Reference Card.')
-        self.assertEqual(translated_card_field(source, 'ko', 'text'), 'Use 참조 카드.')
+        self.assertEqual(translated_card_field(source, 'en', 'text'), 'Use [Reference Card].')
+        self.assertEqual(translated_card_field(source, 'ko', 'text'), 'Use [참조 카드].')
 
         reference_translation.name = 'Renamed Card'
         reference_translation.save()
 
-        self.assertEqual(translated_card_field(source, 'en', 'text'), 'Use Renamed Card.')
+        self.assertEqual(translated_card_field(source, 'en', 'text'), 'Use [Renamed Card].')
 
     def test_character_reference_token_renders_current_translated_name(self):
         character = Character.objects.create(
@@ -138,7 +139,199 @@ class TranslationLookupTests(TestCase):
             description='About [[character:nya]]',
         )
 
-        self.assertEqual(translated_character_field(character, 'en', 'description'), 'About NYA')
+        self.assertEqual(translated_character_field(character, 'en', 'description'), 'About [NYA]')
+
+    def test_character_technique_condition_conversion_wraps_angle_outside_square_name(self):
+        character = Character.objects.create(
+            name='니아',
+            localization_key='nya',
+            description='',
+            group='루멘콘덴서',
+            datas={},
+            img='https://example.com/nia.webp',
+        )
+        CharacterTranslation.objects.create(
+            character=character,
+            language='ja',
+            name='ニア',
+        )
+        rin = Character.objects.create(
+            name='린',
+            localization_key='rin',
+            description='',
+            group='루멘콘덴서',
+            datas={},
+            img='https://example.com/rin.webp',
+        )
+        command = ConvertLocalizedReferencesCommand()
+        command.cards = []
+        command.card_lookup = {}
+        command.characters = [character, rin]
+        targets = command.build_targets_for_language('ko')
+
+        converted = command.replace_targets(
+            '모든 [니아] 공격 기술과 9속도 이하 니아 기술 및 버린 기술',
+            targets,
+            'TKN-SRC',
+        )
+
+        self.assertEqual(
+            converted,
+            '모든 <[[character:nya]] 공격> 기술과 <9속도 이하 [[character:nya]]> 기술 및 버린 기술',
+        )
+        self.assertEqual(
+            render_localized_markup(converted, 'ko'),
+            '모든 <[니아] 공격> 기술과 <9속도 이하 [니아]> 기술 및 버린 기술',
+        )
+
+        ja_targets = command.build_targets_for_language('ja')
+        self.assertEqual(
+            command.replace_targets('速度9以下のニア技', ja_targets, 'TKN-SRC'),
+            '<速度9以下の [[character:nya]]> 技',
+        )
+
+    def test_semantic_conversion_distinguishes_yin_yang_states_and_tokens(self):
+        command = ConvertLocalizedReferencesCommand()
+        command.cards = []
+        command.card_lookup = {}
+        command.characters = []
+        targets = command.build_targets_for_language('ko')
+
+        converted = command.replace_targets(
+            '「음」: 상태 / 「음」카운터 / 【양】카운터 / [드럼]',
+            targets,
+            'TKN-SRC',
+        )
+
+        self.assertEqual(
+            converted,
+            '[[state:yin]]: 상태 / [[token:yin]]카운터 / [[token:yang]]카운터 / [[token:drum]]',
+        )
+        self.assertEqual(
+            render_localized_markup(converted, 'ko'),
+            '「음」: 상태 / 【음】카운터 / 【양】카운터 / 【드럼】',
+        )
+
+    def test_named_keywords_and_character_states_use_semantic_tokens(self):
+        command = ConvertLocalizedReferencesCommand()
+        command.cards = []
+        command.card_lookup = {}
+        command.characters = []
+        targets = command.build_targets_for_language('ko')
+
+        converted = command.replace_targets(
+            '"라이!"와 "레피!" / 「오버 리밋」 / 「제로 슈트」 / '
+            '「예고」 / 라이!명이 / [[state-card:ST1-PS1]] / [[state-card:ST4-PS1]]',
+            targets,
+            'TKN-SRC',
+        )
+
+        self.assertEqual(
+            converted,
+            '[[keyword:rai]]와 [[keyword:lefi]] / [[state:over_limit]] / '
+            '[[state:zero_suit]] / [[state:advance_notice]] / [[keyword:rai]]명이 / '
+            '[[state:over_limit]] / [[state:advance_notice]]',
+        )
+
+        command.ensure_keyword_sources()
+        command.ensure_semantic_sources()
+        self.assertEqual(
+            render_localized_markup(converted, 'en'),
+            '"Rai!"와 "Lefi!" / 「Over Limit」 / 「Zero Suit」 / '
+            '「Advance Notice」 / "Rai!"명이 / 「Over Limit」 / 「Advance Notice」',
+        )
+
+    def test_semantic_reference_tokens_render_with_standard_marks(self):
+        character = Character.objects.create(
+            name='니아',
+            localization_key='nya',
+            description='',
+            group='루멘콘덴서',
+            datas={},
+            img='https://example.com/nia.webp',
+        )
+        state_card = Card.objects.create(
+            name='「오버 리밋」',
+            code='TKN-STATE',
+            type='특성',
+            character=character,
+            img='https://example.com/state.webp',
+        )
+        token_card = Card.objects.create(
+            name='【불씨】',
+            code='TKN-COUNTER',
+            type='토큰',
+            character=character,
+            img='https://example.com/token.webp',
+        )
+        source = Card.objects.create(
+            name='표기 테스트',
+            code='TKN-MARKUP',
+            character=character,
+            text=(
+                '[[state-card:TKN-STATE]] and [[token-card:TKN-COUNTER]] '
+                'and [[keyword:rakshasa]] and [[state:harmony]] and [[token:hidden_bond]]'
+            ),
+            img='https://example.com/source.webp',
+        )
+        keyword, _created = TranslationSource.objects.update_or_create(
+            key='keyword.rakshasa',
+            defaults={
+                'category': 'keyword',
+                'source_text': '나찰',
+                'field_name': 'name',
+            },
+        )
+        TranslationValue.objects.update_or_create(
+            source=keyword,
+            language='en',
+            defaults={'text': 'Rakshasa'},
+        )
+        harmony, _created = TranslationSource.objects.update_or_create(
+            key='term.state.harmony',
+            defaults={
+                'category': 'state',
+                'source_text': '조화',
+                'field_name': 'state',
+            },
+        )
+        TranslationValue.objects.update_or_create(
+            source=harmony,
+            language='en',
+            defaults={'text': 'Harmony'},
+        )
+        hidden_bond, _created = TranslationSource.objects.update_or_create(
+            key='term.token.hidden_bond',
+            defaults={
+                'category': 'token',
+                'source_text': '은연',
+                'field_name': 'token',
+            },
+        )
+        TranslationValue.objects.update_or_create(
+            source=hidden_bond,
+            language='en',
+            defaults={'text': 'Hidden Bond'},
+        )
+        CardTranslation.objects.create(
+            card=state_card,
+            language='en',
+            name='Over Limit',
+        )
+        CardTranslation.objects.create(
+            card=token_card,
+            language='en',
+            name='Ember',
+        )
+
+        self.assertEqual(
+            translated_card_field(source, 'ko', 'text'),
+            '「오버 리밋」 and 【불씨】 and "나찰" and 「조화」 and 【은연】',
+        )
+        self.assertEqual(
+            translated_card_field(source, 'en', 'text'),
+            '「Over Limit」 and 【Ember】 and "Rakshasa" and 「Harmony」 and 【Hidden Bond】',
+        )
 
     def test_search_uses_translation_catalog_values(self):
         character = Character.objects.create(

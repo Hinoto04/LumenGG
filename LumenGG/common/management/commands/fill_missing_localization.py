@@ -144,15 +144,15 @@ CB03_CARD_TRANSLATIONS = {
     'CB03-PS-001': {
         'name': {'en': 'High Tension', 'ja': 'ハイテンション'},
         'text': {
-            'en': '①During the Lumen Phase, if your FP is 5 or higher, you gain [[card:CB03-PS-001]] until end of turn. During this turn, your opponent cannot dodge Techniques with special judgments.\n②[[card:CB03-PS-001]]: When your opponent guards, you lose 1 FP and take 100 damage.',
-            'ja': '①ルーメンフェイズ時、自分のFPが5以上の場合、このターン終了時まで自分は[[card:CB03-PS-001]]状態になる。このターン中、相手は技を特殊判定で回避できない。\n②[[card:CB03-PS-001]]：相手がガードした時、自分は1FPを失い100ダメージを受ける。',
+            'en': '①During the Lumen Phase, if your FP is 5 or higher, you gain [[state-card:CB03-PS-001]] until end of turn. During this turn, your opponent cannot dodge Techniques with special judgments.\n②[[state-card:CB03-PS-001]]: When your opponent guards, you lose 1 FP and take 100 damage.',
+            'ja': '①ルーメンフェイズ時、自分のFPが5以上の場合、このターン終了時まで自分は[[state-card:CB03-PS-001]]状態になる。このターン中、相手は技を特殊判定で回避できない。\n②[[state-card:CB03-PS-001]]：相手がガードした時、自分は1FPを失い100ダメージを受ける。',
         },
     },
     'CB03-AT-001': {
         'name': {'en': 'Authority of the Moon', 'ja': '月の権能'},
         'text': {
-            'en': 'This Technique can only be used if your HP is 2000 or less.\n①[[card:CB03-PS-001]]: Before judgment, negate 1 Attack Technique in your opponent’s Battle Zone and return it to their hand.\n②On combo, this can be used after the 3rd Combo.\n③After use, break this Technique. Then, you cannot catch this turn.',
-            'ja': 'この技は自分の体力が2000以下の場合のみ使用できる。\n①[[card:CB03-PS-001]]：判定前、相手のバトルゾーンの攻撃技1枚を無効にして相手の手札に戻す。\n②コンボ時、3コンボ後に使用できる。\n③使用後、この技をブレイクする。その後、このターン自分はキャッチできない。',
+            'en': 'This Technique can only be used if your HP is 2000 or less.\n①[[state-card:CB03-PS-001]]: Before judgment, negate 1 Attack Technique in your opponent’s Battle Zone and return it to their hand.\n②On combo, this can be used after the 3rd Combo.\n③After use, break this Technique. Then, you cannot catch this turn.',
+            'ja': 'この技は自分の体力が2000以下の場合のみ使用できる。\n①[[state-card:CB03-PS-001]]：判定前、相手のバトルゾーンの攻撃技1枚を無効にして相手の手札に戻す。\n②コンボ時、3コンボ後に使用できる。\n③使用後、この技をブレイクする。その後、このターン自分はキャッチできない。',
         },
     },
     'CB03-AT-002': {
@@ -165,8 +165,8 @@ CB03_CARD_TRANSLATIONS = {
     'CB03-AT-003': {
         'name': {'en': 'Moonlight Punch', 'ja': '月光パンチ'},
         'text': {
-            'en': '①[[card:CB03-PS-001]]: On hit or counter, you may catch with a <Speed 5 [[character:minyeongi]]> Technique from your hand or List.',
-            'ja': '①[[card:CB03-PS-001]]：ヒットまたはカウンター時、手札またはリストの〈速度5 [[character:minyeongi]]〉技でキャッチできる。',
+            'en': '①[[state-card:CB03-PS-001]]: On hit or counter, you may catch with a <Speed 5 [[character:minyeongi]]> Technique from your hand or List.',
+            'ja': '①[[state-card:CB03-PS-001]]：ヒットまたはカウンター時、手札またはリストの〈速度5 [[character:minyeongi]]〉技でキャッチできる。',
         },
     },
     'CB03-AT-004': {
@@ -179,22 +179,22 @@ CB03_CARD_TRANSLATIONS = {
     'CB03-AT-005': {
         'name': {'en': 'Triple Barrage', 'ja': 'トリプルバラージ'},
         'text': {
-            'en': '①[[card:CB03-PS-001]]: Before judgment, add the <Speed 5 or lower High/Mid/Low Dodge> special judgment and change this Technique’s counter judgment to <+5>.',
-            'ja': '①[[card:CB03-PS-001]]：判定前、〈速度5以下 上段/中段/下段回避〉特殊判定を追加し、この技のカウンター判定を〈+5〉に変更する。',
+            'en': '①[[state-card:CB03-PS-001]]: Before judgment, add the <Speed 5 or lower High/Mid/Low Dodge> special judgment and change this Technique’s counter judgment to <+5>.',
+            'ja': '①[[state-card:CB03-PS-001]]：判定前、〈速度5以下 上段/中段/下段回避〉特殊判定を追加し、この技のカウンター判定を〈+5〉に変更する。',
         },
     },
     'CB03-AT-006': {
         'name': {'en': 'Moonlight Arrow', 'ja': '月光の矢'},
         'text': {
-            'en': '①[[card:CB03-PS-001]]: On hit/counter/combo, gain 1 Technique from the List.\n②On catch, this can be used at <Speed 5>. If so, this Technique’s damage -400.',
-            'ja': '①[[card:CB03-PS-001]]：ヒット/カウンター/コンボ時、リストから技1枚を獲得する。\n②キャッチ時、〈速度5〉として使用できる。その場合、この技のダメージ-400。',
+            'en': '①[[state-card:CB03-PS-001]]: On hit/counter/combo, gain 1 Technique from the List.\n②On catch, this can be used at <Speed 5>. If so, this Technique’s damage -400.',
+            'ja': '①[[state-card:CB03-PS-001]]：ヒット/カウンター/コンボ時、リストから技1枚を獲得する。\n②キャッチ時、〈速度5〉として使用できる。その場合、この技のダメージ-400。',
         },
     },
     'CB03-AT-007': {
         'name': {'en': 'Nemesis', 'ja': 'ネメシス'},
         'text': {
-            'en': '①[[card:CB03-PS-001]]: Before judgment, your opponent cannot guard or clash this Technique. Then, this Technique’s damage +200.\n②Before judgment, lock both Techniques’ Speeds.',
-            'ja': '①[[card:CB03-PS-001]]：判定前、相手はこの技をガードおよび相殺できない。その後、この技のダメージ+200。\n②判定前、お互いの技の速度を固定する。',
+            'en': '①[[state-card:CB03-PS-001]]: Before judgment, your opponent cannot guard or clash this Technique. Then, this Technique’s damage +200.\n②Before judgment, lock both Techniques’ Speeds.',
+            'ja': '①[[state-card:CB03-PS-001]]：判定前、相手はこの技をガードおよび相殺できない。その後、この技のダメージ+200。\n②判定前、お互いの技の速度を固定する。',
         },
     },
     'CB03-AT-008': {
@@ -214,22 +214,22 @@ CB03_CARD_TRANSLATIONS = {
     'CB03-AT-010': {
         'name': {'en': 'Dropkick!', 'ja': 'ドロップキック！'},
         'text': {
-            'en': 'This Technique can only dodge Techniques with Speed 9 or lower.\n①On counter, this Technique’s damage +200.\n②[[card:CB03-PS-001]]: When your opponent dodges, gain 5 FP.',
-            'ja': 'この技は速度9以下の技のみ回避できる。\n①カウンター時、この技のダメージ+200。\n②[[card:CB03-PS-001]]：相手が回避した時、5FPを得る。',
+            'en': 'This Technique can only dodge Techniques with Speed 9 or lower.\n①On counter, this Technique’s damage +200.\n②[[state-card:CB03-PS-001]]: When your opponent dodges, gain 5 FP.',
+            'ja': 'この技は速度9以下の技のみ回避できる。\n①カウンター時、この技のダメージ+200。\n②[[state-card:CB03-PS-001]]：相手が回避した時、5FPを得る。',
         },
     },
     'CB03-AT-011': {
         'name': {'en': 'Moonlight Stomp', 'ja': '月光踏み'},
         'text': {
-            'en': '①[[card:CB03-PS-001]]: On combo, ignoring Speed, this can be chained after a Technique with a [[card:CB03-PS-001]] effect.\nIf so, if it is after the 3rd Combo, damage scaling does not apply.',
-            'ja': '①[[card:CB03-PS-001]]：コンボ時、速度を無視して[[card:CB03-PS-001]]効果を持つ技の後につなげられる。\nその場合、3コンボ後ならダメージ補正を適用しない。',
+            'en': '①[[state-card:CB03-PS-001]]: On combo, ignoring Speed, this can be chained after a Technique with a [[state-card:CB03-PS-001]] effect.\nIf so, if it is after the 3rd Combo, damage scaling does not apply.',
+            'ja': '①[[state-card:CB03-PS-001]]：コンボ時、速度を無視して[[state-card:CB03-PS-001]]効果を持つ技の後につなげられる。\nその場合、3コンボ後ならダメージ補正を適用しない。',
         },
     },
     'CB03-AT-012': {
         'name': {'en': 'Moonlight Radiance', 'ja': '月光輝'},
         'text': {
-            'en': 'This Technique cannot be dodged.\n①[[card:CB03-PS-001]]: On hit/counter/combo, during this turn’s Recovery Phase, gain 5 FP.',
-            'ja': 'この技は回避できない。\n①[[card:CB03-PS-001]]：ヒット/カウンター/コンボ時、このターンのリカバリーフェイズに5FPを得る。',
+            'en': 'This Technique cannot be dodged.\n①[[state-card:CB03-PS-001]]: On hit/counter/combo, during this turn’s Recovery Phase, gain 5 FP.',
+            'ja': 'この技は回避できない。\n①[[state-card:CB03-PS-001]]：ヒット/カウンター/コンボ時、このターンのリカバリーフェイズに5FPを得る。',
         },
     },
     'CB03-AT-013': {
@@ -249,15 +249,15 @@ CB03_CARD_TRANSLATIONS = {
     'CB03-AT-022': {
         'name': {'en': 'Order: Aegis', 'ja': 'オーダー：アイギス'},
         'text': {
-            'en': '①Before judgment, choose 1 card in your opponent’s hand and reveal it to each other. If that Technique is a Defense Technique, gain all of its defense judgments.\n②[[term:tag.disaster_one]]: After judgment, if you did not take damage, choose 1 card in your opponent’s hand, declare odd or even, and both players reveal the chosen card’s Speed.\n-If correct, gain 6 FP and your opponent reveals that Technique this turn.\n-If incorrect, send this Technique to the List.\n③After use, if you activated effect ②, perform the Ready Phase again.',
-            'ja': '①判定前、相手の手札を1枚選び、お互いに確認する。その技が防御技なら、その技の防御判定をすべて得る。\n②[[term:tag.disaster_one]]：判定後、ダメージを受けていないなら、相手の手札を1枚選び、奇数または偶数を宣言し、選んだカードの速度をお互いに確認する。\n-当てた場合、6FPを得て、このターン相手はその技を公開する。\n-外した場合、この技をリストに送る。\n③使用後、②効果を発動していたならレディフェイズを再び行う。',
+            'en': '①Before judgment, choose 1 card in your opponent’s hand and reveal it to each other. If that Technique is a Defense Technique, gain all of its defense judgments.\n②[[state:disaster_one]]: After judgment, if you did not take damage, choose 1 card in your opponent’s hand, declare odd or even, and both players reveal the chosen card’s Speed.\n-If correct, gain 6 FP and your opponent reveals that Technique this turn.\n-If incorrect, send this Technique to the List.\n③After use, if you activated effect ②, perform the Ready Phase again.',
+            'ja': '①判定前、相手の手札を1枚選び、お互いに確認する。その技が防御技なら、その技の防御判定をすべて得る。\n②[[state:disaster_one]]：判定後、ダメージを受けていないなら、相手の手札を1枚選び、奇数または偶数を宣言し、選んだカードの速度をお互いに確認する。\n-当てた場合、6FPを得て、このターン相手はその技を公開する。\n-外した場合、この技をリストに送る。\n③使用後、②効果を発動していたならレディフェイズを再び行う。',
         },
     },
     'CB03-AT-028': {
         'name': {'en': 'Wall Oni Wild Dance', 'ja': '壁鬼乱舞'},
         'text': {
-            'en': '①On hit or counter, if there are 3 or more [[card:RFS-AT-002]] in the Lumen Zone, each [[card:RFS-AT-002]] used this turn gets damage +100 and its hit judgment changes to <+1>. Then, gain [[term:tag.blue_flame_2]] until the end of the next turn.',
-            'ja': '①ヒットまたはカウンター時、ルーメンゾーンの[[card:RFS-AT-002]]が3枚以上ある場合、このターン使用する[[card:RFS-AT-002]]のダメージ+100、ヒット判定を〈+1〉に変更する。その後、次のターン終了時まで[[term:tag.blue_flame_2]]状態を得る。',
+            'en': '①On hit or counter, if there are 3 or more [[card:RFS-AT-002]] in the Lumen Zone, each [[card:RFS-AT-002]] used this turn gets damage +100 and its hit judgment changes to <+1>. Then, gain [[state:blue_flame]] until the end of the next turn.',
+            'ja': '①ヒットまたはカウンター時、ルーメンゾーンの[[card:RFS-AT-002]]が3枚以上ある場合、このターン使用する[[card:RFS-AT-002]]のダメージ+100、ヒット判定を〈+1〉に変更する。その後、次のターン終了時まで[[state:blue_flame]]状態を得る。',
         },
     },
     'CB03-AT-031': {
@@ -270,8 +270,8 @@ CB03_CARD_TRANSLATIONS = {
     'CB03-AT-033': {
         'name': {'en': 'Drum Phalanx', 'ja': 'ドラムファランクス'},
         'text': {
-            'en': '①[Drum] (If set to a [[character:cmyk]] Technique, gain 1 FP on use. This effect does not stack.)\n②On guard, take 200 damage. Then, you may catch with the set Technique with <Speed 8 or lower>.',
-            'ja': '①[ドラム]（[[character:cmyk]]の技にセットされている場合、使用時に1FPを得る。この効果は重複しない。）\n②ガード時、200ダメージを受ける。その後、セットされた〈速度8以下〉の技でキャッチできる。',
+            'en': '①[[token:drum]] (If set to a [[character:cmyk]] Technique, gain 1 FP on use. This effect does not stack.)\n②On guard, take 200 damage. Then, you may catch with the set Technique with <Speed 8 or lower>.',
+            'ja': '①[[token:drum]]（[[character:cmyk]]の技にセットされている場合、使用時に1FPを得る。この効果は重複しない。）\n②ガード時、200ダメージを受ける。その後、セットされた〈速度8以下〉の技でキャッチできる。',
         },
     },
 }

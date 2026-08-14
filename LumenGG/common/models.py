@@ -105,6 +105,9 @@ class TranslationSource(models.Model):
     CATEGORY_TAG = 'tag'
     CATEGORY_UI = 'ui'
     CATEGORY_PACK = 'pack'
+    CATEGORY_KEYWORD = 'keyword'
+    CATEGORY_STATE = 'state'
+    CATEGORY_TOKEN = 'token'
     CATEGORY_CHOICES = [
         (CATEGORY_CARD, 'Card'),
         (CATEGORY_CHARACTER, 'Character'),
@@ -117,6 +120,9 @@ class TranslationSource(models.Model):
         (CATEGORY_TAG, 'Tag'),
         (CATEGORY_UI, 'UI'),
         (CATEGORY_PACK, 'Pack'),
+        (CATEGORY_KEYWORD, 'Keyword'),
+        (CATEGORY_STATE, 'State'),
+        (CATEGORY_TOKEN, 'Token / counter'),
     ]
 
     key = models.CharField(max_length=160, unique=True)

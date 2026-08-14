@@ -29,7 +29,16 @@ CHARACTER_TRANSLATED_FIELDS = (
     'datas',
 )
 MARKUP_FIELDS = {'text', 'detail_text', 'description', 'group'}
-TOKEN_RE = re.compile(r'\[\[(card|character|term):([^\]\r\n]+)\]\]')
+TOKEN_RE = re.compile(
+    r'\[\[(card|state-card|token-card|counter-card|character|keyword|state|token|term):([^\]\r\n]+)\]\]'
+)
+MARK_PAIRS = {
+    '[': ']',
+    '【': '】',
+    '「': '」',
+    '"': '"',
+    '“': '”',
+}
 
 
 def normalize_language_code(language):
@@ -288,16 +297,32 @@ def render_localized_markup(text, language):
     def replace(match):
         kind = match.group(1)
         payload = match.group(2).strip()
-        if kind == 'card':
-            key = card_translation_key(payload, 'name')
-            if translation_source_exists(key):
-                return translate_key(key, language)
-            return _fallback_card_name(payload, language, match.group(0))
+        if kind in ('card', 'state-card', 'token-card', 'counter-card'):
+            name = _localized_card_name(payload, language, match.group(0))
+            if name == match.group(0):
+                return name
+            if kind == 'state-card':
+                return wrap_mark(name, '「')
+            if kind in ('token-card', 'counter-card'):
+                return wrap_mark(name, '【')
+            return wrap_mark(name, '[')
         if kind == 'character':
             key = character_translation_key(payload, 'name')
             if translation_source_exists(key):
-                return translate_key(key, language)
-            return _fallback_character_name(payload, language, match.group(0))
+                return wrap_mark(translate_key(key, language), '[')
+            name = _fallback_character_name(payload, language, match.group(0))
+            return name if name == match.group(0) else wrap_mark(name, '[')
+        if kind == 'keyword':
+            key = f'keyword.{payload}'
+            if translation_source_exists(key):
+                return wrap_mark(translate_key(key, language), '"')
+            return match.group(0)
+        if kind in ('state', 'token'):
+            key = term_translation_key(kind, payload)
+            if translation_source_exists(key):
+                open_mark = '「' if kind == 'state' else '【'
+                return wrap_mark(translate_key(key, language), open_mark)
+            return match.group(0)
         if kind == 'term':
             parts = payload.split('.', 1)
             if len(parts) != 2:
@@ -309,6 +334,32 @@ def render_localized_markup(text, language):
         return match.group(0)
 
     return TOKEN_RE.sub(replace, text)
+
+
+def strip_outer_marks(value):
+    text = str(value or '').strip()
+    changed = True
+    while changed and len(text) >= 2:
+        changed = False
+        for open_mark, close_mark in MARK_PAIRS.items():
+            if text.startswith(open_mark) and text.endswith(close_mark):
+                text = text[len(open_mark):-len(close_mark)].strip()
+                changed = True
+                break
+    return text
+
+
+def wrap_mark(value, open_mark):
+    text = strip_outer_marks(value)
+    close_mark = MARK_PAIRS.get(open_mark, open_mark)
+    return f'{open_mark}{text}{close_mark}'
+
+
+def _localized_card_name(code, language, missing):
+    key = card_translation_key(code, 'name')
+    if translation_source_exists(key):
+        return translate_key(key, language)
+    return _fallback_card_name(code, language, missing)
 
 
 def _fallback_card_name(code, language, missing):

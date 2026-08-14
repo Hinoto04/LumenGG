@@ -87,10 +87,18 @@ class Command(BaseCommand):
         for owner, text in self.iter_catalog_texts():
             for match in TOKEN_RE.finditer(text):
                 kind, payload = match.group(1), match.group(2).strip()
-                if kind == 'card' and payload not in card_codes:
+                if kind in ('card', 'state-card', 'token-card', 'counter-card') and payload not in card_codes:
                     broken.append((owner, match.group(0)))
                 elif kind == 'character' and payload not in character_keys:
                     broken.append((owner, match.group(0)))
+                elif kind == 'keyword':
+                    key = f'keyword.{payload}'
+                    if key not in source_keys:
+                        broken.append((owner, match.group(0)))
+                elif kind in ('state', 'token'):
+                    key = term_translation_key(kind, payload)
+                    if key not in source_keys:
+                        broken.append((owner, match.group(0)))
                 elif kind == 'term':
                     parts = payload.split('.', 1)
                     key = term_translation_key(parts[0], parts[1]) if len(parts) == 2 else ''
