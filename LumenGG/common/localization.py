@@ -29,7 +29,14 @@ CHARACTER_TRANSLATED_FIELDS = (
     'datas',
 )
 MARKUP_FIELDS = {'text', 'detail_text', 'description', 'group'}
-TOKEN_RE = re.compile(r'\[\[(card|character|term):([^\]\r\n]+)\]\]')
+# Accept both the canonical double-bracket form (e.g. [[card:CODE]]) and
+# the single-bracket form that is already present in card text (e.g. [card:CODE]).
+# The negative lookarounds keep the single-bracket branch from consuming half of
+# a double-bracket token.
+TOKEN_RE = re.compile(
+    r'\[\[(card|character|term):([^\]\r\n]+)\]\]'
+    r'|(?<!\[)\[(card|character|term):([^\]\r\n]+)\](?!\])'
+)
 
 
 def normalize_language_code(language):
@@ -282,12 +289,12 @@ def render_localized_markup(text, language):
     if text is None:
         return ''
     text = str(text)
-    if '[[' not in text:
+    if '[' not in text:
         return text
 
     def replace(match):
-        kind = match.group(1)
-        payload = match.group(2).strip()
+        kind = match.group(1) or match.group(3)
+        payload = (match.group(2) or match.group(4)).strip()
         if kind == 'card':
             key = card_translation_key(payload, 'name')
             if translation_source_exists(key):
@@ -520,23 +527,18 @@ def sync_term_translation(term_translation):
         if source is None:
             base_slug = _slug(term_translation.text or term_translation.source, fallback='term')
             key = term_translation_key(term_translation.category, base_slug)
-            existing_keys = set(
-                TranslationSource.objects
-                .filter(key__startswith=f'term.{term_translation.category}.')
-                .values_list('key', flat=True)
-            )
-            index = 2
-            while key in existing_keys:
-                key = term_translation_key(term_translation.category, f'{base_slug}_{index}')
-                index += 1
             source = _upsert_source(
                 key,
                 term_translation.category,
                 source_text=term_translation.source,
                 field_name=term_translation.category,
-                note=term_translation.note,
             )
-        _upsert_value(source, term_translation.language, text=term_translation.text)
+        _upsert_value(
+            source,
+            term_translation.language,
+            text=term_translation.text,
+            overwrite_empty=True,
+        )
         clear_localization_cache()
     except (OperationalError, ProgrammingError):
         return
