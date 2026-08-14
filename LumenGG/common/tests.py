@@ -122,6 +122,37 @@ class TranslationLookupTests(TestCase):
 
         self.assertEqual(translated_card_field(source, 'en', 'text'), 'Use Renamed Card.')
 
+    def test_single_bracket_card_reference_token_is_supported(self):
+        character = Character.objects.create(
+            name='니아',
+            localization_key='nya',
+            description='',
+            group='루멘콘덴서',
+            datas={},
+            img='https://example.com/nia.webp',
+        )
+        referenced = Card.objects.create(
+            name='참조 카드',
+            code='TKN-SINGLE-REF',
+            character=character,
+            img='https://example.com/ref.webp',
+        )
+        CardTranslation.objects.create(
+            card=referenced,
+            language='en',
+            name='Single Reference',
+        )
+        source = Card.objects.create(
+            name='단일 괄호 테스트',
+            code='TKN-SINGLE-SRC',
+            character=character,
+            text='Use [card:TKN-SINGLE-REF].',
+            img='https://example.com/source.webp',
+        )
+
+        self.assertEqual(translated_card_field(source, 'en', 'text'), 'Use Single Reference.')
+        self.assertEqual(translated_card_field(source, 'ko', 'text'), 'Use 참조 카드.')
+
     def test_character_reference_token_renders_current_translated_name(self):
         character = Character.objects.create(
             name='니아',
