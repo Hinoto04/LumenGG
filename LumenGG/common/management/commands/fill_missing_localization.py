@@ -8,12 +8,19 @@ from django.db import transaction
 from card.models import Card, CardTranslation, Character, CharacterTranslation
 from common.localization import SUPPORTED_TRANSLATION_LANGUAGES, render_localized_markup
 from common.models import TranslationSource, TranslationValue
+from common.localization_batches.batch_20260817 import (
+    TRANSLATIONS as REVIEW_BATCH_TRANSLATIONS,
+    normalize_semantic_card_tokens,
+)
 
 
 HANGUL_RE = re.compile(r'[가-힣]')
 
 STATUS_TRANSLATED = TranslationValue.STATUS_TRANSLATED
 STATUS_REVIEW = TranslationValue.STATUS_NEEDS_REVIEW
+CARD_TRANSLATION_FIELDS = {
+    'name', 'ruby', 'text', 'detail_text', 'keyword', 'hiddenKeyword', 'search',
+}
 
 MANUAL_TEXTS = {
     'ui.tournament': {
@@ -23,14 +30,17 @@ MANUAL_TEXTS = {
         'en': (' item(s)', STATUS_TRANSLATED),
     },
     'character.minyeongi.name': {
-        'en': ('MINYEONGI', STATUS_REVIEW),
-        'ja': ('ミニョンイ', STATUS_REVIEW),
+        'en': ('MINYEONGI', STATUS_TRANSLATED),
+        'ja': ('ミニョンイ', STATUS_TRANSLATED),
     },
     'character.minyeongi.group': {
         'en': ('Neutral', STATUS_TRANSLATED),
         'ja': ('ニュートラル', STATUS_TRANSLATED),
     },
 }
+for _source_key, _translations in REVIEW_BATCH_TRANSLATIONS.items():
+    for _language, _text in _translations.items():
+        MANUAL_TEXTS.setdefault(_source_key, {})[_language] = (_text, STATUS_TRANSLATED)
 
 CHARACTER_DESCRIPTIONS = {
     'setsumei': {
@@ -433,9 +443,11 @@ class Command(BaseCommand):
         )
 
     def should_update(self, source, value):
-        if self.is_empty_source(source) and not self.is_hidden_keyword_source(source):
+        if self.is_empty_source(source):
             return False
         if self.is_hidden_keyword_source(source):
+            return True
+        if source.key in REVIEW_BATCH_TRANSLATIONS:
             return True
         if self.is_missing(value):
             return True
@@ -495,7 +507,8 @@ class Command(BaseCommand):
 
     def manual_text_for(self, source, language):
         if source.key in MANUAL_TEXTS and language in MANUAL_TEXTS[source.key]:
-            return MANUAL_TEXTS[source.key][language]
+            text, status = MANUAL_TEXTS[source.key][language]
+            return normalize_semantic_card_tokens(text), status
 
         if source.key in RUBY_TRANSLATIONS and language in RUBY_TRANSLATIONS[source.key]:
             return RUBY_TRANSLATIONS[source.key][language], STATUS_TRANSLATED
@@ -507,7 +520,7 @@ class Command(BaseCommand):
                 card_data = CB03_CARD_TRANSLATIONS.get(code, {})
                 if field_name in card_data and language in card_data[field_name]:
                     status = STATUS_REVIEW if source.key in REVIEW_NAME_KEYS else STATUS_TRANSLATED
-                    return card_data[field_name][language], status
+                    return normalize_semantic_card_tokens(card_data[field_name][language]), status
         return None
 
     def translation_lookup(self):
@@ -711,7 +724,40 @@ class Command(BaseCommand):
                     translation.ruby = text
                     translation.save(update_fields=['ruby'])
 
+        self.sync_review_batch_card_rows()
         self.sync_legacy_hidden_keywords()
+
+    def sync_review_batch_card_rows(self):
+        fields_by_card = {}
+        for source_key, translations in REVIEW_BATCH_TRANSLATIONS.items():
+            parts = source_key.split('.')
+            if len(parts) != 3 or parts[0] != 'card':
+                continue
+            _prefix, code, field_name = parts
+            fields_by_card.setdefault(code, {})[field_name] = translations
+
+        for code, fields in fields_by_card.items():
+            card = Card.objects.filter(code=code).first()
+            if card is None:
+                continue
+            for language in SUPPORTED_TRANSLATION_LANGUAGES:
+                translation, _created = CardTranslation.objects.get_or_create(
+                    card=card,
+                    language=language,
+                )
+                changed = []
+                for field_name, values in fields.items():
+                    if field_name not in CARD_TRANSLATION_FIELDS:
+                        continue
+                    text = values.get(language)
+                    if text is None:
+                        continue
+                    text = normalize_semantic_card_tokens(text)
+                    if getattr(translation, field_name) != text:
+                        setattr(translation, field_name, text)
+                        changed.append(field_name)
+                if changed:
+                    translation.save(update_fields=changed)
 
     def sync_legacy_hidden_keywords(self):
         sources = list(TranslationSource.objects.filter(

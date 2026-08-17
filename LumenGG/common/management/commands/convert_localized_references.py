@@ -1,6 +1,7 @@
 import re
 
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 from card.models import Card, CardTranslation, Character
 from common.localization import (
     SUPPORTED_TRANSLATION_LANGUAGES,
@@ -9,6 +10,7 @@ from common.localization import (
     strip_outer_marks,
 )
 from common.models import TranslationSource, TranslationValue
+from common.localization_batches.batch_20260817 import SEMANTIC_REFERENCES
 
 
 FIELDS = ('text', 'detail_text')
@@ -50,10 +52,13 @@ CONDITION_TRAITS = (
     '中段',
     '下段',
 )
-STATE_CARD_CODES = {'CB03-PS-001', 'LMI-AT-056', 'LMI-AT-057', 'LMI-AT-058'}
-SEMANTIC_STATE_CARDS = {
-    'ST1-PS1': 'over_limit',
-    'ST4-PS1': 'advance_notice',
+SEMANTIC_CARD_REFERENCES = {
+    'ST1-PS1': ('state', 'over_limit'),
+    'ST4-PS1': ('state', 'advance_notice'),
+    **{
+        code: (reference['kind'], reference['slug'])
+        for code, reference in SEMANTIC_REFERENCES.items()
+    },
 }
 KEYWORD_ALIASES = {
     'rai': {
@@ -79,7 +84,7 @@ SEMANTIC_ALIASES = {
         'advance_notice': {'ko': ('예고',), 'en': ('Advance Notice',), 'ja': ('予告',)},
         'harmony': {'ko': ('조화',), 'en': ('Harmony',), 'ja': ('調和',)},
         'saintess': {'ko': ('성녀',), 'en': ('Saintess',), 'ja': ('聖女',)},
-        'disaster_one': {'ko': ('디제스터 원',), 'en': ('Disaster One',), 'ja': ('ディザスターワン', 'ディザスター・ワン')},
+        'disaster_one': {'ko': ('디제스터 원',), 'en': ('Disaster One',), 'ja': ('ディザスター・ワン', 'ディザスターワン')},
         'dark_night': {'ko': ('암야',), 'en': ('Dark Night',), 'ja': ('闇夜',)},
         'blue_flame': {'ko': ('청염',), 'en': ('Blue Flame',), 'ja': ('青炎',)},
         'yin': {'ko': ('음',), 'en': ('Yin',), 'ja': ('陰',)},
@@ -98,7 +103,13 @@ SEMANTIC_ALIASES = {
         'yang': {'ko': ('양',), 'en': ('Yang',), 'ja': ('陽',)},
     },
 }
+for _reference in SEMANTIC_REFERENCES.values():
+    SEMANTIC_ALIASES[_reference['kind']][_reference['slug']] = {
+        language: (_reference[language],)
+        for language in ('ko', 'en', 'ja')
+    }
 LEGACY_SEMANTIC_TOKENS = {
+    'harmony': ('state', 'harmony'),
     'general.over_limit': ('state', 'over_limit'),
     'tag.over_limit': ('state', 'over_limit'),
     'tag.zero_suit': ('state', 'zero_suit'),
@@ -154,6 +165,7 @@ class Command(BaseCommand):
                 for language in LANGUAGES
             },
         }
+        changed_cards = []
         for card in Card.objects.order_by('id'):
             changed = self.convert_object_text(card, self.targets_by_language['ko'])
             if changed:
@@ -161,8 +173,9 @@ class Command(BaseCommand):
                 samples.extend((f'{card.code}.{field}', old, new) for field, old, new in changed)
                 self.count_tokens(changed, by_token)
                 if apply_changes:
-                    card.save(update_fields=[field for field, _old, _new in changed])
+                    changed_cards.append(card)
 
+        changed_translations = []
         for language in LANGUAGES:
             targets = self.targets_by_language[language]
             for translation in CardTranslation.objects.filter(language=language).select_related('card').order_by('card_id'):
@@ -175,7 +188,14 @@ class Command(BaseCommand):
                     )
                     self.count_tokens(changed, by_token)
                     if apply_changes:
-                        translation.save(update_fields=[field for field, _old, _new in changed])
+                        changed_translations.append(translation)
+
+        if apply_changes:
+            if changed_cards:
+                Card.objects.bulk_update(changed_cards, FIELDS)
+            if changed_translations:
+                CardTranslation.objects.bulk_update(changed_translations, FIELDS)
+            self.sync_catalog(changed_cards, changed_translations)
 
         clear_localization_cache()
         label = 'Applied' if apply_changes else 'Dry-run'
@@ -188,6 +208,72 @@ class Command(BaseCommand):
             self.stdout.write(f'  {owner}: {self.preview(old)} -> {self.preview(new)}')
         if not apply_changes:
             self.stdout.write('Run again with --apply to write these replacements.')
+
+    def sync_catalog(self, cards, translations):
+        source_keys = set()
+        for card in cards:
+            for field_name in FIELDS:
+                source_keys.add(f'card.{card.code}.{field_name}')
+        for translation in translations:
+            for field_name in FIELDS:
+                source_keys.add(f'card.{translation.card.code}.{field_name}')
+
+        sources = {
+            source.key: source
+            for source in TranslationSource.objects.filter(key__in=source_keys)
+        }
+        source_updates = []
+        for card in cards:
+            for field_name in FIELDS:
+                source = sources.get(f'card.{card.code}.{field_name}')
+                if source is None:
+                    continue
+                text = getattr(card, field_name, '') or ''
+                if source.source_text != text:
+                    source.source_text = text
+                    source_updates.append(source)
+        if source_updates:
+            TranslationSource.objects.bulk_update(source_updates, ['source_text'])
+
+        existing_values = {
+            (value.source_id, value.language): value
+            for value in TranslationValue.objects.filter(
+                source_id__in=[source.id for source in sources.values()],
+                language__in=LANGUAGES,
+            )
+        }
+        value_updates = []
+        value_creates = []
+        updated_at = timezone.now()
+        for translation in translations:
+            for field_name in FIELDS:
+                source = sources.get(f'card.{translation.card.code}.{field_name}')
+                if source is None:
+                    continue
+                text = getattr(translation, field_name, '') or ''
+                value = existing_values.get((source.id, translation.language))
+                if value is None:
+                    if not text and not source.source_text:
+                        continue
+                    value_creates.append(TranslationValue(
+                        source=source,
+                        language=translation.language,
+                        text=text,
+                        data={},
+                        status=(
+                            TranslationValue.STATUS_TRANSLATED
+                            if text else TranslationValue.STATUS_MISSING
+                        ),
+                    ))
+                    continue
+                if value.text != text:
+                    value.text = text
+                    value.updated_at = updated_at
+                    value_updates.append(value)
+        if value_creates:
+            TranslationValue.objects.bulk_create(value_creates, ignore_conflicts=True)
+        if value_updates:
+            TranslationValue.objects.bulk_update(value_updates, ['text', 'updated_at'])
 
     def convert_object_text(self, obj, targets):
         changed = []
@@ -213,12 +299,26 @@ class Command(BaseCommand):
         return self.restore_existing_tokens(replaced, placeholders)
 
     def normalize_existing_tokens(self, text):
+        def replace_dotted_semantic(match):
+            kind = match.group(1)
+            slug = match.group(2).strip()
+            if slug in SEMANTIC_ALIASES[kind]:
+                return f'[[{kind}:{slug}]]'
+            return match.group(0)
+
+        text = re.sub(
+            r'\[\[term\.(state|token):([^\]\r\n]+)\]\]',
+            replace_dotted_semantic,
+            text,
+        )
+
         def replace(match):
             kind = match.group(1)
             payload = match.group(2).strip()
             if kind in ('card', 'state-card', 'token-card', 'counter-card'):
-                if kind == 'state-card' and payload in SEMANTIC_STATE_CARDS:
-                    return f'[[state:{SEMANTIC_STATE_CARDS[payload]}]]'
+                if kind != 'card' and payload in SEMANTIC_CARD_REFERENCES:
+                    semantic_kind, slug = SEMANTIC_CARD_REFERENCES[payload]
+                    return f'[[{semantic_kind}:{slug}]]'
                 card = self.card_lookup.get(payload)
                 if card:
                     return self.card_token(card)
@@ -299,7 +399,7 @@ class Command(BaseCommand):
     def build_targets_for_language(self, language):
         targets = []
         for card in self.cards:
-            if card.code in SEMANTIC_STATE_CARDS:
+            if card.code in SEMANTIC_CARD_REFERENCES:
                 continue
             name = self.card_name_for_language(card, language)
             for candidate in self.name_candidates(name):
@@ -396,6 +496,9 @@ class Command(BaseCommand):
         return sorted(candidates, key=len, reverse=True)
 
     def card_token(self, card):
+        if card.code in SEMANTIC_CARD_REFERENCES:
+            semantic_kind, slug = SEMANTIC_CARD_REFERENCES[card.code]
+            return f'[[{semantic_kind}:{slug}]]'
         if self.is_state_card(card):
             return f'[[state-card:{card.code}]]'
         if self.is_token_card(card):
@@ -403,10 +506,7 @@ class Command(BaseCommand):
         return f'[[card:{card.code}]]'
 
     def is_state_card(self, card):
-        return card.code in STATE_CARD_CODES or (
-            card.type == '특성'
-            and str(card.name or '').strip().startswith('「')
-        )
+        return card.type == '특성' and str(card.name or '').strip().startswith('「')
 
     def is_token_card(self, card):
         return card.type == '토큰' or str(card.name or '').strip().startswith('【')

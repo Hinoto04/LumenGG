@@ -7,6 +7,7 @@ from card.search import card_matches_search
 from common.language import LANGUAGE_COOKIE_NAME, game_term, javascript_translations, translated_card_field, translated_character_field, ui_text
 from common.localization import card_translation_key, render_localized_markup
 from common.management.commands.convert_localized_references import Command as ConvertLocalizedReferencesCommand
+from common.localization_batches.batch_20260817 import SEMANTIC_REFERENCES, TRANSLATIONS
 from common.models import TermTranslation, TranslationSource, TranslationValue
 
 
@@ -78,14 +79,16 @@ class TranslationLookupTests(TestCase):
         self.assertEqual(javascript_translations('ja')['예지'], '予知')
 
     def test_game_term_uses_custom_term_translation(self):
-        TermTranslation.objects.create(
-            source='잔향',
+        TermTranslation.objects.update_or_create(
+            source='테스트 용어',
             language='en',
-            text='Afterimage',
-            category='body',
+            defaults={
+                'text': 'Afterimage',
+                'category': 'body',
+            },
         )
 
-        self.assertEqual(game_term('잔향', 'en'), 'Afterimage')
+        self.assertEqual(game_term('테스트 용어', 'en'), 'Afterimage')
 
     def test_card_reference_token_renders_current_translated_name(self):
         character = Character.objects.create(
@@ -398,3 +401,64 @@ class TranslationLookupTests(TestCase):
         self.assertNotIn('퀵알레', ja_hidden)
         self.assertTrue(card_matches_search(card, 'quickallez'))
         self.assertTrue(card_matches_search(card, 'クイックアレ'))
+
+
+class ReviewedSemanticReferenceTests(TestCase):
+    def setUp(self):
+        for reference in SEMANTIC_REFERENCES.values():
+            source, _created = TranslationSource.objects.update_or_create(
+                key=f'term.{reference["kind"]}.{reference["slug"]}',
+                defaults={
+                    'category': reference['kind'],
+                    'source_text': reference['ko'],
+                    'field_name': reference['kind'],
+                    'is_active': True,
+                },
+            )
+            for language in ('en', 'ja'):
+                TranslationValue.objects.update_or_create(
+                    source=source,
+                    language=language,
+                    defaults={
+                        'text': reference[language],
+                        'status': TranslationValue.STATUS_TRANSLATED,
+                    },
+                )
+
+    def test_reviewed_semantic_references_render_with_kind_marks(self):
+        for reference in SEMANTIC_REFERENCES.values():
+            token = f'[[{reference["kind"]}:{reference["slug"]}]]'
+            marks = ('「', '」') if reference['kind'] == 'state' else ('【', '】')
+            for language in ('ko', 'en', 'ja'):
+                with self.subTest(token=token, language=language):
+                    self.assertEqual(
+                        render_localized_markup(token, language),
+                        f'{marks[0]}{reference[language]}{marks[1]}',
+                    )
+
+    def test_converter_uses_semantic_tokens_for_mapped_cards(self):
+        command = ConvertLocalizedReferencesCommand()
+        for code, reference in SEMANTIC_REFERENCES.items():
+            card = Card(code=code, name=reference['ko'], type='토큰')
+            with self.subTest(code=code):
+                self.assertEqual(
+                    command.card_token(card),
+                    f'[[{reference["kind"]}:{reference["slug"]}]]',
+                )
+
+        ordinary = Card(code='TEST-001', name='일반 카드', type='공격')
+        self.assertEqual(command.card_token(ordinary), '[[card:TEST-001]]')
+
+    def test_converter_normalizes_dotted_legacy_semantic_token(self):
+        command = ConvertLocalizedReferencesCommand()
+        command.card_lookup = {}
+        self.assertEqual(
+            command.normalize_existing_tokens('Use [[term.token:yin]].'),
+            'Use [[token:yin]].',
+        )
+
+    def test_review_batch_contains_no_hangul_in_foreign_text(self):
+        for source_key, translations in TRANSLATIONS.items():
+            for language, text in translations.items():
+                with self.subTest(source_key=source_key, language=language):
+                    self.assertNotRegex(text, r'[가-힣]')
