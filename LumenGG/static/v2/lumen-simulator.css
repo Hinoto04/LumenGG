@@ -938,6 +938,40 @@
     background: rgba(224, 180, 91, .08);
 }
 
+.v2-sim-card-set-group {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    width: max-content;
+    height: var(--sim-card-height);
+}
+
+.v2-sim-card-set-cards {
+    display: flex;
+    align-items: flex-start;
+    gap: 3px;
+}
+
+.v2-sim-card-set-cards .v2-sim-card {
+    width: calc(var(--sim-card-width) * .5);
+    height: calc(var(--sim-card-height) * .5);
+    border-color: rgba(91, 190, 176, .7);
+}
+
+.v2-sim-card-set-cards .v2-sim-card-toggle,
+.v2-sim-card-set-cards .v2-sim-card-effects {
+    display: none;
+}
+
+.v2-sim-card.is-set-drop-target {
+    z-index: 20;
+    border-color: var(--v2-teal);
+    box-shadow: 0 0 0 3px rgba(91, 190, 176, .38), 0 10px 26px rgba(0, 0, 0, .42);
+    transform: translateY(-4px);
+}
+
 .v2-sim-card-grid {
     display: grid;
     isolation: isolate;
@@ -951,6 +985,12 @@
     height: var(--sim-zone-grid-height);
     overflow: hidden;
     padding: 6px;
+}
+
+.v2-sim-card-grid.has-card-sets {
+    grid-auto-columns: max-content;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 .v2-sim-zone-ultimate .v2-sim-card-grid {

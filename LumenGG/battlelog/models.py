@@ -1,8 +1,114 @@
+import uuid
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
 from card.models import Character
+
+
+class RulesetRelease(models.Model):
+    """Immutable, published snapshot consumed by automatic simulator sessions."""
+
+    RULEBOOK_SHA256 = '2A30590E2857C03FCE2FB5995029D4CEF3B5017493C8760FCFF8B92D39EC7D59'
+
+    version = models.CharField(max_length=64, unique=True)
+    schema_version = models.PositiveSmallIntegerField(default=1)
+    source_manifest = models.JSONField(default=dict, blank=True)
+    snapshot = models.JSONField(default=dict)
+    content_hash = models.CharField(max_length=64, unique=True)
+    is_active = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='simulator_ruleset_releases',
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    published_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-published_at', '-id']
+        permissions = [
+            ('publish_ruleset', '자동 시뮬레이터 규칙 릴리스 게시'),
+        ]
+
+    def __str__(self):
+        return f'{self.version} ({self.content_hash[:12]})'
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            original = type(self).objects.filter(pk=self.pk).values(
+                'version', 'schema_version', 'source_manifest', 'snapshot',
+                'content_hash', 'created_by_id', 'published_at',
+            ).first()
+            if original:
+                current = {
+                    'version': self.version,
+                    'schema_version': self.schema_version,
+                    'source_manifest': self.source_manifest,
+                    'snapshot': self.snapshot,
+                    'content_hash': self.content_hash,
+                    'created_by_id': self.created_by_id,
+                    'published_at': self.published_at,
+                }
+                if current != original:
+                    raise ValidationError('게시된 규칙 릴리스 내용은 변경할 수 없습니다.')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('감사와 기존 세션 재생을 위해 규칙 릴리스는 삭제할 수 없습니다.')
+
+
+class SimulatorAIPolicy(models.Model):
+    """Versioned policy artifact produced by deterministic self-play."""
+
+    ALGORITHM_LINEAR_V1 = 'linear_v1'
+    ALGORITHM_CHOICES = [(ALGORITHM_LINEAR_V1, 'Linear policy v1')]
+
+    name = models.CharField(max_length=80, default='Lumen AI')
+    version = models.CharField(max_length=64, unique=True)
+    algorithm = models.CharField(
+        max_length=32,
+        choices=ALGORITHM_CHOICES,
+        default=ALGORITHM_LINEAR_V1,
+    )
+    weights = models.JSONField(default=dict)
+    metrics = models.JSONField(default=dict, blank=True)
+    training_games = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    activated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        permissions = [('train_ai_policy', '시뮬레이터 AI 정책 훈련')]
+
+    def __str__(self):
+        return f'{self.name} {self.version}'
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            original = type(self).objects.filter(pk=self.pk).values(
+                'name', 'version', 'algorithm', 'weights', 'metrics', 'training_games',
+            ).first()
+            if original:
+                current = {
+                    'name': self.name,
+                    'version': self.version,
+                    'algorithm': self.algorithm,
+                    'weights': self.weights,
+                    'metrics': self.metrics,
+                    'training_games': self.training_games,
+                }
+                if current != original:
+                    raise ValidationError('게시된 AI 정책 내용은 변경할 수 없습니다.')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('세션 재현을 위해 게시된 AI 정책은 삭제할 수 없습니다.')
 
 
 class BattleSession(models.Model):
@@ -201,11 +307,42 @@ class BattleSet(models.Model):
 
 
 class LumenSimulatorSession(models.Model):
+    MODE_MANUAL = 'manual'
+    MODE_AUTOMATIC = 'automatic'
+    MODE_CHOICES = [
+        (MODE_MANUAL, '수동'),
+        (MODE_AUTOMATIC, '자동'),
+    ]
+    CONTROLLER_HUMAN = 'human'
+    CONTROLLER_AI = 'ai'
+    CONTROLLER_CHOICES = [
+        (CONTROLLER_HUMAN, '사람'),
+        (CONTROLLER_AI, 'AI'),
+    ]
+
     view_token = models.CharField(max_length=64, unique=True)
     player1_token = models.CharField(max_length=64, unique=True)
     player2_token = models.CharField(max_length=64, unique=True)
     player1_name = models.CharField(max_length=60, default='플레이어1')
     player2_name = models.CharField(max_length=60, default='플레이어2')
+    player1_controller = models.CharField(max_length=12, choices=CONTROLLER_CHOICES, default=CONTROLLER_HUMAN)
+    player2_controller = models.CharField(max_length=12, choices=CONTROLLER_CHOICES, default=CONTROLLER_HUMAN)
+    mode = models.CharField(max_length=16, choices=MODE_CHOICES, default=MODE_MANUAL)
+    ruleset_release = models.ForeignKey(
+        RulesetRelease,
+        on_delete=models.PROTECT,
+        related_name='simulator_sessions',
+        null=True,
+        blank=True,
+    )
+    automation_failure = models.JSONField(default=dict, blank=True)
+    ai_policy = models.ForeignKey(
+        SimulatorAIPolicy,
+        on_delete=models.SET_NULL,
+        related_name='sessions',
+        null=True,
+        blank=True,
+    )
     document = models.JSONField(default=dict, blank=True)
     version = models.PositiveIntegerField(default=1)
     expires_at = models.DateTimeField(null=True, blank=True)
@@ -217,6 +354,66 @@ class LumenSimulatorSession(models.Model):
 
     def __str__(self):
         return f'시뮬레이터 #{self.id}: {self.player1_name} vs {self.player2_name}'
+
+
+class AutomaticIssueReport(models.Model):
+    STATUS_OPEN = 'open'
+    STATUS_RESOLVED = 'resolved'
+    STATUS_CHOICES = [(STATUS_OPEN, '미해결'), (STATUS_RESOLVED, '해결')]
+    ORIGIN_ENGINE = 'engine'
+    ORIGIN_CLIENT = 'client'
+    ORIGIN_USER = 'user'
+    ORIGIN_CHOICES = [
+        (ORIGIN_ENGINE, '엔진 자동 감지'),
+        (ORIGIN_CLIENT, '브라우저 자동 감지'),
+        (ORIGIN_USER, '사용자 제보'),
+    ]
+
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    session = models.ForeignKey(
+        LumenSimulatorSession,
+        on_delete=models.SET_NULL,
+        related_name='issue_reports',
+        null=True,
+        blank=True,
+    )
+    ruleset_release = models.ForeignKey(
+        RulesetRelease,
+        on_delete=models.PROTECT,
+        related_name='issue_reports',
+        null=True,
+        blank=True,
+    )
+    origin = models.CharField(max_length=12, choices=ORIGIN_CHOICES)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    error_type = models.CharField(max_length=120, blank=True)
+    summary = models.CharField(max_length=500)
+    diagnostic = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'{self.public_id}: {self.summary[:60]}'
+
+
+class AutomaticIssueComment(models.Model):
+    report = models.ForeignKey(AutomaticIssueReport, on_delete=models.CASCADE, related_name='comments')
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='automatic_issue_comments',
+        null=True,
+        blank=True,
+    )
+    role = models.CharField(max_length=12, blank=True)
+    body = models.TextField(max_length=4000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
 
 
 class RealtimePresence(models.Model):
@@ -236,8 +433,8 @@ class RealtimePresence(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['scope', 'view_token', 'role']),
-            models.Index(fields=['last_seen_at']),
+            models.Index(fields=['scope', 'view_token', 'role'], name='battlelog_r_scope_9af048_idx'),
+            models.Index(fields=['last_seen_at'], name='battlelog_r_last_se_f30c9f_idx'),
         ]
 
     def __str__(self):

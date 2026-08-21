@@ -1,0 +1,47 @@
+.field-effect_definition > div,
+.field-effect_definition .flex-container { display: block; width: 100%; }
+.field-effect_definition > div > label { float: none; width: auto; }
+.effect-definition-editor { box-sizing: border-box; max-width: none; min-width: 0; width: 100%; }
+.effect-definition-editor *, .effect-definition-editor *::before, .effect-definition-editor *::after { box-sizing: border-box; }
+.effect-editor-toolbar { background: var(--darkened-bg, rgba(127, 127, 127, .08)); border: 1px solid var(--border-color, #ccc); border-radius: 8px; display: grid; gap: 12px; margin-bottom: 14px; padding: 12px; }
+.effect-editor-primary, .effect-ability-head, .effect-command-head { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
+.effect-editor-primary { border-bottom: 1px solid var(--border-color, #ccc); padding-bottom: 10px; }
+.effect-editor-primary label { align-items: center; display: inline-flex; gap: 5px; margin: 0; white-space: nowrap; }
+.effect-editor-toolbar .help { margin: 0; }
+.effect-ability { border: 1px solid var(--border-color, #ccc); border-left: 4px solid var(--accent, #417690); border-radius: 8px; margin: 0 0 14px; padding: 14px; }
+.effect-root-rules { border: 1px solid var(--border-color, #bbb); border-radius: 7px; margin: 0 0 9px; overflow: hidden; padding: 0; }
+.effect-root-rules > summary { background: rgba(127, 127, 127, .07); cursor: pointer; font-weight: 700; padding: 11px 13px; }
+.effect-root-rules[open] { padding: 0 12px 12px; }
+.effect-root-rules[open] > summary { border-bottom: 1px solid var(--border-color, #bbb); margin: 0 -12px 12px; }
+.effect-ability-head, .effect-command-head { justify-content: space-between; margin-bottom: 10px; }
+.effect-node-grid { align-items: end; display: grid; gap: 9px 12px; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); width: 100%; }
+.effect-node-grid label { display: grid; gap: 5px; margin: 0; min-width: 0; }
+.effect-node-grid input:not([type="checkbox"]), .effect-node-grid select { max-width: none; min-width: 0; width: 100%; }
+.effect-node-grid input[type="checkbox"] { margin-right: 5px; }
+.effect-command { background: rgba(127, 127, 127, .08); border: 1px solid rgba(127, 127, 127, .15); border-radius: 7px; margin: 10px 0; padding: 11px; }
+.effect-command-preserved { border-left: 4px solid var(--body-quiet-color, #777); }
+.effect-command-preserved .help { margin: 0 0 8px; }
+.effect-command-preserved pre { background: var(--darkened-bg, #f4f4f4); margin: 0; max-height: 220px; overflow: auto; padding: 9px; white-space: pre-wrap; word-break: break-word; }
+.effect-json-preview { border-top: 1px solid var(--border-color, #ccc); margin-top: 18px; padding-top: 12px; }
+.effect-json-preview > summary { cursor: pointer; font-weight: 700; }
+.effect-json-preview pre { background: var(--darkened-bg, #f4f4f4); border-radius: 6px; max-height: 420px; overflow: auto; padding: 12px; white-space: pre-wrap; word-break: break-word; }
+.effect-review-overview { max-width: none; width: 100%; }
+.effect-review-status, .effect-review-warning, .effect-review-empty { border-radius: 6px; padding: 10px 12px; }
+.effect-review-status.is-ok { background: #dff3e4; color: #185b2b; }
+.effect-review-status.is-pending { background: #fff4ce; color: #6b4d00; }
+.effect-review-status.is-error, .effect-review-warning { background: #f9dddd; color: #8b1d1d; }
+.effect-review-qna { color: var(--body-quiet-color, #666); }
+.effect-review-abilities { display: grid; gap: 8px; margin: 12px 0; padding-left: 24px; }
+.effect-review-abilities li { border: 1px solid var(--border-color, #ccc); border-radius: 6px; padding: 10px 12px; }
+.effect-review-source { display: flex; gap: 8px; justify-content: space-between; }
+.effect-review-source span, .effect-review-result em { color: var(--body-quiet-color, #666); font-style: normal; }
+.effect-review-result { margin-top: 6px; }
+.effect-review-next-submit { align-items: center; display: flex; gap: 12px; justify-content: flex-end; }
+
+@media (max-width: 767px) {
+    .effect-review-source { display: grid; }
+    .effect-node-grid { grid-template-columns: 1fr; }
+    .effect-editor-primary { align-items: stretch; flex-direction: column; }
+    .effect-editor-primary .button { width: 100%; }
+    .effect-ability-head, .effect-command-head { align-items: stretch; flex-direction: column; }
+}

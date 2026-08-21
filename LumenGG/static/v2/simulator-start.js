@@ -5,6 +5,8 @@
     const searchUrl = root.dataset.deckSearchUrl;
     const searchInput = root.querySelector("[data-simulator-deck-search-input]");
     const results = root.querySelector("[data-simulator-deck-search-results]");
+    const modeSelect = root.querySelector("#simulator_mode");
+    const opponentSelect = root.querySelector("[data-opponent-type]");
     if (!searchUrl || !searchInput || !results) return;
 
     const playerInputs = {
@@ -19,6 +21,22 @@
             fallback: "플레이어2",
         },
     };
+
+    function syncOpponentMode() {
+        if (!modeSelect || !opponentSelect) return;
+        const manualOption = modeSelect.querySelector('option[value="manual"]');
+        const usesAI = opponentSelect.value === "ai";
+        if (manualOption) manualOption.disabled = usesAI;
+        if (usesAI) {
+            modeSelect.value = "automatic";
+            if (playerInputs.p2.name && !playerInputs.p2.name.value.trim()) {
+                playerInputs.p2.name.value = "Lumen AI";
+            }
+        }
+    }
+
+    if (opponentSelect) opponentSelect.addEventListener("change", syncOpponentMode);
+    syncOpponentMode();
 
     function playerNameWithCharacter(currentName, fallback, characterName) {
         let baseName = (currentName || "").trim() || fallback;

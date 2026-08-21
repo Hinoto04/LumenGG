@@ -24,6 +24,32 @@
         {% csrf_token %}
         <div class="v2-battle-start-grid">
             <div class="v2-admin-field">
+                <label for="simulator_mode">{% tr "진행 모드" %}</label>
+                <select id="simulator_mode" name="mode">
+                    <option value="manual"{% if mode != "automatic" %} selected{% endif %}>{% tr "수동 모드" %}</option>
+                    {% if automatic_release %}
+                    <option value="automatic"{% if mode == "automatic" %} selected{% endif %}>{% tr "자동 규칙 모드" %} ({{ automatic_release.version }})</option>
+                    {% endif %}
+                </select>
+                {% if not automatic_release %}
+                <small>{% tr "전체 카드 효과가 검증된 규칙 릴리스 게시 후 자동 모드가 표시됩니다." %}</small>
+                {% endif %}
+            </div>
+            <div class="v2-admin-field">
+                <label for="simulator_opponent_type">{% tr "상대" %}</label>
+                <select id="simulator_opponent_type" name="opponent_type" data-opponent-type>
+                    <option value="human"{% if opponent_type != "ai" %} selected{% endif %}>{% tr "다른 플레이어" %}</option>
+                    {% if automatic_release and ai_policy %}
+                    <option value="ai"{% if opponent_type == "ai" %} selected{% endif %}>{% tr "Lumen AI" %} ({{ ai_policy.version }})</option>
+                    {% endif %}
+                </select>
+                {% if automatic_release and not ai_policy %}
+                <small>{% tr "검증된 훈련 정책이 활성화된 후 AI 대전이 표시됩니다." %}</small>
+                {% else %}
+                <small>{% tr "AI 대전은 자동 규칙 모드에서 진행되며 AI가 플레이어2를 조작합니다." %}</small>
+                {% endif %}
+            </div>
+            <div class="v2-admin-field">
                 <label for="player1_name">{% tr "플레이어1 이름" %}</label>
                 <input id="player1_name" name="player1_name" type="text" value="{{ player1_name|default:"플레이어1"|ui:current_language }}" maxlength="60" data-player-name="p1">
             </div>

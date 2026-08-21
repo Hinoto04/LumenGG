@@ -13,6 +13,19 @@ from common.language import get_language, javascript_i18n, translated_character_
 from deck.models import CardInDeck, Deck
 
 from .event_buffer import recent_battle_event_payloads
+from .automatic_services import (
+    AutomaticRuntimeFailure,
+    active_ai_policy,
+    add_client_issue_report,
+    add_issue_report,
+    advance_ai_session,
+    ai_policy_payload,
+    automatic_mode_release,
+    perform_automatic_command,
+    reconcile_automatic_session,
+)
+from .game.engine import IllegalAction, StaleState
+from .models import LumenSimulatorSession
 from .presence import battle_presence_counts, simulator_presence_counts
 from .realtime import broadcast_battle_session
 from .realtime import broadcast_simulator_session
@@ -72,7 +85,13 @@ def sim(req):
 
 def simulatorStart(req):
     language = get_language(req)
-    context = {'errors': []}
+    automatic_release = automatic_mode_release()
+    active_policy = active_ai_policy() if automatic_release else None
+    context = {
+        'errors': [],
+        'automatic_release': automatic_release,
+        'ai_policy': ai_policy_payload(active_policy) if active_policy else None,
+    }
     if req.method == 'POST':
         player1_deck_id = req.POST.get('player1_deck', '')
         player2_deck_id = req.POST.get('player2_deck', '')
@@ -87,24 +106,39 @@ def simulatorStart(req):
             if not can_view_deck_for_simulator(req.user, player2_deck):
                 context['errors'].append('플레이어2 덱을 볼 권한이 없습니다.')
             if not context['errors']:
-                session = create_simulator_session(
-                    req.POST.get('player1_name', ''),
-                    req.POST.get('player2_name', ''),
-                    player1_deck,
-                    player2_deck,
+                requested_mode = req.POST.get('mode', 'manual')
+                opponent_type = req.POST.get('opponent_type', 'human')
+                player2_controller = (
+                    LumenSimulatorSession.CONTROLLER_AI
+                    if opponent_type == 'ai'
+                    else LumenSimulatorSession.CONTROLLER_HUMAN
                 )
-                return redirect(
-                    'battlelog:simulatorSeat',
-                    view_token=session.view_token,
-                    seat='p1',
-                    seat_token=session.player1_token,
-                )
+                try:
+                    session = create_simulator_session(
+                        req.POST.get('player1_name', ''),
+                        req.POST.get('player2_name', ''),
+                        player1_deck,
+                        player2_deck,
+                        mode=requested_mode,
+                        player2_controller=player2_controller,
+                    )
+                except ValueError as exc:
+                    context['errors'].append(str(exc))
+                else:
+                    return redirect(
+                        'battlelog:simulatorSeat',
+                        view_token=session.view_token,
+                        seat='p1',
+                        seat_token=session.player1_token,
+                    )
 
         context.update({
             'player1_name': req.POST.get('player1_name', '플레이어1'),
             'player2_name': req.POST.get('player2_name', '플레이어2'),
             'player1_deck': player1_deck_id,
             'player2_deck': player2_deck_id,
+            'mode': req.POST.get('mode', 'manual'),
+            'opponent_type': req.POST.get('opponent_type', 'human'),
         })
 
     context['errors'] = [ui_text(error, language) for error in context['errors']]
@@ -240,6 +274,13 @@ def _simulator_page_url(req, view_token, seat, seat_token, mobile=False):
 def _render_simulator(req, view_token, seat, seat_token, template_name='battlelog/simulator_session_v2.html'):
     language = get_language(req)
     session = _get_simulator_session(view_token)
+    if role_for_token(session, seat, seat_token) in ('p1', 'p2'):
+        was_automatic = session.mode == 'automatic'
+        session = reconcile_automatic_session(session, both_players_disconnected=False)
+        if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
+            session = advance_ai_session(session)
+        if was_automatic and session.mode != 'automatic':
+            broadcast_simulator_session(session)
     state = serialize_simulator_session(session, seat, seat_token, language=language, include_events=False)
     context = {
         'session': session,
@@ -262,6 +303,14 @@ def simulatorState(req, view_token):
     session = _get_simulator_session(view_token)
     seat = req.GET.get('seat', '')
     seat_token = req.GET.get('seat_token', '')
+    role = role_for_token(session, seat, seat_token)
+    if role in ('p1', 'p2'):
+        was_automatic = session.mode == 'automatic'
+        session = reconcile_automatic_session(session, both_players_disconnected=False)
+        if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
+            session = advance_ai_session(session)
+        if was_automatic and session.mode != 'automatic':
+            broadcast_simulator_session(session)
     since_version = req.GET.get('since_version')
     if since_version and str(since_version) == str(session.version):
         return JsonResponse({
@@ -318,6 +367,85 @@ def simulatorAction(req, view_token):
     return JsonResponse({
         'ok': True,
         'state': serialize_simulator_session(session, seat, seat_token, language=get_language(req), include_events=False),
+    })
+
+
+@require_POST
+def simulatorCommand(req, view_token):
+    session = _get_simulator_session(view_token)
+    body = _json_body(req)
+    seat = body.get('seat', '')
+    seat_token = body.get('seat_token', '')
+    try:
+        was_automatic = session.mode == 'automatic'
+        session = reconcile_automatic_session(session, both_players_disconnected=False)
+        if was_automatic and session.mode != 'automatic':
+            broadcast_simulator_session(session)
+            return JsonResponse({
+                'ok': False,
+                'error': '타이머 정산 오류로 세션을 수동 모드로 전환했습니다.',
+                'code': 'automatic_fallback',
+            }, status=409)
+        session = perform_automatic_command(session, body)
+        session = advance_ai_session(session)
+    except PermissionDenied:
+        return JsonResponse({'ok': False, 'error': ui_text('조작 권한이 없습니다.', get_language(req))}, status=403)
+    except StaleState as exc:
+        return JsonResponse({'ok': False, 'error': str(exc), 'code': 'stale_state'}, status=409)
+    except IllegalAction as exc:
+        return JsonResponse({'ok': False, 'error': str(exc), 'code': 'illegal_action'}, status=400)
+    except AutomaticRuntimeFailure as exc:
+        session = _get_simulator_session(view_token)
+        broadcast_simulator_session(session)
+        return JsonResponse({'ok': False, 'error': str(exc), 'code': 'automatic_fallback'}, status=409)
+    except (TypeError, ValueError) as exc:
+        return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
+
+    broadcast_simulator_session(session)
+    return JsonResponse({
+        'ok': True,
+        'state': serialize_simulator_session(
+            session, seat, seat_token, language=get_language(req), include_events=False,
+        ),
+    })
+
+
+@require_POST
+def simulatorReportIssue(req, view_token):
+    session = _get_simulator_session(view_token)
+    body = _json_body(req)
+    role = role_for_token(session, body.get('seat', ''), body.get('seat_token', ''))
+    if role not in ('p1', 'p2'):
+        return JsonResponse({'ok': False, 'error': '제보 권한이 없습니다.'}, status=403)
+    try:
+        report_kind = str(body.get('kind') or 'user').strip()
+        if report_kind == 'client_error':
+            report, created = add_client_issue_report(
+                session, role, body.get('diagnostic'),
+                user_agent=req.META.get('HTTP_USER_AGENT', ''),
+                user=req.user,
+            )
+        elif report_kind == 'user':
+            requested_report_id = str(
+                body.get('report_id')
+                or (session.automation_failure or {}).get('report_id')
+                or ''
+            ).strip()
+            report = add_issue_report(
+                session, role, body.get('details'), user=req.user,
+                report_id=body.get('report_id'),
+            )
+            created = not bool(requested_report_id)
+        else:
+            raise ValueError('지원하지 않는 제보 종류입니다.')
+    except ValueError as exc:
+        return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
+    return JsonResponse({
+        'ok': True,
+        'report_id': str(report.public_id),
+        'status': report.status,
+        'created': created,
+        'deduplicated': not created,
     })
 
 

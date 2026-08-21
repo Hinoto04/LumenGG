@@ -22,6 +22,7 @@
         <a class="v2-button" href="{% url "card:index" %}">{% tr "목록" %}</a>
         {% if perms.card.change_card %}
         <a class="v2-button" href="{% url "card:update" card.id %}">{% tr "카드 수정" %}</a>
+        <a class="v2-button v2-button-primary" href="{% url "card:effectReview" card.id %}">자동 효과 검수</a>
         {% endif %}
         <a class="v2-button v2-button-primary" href="{% url "card:comment" card.id %}">{% tr "평점" %} {{ card.score|floatformat:1|default_if_none:"-" }}</a>
     </div>

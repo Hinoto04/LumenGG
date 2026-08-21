@@ -1,5 +1,4 @@
 import time
-import time
 from collections import deque
 from urllib.parse import parse_qs
 
@@ -10,6 +9,13 @@ from django.core.exceptions import PermissionDenied
 from common.language import normalize_language, ui_text
 from tournament.models import Tournament
 
+from .automatic_services import (
+    AutomaticRuntimeFailure,
+    advance_ai_session,
+    perform_automatic_command,
+    reconcile_automatic_session,
+)
+from .game.engine import IllegalAction, StaleState
 from .models import BattleSession, LumenSimulatorSession
 from .presence import (
     battle_presence_counts,
@@ -62,7 +68,7 @@ class RequestRateWarningMixin:
         now = time.monotonic()
         self._trim_rate_window(self._rate_warning_messages, now)
         self._rate_warning_messages.append(now)
-        if message_type == 'action':
+        if message_type in {'action', 'command'}:
             self._trim_rate_window(self._rate_warning_actions, now)
             self._rate_warning_actions.append(now)
 
@@ -278,7 +284,7 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
             self.log_subscribed = False
             return
 
-        if message_type != 'action':
+        if message_type not in {'action', 'command'}:
             self.send_error('알 수 없는 요청입니다.', request_id=request_id)
             return
 
@@ -288,18 +294,42 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
 
         try:
             session = simulator_queryset().get(view_token=self.view_token)
-            session = perform_simulator_action(session, body)
+            if message_type == 'command':
+                was_automatic = session.mode == LumenSimulatorSession.MODE_AUTOMATIC
+                session = reconcile_automatic_session(session, both_players_disconnected=False)
+                if was_automatic and session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
+                    self.send_error(
+                        '타이머 정산 오류로 세션을 수동 모드로 전환했습니다.',
+                        request_id=request_id, code='automatic_fallback',
+                    )
+                    broadcast_simulator_session(session)
+                    return
+                session = perform_automatic_command(session, body)
+                session = advance_ai_session(session)
+            else:
+                session = perform_simulator_action(session, body)
         except LumenSimulatorSession.DoesNotExist:
             self.send_error('시뮬레이터 세션을 찾을 수 없습니다.', request_id=request_id)
             return
         except PermissionDenied:
             self.send_error('조작 권한이 없습니다.', request_id=request_id)
             return
+        except StaleState as exc:
+            self.send_error(str(exc), request_id=request_id, code='stale_state')
+            return
+        except IllegalAction as exc:
+            self.send_error(str(exc), request_id=request_id, code='illegal_action')
+            return
+        except AutomaticRuntimeFailure as exc:
+            self.send_error(str(exc), request_id=request_id, code='automatic_fallback')
+            session = simulator_queryset().get(view_token=self.view_token)
+            broadcast_simulator_session(session)
+            return
         except (TypeError, ValueError) as exc:
             self.send_error(str(exc), request_id=request_id)
             return
 
-        self.send_json({'type': 'action_ack', 'request_id': request_id, 'ok': True})
+        self.send_json({'type': f'{message_type}_ack', 'request_id': request_id, 'ok': True})
         broadcast_simulator_session(session)
 
     def simulator_changed(self, event):
@@ -334,6 +364,13 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
 
     def send_state(self, request_id=None):
         session = simulator_queryset().get(view_token=self.view_token)
+        if self.presence_role in ('p1', 'p2'):
+            was_automatic = session.mode == LumenSimulatorSession.MODE_AUTOMATIC
+            session = reconcile_automatic_session(session, both_players_disconnected=False)
+            if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
+                session = advance_ai_session(session)
+            if was_automatic and session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
+                broadcast_simulator_session(session)
         self.send_json({
             'type': 'state',
             'request_id': request_id,
@@ -366,10 +403,13 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
         except (TypeError, ValueError):
             return 0
 
-    def send_error(self, message, request_id=None):
-        self.send_json({
+    def send_error(self, message, request_id=None, code=None):
+        payload = {
             'type': 'error',
             'request_id': request_id,
             'ok': False,
             'error': ui_text(message, self.language),
-        })
+        }
+        if code:
+            payload['code'] = code
+        self.send_json(payload)

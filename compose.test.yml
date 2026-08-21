@@ -1,0 +1,15 @@
+services:
+  mysql-test:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: lumengg-test-root
+      MARIADB_DATABASE: lumengg_test_source
+    ports:
+      - "127.0.0.1:33078:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /var/lib/mysql

@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -19,9 +20,11 @@ from common.language import (
     translated_character_field,
     ui_text,
 )
+from common.localization import render_localized_markup
 from deck.models import CardInDeck, Deck
 
 from .models import LumenSimulatorSession
+from .game.card_identity import is_passive_card, normalize_passive_card
 from .presence import simulator_presence_counts
 from .services import _passive_ui, character_hand_table, hand_limit_for_hp, initial_hp_for_character, initial_passive_state_for_character
 
@@ -77,7 +80,7 @@ CARD_METADATA_FIELDS = (
 
 
 def simulator_queryset():
-    return LumenSimulatorSession.objects.all()
+    return LumenSimulatorSession.objects.select_related('ruleset_release', 'ai_policy')
 
 
 def simulator_session_expires_at(now=None):
@@ -101,13 +104,14 @@ def _card_image(card):
 
 def _card_metadata(card):
     image = _card_image(card)
+    card_type = '특성' if is_passive_card(card) else card.type
     return {
         'card_id': card.id,
         'name': card.name,
         'original_name': card.name,
         'code': card.code,
-        'type': card.type,
-        'original_type': card.type,
+        'type': card_type,
+        'original_type': card_type,
         'frame': card.frame,
         'damage': card.damage,
         'pos': card.pos,
@@ -207,7 +211,12 @@ def _player_skeleton(side, name, deck):
 def _add_deck_cards_to_player(player, side, deck):
     player['zones']['character'].append(_character_payload(deck.character, side))
 
-    passive_cards = Card.objects.filter(character=deck.character, type='특성').order_by('id')
+    passive_cards = (
+        Card.objects
+        .filter(Q(character=deck.character), Q(type='특성') | Q(code__icontains='PS'))
+        .order_by('id')
+        .distinct()
+    )
     for index, card in enumerate(passive_cards, start=1):
         player['zones']['passive'].append(
             _card_payload(card, side, f'{side}-passive-{index}', face_up=True)
@@ -222,6 +231,10 @@ def _add_deck_cards_to_player(player, side, deck):
     next_index = 1
     for entry in entries:
         card = entry.card
+        # Traits are character fixtures, not Technique-deck copies.  Even a
+        # legacy/misclassified PS row stays in the Passive Zone exactly once.
+        if is_passive_card(card):
+            continue
         count = max(0, int(entry.count or 0))
         hand_count = min(count, max(0, int(entry.hand or 0)))
         side_count = min(count - hand_count, max(0, int(entry.side or 0)))
@@ -292,22 +305,79 @@ def can_view_deck_for_simulator(user, deck):
     ).exists()
 
 
-def create_simulator_session(player1_name, player2_name, player1_deck, player2_deck):
+def create_simulator_session(
+    player1_name,
+    player2_name,
+    player1_deck,
+    player2_deck,
+    *,
+    mode='manual',
+    player1_controller='human',
+    player2_controller='human',
+):
+    controllers = {player1_controller, player2_controller}
+    if not controllers <= {LumenSimulatorSession.CONTROLLER_HUMAN, LumenSimulatorSession.CONTROLLER_AI}:
+        raise ValueError('플레이어 제어 방식이 올바르지 않습니다.')
+    if LumenSimulatorSession.CONTROLLER_AI in controllers and mode != LumenSimulatorSession.MODE_AUTOMATIC:
+        raise ValueError('AI 대전은 자동 규칙 모드에서만 사용할 수 있습니다.')
+    if player1_controller == LumenSimulatorSession.CONTROLLER_AI and not player1_name:
+        player1_name = 'Lumen AI'
+    if player2_controller == LumenSimulatorSession.CONTROLLER_AI and not player2_name:
+        player2_name = 'Lumen AI'
     initial_state = _initial_state(player1_name, player2_name, player1_deck, player2_deck)
-    document = {
-        'initial_state': copy.deepcopy(initial_state),
-        'state': copy.deepcopy(initial_state),
-        'events': [],
-    }
-    return LumenSimulatorSession.objects.create(
-        view_token=_unique_token('view_token'),
+    ruleset_release = None
+    ai_policy = None
+    view_token = _unique_token('view_token')
+    if mode == LumenSimulatorSession.MODE_AUTOMATIC:
+        from .automatic_services import (
+            active_ai_policy,
+            ai_policy_payload,
+            automatic_mode_release,
+            advance_ai_session,
+            ensure_automatic_decks,
+            initialize_automatic_document,
+        )
+
+        ruleset_release = automatic_mode_release()
+        if not ruleset_release:
+            raise ValueError('검증된 전체 카드 규칙 릴리스가 없어 자동 모드를 시작할 수 없습니다.')
+        ensure_automatic_decks(
+            player1_deck, player2_deck, ruleset=ruleset_release.snapshot,
+        )
+        document = initialize_automatic_document(
+            initial_state,
+            ruleset_release,
+            seed=f'{view_token}:{ruleset_release.content_hash}',
+        )
+        if LumenSimulatorSession.CONTROLLER_AI in controllers:
+            ai_policy = active_ai_policy()
+            if not ai_policy:
+                raise ValueError('검증된 활성 AI 정책이 없어 AI 대전을 시작할 수 없습니다.')
+            document['ai_policy'] = ai_policy_payload(ai_policy)
+    else:
+        mode = LumenSimulatorSession.MODE_MANUAL
+        document = {
+            'initial_state': copy.deepcopy(initial_state),
+            'state': copy.deepcopy(initial_state),
+            'events': [],
+        }
+    session = LumenSimulatorSession.objects.create(
+        view_token=view_token,
         player1_token=_unique_token('player1_token'),
         player2_token=_unique_token('player2_token'),
         player1_name=initial_state['players']['p1']['name'],
         player2_name=initial_state['players']['p2']['name'],
+        player1_controller=player1_controller,
+        player2_controller=player2_controller,
+        mode=mode,
+        ruleset_release=ruleset_release,
+        ai_policy=ai_policy,
         document=document,
         expires_at=simulator_session_expires_at(),
     )
+    if LumenSimulatorSession.CONTROLLER_AI in controllers:
+        session = advance_ai_session(session)
+    return session
 
 
 def simulator_session_is_expired(session):
@@ -508,6 +578,13 @@ def _cleanup_battle_phase(state, payload=None):
                 _set_card_visibility_for_zone(card, 'list', state)
                 owner_zones.setdefault('list', []).append(card)
                 moved_to_list[owner] += 1
+    for side in PLAYER_SIDES:
+        for cards in state.get('players', {}).get(side, {}).get('zones', {}).values():
+            for card in cards:
+                card.pop('attached_to', None)
+                card.pop('attachment_expires', None)
+                card.pop('return_to_hand_on_attachment_expiry', None)
+                card.pop('set_order', None)
     state.pop('battle_phase_ready_cards', None)
     if payload is not None:
         payload['battle_cleanup'] = {
@@ -531,8 +608,16 @@ def _hide_all_hands(state, payload=None):
 
 
 def _start_phase(state, phase, payload=None):
+    previous_phase = state.get('phase')
     state['phase'] = phase
     _reset_status(state)
+    if phase == 'ready':
+        if previous_phase != 'ready':
+            state['cmyk_ready_staged_cards'] = _collect_cmyk_ready_staged_cards(state)
+            state['cmyk_ready_host_cards'] = {}
+    else:
+        state.pop('cmyk_ready_staged_cards', None)
+        state.pop('cmyk_ready_host_cards', None)
     if phase == 'battle':
         _start_battle_phase(state, payload)
     return _request_priority_for_phase(state)
@@ -619,6 +704,185 @@ def _is_attack_or_defense_card(card):
     return '공격' in card_type or '수비' in card_type
 
 
+def _is_technique_card(card):
+    card_type = _card_type(card)
+    return any(keyword in card_type for keyword in ('공격', '수비', '특수'))
+
+
+def _card_character_id(card):
+    character_id = card.get('character_id')
+    if character_id:
+        return character_id
+    card_id = card.get('card_id')
+    if not card_id:
+        return None
+    model_card = Card.objects.filter(id=card_id).only('character_id').first()
+    if model_card:
+        card['character_id'] = model_card.character_id
+        return model_card.character_id
+    return None
+
+
+def _clear_attachment(card):
+    card.pop('attached_to', None)
+    card.pop('attachment_expires', None)
+    card.pop('return_to_hand_on_attachment_expiry', None)
+    card.pop('set_order', None)
+
+
+def _collect_cmyk_ready_staged_cards(state):
+    staged = {}
+    for side in PLAYER_SIDES:
+        if 'cmyk' not in _character_name(state, side).casefold():
+            continue
+        character_id = ((state.get('players', {}).get(side) or {}).get('character') or {}).get('id')
+        candidates = []
+        battle_cards = state['players'][side].get('zones', {}).get('battle', [])
+        for card in battle_cards:
+            if len(candidates) >= 3:
+                break
+            if card.get('owner') != side or card.get('face_up') or card.get('attached_to'):
+                continue
+            if not _is_technique_card(card) or _card_character_id(card) != character_id:
+                continue
+            if card.get('instance_id'):
+                candidates.append(str(card.get('instance_id')))
+        if candidates:
+            staged[side] = candidates
+    return staged
+
+
+def _auto_attach_cmyk_ready_cards(state, payload, actor):
+    if actor not in PLAYER_SIDES or state.get('phase') != 'ready':
+        return
+    if payload.get('to_player') != actor or payload.get('to_zone') != 'battle':
+        return
+    if payload.get('from_zone') == 'battle':
+        return
+    if (state.get('cmyk_ready_host_cards') or {}).get(actor):
+        return
+
+    staged_ids = list((state.get('cmyk_ready_staged_cards') or {}).get(actor) or [])
+    if not staged_ids:
+        return
+    host_instance_id = str(payload.get('card_instance_id') or '')
+    if not host_instance_id or host_instance_id in staged_ids:
+        return
+    host_player, host_zone, _, host = _find_card_location(state, host_instance_id)
+    if (
+        not host
+        or host_player != actor
+        or host_zone != 'battle'
+        or host.get('owner') != actor
+        or host.get('attached_to')
+        or not _is_technique_card(host)
+    ):
+        return
+
+    staged_id_set = set(staged_ids)
+    character_id = (state['players'][actor].get('character') or {}).get('id')
+    candidates = []
+    for card in state['players'][actor].get('zones', {}).get('battle', []):
+        if str(card.get('instance_id') or '') not in staged_id_set:
+            continue
+        if card.get('face_up') or card.get('attached_to') or card.get('owner') != actor:
+            continue
+        if not _is_technique_card(card) or _card_character_id(card) != character_id:
+            continue
+        candidates.append(card)
+    if not candidates:
+        return
+
+    attached_ids = []
+    for order, card in enumerate(candidates[:3], start=1):
+        card['attached_to'] = host_instance_id
+        card['attachment_expires'] = 'battle'
+        card['return_to_hand_on_attachment_expiry'] = True
+        card['set_order'] = order
+        card['face_up'] = False
+        card['hidden'] = False
+        attached_ids.append(card.get('instance_id'))
+
+    state.setdefault('cmyk_ready_host_cards', {})[actor] = host_instance_id
+    payload['auto_attached_card_instance_ids'] = attached_ids
+    payload['auto_attached_count'] = len(attached_ids)
+    payload['auto_set_host_card_instance_id'] = host_instance_id
+
+
+def _apply_attach_card(state, payload, actor):
+    if actor not in PLAYER_SIDES:
+        raise PermissionDenied()
+    if state.get('phase') != 'ready':
+        raise ValueError('CMYK 기술은 레디 페이즈에 세트할 수 있습니다.')
+    _require_character(state, actor, 'CMYK')
+
+    instance_id = str(payload.get('card_instance_id') or '')
+    host_instance_id = str(payload.get('host_card_instance_id') or '')
+    if not instance_id or not host_instance_id or instance_id == host_instance_id:
+        raise ValueError('세트할 카드와 대상 기술이 올바르지 않습니다.')
+    staged_ids = set((state.get('cmyk_ready_staged_cards') or {}).get(actor) or [])
+    ready_host_id = (state.get('cmyk_ready_host_cards') or {}).get(actor)
+    if staged_ids and instance_id not in staged_ids:
+        raise ValueError('루멘 페이즈에 미리 둔 CMYK 기술만 세트할 수 있습니다.')
+    if ready_host_id and host_instance_id != ready_host_id:
+        raise ValueError('CMYK 기술은 레디 페이즈에 처음 올린 기술에 세트해야 합니다.')
+
+    source_player, source_zone, _, card = _find_card_location(state, instance_id)
+    host_player, host_zone, _, host = _find_card_location(state, host_instance_id)
+    if not card or not host:
+        raise ValueError('세트할 카드 또는 대상 기술을 찾을 수 없습니다.')
+    if source_player != actor or host_player != actor or source_zone != 'battle' or host_zone != 'battle':
+        raise ValueError('자신의 배틀 존에 있는 기술끼리만 세트할 수 있습니다.')
+    if card.get('owner') != actor or host.get('owner') != actor:
+        raise ValueError('자신이 소유한 기술끼리만 세트할 수 있습니다.')
+    if not _is_technique_card(card) or not _is_technique_card(host):
+        raise ValueError('기술 카드만 세트할 수 있습니다.')
+    character_id = (state['players'][actor].get('character') or {}).get('id')
+    if _card_character_id(card) != character_id:
+        raise ValueError('CMYK 기술만 세트 카드로 사용할 수 있습니다.')
+    if host.get('attached_to'):
+        raise ValueError('다른 기술에 세트된 카드를 대상 기술로 사용할 수 없습니다.')
+    if any(
+        candidate.get('attached_to') == instance_id
+        for candidate in state['players'][actor]['zones']['battle']
+    ):
+        raise ValueError('다른 카드가 세트된 기술을 다시 세트할 수 없습니다.')
+
+    currently_attached = [
+        candidate
+        for cards in state['players'][actor]['zones'].values()
+        for candidate in cards
+        if candidate.get('attached_to')
+    ]
+    if not card.get('attached_to') and len(currently_attached) >= 3:
+        raise ValueError('CMYK 기술은 3장까지만 세트할 수 있습니다.')
+
+    next_order = max(
+        (
+            int(candidate.get('set_order') or 0)
+            for candidate in currently_attached
+            if candidate.get('attached_to') == host_instance_id
+        ),
+        default=0,
+    ) + 1
+    card['attached_to'] = host_instance_id
+    card['attachment_expires'] = 'battle'
+    card['return_to_hand_on_attachment_expiry'] = True
+    card['set_order'] = next_order
+    card['face_up'] = False
+    card['hidden'] = False
+
+    payload['owner'] = actor
+    payload['card_instance_id'] = instance_id
+    payload['host_card_instance_id'] = host_instance_id
+    payload['card_label'] = _card_label(card)
+    payload['host_card_label'] = _card_label(host)
+    if card.get('card_id'):
+        payload['card_id'] = card.get('card_id')
+    if host.get('card_id'):
+        payload['host_card_id'] = host.get('card_id')
+
+
 def _set_card_visibility_for_zone(card, zone, state):
     if zone == 'hand' and state.get('phase') == 'get':
         card['face_up'] = True
@@ -646,7 +910,55 @@ def _is_token_card(card):
     return card.get('kind') == 'token' or '토큰' in str(card.get('type') or '')
 
 
-def _apply_move_card(state, payload):
+def _normalize_passive_zone_cards(state):
+    """Repair legacy simulator documents using the printed PS code marker."""
+    players = state.get('players') or {}
+    relocated = {side: [] for side in PLAYER_SIDES}
+    for container_side in PLAYER_SIDES:
+        player = players.get(container_side) or {}
+        zones = player.get('zones') or {}
+        zones.setdefault('passive', [])
+        for zone_name, cards in list(zones.items()):
+            if not isinstance(cards, list):
+                continue
+            retained = []
+            for card in cards:
+                if is_passive_card(card):
+                    owner = (
+                        card.get('owner')
+                        if card.get('owner') in PLAYER_SIDES
+                        else container_side
+                    )
+                    card['owner'] = owner
+                    normalize_passive_card(card)
+                    if zone_name == 'passive' and owner == container_side:
+                        retained.append(card)
+                    else:
+                        relocated[owner].append(card)
+                else:
+                    retained.append(card)
+            zones[zone_name] = retained
+    for side in PLAYER_SIDES:
+        zones = (players.get(side) or {}).get('zones') or {}
+        passive_zone = zones.setdefault('passive', [])
+        for card in passive_zone:
+            normalize_passive_card(card)
+        known_ids = {
+            str(card.get('instance_id')) for card in passive_zone
+            if card.get('instance_id')
+        }
+        for card in relocated[side]:
+            instance_id = str(card.get('instance_id') or '')
+            if instance_id and instance_id in known_ids:
+                continue
+            passive_zone.append(card)
+            if instance_id:
+                known_ids.add(instance_id)
+    return state
+
+
+def _apply_move_card(state, payload, actor=None):
+    _normalize_passive_zone_cards(state)
     instance_id = str(payload.get('card_instance_id') or '')
     to_zone = str(payload.get('to_zone') or '')
     to_player = str(payload.get('to_player') or '')
@@ -658,6 +970,8 @@ def _apply_move_card(state, payload):
         raise ValueError('이동할 카드를 찾을 수 없습니다.')
     if card.get('kind') == 'character':
         raise ValueError('캐릭터 카드는 이동할 수 없습니다.')
+    if is_passive_card(card):
+        raise ValueError('PS 특성 카드는 패시브 존에서 이동할 수 없습니다.')
 
     owner = card.get('owner') or player_side
     target_player = to_player or owner
@@ -668,6 +982,16 @@ def _apply_move_card(state, payload):
     payload['owner'] = owner
     payload['card_label'] = _card_label(card)
     was_public = _was_public_in_zone(card, from_zone)
+    preserve_attachment = (
+        from_zone == to_zone
+        or (
+            state.get('phase') == 'battle'
+            and from_zone == 'battle'
+            and to_zone == 'list'
+        )
+    )
+    if not preserve_attachment:
+        _clear_attachment(card)
     state['players'][player_side]['zones'][from_zone].pop(index)
     if _is_token_card(card) and to_zone == 'break':
         payload['from_player'] = player_side
@@ -693,6 +1017,7 @@ def _apply_move_card(state, payload):
     payload['from_player'] = player_side
     payload['from_zone'] = from_zone
     payload['to_player'] = target_player
+    _auto_attach_cmyk_ready_cards(state, payload, actor)
 
 
 def _apply_bulk_move(state, payload):
@@ -706,6 +1031,8 @@ def _apply_bulk_move(state, payload):
     cards = state['players'][player_side]['zones'][from_zone]
     state['players'][player_side]['zones'][from_zone] = []
     for card in cards:
+        if not (state.get('phase') == 'battle' and to_zone == 'list'):
+            _clear_attachment(card)
         if to_zone == 'hand' and state.get('phase') == 'get':
             card['face_up'] = True
             card['hidden'] = False
@@ -1070,7 +1397,11 @@ def _apply_import_card(state, payload, actor):
     payload['card_id'] = imported.get('card_id') or payload.get('card_id')
     payload['card_name'] = imported.get('name') or payload.get('card_name') or '카드'
     payload['card_label'] = payload['card_name']
-    state['players'][actor].setdefault('zones', {}).setdefault('lumen', []).append(imported)
+    destination = 'passive' if is_passive_card(imported) else 'lumen'
+    if destination == 'passive':
+        normalize_passive_card(imported)
+    payload['to_zone'] = destination
+    state['players'][actor].setdefault('zones', {}).setdefault(destination, []).append(imported)
 
 
 def _apply_yohan_declare_reveal(state, payload, actor):
@@ -1260,6 +1591,7 @@ def _apply_blackout_random_get(state, payload, actor):
 
 
 def _apply_event(state, event):
+    _normalize_passive_zone_cards(state)
     event_type = event.get('type')
     payload = event.get('payload')
     if not isinstance(payload, dict):
@@ -1267,7 +1599,9 @@ def _apply_event(state, event):
     event['payload'] = payload
     actor = event.get('actor')
     if event_type == 'move_card':
-        _apply_move_card(state, payload)
+        _apply_move_card(state, payload, actor)
+    elif event_type == 'attach_card':
+        _apply_attach_card(state, payload, actor)
     elif event_type == 'bulk_move':
         _apply_bulk_move(state, payload)
     elif event_type == 'shuffle_hand':
@@ -1316,10 +1650,11 @@ def _apply_event(state, event):
         _apply_blackout_random_get(state, payload, actor)
     else:
         raise ValueError('알 수 없는 요청입니다.')
+    _normalize_passive_zone_cards(state)
 
 
 def _replay(initial_state, events):
-    state = copy.deepcopy(initial_state)
+    state = _normalize_passive_zone_cards(copy.deepcopy(initial_state))
     for event in events:
         _apply_event(state, copy.deepcopy(event))
     return state
@@ -1364,11 +1699,15 @@ def perform_simulator_action(session, body):
     actor = _actor_from_body(session, body)
     if simulator_session_is_expired(session):
         raise PermissionDenied()
+    if session.mode != LumenSimulatorSession.MODE_MANUAL:
+        raise ValueError('자동 모드에서는 command 엔드포인트를 사용해야 합니다.')
 
     with transaction.atomic():
         locked = LumenSimulatorSession.objects.select_for_update().get(id=session.id)
         if simulator_session_is_expired(locked):
             raise PermissionDenied()
+        if locked.mode != LumenSimulatorSession.MODE_MANUAL:
+            raise ValueError('자동 모드에서는 수동 action을 사용할 수 없습니다.')
         document = _document(locked)
         events = list(document.get('events') or [])
 
@@ -1381,6 +1720,12 @@ def perform_simulator_action(session, body):
         else:
             state = copy.deepcopy(document['state'])
             payload = dict(body.get('payload') or {})
+            # Keep the original HTTP action contract working. Early simulator
+            # clients sent action fields beside ``action`` while newer clients
+            # wrap them in ``payload``.
+            for key, value in body.items():
+                if key not in {'action', 'seat', 'seat_token', 'payload', 'actions'}:
+                    payload.setdefault(key, value)
             if action == 'batch':
                 actions = body.get('actions') or payload.get('actions') or []
                 if not isinstance(actions, list) or not actions:
@@ -1472,6 +1817,9 @@ def _filtered_card(card, zone, viewer_side):
             for field in ('name', 'img', 'img_sm', 'type', 'text', 'detail_text'):
                 if field in card:
                     visible[field] = card.get(field)
+        for field in ('attached_to', 'set_order'):
+            if field in card:
+                visible[field] = card.get(field)
         return visible
     hidden = {
         'instance_id': card.get('instance_id'),
@@ -1484,6 +1832,9 @@ def _filtered_card(card, zone, viewer_side):
     }
     if viewer_side in PLAYER_SIDES and card.get('card_id'):
         hidden['card_id'] = card.get('card_id')
+    for field in ('attached_to', 'set_order'):
+        if field in card:
+            hidden[field] = card.get(field)
     return hidden
 
 
@@ -1560,12 +1911,29 @@ def _localized_card_term_labels(card, language):
 def _localized_card_metadata(card, language):
     language = normalize_language(language)
     metadata = _card_metadata(card)
+    # Text fields can contain semantic localization markup in every language,
+    # including the Korean source text.
+    metadata['text'] = translated_card_field(card, language, 'text')
+    metadata['detail_text'] = translated_card_field(card, language, 'detail_text')
     if language != DEFAULT_LANGUAGE:
         metadata['name'] = translated_card_field(card, language, 'name')
-        metadata['text'] = translated_card_field(card, language, 'text')
-        metadata['detail_text'] = translated_card_field(card, language, 'detail_text')
         _localized_card_term_labels(metadata, language)
     return metadata
+
+
+def _render_card_markup_labels(state, language):
+    """Render markup embedded in serialized runtime card text."""
+    for player in (state.get('players') or {}).values():
+        for cards in (player.get('zones') or {}).values():
+            for card in cards:
+                if card.get('hidden') or card.get('kind') == 'character':
+                    continue
+                for field_name in ('text', 'detail_text'):
+                    if field_name in card:
+                        card[f'{field_name}_label'] = render_localized_markup(
+                            card.get(field_name), language,
+                        )
+    return state
 
 
 def serialize_simulator_card_metadata(card_ids, language=DEFAULT_LANGUAGE):
@@ -1627,9 +1995,15 @@ def _localize_filtered_state(state, language):
 
 def _filtered_state(state, viewer_side, language=DEFAULT_LANGUAGE):
     state = _with_serialized_hand_limits(state)
+    _normalize_passive_zone_cards(state)
     _ensure_turn_changes(state)
     _ensure_counter_revisions(state)
     for player_side, player in (state.get('players') or {}).items():
+        passive_state = player.get('passive_state') or {}
+        for key in list(passive_state):
+            entry = passive_state.get(key) or {}
+            if isinstance(entry, dict) and entry.get('visibility') == 'private' and entry.get('owner') != viewer_side:
+                passive_state.pop(key, None)
         zones = player.get('zones') or {}
         for zone, cards in zones.items():
             zones[zone] = [_filtered_card(card, zone, viewer_side) for card in cards]
@@ -1697,8 +2071,29 @@ def _localize_revealed_cards(payload, language=DEFAULT_LANGUAGE):
 
 def _filtered_event(event, state, viewer_side, language=DEFAULT_LANGUAGE):
     filtered = copy.deepcopy(event)
+    if filtered.get('visibility') == 'private' and filtered.get('actor') != viewer_side:
+        return {
+            'id': filtered.get('id'),
+            'type': 'private_event',
+            'actor': filtered.get('actor'),
+            'payload': {},
+            'created_at': filtered.get('created_at'),
+        }
     payload = filtered.get('payload') or {}
     event_type = filtered.get('type')
+    if event_type == 'attach_card':
+        for instance_key, label_key, card_id_key in (
+            ('card_instance_id', 'card_label', 'card_id'),
+            ('host_card_instance_id', 'host_card_label', 'host_card_id'),
+        ):
+            _, _, _, card = _find_card_location(state, payload.get(instance_key))
+            if not card or not _card_visible_to(card, viewer_side):
+                payload[label_key] = ui_text('비공개 카드', language)
+                payload.pop(card_id_key, None)
+            else:
+                payload[label_key] = _visible_card_name(
+                    state, payload.get(instance_key), viewer_side, language,
+                )
     if event_type in ('move_card', 'set_visibility', 'yohan_declare_reveal', 'yohan_foresight_reveal', 'blackout_random_get'):
         _, _, _, card = _find_card_location(state, payload.get('card_instance_id'))
         if not card and payload.get('deleted_token'):
@@ -1774,17 +2169,54 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
             'seat': 'p1',
             'seat_token': session.player1_token,
         })
-        player2_url = reverse('battlelog:simulatorSeat', kwargs={
-            'view_token': session.view_token,
-            'seat': 'p2',
-            'seat_token': session.player2_token,
-        })
+        if session.player2_controller != LumenSimulatorSession.CONTROLLER_AI:
+            player2_url = reverse('battlelog:simulatorSeat', kwargs={
+                'view_token': session.view_token,
+                'seat': 'p2',
+                'seat_token': session.player2_token,
+            })
     payload = {
         'id': session.id,
         'version': session.version,
+        'mode': session.mode,
+        'controllers': {
+            'p1': session.player1_controller,
+            'p2': session.player2_controller,
+        },
+        'ai_policy_version': (
+            ((session.document or {}).get('ai_policy') or {}).get('version')
+            if LumenSimulatorSession.CONTROLLER_AI in {
+                session.player1_controller, session.player2_controller,
+            }
+            else None
+        ),
+        'automation_failure': (
+            {
+                key: (session.automation_failure or {}).get(key)
+                for key in ('report_id', 'error_type', 'message', 'at', 'engine_step')
+                if (session.automation_failure or {}).get(key) is not None
+            }
+            if session.automation_failure else None
+        ),
+        'ruleset_version': session.ruleset_release.version if session.ruleset_release_id else None,
         'presence': simulator_presence_counts(session.view_token),
         'role': role,
-        'can_control': role in PLAYER_SIDES and not simulator_session_is_expired(session),
+        'can_control': (
+            role in PLAYER_SIDES
+            and (session.player1_controller if role == 'p1' else session.player2_controller)
+            == LumenSimulatorSession.CONTROLLER_HUMAN
+            and session.mode == LumenSimulatorSession.MODE_MANUAL
+            and not simulator_session_is_expired(session)
+        ),
+        'can_submit_commands': (
+            role in PLAYER_SIDES
+            and session.mode == LumenSimulatorSession.MODE_AUTOMATIC
+            and (
+                session.player1_controller if role == 'p1'
+                else session.player2_controller
+            ) == LumenSimulatorSession.CONTROLLER_HUMAN
+            and not simulator_session_is_expired(session)
+        ),
         'is_expired': simulator_session_is_expired(session),
         'view_url': reverse('battlelog:simulatorView', kwargs={'view_token': session.view_token}),
         'player1_url': player1_url,
@@ -1802,6 +2234,28 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
             for index, event in enumerate(limited_events)
         ]
         payload['event_limit'] = _event_limit(event_limit)
+    if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
+        from .automatic_services import automatic_observation, sanitize_automatic_state
+
+        observation = automatic_observation(session, role)
+        if (
+            role in PLAYER_SIDES
+            and (
+                session.player1_controller if role == 'p1'
+                else session.player2_controller
+            ) == LumenSimulatorSession.CONTROLLER_AI
+        ):
+            # The AI consumes automatic_observation() internally. Never expose
+            # its action surface through a browser response, even if a seat
+            # token is copied from storage or an old link.
+            observation['legal_actions'] = []
+        payload['state'] = sanitize_automatic_state(
+            payload['state'], observation, role=role,
+            ruleset=session.ruleset_release.snapshot if session.ruleset_release_id else {},
+        )
+        payload.update({key: value for key, value in observation.items() if key != 'state'})
+    if language == DEFAULT_LANGUAGE:
+        payload['state'] = _render_card_markup_labels(payload['state'], language)
     return payload
 
 

@@ -1,11 +1,21 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Avg
+from django.utils import timezone
+
+
+def default_effect_definition():
+    """Return the explicit no-op definition used by the automatic simulator."""
+    return {
+        'schema_version': 1,
+        'reviewed': False,
+        'abilities': [],
+    }
 
 # Create your models here.
 class Character(models.Model):
     name = models.CharField(max_length=100) #캐릭터명
-    localization_key = models.CharField(max_length=50, blank=True, db_index=True)
+    localization_key = models.CharField(max_length=50, blank=True, null=True, unique=True)
     description = models.TextField() #캐릭터 설명
     group = models.CharField(max_length=100) #캐릭터 소속 (루멘콘덴서, 뉴트럴 등)
     datas = models.JSONField() #상세 페이지에서만 불러올 데이터
@@ -19,14 +29,9 @@ class Character(models.Model):
     def __str__(self):
         return self.name
 
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=['localization_key'],
-                condition=~models.Q(localization_key=''),
-                name='unique_character_localization_key',
-            ),
-        ]
+    def save(self, *args, **kwargs):
+        self.localization_key = self.localization_key or None
+        super().save(*args, **kwargs)
 
 class CharacterComment(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE)
@@ -60,7 +65,7 @@ class Card(models.Model):
     g_bot = models.CharField(null=True, blank=True, max_length=5) #하단방어
     type = models.CharField(default="공격", max_length=10, blank=True) #카드 종류 (공격, 수비, 특수 기술, 패시브)
     ultimate = models.BooleanField(default=False) #얼티밋 여부
-    code = models.CharField(max_length=25, blank=True) #카드 일련번호 (UNC-AT-000)
+    code = models.CharField(max_length=25, blank=True, null=True, unique=True) #카드 일련번호 (UNC-AT-000)
     character = models.ForeignKey(Character, on_delete=models.PROTECT, related_name='cards', blank=True) #캐릭터
     img = models.URLField(blank=True) #이미지 URL
     img_mid = models.URLField(blank=True, default='') #이미지 URL (중간 사이즈)
@@ -68,18 +73,27 @@ class Card(models.Model):
     hiddenKeyword = models.CharField(blank=True, default='', max_length=255) #이 카드를 찾기 위한 키워드
     keyword = models.CharField(blank=True, default='', max_length=255) #이 카드를 찾기 위한 키워드
     search = models.CharField(blank=True, default='', max_length=255) #이 카드가 찾는 관련 카드 키워드
+    effect_definition = models.JSONField(default=default_effect_definition, blank=True)
+    effect_revision = models.PositiveIntegerField(default=1)
+    effect_updated_at = models.DateTimeField(default=timezone.now)
     
     def __str__(self):
-        return self.code + " / " + self.name
+        return f'{self.code or ""} / {self.name}'
+
+    def save(self, *args, **kwargs):
+        self.code = self.code or None
+        update_fields = kwargs.get('update_fields')
+        tracks_effect = update_fields is None or 'effect_definition' in update_fields
+        if self.pk and tracks_effect:
+            previous = type(self).objects.filter(pk=self.pk).values('effect_definition', 'effect_revision').first()
+            if previous and previous['effect_definition'] != self.effect_definition:
+                self.effect_revision = int(previous['effect_revision'] or 0) + 1
+                self.effect_updated_at = timezone.now()
+                if update_fields is not None:
+                    kwargs['update_fields'] = set(update_fields) | {'effect_definition', 'effect_revision', 'effect_updated_at'}
+        super().save(*args, **kwargs)
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=['code'],
-                condition=~models.Q(code=''),
-                name='unique_nonblank_card_code',
-            ),
-        ]
         permissions = [
             ("tag_update", "태그 수정")
         ]

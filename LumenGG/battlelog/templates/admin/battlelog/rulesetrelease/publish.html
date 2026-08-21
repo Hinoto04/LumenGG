@@ -1,0 +1,29 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<div id="content-main">
+    <h2>전체 카탈로그 검증</h2>
+    <p>
+        카드 {{ report.card_count }}장 · 검토 {{ report.reviewed_card_count }}장
+        ({{ report.review_progress_percent }}%, 남음 {{ report.remaining_card_count }}장) ·
+        능력 정의 카드 {{ report.ability_card_count }}장 / 효과 없음 {{ report.no_effect_card_count }}장 ·
+        능력 {{ report.ability_count }}개 ·
+        {% if report.is_valid %}게시 가능{% else %}오류 {{ report.errors|length }}건{% endif %}
+    </p>
+    {% if report.errors %}
+    <ul class="errorlist">
+        {% for error in report.errors|slice:":200" %}
+        <li>
+            {% if error.card_id %}<a href="{% url 'admin:card_card_change' error.card_id %}">{{ error.card_code|default:error.card_id }} · {{ error.card }}</a>{% else %}카탈로그{% endif %}
+            · {{ error.path }} · {{ error.message }}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-row"><label for="ruleset-version">버전</label><input id="ruleset-version" name="version" required placeholder="2026.06.1"></div>
+        <div class="submit-row"><input type="submit" value="불변 릴리스 게시 및 활성화" class="default"></div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

@@ -5,6 +5,7 @@
 {% block body_class %}v2-simulator-mobile-mode{% endblock body_class %}
 {% block style %}
 <link rel="stylesheet" href="{% static "v2/lumen-simulator-mobile.css" %}">
+<link rel="stylesheet" href="{% static "v2/lumen-simulator-automatic.css" %}">
 {% endblock style %}
 {% block content %}
 <section class="v2-mobile-sim" data-lumen-simulator-mobile>
@@ -35,6 +36,7 @@
             <button class="v2-button" type="button" data-mobile-done-button>{% tr "내 행동 완료" %}</button>
         </div>
     </header>
+    <section class="v2-panel v2-automatic-panel" data-automatic-panel hidden></section>
 
     <main class="v2-mobile-board" data-mobile-board></main>
 
@@ -87,11 +89,15 @@
         eventsUrl: "{% url "battlelog:simulatorEvents" session.view_token %}",
         metadataUrl: "{% url "battlelog:simulatorCardMetadata" session.view_token %}",
         actionUrl: "{% url "battlelog:simulatorAction" session.view_token %}",
+        commandUrl: "{% url "battlelog:simulatorCommand" session.view_token %}",
+        reportUrl: "{% url "battlelog:simulatorReportIssue" session.view_token %}",
         wsPath: "/ws/battlelog/simulator/{{ session.view_token|escapejs }}/",
         seat: "{{ seat|escapejs }}",
         seatToken: "{{ seat_token|escapejs }}",
         language: "{{ current_language|escapejs }}",
+        automaticMode: {% if session.mode == "automatic" %}true{% else %}false{% endif %},
     };
 </script>
+<script src="{% static "v2/lumen-simulator-automatic.js" %}"></script>
 <script src="{% static "v2/lumen-simulator-mobile.js" %}"></script>
 {% endblock content %}

@@ -1,0 +1,9 @@
+# Copy this file to test.local.ps1 and replace the values.
+# test.local.ps1 is ignored by Git.
+
+$env:LUMENGG_TEST_DB_HOST = '127.0.0.1'
+$env:LUMENGG_TEST_DB_PORT = '3306'
+$env:LUMENGG_TEST_DB_NAME = 'lumengg_test_source'
+$env:LUMENGG_TEST_DB_TEST_NAME = 'test_lumengg_isolated'
+$env:LUMENGG_TEST_DB_USER = 'lumengg_test'
+$env:LUMENGG_TEST_DB_PASSWORD = 'replace-with-your-password'

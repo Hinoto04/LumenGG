@@ -349,6 +349,41 @@
     gap: 5px;
     align-content: stretch;
     min-height: 118px;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.v2-mobile-card-set-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    width: max-content;
+    min-width: 100%;
+    min-height: 118px;
+}
+
+.v2-mobile-card-set-group > .v2-mobile-mini-card {
+    width: var(--mobile-set-host-width, 84px);
+    min-width: var(--mobile-set-host-width, 84px);
+    height: 118px;
+}
+
+.v2-mobile-card-set-cards {
+    display: flex;
+    align-items: flex-start;
+    gap: 3px;
+}
+
+.v2-mobile-card-set-cards .v2-mobile-mini-card,
+.v2-mobile-battle .v2-mobile-card-set-cards .v2-mobile-mini-card {
+    width: calc(var(--mobile-set-host-width, 84px) * .5);
+    min-width: calc(var(--mobile-set-host-width, 84px) * .5);
+    height: 59px;
+    min-height: 59px;
+}
+
+.v2-mobile-card-set-cards .v2-mobile-card-toggle {
+    display: none;
 }
 
 .v2-mobile-battle-open,

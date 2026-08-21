@@ -1,0 +1,383 @@
+{% extends "base_v2.html" %}
+{% load static %}
+
+{% block title %}{{ card.name }} 자동 효과 검수 - LumenDB V2{% endblock title %}
+
+{% block style %}
+<link rel="stylesheet" href="{% static 'v2/card-effect-review.css' %}">
+{{ form.media.css }}
+{% endblock style %}
+
+{% block content %}
+<section class="v2-page-head effect-review-page-head">
+    <div>
+        <div class="v2-kicker">{{ card.character.name }} / {{ card.code }}</div>
+        <h1 class="v2-title">{{ card.name }} 자동 효과 검수</h1>
+        <p class="v2-subtitle">리비전 {{ card.effect_revision }} · {{ card.effect_updated_at|date:"Y-m-d H:i" }}</p>
+    </div>
+    <div class="v2-chip-row">
+        <a class="v2-button" href="{% url 'card:detail' card.pk %}">카드 상세</a>
+        {% if user.is_staff %}
+        <a class="v2-button" href="{% url 'admin:card_card_change' card.pk %}">Admin 열기</a>
+        {% endif %}
+        {% if next_unreviewed_card %}
+        <a class="v2-button v2-button-primary" href="{% url 'card:effectReview' next_unreviewed_card.pk %}">다음 미검수</a>
+        {% endif %}
+    </div>
+</section>
+
+{% if messages %}
+<div class="effect-review-messages" role="status">
+    {% for message in messages %}<p>{{ message }}</p>{% endfor %}
+</div>
+{% endif %}
+
+<section class="effect-review-status effect-review-status-{{ review.status }}">
+    <div>
+        <span>현재 상태</span>
+        <strong>{{ review.status_label }}</strong>
+    </div>
+    <p>{{ review.status_message }}</p>
+    <span>남은 미검수 카드 {{ unreviewed_card_count }}장</span>
+</section>
+{% if review.review_scenarios %}
+<section class="v2-panel effect-review-source-panel">
+    <h2>자동 검토 근거</h2>
+    <p>{{ review.review_scenarios|length }}개 상황을 결정적으로 재실행했습니다.</p>
+    <ul>
+        {% for scenario in review.review_scenarios %}
+        <li>{{ scenario.label }} · {% if scenario.passed %}통과{% else %}실패{% endif %}</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+<div class="effect-review-source-grid">
+    <aside class="v2-panel effect-review-card-preview">
+        {% if card.img %}<img src="{{ card.img }}" alt="{{ card.name }}">{% endif %}
+        <dl>
+            <div><dt>분류</dt><dd>{{ card.type }}</dd></div>
+            <div><dt>속도</dt><dd>{{ card.frame|default_if_none:"-" }}</dd></div>
+            <div><dt>데미지</dt><dd>{{ card.damage|default_if_none:"-" }}</dd></div>
+            <div><dt>판정</dt><dd>{{ card.pos|default_if_none:"-" }}</dd></div>
+        </dl>
+    </aside>
+
+    <div class="effect-review-sources">
+        <section class="v2-panel effect-review-source-panel">
+            <h2>카드 원문</h2>
+            <div class="effect-review-source-text">{{ card.text|default:"(효과 문구 없음)"|linebreaks }}</div>
+        </section>
+        <section class="v2-panel effect-review-source-panel">
+            <h2>보충 설명</h2>
+            <div class="effect-review-source-text">{{ card.detail_text|default:"(보충 설명 없음)"|linebreaks }}</div>
+        </section>
+    </div>
+</div>
+
+<section class="v2-section effect-review-comparison">
+    <div class="effect-review-section-head">
+        <div>
+            <div class="v2-kicker">자동 해석 결과</div>
+            <h2 class="v2-section-title">능력 {{ review.ability_rows|length }}개</h2>
+        </div>
+        <span>현재 Q&A {{ review.current_qna_ids|join:", "|default:"없음" }} · 카드별 참조 {{ review.referenced_qna_ids|join:", "|default:"없음" }} · 일반 참조 {{ review.general_qna_ids|join:", "|default:"없음" }}</span>
+    </div>
+
+    {% if review.missing_qna_ids or review.stale_qna_ids %}
+    <div class="effect-review-source-warning">
+        {% if review.missing_qna_ids %}<p>정의에 빠진 관련 Q&A: {{ review.missing_qna_ids|join:", " }}</p>{% endif %}
+        {% if review.stale_qna_ids %}<p>현재 연결되지 않은 Q&A 참조: {{ review.stale_qna_ids|join:", " }}</p>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if review.validation_issues %}
+    <div class="effect-review-errors">
+        <strong>스키마 오류</strong>
+        <ul>
+            {% for issue in review.validation_issues %}<li><code>{{ issue.path }}</code> {{ issue.message }}</li>{% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="effect-review-ability-list">
+        {% for ability in review.ability_rows %}
+        <article class="v2-panel effect-review-ability-card">
+            <header>
+                <div>
+                    <span class="effect-review-number">{{ ability.index }}</span>
+                    <strong>{{ ability.id }}</strong>
+                </div>
+                <div class="v2-chip-row">
+                    <span class="v2-chip">{{ ability.mode }}</span>
+                    <span class="v2-chip">{{ ability.timing }}</span>
+                    {% if ability.is_draft %}<span class="v2-chip effect-review-draft-chip">초안</span>{% endif %}
+                </div>
+            </header>
+            <div class="effect-review-ability-source">{{ ability.source_text|linebreaksbr }}</div>
+            <div class="effect-review-operation-row">
+                {% for operation in ability.operations %}<span>{{ operation }}</span>{% empty %}<span>관련 실행 명령 없음</span>{% endfor %}
+            </div>
+            {% if ability.choice_steps %}
+            <div class="effect-review-choice-flow">
+                <strong>플레이어 결정 {{ ability.choice_steps|length }}단계</strong>
+                <ol>
+                    {% for step in ability.choice_steps %}
+                    <li>
+                        {{ step.label }} · {{ step.minimum }}~{{ step.maximum }}개
+                        {% if step.required %}<b>필수</b>{% else %}<span>선택 가능</span>{% endif %}
+                        {% if step.zones %}<small>{{ step.zones|join:", " }}</small>{% endif %}
+                    </li>
+                    {% endfor %}
+                </ol>
+            </div>
+            {% endif %}
+            {% if ability.automatic_steps %}
+            <div class="effect-review-automatic-flow">
+                <strong>선택 없이 처리</strong>
+                {% for step in ability.automatic_steps %}
+                <p>{{ step.label }}{% if step.zones %} · {{ step.zones|join:", " }}{% endif %}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if ability.choice_warnings %}
+            <div class="effect-review-choice-warning">
+                {% for warning in ability.choice_warnings %}<p>{{ warning }}</p>{% endfor %}
+            </div>
+            {% endif %}
+            <button class="v2-button effect-sandbox-pick-ability" type="button" data-sandbox-ability="{{ ability.id }}">이 효과 테스트</button>
+        </article>
+        {% empty %}
+        <div class="v2-panel effect-review-empty">
+            {% if review.definition.no_effect %}효과 없음으로 정의된 카드입니다.{% else %}정의된 능력이 없습니다.{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section
+    class="v2-section effect-sandbox"
+    id="effect-sandbox"
+    data-start-url="{% url 'card:effectSandboxStart' card.pk %}"
+    data-decision-url="{% url 'card:effectSandboxDecision' card.pk %}"
+>
+    <div class="effect-review-section-head">
+        <div>
+            <div class="v2-kicker">실제 자동 엔진으로 재현</div>
+            <h2 class="v2-section-title">격리형 효과 테스트</h2>
+        </div>
+        <span>DB와 실제 경기 세션에는 아무것도 저장하지 않습니다.</span>
+    </div>
+    <div class="effect-sandbox-notice">
+        <strong>강제 선택은 여기서 멈춰 플레이어의 응답을 기다립니다.</strong>
+        <p>선택을 확정해야만 뒤의 획득·이동·브레이크가 실행됩니다. 현재 편집기의 미저장 JSON을 사용하므로 저장 전에 동작을 확인할 수 있습니다.</p>
+        <p><b>기본 테스트 카드</b>를 “아무 후보도 추가하지 않음”으로 바꾸면 필수 후보 부족 상황을 시험할 수 있습니다. 이때 결과가 “필수 선택 후보 부족”이면 같은 효과의 후속 명령도 실행되지 않습니다.</p>
+        <p><b>공통 테스트</b>는 현재 카드의 효과 구현이 비어 있어도 사용할 수 있습니다. 카드별 효과가 완성되기 전에 획득·복수 선택·버리기·일반 이동·상대 선택·브레이크와 보충 흐름부터 확인할 수 있습니다.</p>
+    </div>
+
+    {% if sandbox_abilities %}
+    <form class="v2-panel effect-sandbox-form" id="effect-sandbox-form">
+        {% csrf_token %}
+        <div class="effect-sandbox-fields">
+            <label>
+                <span>테스트할 효과</span>
+                <select id="effect-sandbox-ability" required>
+                    <optgroup label="공통 선택·영역 이동 테스트">
+                        {% for ability in sandbox_abilities %}{% if ability.prototype %}<option value="{{ ability.id }}">{{ ability.label }}</option>{% endif %}{% endfor %}
+                    </optgroup>
+                    <optgroup label="이 카드에 정의된 효과">
+                        {% for ability in sandbox_abilities %}{% if not ability.prototype %}<option value="{{ ability.id }}">{{ ability.id }} · {{ ability.label }}</option>{% endif %}{% endfor %}
+                    </optgroup>
+                </select>
+            </label>
+            <label>
+                <span>발생시킬 타이밍</span>
+                <select id="effect-sandbox-event" required></select>
+            </label>
+            <label>
+                <span>효과 사용자</span>
+                <select id="effect-sandbox-controller">
+                    <option value="p1">p1</option>
+                    <option value="p2">p2</option>
+                </select>
+            </label>
+            <label>
+                <span>현재 페이즈</span>
+                <select id="effect-sandbox-phase">
+                    {% for phase in sandbox_phases %}<option value="{{ phase }}"{% if phase == "battle" %} selected{% endif %}>{{ phase }}</option>{% endfor %}
+                </select>
+            </label>
+            <label>
+                <span>효과 카드 영역</span>
+                <select id="effect-sandbox-source-zone">
+                    {% for zone in sandbox_zones %}<option value="{{ zone.value }}"{% if zone.value == "battle" %} selected{% endif %}>{{ zone.label }}</option>{% endfor %}
+                </select>
+            </label>
+            <label>
+                <span>기본 테스트 카드</span>
+                <select id="effect-sandbox-fixtures">
+                    <option value="choices">각 영역에 공격·수비·특수 후보 추가</option>
+                    <option value="minimal">배틀 기술만 추가</option>
+                    <option value="none">아무 후보도 추가하지 않음</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="effect-sandbox-choice-description" id="effect-sandbox-choice-description" aria-live="polite"></div>
+
+        <div class="effect-sandbox-presets" aria-label="빠른 테스트 상황">
+            <strong>빠른 테스트 상황</strong>
+            <button class="v2-button" type="button" data-sandbox-preset="p1-candidates">p1 · 여러 후보 중 선택</button>
+            <button class="v2-button" type="button" data-sandbox-preset="p2-candidates">p2 · 여러 후보 중 선택</button>
+            <button class="v2-button" type="button" data-sandbox-preset="no-candidates">필수 후보 없음 · 후속 처리 중단</button>
+            <small>선택한 효과와 타이밍은 유지하고, 플레이어·기본 후보만 바꿔 즉시 실행합니다.</small>
+        </div>
+
+        <fieldset class="effect-sandbox-player-stats">
+            <legend>플레이어 수치</legend>
+            <label><span>p1 HP</span><input id="effect-sandbox-p1-hp" type="number" min="0" max="99999" value="4000"></label>
+            <label><span>p1 FP</span><input id="effect-sandbox-p1-fp" type="number" min="0" max="999" value="5"></label>
+            <label><span>p2 HP</span><input id="effect-sandbox-p2-hp" type="number" min="0" max="99999" value="4000"></label>
+            <label><span>p2 FP</span><input id="effect-sandbox-p2-fp" type="number" min="0" max="999" value="5"></label>
+        </fieldset>
+
+        <details class="effect-sandbox-advanced">
+            <summary>판정·콤보·상태 조건 설정</summary>
+            <div class="effect-sandbox-fields">
+                <label><span>판정 결과</span><select id="effect-sandbox-result"><option value="">지정 안 함</option><option value="hit">hit</option><option value="counter">counter</option><option value="guard">guard</option><option value="dodge">dodge</option><option value="clash">clash</option></select></label>
+                <label><span>내 속도</span><input id="effect-sandbox-controller-speed" type="number" min="0" value="6"></label>
+                <label><span>상대 속도</span><input id="effect-sandbox-opponent-speed" type="number" min="0" value="7"></label>
+                <label><span>현재 콤보 번호</span><input id="effect-sandbox-combo-number" type="number" min="0" max="99" value="1"></label>
+                <label><span>내가 받은 데미지</span><input id="effect-sandbox-controller-damage" type="number" min="0" value="0"></label>
+                <label><span>상대가 받은 데미지</span><input id="effect-sandbox-opponent-damage" type="number" min="0" value="0"></label>
+                <label><span>이번 턴 내가 받은 데미지</span><input id="effect-sandbox-controller-turn-damage" type="number" min="0" value="0"></label>
+                <label><span>이번 턴 상대가 받은 데미지</span><input id="effect-sandbox-opponent-turn-damage" type="number" min="0" value="0"></label>
+            </div>
+            <div class="effect-sandbox-json-fields">
+                <label><span>p1 패시브 상태 JSON</span><textarea id="effect-sandbox-p1-passive" rows="3">{}</textarea></label>
+                <label><span>p2 패시브 상태 JSON</span><textarea id="effect-sandbox-p2-passive" rows="3">{}</textarea></label>
+                <label><span>추가 이벤트 컨텍스트 JSON</span><textarea id="effect-sandbox-context" rows="3">{}</textarea></label>
+                <label><span>히스토리·사용 제한 JSON</span><textarea id="effect-sandbox-engine" rows="3">{}</textarea></label>
+            </div>
+        </details>
+
+        <div class="effect-sandbox-support-head">
+            <div>
+                <strong>실제 카드 추가 배치</strong>
+                <small>정확한 이름·판정·특수 조건을 시험할 때 사용합니다.</small>
+            </div>
+            <button class="v2-button" id="effect-sandbox-add-card" type="button">카드 추가</button>
+        </div>
+        <div id="effect-sandbox-support-cards"></div>
+
+        <div class="effect-sandbox-actions">
+            <button class="v2-button v2-button-primary" type="submit">이 상황 실행</button>
+            <button class="v2-button" id="effect-sandbox-reset" type="button">결과 초기화</button>
+            <span id="effect-sandbox-busy" hidden>자동 엔진 실행 중…</span>
+        </div>
+    </form>
+
+    <div class="effect-sandbox-error" id="effect-sandbox-error" role="alert" hidden></div>
+    <section class="effect-sandbox-results" id="effect-sandbox-results" hidden aria-live="polite">
+        <div class="effect-sandbox-result-head" id="effect-sandbox-result-head"></div>
+        <div class="v2-panel effect-sandbox-decision" id="effect-sandbox-decision" hidden></div>
+        <section class="v2-panel effect-sandbox-audit" id="effect-sandbox-audit">
+            <div class="effect-sandbox-audit-head">
+                <h3>선택·영역 이동 검증</h3>
+                <span>실제 엔진이 대기한 선택과 확정 후 이동을 순서대로 표시합니다.</span>
+            </div>
+            <ol id="effect-sandbox-audit-list"></ol>
+        </section>
+        <div class="effect-sandbox-state" id="effect-sandbox-state"></div>
+        <details class="v2-panel effect-sandbox-engine-state">
+            <summary>지속 수정자·예약 효과 확인</summary>
+            <pre id="effect-sandbox-engine-state"></pre>
+        </details>
+        <div class="effect-sandbox-event-head">
+            <h3>실행 이벤트</h3>
+            <span>카드 이동 이벤트에서 이전·이후 영역을 직접 확인할 수 있습니다.</span>
+        </div>
+        <ol class="effect-sandbox-events" id="effect-sandbox-events"></ol>
+    </section>
+
+    <template id="effect-sandbox-card-row-template">
+        <div class="effect-sandbox-card-row">
+            <label><span>카드 코드</span><input class="effect-sandbox-card-code" list="effect-sandbox-card-catalog" placeholder="예: ST1-013" required></label>
+            <label><span>소유자</span><select class="effect-sandbox-card-owner"><option value="p1">p1</option><option value="p2">p2</option></select></label>
+            <label><span>영역</span><select class="effect-sandbox-card-zone">{% for zone in sandbox_zones %}<option value="{{ zone.value }}">{{ zone.label }}</option>{% endfor %}</select></label>
+            <label class="effect-sandbox-face-up"><input class="effect-sandbox-card-face-up" type="checkbox" checked><span>공개</span></label>
+            <button class="v2-button effect-sandbox-remove-card" type="button">제거</button>
+        </div>
+    </template>
+    <datalist id="effect-sandbox-card-catalog">
+        {% for candidate in sandbox_cards %}<option value="{{ candidate.code }}">{{ candidate.name }}</option>{% endfor %}
+    </datalist>
+    {% else %}
+    <div class="v2-panel effect-review-empty">실행할 능력이 없습니다. 효과 정의를 추가하고 저장한 뒤 테스트해 주세요.</div>
+    {% endif %}
+</section>
+
+<section class="v2-section">
+    <div class="effect-review-section-head">
+        <div>
+            <div class="v2-kicker">관련 재정</div>
+            <h2 class="v2-section-title">Q&A {{ review.qnas|length }}개</h2>
+        </div>
+    </div>
+    <div class="effect-review-qna-list">
+        {% for qna in review.qnas %}
+        <details class="v2-panel effect-review-qna-item">
+            <summary><span>#{{ qna.pk }}</span><strong>{{ qna.title }}</strong></summary>
+            <div><p><b>Q.</b> {{ qna.question|linebreaksbr }}</p><p><b>A.</b> {{ qna.answer|linebreaksbr }}</p></div>
+            <a href="{% url 'qna:detail' qna.pk %}" target="_blank" rel="noopener">Q&A 상세 열기</a>
+        </details>
+        {% empty %}
+        <div class="v2-panel effect-review-empty">연결된 Q&A가 없습니다.</div>
+        {% endfor %}
+    </div>
+    {% if review.general_qnas %}
+    <div class="effect-review-section-head effect-review-general-qna-head">
+        <div><h3>일반 Q&A 출처 {{ review.general_qnas|length }}개</h3></div>
+        <span>이 카드에 직접 연결된 재정은 아니지만 공통 처리 근거로 사용됩니다.</span>
+    </div>
+    <div class="effect-review-qna-list">
+        {% for qna in review.general_qnas %}
+        <details class="v2-panel effect-review-qna-item">
+            <summary><span>#{{ qna.pk }}</span><strong>{{ qna.title }}</strong></summary>
+            <div><p><b>Q.</b> {{ qna.question|linebreaksbr }}</p><p><b>A.</b> {{ qna.answer|linebreaksbr }}</p></div>
+            <a href="{% url 'qna:detail' qna.pk %}" target="_blank" rel="noopener">일반 Q&A 상세 열기</a>
+        </details>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+
+<form method="post" class="effect-review-form" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="effect-review-errors">{{ form.non_field_errors }}</div>{% endif %}
+    {% if form.effect_definition.errors %}<div class="effect-review-errors">{{ form.effect_definition.errors }}</div>{% endif %}
+    <details class="v2-panel effect-review-editor-shell"{% if form.errors %} open{% endif %}>
+        <summary>
+            <span>
+                <strong>효과 정의 편집기</strong>
+                <small>능력·조건·명령을 수정하거나 검토 완료 상태를 지정합니다.</small>
+            </span>
+            <span>펼치기</span>
+        </summary>
+        <div class="effect-review-editor-body">{{ form.effect_definition }}</div>
+    </details>
+    <div class="effect-review-save-bar">
+        <span>저장하면 카드 효과 리비전이 증가하며, 검토 완료 선택 시 현재 원문과 Q&A가 승인 출처로 기록됩니다.</span>
+        <div>
+            <button class="v2-button" type="submit">저장</button>
+            <button class="v2-button v2-button-primary" type="submit" name="_saveandnextunreviewed" value="1">저장 후 다음 미검수</button>
+        </div>
+    </div>
+</form>
+
+{{ form.media.js }}
+{{ sandbox_abilities|json_script:"effect-sandbox-abilities-data" }}
+{{ sandbox_cards|json_script:"effect-sandbox-cards-data" }}
+{{ sandbox_events|json_script:"effect-sandbox-events-data" }}
+<script src="{% static 'v2/card-effect-sandbox.js' %}" defer></script>
+{% endblock content %}

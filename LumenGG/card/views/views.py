@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, render, redirect
 from django.http import HttpResponse, Http404, JsonResponse
 from django.contrib import messages
 from django.core.files.storage import default_storage
@@ -7,12 +7,32 @@ from django.db import transaction
 from django.db.models import Q, Case, When, IntegerField, Avg, BooleanField, Min, Count
 from django.db.models.functions import Cast
 from django.conf import settings
+from django.core import signing
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from ..models import Card, Character, Tag, CardComment
+from battlelog.game.catalog import _card_snapshot
+from battlelog.game.effects import EffectResolutionError
+from battlelog.game.engine import EngineError
+from battlelog.game.sandbox import (
+    EVENT_LABELS as SANDBOX_EVENT_LABELS,
+    ZONE_LABELS as SANDBOX_ZONE_LABELS,
+    EffectSandboxError,
+    continue_effect_sandbox,
+    describe_ability_choices,
+    project_effect_sandbox,
+    sandbox_event_options,
+    sandbox_prototype_abilities,
+    sandbox_prototype_definition,
+    start_effect_sandbox,
+)
+from battlelog.game.schema import validate_effect_definition
+from battlelog.game.spec import ALL_ZONES, PHASES, TRIGGERS
 from collection.models import CollectionCard, Pack
 from deck.models import Deck
 from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm, CardUpdateForm, CardTranslationUpdateForm, CardCommentForm
+from ..effect_review import CardEffectReviewForm, card_effect_review_context
 from ..search import card_matches_search, card_matches_search_exact
 from decorators import permission_required
 import re, random, os, json, uuid
@@ -37,6 +57,9 @@ from common.language import (
 NEUTRAL_CHARACTER_ID = 1
 DETAIL_TEXT_IMPORT_DIR = 'card_detail_text_imports'
 DETAIL_TEXT_IMPORT_REQUIRED_COLUMNS = ['첫 출전팩', '번호', '이름', '보충 설명']
+EFFECT_SANDBOX_SIGNING_SALT = 'card.effect-sandbox.v1'
+EFFECT_SANDBOX_MAX_AGE_SECONDS = 60 * 60
+EFFECT_SANDBOX_MAX_REQUEST_BYTES = 512 * 1024
 
 
 def _detail_text_import_path(token):
@@ -534,6 +557,196 @@ def detail(req, id=0, template_name='card/detail.html'):
 
 def detailV2(req, id=0):
     return detail(req, id, 'card/detail_v2.html')
+
+
+def _next_effect_review_card(current_pk):
+    queryset = Card.objects.exclude(
+        effect_definition__reviewed=True,
+    ).exclude(pk=current_pk).order_by('pk')
+    return queryset.filter(pk__gt=current_pk).first() or queryset.first()
+
+
+@permission_required('card.change_card')
+def effectReview(req, id=0):
+    card = get_object_or_404(
+        Card.objects.select_related('character').prefetch_related('qna'),
+        pk=id,
+    )
+    if req.method == 'POST':
+        form = CardEffectReviewForm(req.POST, instance=card)
+        if form.is_valid():
+            card = form.save()
+            messages.success(
+                req,
+                f'{card.code or ""} {card.name}의 자동 효과 정의를 저장했습니다.',
+            )
+            if '_saveandnextunreviewed' in req.POST:
+                next_card = _next_effect_review_card(card.pk)
+                if next_card:
+                    return redirect('card:effectReview', next_card.pk)
+                messages.success(req, '남은 미검수 카드가 없습니다.')
+            return redirect('card:effectReview', card.pk)
+    else:
+        form = CardEffectReviewForm(instance=card)
+
+    next_card = _next_effect_review_card(card.pk)
+    definition = card.effect_definition if isinstance(card.effect_definition, dict) else {}
+    sandbox_abilities = []
+    ability_groups = (
+        (sandbox_prototype_abilities(), True),
+        (definition.get('abilities') or [], False),
+    )
+    for abilities, is_prototype in ability_groups:
+        for ability in abilities:
+            choice_description = describe_ability_choices(ability)
+            sandbox_abilities.append({
+                'id': str(ability.get('id') or ''),
+                'label': str(
+                    ability.get('label') or ability.get('draft_text')
+                    or ability.get('id') or '이름 없는 효과'
+                ),
+                'mode': str(ability.get('mode') or ''),
+                'events': sandbox_event_options(ability),
+                'active_zones': list(ability.get('active_zones') or []),
+                'choice_steps': choice_description['steps'],
+                'automatic_steps': choice_description['automatic_steps'],
+                'choice_warnings': choice_description['warnings'],
+                'prototype': is_prototype,
+            })
+    context = {
+        'card': card,
+        'form': form,
+        'review': card_effect_review_context(card),
+        'sandbox_abilities': sandbox_abilities,
+        'sandbox_cards': list(
+            Card.objects.exclude(pk=card.pk).exclude(code__isnull=True).order_by(
+                'code', 'pk',
+            ).values('id', 'code', 'name', 'type', 'frame', 'damage', 'pos')
+        ),
+        'sandbox_events': [
+            {'value': event, 'label': SANDBOX_EVENT_LABELS.get(event, event)}
+            for event in sorted(TRIGGERS)
+        ],
+        'sandbox_zones': [
+            {'value': zone, 'label': SANDBOX_ZONE_LABELS.get(zone, zone)}
+            for zone in ALL_ZONES
+        ],
+        'sandbox_phases': PHASES,
+        'next_unreviewed_card': next_card,
+        'unreviewed_card_count': Card.objects.exclude(
+            effect_definition__reviewed=True,
+        ).count(),
+    }
+    return render(req, 'card/effect_review_v2.html', context)
+
+
+def _effect_sandbox_json(req):
+    if len(req.body) > EFFECT_SANDBOX_MAX_REQUEST_BYTES:
+        raise EffectSandboxError('효과 테스트 요청이 너무 큽니다.')
+    try:
+        value = json.loads(req.body.decode('utf-8') or '{}')
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise EffectSandboxError('효과 테스트 요청 JSON이 올바르지 않습니다.') from exc
+    if not isinstance(value, dict):
+        raise EffectSandboxError('효과 테스트 요청은 객체여야 합니다.')
+    return value
+
+
+def _effect_sandbox_response(payload):
+    token_payload = {
+        **payload,
+    }
+    token = signing.dumps(
+        token_payload,
+        salt=EFFECT_SANDBOX_SIGNING_SALT,
+        compress=True,
+    )
+    return JsonResponse({
+        'ok': True,
+        'token': token,
+        'result': project_effect_sandbox(payload),
+    })
+
+
+def _effect_sandbox_error(exc, *, status=400):
+    return JsonResponse({'ok': False, 'error': str(exc)}, status=status)
+
+
+@permission_required('card.change_card')
+@require_POST
+def effectSandboxStart(req, id=0):
+    card = get_object_or_404(Card.objects.select_related('character'), pk=id)
+    try:
+        body = _effect_sandbox_json(req)
+        ability_id = body.get('ability_id')
+        definition = (
+            sandbox_prototype_definition(ability_id)
+            or body.get('effect_definition', card.effect_definition)
+        )
+        issues = validate_effect_definition(
+            definition,
+            card_has_text=bool((card.text or '').strip()),
+        )
+        if issues:
+            first = issues[0]
+            raise EffectSandboxError(
+                f'효과 정의를 먼저 수정해 주세요: {first.path} {first.message}'
+            )
+        config = body.get('config')
+        if not isinstance(config, dict):
+            raise EffectSandboxError('테스트 상황 설정이 필요합니다.')
+        placements = config.get('cards') if isinstance(config.get('cards'), list) else []
+        support_ids = {
+            int(item.get('card_id'))
+            for item in placements
+            if isinstance(item, dict) and str(item.get('card_id') or '').isdigit()
+        }
+        if card.pk in support_ids:
+            raise EffectSandboxError('검수 중인 카드는 추가 카드로 다시 배치할 수 없습니다.')
+        support_cards = list(
+            Card.objects.select_related('character').filter(pk__in=support_ids)
+        )
+        if len(support_cards) != len(support_ids):
+            raise EffectSandboxError('배치하려는 카드 중 현재 DB에 없는 카드가 있습니다.')
+        support_snapshots = {
+            str(item.pk): _card_snapshot(item) for item in support_cards
+        }
+        payload = start_effect_sandbox(
+            _card_snapshot(card), definition, ability_id,
+            support_snapshots, config,
+        )
+        payload['card_id'] = card.pk
+        payload['reviewer_id'] = req.user.pk
+        return _effect_sandbox_response(payload)
+    except (EffectSandboxError, EffectResolutionError, EngineError) as exc:
+        return _effect_sandbox_error(exc)
+
+
+@permission_required('card.change_card')
+@require_POST
+def effectSandboxDecision(req, id=0):
+    get_object_or_404(Card, pk=id)
+    try:
+        body = _effect_sandbox_json(req)
+        try:
+            payload = signing.loads(
+                str(body.get('token') or ''),
+                salt=EFFECT_SANDBOX_SIGNING_SALT,
+                max_age=EFFECT_SANDBOX_MAX_AGE_SECONDS,
+            )
+        except signing.SignatureExpired as exc:
+            raise EffectSandboxError('효과 테스트가 만료되었습니다. 다시 실행해 주세요.') from exc
+        except signing.BadSignature as exc:
+            raise EffectSandboxError('효과 테스트 상태 서명이 올바르지 않습니다.') from exc
+        if payload.get('card_id') != id or payload.get('reviewer_id') != req.user.pk:
+            raise EffectSandboxError('현재 카드와 사용자의 효과 테스트가 아닙니다.')
+        selected = body.get('selected')
+        if not isinstance(selected, list):
+            raise EffectSandboxError('선택 결과는 배열이어야 합니다.')
+        payload = continue_effect_sandbox(payload, selected)
+        return _effect_sandbox_response(payload)
+    except (EffectSandboxError, EffectResolutionError, EngineError) as exc:
+        return _effect_sandbox_error(exc)
 
 def detailName(req, name):
     language = get_language(req)

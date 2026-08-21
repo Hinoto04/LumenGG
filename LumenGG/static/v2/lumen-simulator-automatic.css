@@ -1,0 +1,91 @@
+.v2-automatic-panel {
+    margin: 0 0 1rem;
+    padding: .9rem;
+    border-color: color-mix(in srgb, var(--v2-accent, #70cfff) 55%, transparent);
+}
+
+/*
+ * The board scripts render some manual controls after this stylesheet and
+ * the automatic controller have already initialized.  Keep the mode boundary
+ * declarative so a later render cannot expose a manual mutation button.  The
+ * controller removes the class again after an automatic failure falls back to
+ * manual mode, restoring the existing controls without rebuilding the page.
+ */
+.has-automatic-simulator [data-sim-action],
+.has-automatic-simulator [data-quick-log],
+.has-automatic-simulator [data-manual-log-input],
+.has-automatic-simulator [data-mobile-done-button],
+.has-automatic-simulator [data-mobile-log-form] {
+    display: none !important;
+}
+
+.v2-automatic-head,
+.v2-automatic-head > div,
+.v2-automatic-actions,
+.v2-automatic-action {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+
+.v2-automatic-head {
+    justify-content: space-between;
+    margin-bottom: .65rem;
+}
+
+.v2-automatic-head > div {
+    flex-wrap: wrap;
+}
+
+.v2-automatic-head span,
+.v2-automatic-status,
+.v2-automatic-wait {
+    color: var(--v2-text-muted, #9da9b5);
+    font-size: .82rem;
+}
+
+.v2-automatic-actions {
+    align-items: stretch;
+    flex-wrap: wrap;
+}
+
+.v2-automatic-action {
+    align-items: stretch;
+}
+
+.v2-automatic-select {
+    min-width: 12rem;
+    border: 1px solid var(--v2-border, #34404b);
+    border-radius: .5rem;
+    background: var(--v2-surface, #161c22);
+    color: inherit;
+    padding: .45rem;
+}
+
+.v2-automatic-clock,
+.v2-automatic-prompt {
+    margin: .45rem 0;
+}
+
+.v2-automatic-issue {
+    margin-top: .75rem;
+}
+
+.v2-automatic-issue-text {
+    box-sizing: border-box;
+    display: block;
+    margin: .5rem 0;
+    width: 100%;
+}
+
+.v2-automatic-issue-status {
+    display: inline-block;
+    margin-left: .5rem;
+}
+
+@media (max-width: 720px) {
+    .v2-automatic-panel { margin: .5rem; }
+    .v2-automatic-action,
+    .v2-automatic-action .v2-button,
+    .v2-automatic-select { width: 100%; }
+}

@@ -7,6 +7,20 @@
 
     let envelope = JSON.parse(stateNode.textContent);
     const i18n = i18nNode ? JSON.parse(i18nNode.textContent) : {};
+
+    function dispatchAutomaticClientError(error, context) {
+        if (!(config.automaticMode || envelope.mode === "automatic" || envelope.automation_failure)) return;
+        const value = error && typeof error === "object" ? error : {};
+        window.dispatchEvent(new CustomEvent("lumen-simulator-client-error", {detail: {
+            error_type: value.name || "ClientTransportError",
+            message: value.message || String(error || "시뮬레이터 통신 오류"),
+            source: value.source || value.filename || "",
+            line: value.line || value.lineno || 0,
+            column: value.column || value.colno || 0,
+            stack: value.stack || "",
+            context: context || "simulator_transport",
+        }}));
+    }
     const translations = i18n.translations || {};
     const translationKeys = Object.keys(translations).sort((a, b) => b.length - a.length);
     const ACTION_BATCH_DELAY_MS = 500;
@@ -59,6 +73,7 @@
     let realtimeToastMessage = "";
     let realtimeToastCount = 0;
     let selectedLogCard = null;
+    let draggedCardInstanceId = "";
     let lastPhaseOverlayKey = `${state.turn || 1}:${state.phase || ""}`;
     let lastSignalOverlayKey = "";
     let timerSync = null;
@@ -311,6 +326,17 @@
         return cardType(card).includes("특수");
     }
 
+    function isPassiveCard(card) {
+        const code = String((card && card.code) || "").toUpperCase();
+        return code.includes("PS") || cardType(card).includes("특성");
+    }
+
+    function isTechniqueCard(card) {
+        if (isPassiveCard(card)) return false;
+        const type = cardType(card);
+        return ["공격", "수비", "특수"].some((keyword) => type.includes(keyword));
+    }
+
     function isTokenCard(card) {
         return !!(card && (card.kind === "token" || cardType(card).includes("토큰")));
     }
@@ -335,7 +361,18 @@
     function hydrateCard(card) {
         if (!card || card.hidden || !card.card_id) return card;
         const metadata = cardMetadataCache.get(String(card.card_id));
-        return metadata ? { ...metadata, ...card } : card;
+        if (!metadata) return card;
+        const hydrated = { ...metadata, ...card };
+        // Automatic matches retain Korean ruleset fields in state. Keep those
+        // runtime values pinned, but let localized display metadata win.
+        if (config.language && config.language !== "ko") {
+            ["name", "text", "detail_text"].forEach((field) => {
+                if (Object.prototype.hasOwnProperty.call(metadata, field)) {
+                    hydrated[field] = metadata[field];
+                }
+            });
+        }
+        return hydrated;
     }
 
     function cardDisplayName(card) {
@@ -575,6 +612,27 @@
         return allCards().find((card) => card.instance_id === instanceId) || null;
     }
 
+    function isCmykPlayer(side) {
+        const character = (((state || {}).players || {})[side] || {}).character || {};
+        return String(character.name || "").toUpperCase().includes("CMYK");
+    }
+
+    function canAttachCmykCard(source, host) {
+        if (!source || !host || source.instance_id === host.instance_id) return false;
+        if (!canControl() || state.phase !== "ready" || envelope.role !== source.owner) return false;
+        if (source.owner !== host.owner || source.zone !== "battle" || host.zone !== "battle") return false;
+        if (!isCmykPlayer(source.owner) || !isTechniqueCard(source) || !isTechniqueCard(host)) return false;
+        if (host.attached_to) return false;
+        const stagedIds = (((state.cmyk_ready_staged_cards || {})[source.owner]) || []).map(String);
+        const readyHostId = (state.cmyk_ready_host_cards || {})[source.owner];
+        if (stagedIds.length && !stagedIds.includes(String(source.instance_id || ""))) return false;
+        if (readyHostId && readyHostId !== host.instance_id) return false;
+        const ownedCards = allCards().filter((card) => card.owner === source.owner);
+        if (ownedCards.some((card) => card.attached_to === source.instance_id)) return false;
+        if (!source.attached_to && ownedCards.filter((card) => card.attached_to).length >= 3) return false;
+        return true;
+    }
+
     function selectCardInstance(instanceId) {
         selectedCardId = instanceId || "";
         selectedLogCard = null;
@@ -697,6 +755,7 @@
         }
         ensureKnownCardMetadata();
         render();
+        window.dispatchEvent(new CustomEvent("lumen-simulator-state", { detail: envelope }));
         return envelope;
     }
 
@@ -921,6 +980,17 @@
                 }
             });
         });
+        ["p1", "p2"].forEach((side) => {
+            const zones = (((localState.players || {})[side] || {}).zones) || {};
+            Object.values(zones).forEach((cards) => {
+                (cards || []).forEach((card) => {
+                    delete card.attached_to;
+                    delete card.attachment_expires;
+                    delete card.return_to_hand_on_attachment_expiry;
+                    delete card.set_order;
+                });
+            });
+        });
         delete localState.battle_phase_ready_cards;
         if (payload) {
             payload.battle_cleanup = {
@@ -945,12 +1015,74 @@
     }
 
     function startLocalPhase(localState, phase, payload) {
+        const previousPhase = localState.phase;
         localState.phase = phase;
         resetLocalStatus(localState);
+        if (phase === "ready") {
+            if (previousPhase !== "ready") {
+                localState.cmyk_ready_staged_cards = collectLocalCmykReadyStagedCards(localState);
+                localState.cmyk_ready_host_cards = {};
+            }
+        } else {
+            delete localState.cmyk_ready_staged_cards;
+            delete localState.cmyk_ready_host_cards;
+        }
         if (phase === "battle") {
             startLocalBattlePhase(localState, payload);
         }
         return requestLocalPriorityForPhase(localState);
+    }
+
+    function collectLocalCmykReadyStagedCards(localState) {
+        const staged = {};
+        ["p1", "p2"].forEach((side) => {
+            const player = ((localState || {}).players || {})[side] || {};
+            if (!String((player.character || {}).name || "").toUpperCase().includes("CMYK")) return;
+            const characterId = (player.character || {}).id;
+            const candidates = ((player.zones || {}).battle || [])
+                .map((card) => hydrateCard(card))
+                .filter((card) => (
+                    card.owner === side && !card.face_up && !card.attached_to &&
+                    isTechniqueCard(card) && (!card.character_id || card.character_id === characterId)
+                ))
+                .slice(0, 3)
+                .map((card) => card.instance_id)
+                .filter(Boolean);
+            if (candidates.length) staged[side] = candidates;
+        });
+        return staged;
+    }
+
+    function autoAttachLocalCmykReadyCards(localState, hostCard, fromZone, toPlayer, toZone, payload) {
+        if (
+            localState.phase !== "ready" || fromZone === "battle" || toZone !== "battle" ||
+            !hostCard || hostCard.owner !== toPlayer || !isCmykPlayer(toPlayer) ||
+            !isTechniqueCard(hostCard) || hostCard.attached_to
+        ) return;
+        const hostCards = localState.cmyk_ready_host_cards || {};
+        if (hostCards[toPlayer]) return;
+        const stagedIds = (((localState.cmyk_ready_staged_cards || {})[toPlayer]) || []).map(String);
+        if (!stagedIds.length || stagedIds.includes(String(hostCard.instance_id || ""))) return;
+        const stagedSet = new Set(stagedIds);
+        const candidates = ((((localState.players || {})[toPlayer] || {}).zones || {}).battle || [])
+            .filter((card) => (
+                stagedSet.has(String(card.instance_id || "")) && !card.face_up &&
+                !card.attached_to && card.owner === toPlayer
+            ))
+            .slice(0, 3);
+        if (!candidates.length) return;
+        candidates.forEach((card, index) => {
+            card.attached_to = hostCard.instance_id;
+            card.attachment_expires = "battle";
+            card.return_to_hand_on_attachment_expiry = true;
+            card.set_order = index + 1;
+            card.face_up = false;
+            card.hidden = false;
+        });
+        localState.cmyk_ready_host_cards = { ...hostCards, [toPlayer]: hostCard.instance_id };
+        payload.auto_attached_card_instance_ids = candidates.map((card) => card.instance_id);
+        payload.auto_attached_count = candidates.length;
+        payload.auto_set_host_card_instance_id = hostCard.instance_id;
     }
 
     function advanceLocalPhase(localState, payload) {
@@ -1053,6 +1185,15 @@
             const toPlayer = localPayload.to_player || owner;
             if (!state.players[toPlayer] || !state.players[toPlayer].zones || !state.players[toPlayer].zones[toZone]) return false;
             if (toPlayer !== owner && !["battle", "lumen"].includes(toZone)) return false;
+            const preserveAttachment = location.zone === toZone || (
+                state.phase === "battle" && location.zone === "battle" && toZone === "list"
+            );
+            if (!preserveAttachment) {
+                delete location.card.attached_to;
+                delete location.card.attachment_expires;
+                delete location.card.return_to_hand_on_attachment_expiry;
+                delete location.card.set_order;
+            }
             state.players[location.playerSide].zones[location.zone].splice(location.index, 1);
             localPayload.from_player = location.playerSide;
             localPayload.from_zone = location.zone;
@@ -1069,6 +1210,34 @@
             location.card.zone = toZone;
             location.card.zone_owner = toPlayer;
             state.players[toPlayer].zones[toZone].push(location.card);
+            autoAttachLocalCmykReadyCards(
+                state, hydrateCard(location.card), location.zone, toPlayer, toZone, localPayload,
+            );
+            appendOptimisticEvent(action, localPayload);
+            return true;
+        }
+
+        if (action === "attach_card") {
+            const source = findCardLocation(state, localPayload.card_instance_id);
+            const host = findCardLocation(state, localPayload.host_card_instance_id);
+            if (!source || !host || source.card === host.card || state.phase !== "ready") return false;
+            if (source.playerSide !== envelope.role || host.playerSide !== envelope.role) return false;
+            if (source.zone !== "battle" || host.zone !== "battle") return false;
+            const attached = Object.values(state.players[envelope.role].zones || {})
+                .flatMap((cards) => cards || [])
+                .filter((card) => !!card.attached_to);
+            const order = Math.max(0, ...attached
+                .filter((card) => card.attached_to === host.card.instance_id)
+                .map((card) => Number(card.set_order || 0))) + 1;
+            source.card.attached_to = host.card.instance_id;
+            source.card.attachment_expires = "battle";
+            source.card.return_to_hand_on_attachment_expiry = true;
+            source.card.set_order = order;
+            source.card.face_up = false;
+            source.card.hidden = false;
+            localPayload.owner = envelope.role;
+            localPayload.card_label = localCardLabel(source.card);
+            localPayload.host_card_label = localCardLabel(host.card);
             appendOptimisticEvent(action, localPayload);
             return true;
         }
@@ -1084,6 +1253,12 @@
             cards.forEach((card) => {
                 const owner = card.owner || playerSide;
                 if (!state.players[owner] || !state.players[owner].zones[toZone]) return;
+                if (!(state.phase === "battle" && toZone === "list")) {
+                    delete card.attached_to;
+                    delete card.attachment_expires;
+                    delete card.return_to_hand_on_attachment_expiry;
+                    delete card.set_order;
+                }
                 setLocalCardVisibilityForZone(card, toZone, state, fromZone);
                 card.zone = toZone;
                 card.zone_owner = owner;
@@ -1304,6 +1479,7 @@
     function shouldOptimisticallyApply(action) {
         return [
             "move_card",
+            "attach_card",
             "bulk_move",
             "shuffle_hand",
             "set_hand_visibility",
@@ -1383,6 +1559,7 @@
     function isBatchableAction(action) {
         return [
             "move_card",
+            "attach_card",
             "bulk_move",
             "shuffle_hand",
             "set_hand_visibility",
@@ -2032,6 +2209,38 @@
         return String(count);
     }
 
+    function renderBattleCards(cards) {
+        const boardKey = (card) => card.instance_id || card.board_key || "";
+        const attachmentKey = (card) => card.attached_to || card.attached_to_board_key || "";
+        const cardById = new Map((cards || []).map((card) => [boardKey(card), card]));
+        const attachments = new Map();
+        (cards || []).forEach((card) => {
+            const hostKey = attachmentKey(card);
+            if (!hostKey || !cardById.has(hostKey)) return;
+            if (!attachments.has(hostKey)) attachments.set(hostKey, []);
+            attachments.get(hostKey).push(card);
+        });
+        attachments.forEach((items) => items.sort((left, right) => (
+            Number(left.set_order || 0) - Number(right.set_order || 0)
+        )));
+
+        return (cards || [])
+            .filter((card) => !attachmentKey(card) || !cardById.has(attachmentKey(card)))
+            .map((host) => {
+                const hostKey = boardKey(host);
+                const setCards = attachments.get(hostKey) || [];
+                if (!setCards.length) return renderCard({ ...host, zone: "battle" });
+                return `
+                    <div class="v2-sim-card-set-group" data-card-set-host="${escapeHtml(hostKey)}">
+                        ${renderCard({ ...host, zone: "battle" })}
+                        <div class="v2-sim-card-set-cards" aria-label="${escapeHtml(t("세트된 카드"))}">
+                            ${setCards.map((card) => renderCard({ ...card, zone: "battle" })).join("")}
+                        </div>
+                    </div>
+                `;
+            }).join("");
+    }
+
     function renderZones(side, player, position) {
         const holder = document.querySelector(`[data-zone-grid="${side}"]`);
         if (!holder) return;
@@ -2059,6 +2268,9 @@
             const zoneActions = actions.length
                 ? `<div class="v2-sim-zone-actions">${actions.join("")}</div>`
                 : "";
+            const cardMarkup = zone === "battle"
+                ? renderBattleCards(cards)
+                : cards.map((card) => renderCard({ ...card, zone })).join("");
             zoneNode.innerHTML = `
                 <header>
                     <strong>${zone === "ultimate" ? "ULTIMATE" : zoneLabel(zone)}</strong>
@@ -2066,7 +2278,7 @@
                     ${zoneActions}
                 </header>
                 <div class="v2-sim-card-grid">
-                    ${cards.map((card) => renderCard({ ...card, zone })).join("")}
+                    ${cardMarkup}
                 </div>
             `;
             return zoneNode;
@@ -2095,12 +2307,13 @@
 
     function renderCard(card) {
         card = hydrateCard(card);
-        const draggable = canControl() && card.kind !== "character";
+        const draggable = canControl() && card.kind !== "character" && !isPassiveCard(card);
         const classes = ["v2-sim-card"];
         if (card.hidden) classes.push("is-hidden");
         if (card.face_up) classes.push("is-face-up");
         if (!card.face_up) classes.push("is-face-down");
         if (card.kind === "character") classes.push("is-character");
+        if (card.attached_to) classes.push("is-set-card");
         const image = !card.hidden && card.img_sm
             ? `<img src="${escapeHtml(card.img_sm)}" alt="">`
             : "";
@@ -2109,7 +2322,7 @@
             : "";
         const effects = renderCardEffectButtons(card, true);
         return `
-            <div class="${classes.join(" ")}" data-card-instance="${escapeHtml(card.instance_id)}" data-card-owner="${escapeHtml(card.owner)}" data-card-open="${escapeHtml(card.instance_id)}" data-card-tooltip="${escapeHtml(cardTitle(card))}" draggable="${draggable ? "true" : "false"}">
+            <div class="${classes.join(" ")}" data-card-instance="${escapeHtml(card.instance_id)}" data-card-owner="${escapeHtml(card.owner)}" data-card-zone="${escapeHtml(card.zone || "")}" data-card-attached-to="${escapeHtml(card.attached_to || "")}" data-card-open="${escapeHtml(card.instance_id)}" data-card-tooltip="${escapeHtml(cardTitle(card))}" draggable="${draggable ? "true" : "false"}">
                 ${image}
                 ${visibility}
                 ${effects}
@@ -2139,11 +2352,22 @@
     function fitCardGrids() {
         document.querySelectorAll(".v2-sim-card-grid").forEach((grid) => {
             const cardNodes = Array.from(grid.querySelectorAll(".v2-sim-card"));
-            const cards = cardNodes.length;
+            const layoutNodes = Array.from(grid.children);
+            const cards = layoutNodes.length;
             if (!cards) {
                 grid.style.removeProperty("--sim-card-fit-step");
                 grid.style.removeProperty("--sim-card-visible-width");
                 grid.classList.remove("is-overlapped");
+                grid.classList.remove("has-card-sets");
+                return;
+            }
+            const hasCardSets = layoutNodes.some((node) => node.classList.contains("v2-sim-card-set-group"));
+            grid.classList.toggle("has-card-sets", hasCardSets);
+            if (hasCardSets) {
+                grid.style.removeProperty("--sim-card-fit-step");
+                grid.style.setProperty("--sim-card-visible-width", `${Math.floor(Number.parseFloat(window.getComputedStyle(grid).getPropertyValue("--sim-card-width")) || 94)}px`);
+                grid.classList.remove("is-overlapped");
+                cardNodes.forEach((node) => node.classList.remove("is-actions-hidden"));
                 return;
             }
             const style = window.getComputedStyle(grid);
@@ -2214,7 +2438,13 @@
             const to = payload.to_player
                 ? `${playerLabel(payload.to_player)} ${zoneLabel(payload.to_zone)}`
                 : zoneLabel(payload.to_zone);
-            return `${actor} ${payload.card_label || t("카드")}: ${from} → ${to}`;
+            const autoSet = Number(payload.auto_attached_count || 0) > 0
+                ? ` / ${payload.auto_attached_count}${t("장")} ${t("자동 세트")}`
+                : "";
+            return `${actor} ${payload.card_label || t("카드")}: ${from} → ${to}${autoSet}`;
+        }
+        if (event.type === "attach_card") {
+            return `${actor} ${payload.card_label || t("카드")} → ${payload.host_card_label || t("카드")} ${t("세트")}`;
         }
         if (event.type === "bulk_move") {
             return `${actor} ${playerLabel(payload.player)} ${zoneLabel("battle")} ${payload.count || 0}${t("장")} → ${zoneLabel(payload.to_zone)}`;
@@ -2384,10 +2614,48 @@
                     event.preventDefault();
                     return;
                 }
+                draggedCardInstanceId = card.dataset.cardInstance || "";
                 event.dataTransfer.setData("text/plain", JSON.stringify({
                     instanceId: card.dataset.cardInstance,
                     owner: card.dataset.cardOwner,
                 }));
+            });
+            card.addEventListener("dragend", () => {
+                draggedCardInstanceId = "";
+                document.querySelectorAll(".is-set-drop-target").forEach((node) => {
+                    node.classList.remove("is-set-drop-target");
+                });
+            });
+            card.addEventListener("dragover", (event) => {
+                const source = findCard(draggedCardInstanceId);
+                const host = findCard(card.dataset.cardInstance);
+                if (!canAttachCmykCard(source, host)) return;
+                event.preventDefault();
+                event.stopPropagation();
+                card.classList.add("is-set-drop-target");
+            });
+            card.addEventListener("dragleave", () => card.classList.remove("is-set-drop-target"));
+            card.addEventListener("drop", (event) => {
+                const source = findCard(draggedCardInstanceId);
+                const host = findCard(card.dataset.cardInstance);
+                const isSetGesture = !!(
+                    source && host && state.phase === "ready" &&
+                    source.zone === "battle" && host.zone === "battle" &&
+                    source.owner === host.owner && isCmykPlayer(source.owner)
+                );
+                if (!isSetGesture) return;
+                event.preventDefault();
+                event.stopPropagation();
+                card.classList.remove("is-set-drop-target");
+                if (!canAttachCmykCard(source, host)) {
+                    showRealtimeToast(t("이 카드에는 CMYK 기술을 세트할 수 없습니다."));
+                    return;
+                }
+                postAction("attach_card", {
+                    card_instance_id: source.instance_id,
+                    host_card_instance_id: host.instance_id,
+                });
+                draggedCardInstanceId = "";
             });
         });
         document.querySelectorAll("[data-drop-zone]").forEach((zone) => {
@@ -2408,6 +2676,7 @@
                     dragged = null;
                 }
                 if (!dragged || !dragged.instanceId) return;
+                draggedCardInstanceId = "";
                 const canDropToOpponent = ["battle", "lumen"].includes(zone.dataset.dropZone);
                 if (dragged.owner !== zone.dataset.dropPlayer && !canDropToOpponent) {
                     showRealtimeToast(t("상대 플레이어의 루멘 존 또는 배틀 존으로만 이동할 수 있습니다."));
@@ -2970,7 +3239,10 @@
                 applyLogEvents(data, true);
                 return data;
             })
-            .catch(() => null);
+            .catch((error) => {
+                dispatchAutomaticClientError(error, "events_fetch");
+                return null;
+            });
     }
 
     function applyLogEvents(data, forceReset) {
@@ -3019,7 +3291,8 @@
                 if (logOpen && !sendLogSubscription(true)) fetchEvents();
                 return result;
             })
-            .catch(() => {
+            .catch((error) => {
+                dispatchAutomaticClientError(error, "state_fetch");
                 pollingDelayMs = Math.min(POLLING_MAX_DELAY_MS, Math.max(POLLING_INITIAL_DELAY_MS, pollingDelayMs * 2));
                 return null;
             });
@@ -3104,6 +3377,7 @@
             try {
                 message = JSON.parse(event.data);
             } catch (error) {
+                dispatchAutomaticClientError(error, "websocket_message_parse");
                 return;
             }
             if (message.type === "state" && message.state) {
@@ -3161,5 +3435,6 @@
             socket.send(JSON.stringify({ type: "presence" }));
         }
     }, 30000);
+    window.addEventListener("lumen-simulator-refresh-request", () => fetchState(true));
     window.setInterval(renderTimer, 1000);
 })();

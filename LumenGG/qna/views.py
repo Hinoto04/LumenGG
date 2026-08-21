@@ -143,12 +143,20 @@ def update(req, id=0, template_name='qna/update.html', detail_route='qna:detail'
         data = json.loads(req.body)
         errorContent = {'status': 200}
         try:
-            qna.title = data['title']
-            qna.question = data['question']
-            qna.answer = data['answer']
-            qna.tags = data['tags']
-            qna.faq = ('faq' in data.keys())
-            qna.save()
+            values = {
+                'title': data['title'],
+                'question': data['question'],
+                'answer': data['answer'],
+                'tags': data['tags'],
+                'faq': 'faq' in data,
+            }
+            changed_fields = []
+            for field, value in values.items():
+                if getattr(qna, field) != value:
+                    setattr(qna, field, value)
+                    changed_fields.append(field)
+            if changed_fields:
+                qna.save(update_fields=[*changed_fields, 'created_at'])
         except:
             errorContent['msg'] =  '올바르지 않은 데이터가 있습니다.'
             return JsonResponse(errorContent)

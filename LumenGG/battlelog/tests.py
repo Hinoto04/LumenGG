@@ -8,10 +8,12 @@ from django.urls import reverse
 from django.utils import timezone
 
 from card.models import Card, CardTranslation, Character
+from common.localization import render_localized_markup
 from deck.models import CardInDeck, Deck
 from tournament.models import Tournament, TournamentDeckSubmission, TournamentMatch, TournamentParticipant, TournamentRound
 
 from .models import BattleEvent, BattleSession, LumenSimulatorSession, RealtimePresence
+from .game.catalog import build_ruleset_snapshot
 from .event_buffer import flush_session_events
 from .presence import battle_presence_counts, register_presence, simulator_presence_counts, unregister_presence
 from .services import (
@@ -580,6 +582,83 @@ class LumenSimulatorTests(TestCase):
         self.assertFalse(state['status'][requested[0]]['done'])
         self.assertEqual(state['priority_player'], requested[0])
 
+    def test_ps_code_is_created_once_in_passive_even_if_misclassified_in_deck(self):
+        passive = Card.objects.create(
+            name='코드 특성', code='SIM-PS-001', type='공격',
+            character=self.char_a, img='https://example.com/code-passive.png',
+        )
+        CardInDeck.objects.create(deck=self.deck_a, card=passive, count=2, hand=1, side=1)
+
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        state = session.document['state']
+        occurrences = [
+            (zone, card)
+            for zone, cards in state['players']['p1']['zones'].items()
+            for card in cards if card.get('code') == 'SIM-PS-001'
+        ]
+
+        self.assertEqual(len(occurrences), 1)
+        self.assertEqual(occurrences[0][0], 'passive')
+        self.assertEqual(occurrences[0][1]['type'], '특성')
+        self.assertTrue(occurrences[0][1]['face_up'])
+        snapshot = build_ruleset_snapshot(
+            cards=[passive], characters=[self.char_a],
+        )
+        self.assertEqual(snapshot['cards']['SIM-PS-001']['type'], '특성')
+
+    def test_manual_simulator_rejects_moving_ps_card_out_of_passive(self):
+        passive = Card.objects.create(
+            name='잠금 특성', code='SIM-PS-LOCK', type='공격',
+            character=self.char_a, img='https://example.com/locked-passive.png',
+        )
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        instance = next(
+            card for card in session.document['state']['players']['p1']['zones']['passive']
+            if card.get('card_id') == passive.id
+        )
+
+        response = self.post_json(
+            reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token}),
+            {
+                'action': 'move_card', 'seat': 'p1',
+                'seat_token': session.player1_token,
+                'payload': {
+                    'card_instance_id': instance['instance_id'],
+                    'to_player': 'p1', 'to_zone': 'battle',
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        session.refresh_from_db()
+        self.assertTrue(any(
+            card.get('instance_id') == instance['instance_id']
+            for card in session.document['state']['players']['p1']['zones']['passive']
+        ))
+
+    def test_imported_ps_card_enters_passive_instead_of_lumen(self):
+        passive = Card.objects.create(
+            name='외부 특성', code='EXT-PS-001', type='공격',
+            character=self.char_b, img='https://example.com/imported-passive.png',
+        )
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+
+        response = self.post_json(
+            reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token}),
+            {
+                'action': 'import_card', 'seat': 'p1',
+                'seat_token': session.player1_token,
+                'payload': {'card_id': passive.id},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        state = session.document['state']['players']['p1']['zones']
+        imported = next(card for card in state['passive'] if card.get('card_id') == passive.id)
+        self.assertEqual(imported['type'], '특성')
+        self.assertFalse(any(card.get('card_id') == passive.id for card in state['lumen']))
+
     def test_simulator_session_expiry_extends_one_hour_after_last_action(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
         self.assertLess(session.expires_at, timezone.now() + timedelta(hours=1, minutes=1))
@@ -649,6 +728,46 @@ class LumenSimulatorTests(TestCase):
         self.assertEqual(card['detail_text'], 'External detail')
         self.assertEqual(card['original_detail_text'], '')
         self.assertIn('Special', card['type_label'])
+
+    def test_simulator_card_metadata_renders_korean_semantic_markup(self):
+        source_text = '[[state:over_limit]] / [[token:yin]] / [[keyword:rai]]'
+        source_detail = '[[state:over_limit]] / [[keyword:rai]]'
+        self.external_card.text = source_text
+        self.external_card.detail_text = source_detail
+        self.external_card.save(update_fields=['text', 'detail_text'])
+
+        metadata = serialize_simulator_card_metadata([self.external_card.id], language='ko')
+        card = metadata[str(self.external_card.id)]
+
+        self.assertEqual(card['text'], render_localized_markup(source_text, 'ko'))
+        self.assertEqual(card['detail_text'], render_localized_markup(source_detail, 'ko'))
+        self.assertNotIn('[[', card['text'])
+        self.assertNotIn('[[', card['detail_text'])
+        self.assertEqual(card['original_text'], source_text)
+        self.assertEqual(card['original_detail_text'], source_detail)
+
+    def test_simulator_state_renders_korean_markup_for_embedded_card_text(self):
+        source_text = '[[state:over_limit]] / [[token:yin]] / [[keyword:rai]]'
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        document = session.document
+        embedded_card = document['state']['players']['p1']['zones']['list'][0]
+        embedded_card.pop('card_id', None)
+        embedded_card['text'] = source_text
+        session.document = document
+        session.save(update_fields=['document'])
+
+        state = serialize_simulator_session(
+            session,
+            'p1',
+            session.player1_token,
+            language='ko',
+            include_events=False,
+        )['state']
+        card = state['players']['p1']['zones']['list'][0]
+
+        self.assertEqual(card['text_label'], render_localized_markup(source_text, 'ko'))
+        self.assertNotIn('[[', card['text_label'])
+        self.assertEqual(card['text'], source_text)
 
     def test_hand_visibility_action_reveals_and_hides_own_hand(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
@@ -1220,6 +1339,157 @@ class LumenSimulatorTests(TestCase):
         self.assertTrue(other_card['face_up'])
         self.assertEqual(session.document['events'][-1]['payload']['battle_cleanup']['hand']['p1'], 1)
         self.assertEqual(session.document['events'][-1]['payload']['battle_cleanup']['list']['p1'], 1)
+
+    def test_cmyk_ready_attachment_is_private_reveals_and_expires_after_battle(self):
+        self.char_a.name = 'CMYK'
+        self.char_a.save(update_fields=['name'])
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        action_url = reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token})
+        staged = session.document['state']['players']['p1']['zones']['list'][0]
+        second_staged = session.document['state']['players']['p1']['zones']['side'][0]
+        host = session.document['state']['players']['p1']['zones']['hand'][0]
+        later_card = session.document['state']['players']['p1']['zones']['ultimate'][0]
+
+        for payload in (
+            {
+                'action': 'move_card',
+                'payload': {
+                    'card_instance_id': staged['instance_id'],
+                    'to_player': 'p1', 'to_zone': 'battle',
+                },
+            },
+            {
+                'action': 'move_card',
+                'payload': {
+                    'card_instance_id': second_staged['instance_id'],
+                    'to_player': 'p1', 'to_zone': 'battle',
+                },
+            },
+            {'action': 'set_phase', 'payload': {'phase': 'ready'}},
+            {
+                'action': 'move_card',
+                'payload': {
+                    'card_instance_id': host['instance_id'],
+                    'to_player': 'p1', 'to_zone': 'battle',
+                },
+            },
+        ):
+            response = self.post_json(action_url, {
+                **payload,
+                'seat': 'p1', 'seat_token': session.player1_token,
+            })
+            self.assertEqual(response.status_code, 200, response.content)
+
+        session.refresh_from_db()
+        battle_cards = session.document['state']['players']['p1']['zones']['battle']
+        attached = next(card for card in battle_cards if card['instance_id'] == staged['instance_id'])
+        second_attached = next(card for card in battle_cards if card['instance_id'] == second_staged['instance_id'])
+        self.assertEqual(attached['attached_to'], host['instance_id'])
+        self.assertEqual(second_attached['attached_to'], host['instance_id'])
+        self.assertEqual([attached['set_order'], second_attached['set_order']], [1, 2])
+        self.assertEqual(attached['attachment_expires'], 'battle')
+        self.assertTrue(attached['return_to_hand_on_attachment_expiry'])
+        self.assertFalse(attached['face_up'])
+        self.assertEqual(session.document['state']['cmyk_ready_host_cards']['p1'], host['instance_id'])
+        self.assertEqual(session.document['events'][-1]['payload']['auto_attached_count'], 2)
+
+        spectator = serialize_simulator_session(session)
+        spectator_attached = next(
+            card for card in spectator['state']['players']['p1']['zones']['battle']
+            if card['instance_id'] == staged['instance_id']
+        )
+        self.assertTrue(spectator_attached['hidden'])
+        self.assertEqual(spectator_attached['attached_to'], host['instance_id'])
+        self.assertEqual(spectator['events'][-1]['payload']['card_label'], '비공개 카드')
+        p1_events = serialize_simulator_session(
+            session, 'p1', session.player1_token,
+        )['events']
+        self.assertEqual(p1_events[-1]['payload']['card_label'], self.card_a.name)
+
+        response = self.post_json(action_url, {
+            'action': 'move_card', 'seat': 'p1', 'seat_token': session.player1_token,
+            'payload': {
+                'card_instance_id': later_card['instance_id'],
+                'to_player': 'p1', 'to_zone': 'battle',
+            },
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        battle_cards = session.document['state']['players']['p1']['zones']['battle']
+        self.assertTrue(all(
+            card.get('attached_to') == host['instance_id']
+            for card in battle_cards
+            if card['instance_id'] in {staged['instance_id'], second_staged['instance_id']}
+        ))
+
+        response = self.post_json(action_url, {
+            'action': 'set_phase', 'seat': 'p1', 'seat_token': session.player1_token,
+            'payload': {'phase': 'battle'},
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        battle_cards = session.document['state']['players']['p1']['zones']['battle']
+        self.assertTrue(all(card['face_up'] for card in battle_cards))
+        self.assertNotIn('cmyk_ready_staged_cards', session.document['state'])
+        self.assertNotIn('cmyk_ready_host_cards', session.document['state'])
+
+        response = self.post_json(action_url, {
+            'action': 'move_card', 'seat': 'p1', 'seat_token': session.player1_token,
+            'payload': {
+                'card_instance_id': staged['instance_id'],
+                'to_player': 'p1', 'to_zone': 'list',
+            },
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        listed = next(
+            card for card in session.document['state']['players']['p1']['zones']['list']
+            if card['instance_id'] == staged['instance_id']
+        )
+        self.assertEqual(listed['attached_to'], host['instance_id'])
+
+        response = self.post_json(action_url, {
+            'action': 'set_phase', 'seat': 'p1', 'seat_token': session.player1_token,
+            'payload': {'phase': 'get'},
+        })
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        listed = next(
+            card for card in session.document['state']['players']['p1']['zones']['list']
+            if card['instance_id'] == staged['instance_id']
+        )
+        returned_host = next(
+            card for card in session.document['state']['players']['p1']['zones']['hand']
+            if card['instance_id'] == host['instance_id']
+        )
+        self.assertNotIn('attached_to', listed)
+        self.assertNotIn('attached_to', returned_host)
+
+    def test_non_cmyk_player_cannot_attach_battle_cards(self):
+        session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)
+        document = session.document
+        document['state']['phase'] = 'ready'
+        hand = document['state']['players']['p1']['zones']['hand']
+        source = hand.pop()
+        host = document['state']['players']['p1']['zones']['list'].pop()
+        source['face_up'] = False
+        host['face_up'] = False
+        document['state']['players']['p1']['zones']['battle'] = [source, host]
+        session.document = document
+        session.save(update_fields=['document'])
+
+        response = self.post_json(
+            reverse('battlelog:simulatorAction', kwargs={'view_token': session.view_token}),
+            {
+                'action': 'attach_card', 'seat': 'p1', 'seat_token': session.player1_token,
+                'payload': {
+                    'card_instance_id': source['instance_id'],
+                    'host_card_instance_id': host['instance_id'],
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
 
     def test_import_card_creates_face_up_card_in_actor_lumen_zone(self):
         session = create_simulator_session('A', 'B', self.deck_a, self.deck_b)

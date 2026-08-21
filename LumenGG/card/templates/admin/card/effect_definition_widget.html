@@ -1,0 +1,93 @@
+<div class="effect-definition-editor" data-effect-editor>
+    <textarea name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %} hidden>{% if widget.value != None %}{{ widget.value }}{% endif %}</textarea>
+    <div class="effect-editor-toolbar">
+        <div class="effect-editor-primary">
+            <button type="button" class="button" data-effect-add-ability>능력 추가</button>
+            <label><input type="checkbox" data-effect-draft> 자동 초안</label>
+            <label><input type="checkbox" data-effect-no-effect> 효과 없음</label>
+            <label><input type="checkbox" data-effect-reviewed> 검토 완료</label>
+        </div>
+        <div class="effect-editor-meta effect-node-grid">
+            <label>공통 룰북 페이지 <input type="text" data-effect-root-pages placeholder="예: 36,48"></label>
+            <label>공통 Q&A ID <input type="text" data-effect-root-qnas placeholder="예: 417"></label>
+            <label>토큰 의미 키 <input type="text" data-effect-token-key placeholder="예: spider"></label>
+            <label><input type="checkbox" data-effect-token-usage-token> 토큰으로 사용</label>
+            <label><input type="checkbox" data-effect-token-usage-counter> 카운터로 사용</label>
+        </div>
+        <p class="help">능력 노드를 먼저 검토하세요. 카드 전체에 적용되는 고급 규칙은 필요한 항목만 펼쳐 편집할 수 있습니다.</p>
+    </div>
+    <details class="effect-root-rules">
+        <summary>카드 사용 조건</summary>
+        <div class="effect-ability-head"><strong>카드 사용 조건</strong><button type="button" class="button" data-effect-add-play-condition>조건 추가</button></div>
+        <div data-effect-play-conditions></div>
+    </details>
+    <details class="effect-root-rules" data-effect-deck-rules>
+        <summary>캐릭터 덱 편성 규칙</summary>
+        <div class="effect-ability-head"><strong>캐릭터 덱 편성 규칙</strong><button type="button" class="button" data-effect-add-deck-supplement>보충 카드 추가</button></div>
+        <div class="effect-node-grid">
+            <label>최소 기술 덱<input data-effect-deck-main-min type="number" min="1" placeholder="20"></label>
+            <label>최대 기술 덱<input data-effect-deck-main-max type="number" min="1" placeholder="20"></label>
+            <label><input type="checkbox" data-effect-deck-base-excludes> 기본 덱 수에서 보충 카드 제외</label>
+            <label>캐릭터 기술 최소 수<input data-effect-deck-character-min type="number" min="0" placeholder="10"></label>
+        </div>
+        <div data-effect-deck-supplements></div>
+        <div class="effect-ability-head"><strong>타 캐릭터 카드 허용</strong></div>
+        <div class="effect-node-grid">
+            <label>허용 종류(쉼표 구분)<input data-effect-deck-import-types placeholder="예: 공격"></label>
+            <label>캐릭터별 최대 수<input data-effect-deck-import-max type="number" min="1" placeholder="3"></label>
+            <label>제외 캐릭터 ID<input data-effect-deck-import-excluded placeholder="예: 1"></label>
+            <label><input type="checkbox" data-effect-deck-import-no-ultimate> 얼티밋 제외</label>
+            <label><input type="checkbox" data-effect-deck-import-treat-own> 자신의 캐릭터 기술로 취급</label>
+            <label><input type="checkbox" data-effect-deck-import-negate> 원래 카드 효과 무효</label>
+            <label><input type="checkbox" data-effect-deck-import-break> 사용 후 브레이크</label>
+        </div>
+    </details>
+    <details class="effect-root-rules">
+        <summary>카드 고유 콤보 규칙</summary>
+        <div class="effect-ability-head"><strong>카드 고유 콤보 규칙</strong><button type="button" class="button" data-effect-add-combo-rule>규칙 추가</button></div>
+        <div data-effect-combo-rules></div>
+    </details>
+    <details class="effect-root-rules">
+        <summary>카드 사용 횟수 제한</summary>
+        <div class="effect-ability-head"><strong>카드 사용 횟수 제한</strong></div>
+        <div class="effect-node-grid">
+            <label>범위<select data-effect-play-limit-scope><option value="">없음</option><option value="game">game</option><option value="turn">turn</option><option value="phase">phase</option><option value="battle">battle</option></select></label>
+            <label>안정 키<input data-effect-play-limit-key placeholder="예: card:ABC-001"></label>
+            <label>최대 횟수<input data-effect-play-limit-max type="number" min="1" value="1"></label>
+        </div>
+    </details>
+    <details class="effect-root-rules">
+        <summary>회피·상쇄 판정 제한</summary>
+        <div class="effect-ability-head"><strong>회피·상쇄 판정 제한</strong><button type="button" class="button" data-effect-add-defense-rule>제한 추가</button></div>
+        <div data-effect-defense-rules></div>
+    </details>
+    <details class="effect-root-rules">
+        <summary>존 배치 제한</summary>
+        <div class="effect-ability-head"><strong>존 배치 제한</strong><button type="button" class="button" data-effect-add-zone-limit>제한 추가</button></div>
+        <div data-effect-zone-limits></div>
+    </details>
+    <details class="effect-root-rules">
+        <summary>카드 효과 면역</summary>
+        <div class="effect-ability-head"><strong>카드 효과 면역</strong></div>
+        <div class="effect-node-grid">
+            <label>면역 범위<select data-effect-immunity-scope><option value="">없음</option><option value="opponent">상대 카드 효과</option><option value="other_cards">다른 모든 카드 효과</option></select></label>
+            <label>활성 존(쉼표 구분)<input data-effect-immunity-zones placeholder="예: lumen,battle"></label>
+        </div>
+    </details>
+    <details class="effect-root-rules">
+        <summary>브레이크 금지</summary>
+        <div class="effect-ability-head"><strong>브레이크 금지</strong></div>
+        <div class="effect-node-grid">
+            <label>금지 존(쉼표 구분)<input data-effect-break-zones placeholder="예: lumen"></label>
+            <label><input type="checkbox" data-effect-break-owner-direct> 소유자의 직접 브레이크 금지</label>
+            <label><input type="checkbox" data-effect-break-opponent-effect> 상대 카드 효과 브레이크 금지</label>
+            <label><input type="checkbox" data-effect-break-all> 모든 브레이크 금지</label>
+            <label>모든 금지의 상태 조건<input data-effect-break-all-state placeholder="예: dark_night (비우면 상시)"></label>
+        </div>
+    </details>
+    <div data-effect-abilities></div>
+    <details class="effect-json-preview">
+        <summary>DSL JSON 미리보기</summary>
+        <pre data-effect-preview></pre>
+    </details>
+</div>

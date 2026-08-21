@@ -1205,7 +1205,13 @@ def advance_sudden_death_turn(session, user=None, control_token=''):
                 winner_side = BattleEvent.TARGET_PLAYER1
             elif locked.player2_hp > locked.player1_hp:
                 winner_side = BattleEvent.TARGET_PLAYER2
-            _finish_current_set(locked, current_set, winner_side, user)
+            _finish_current_set(
+                locked,
+                current_set,
+                winner_side,
+                user,
+                force_match_finish=True,
+            )
         return locked
 
 
@@ -1231,7 +1237,7 @@ def add_extra_time(session, seconds, user=None):
         return locked
 
 
-def _finalize_match_from_sets(session):
+def _finalize_match_from_sets(session, *, force=False):
     from tournament.services import complete_round_if_ready
 
     match = session.tournament_match
@@ -1243,7 +1249,8 @@ def _finalize_match_from_sets(session):
     finished_count = session.sets.filter(status=BattleSet.STATUS_FINISHED).count()
 
     should_finish = (
-        p1_score >= required_wins
+        force
+        or p1_score >= required_wins
         or p2_score >= required_wins
         or finished_count >= max_sets
     )
@@ -1308,7 +1315,14 @@ def _start_next_set(session, user=None):
     return session
 
 
-def _finish_current_set(session, current_set, winner_side, user=None, forced=False):
+def _finish_current_set(
+    session,
+    current_set,
+    winner_side,
+    user=None,
+    forced=False,
+    force_match_finish=False,
+):
     current_set.status = BattleSet.STATUS_FINISHED
     current_set.winner_side = winner_side
     current_set.player1_end_hp = session.player1_hp
@@ -1344,7 +1358,7 @@ def _finish_current_set(session, current_set, winner_side, user=None, forced=Fal
             'forced': forced,
         },
     )
-    match_finished = _finalize_match_from_sets(session)
+    match_finished = _finalize_match_from_sets(session, force=force_match_finish)
     if not match_finished:
         _start_next_set(session, user)
     transaction.on_commit(lambda session_id=session.id: flush_session_events(session_id))

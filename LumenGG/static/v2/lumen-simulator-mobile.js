@@ -8,6 +8,20 @@
     let envelope = JSON.parse(stateNode.textContent);
     let state = envelope.state || {};
     const i18n = i18nNode ? JSON.parse(i18nNode.textContent) : {};
+
+    function dispatchAutomaticClientError(error, context) {
+        if (!(config.automaticMode || envelope.mode === "automatic" || envelope.automation_failure)) return;
+        const value = error && typeof error === "object" ? error : {};
+        window.dispatchEvent(new CustomEvent("lumen-simulator-client-error", {detail: {
+            error_type: value.name || "ClientTransportError",
+            message: value.message || String(error || "시뮬레이터 통신 오류"),
+            source: value.source || value.filename || "",
+            line: value.line || value.lineno || 0,
+            column: value.column || value.colno || 0,
+            stack: value.stack || "",
+            context: context || "simulator_transport",
+        }}));
+    }
     const translations = i18n.translations || {};
     const translationKeys = Object.keys(translations).sort((a, b) => b.length - a.length);
     const metadataCache = new Map();
@@ -19,6 +33,7 @@
     let pollTimer = null;
     let modalSide = "";
     let modalZone = "";
+    let pendingSetCardId = "";
     let selectedCardId = "";
     let logOpen = false;
     let events = Array.isArray(envelope.events) ? envelope.events : [];
@@ -201,6 +216,64 @@
         return cardType(card).includes("수비");
     }
 
+    function isTechniqueCard(card) {
+        const type = cardType(card);
+        return ["공격", "수비", "특수"].some((keyword) => type.includes(keyword));
+    }
+
+    function isCmykPlayer(side) {
+        const character = (((state || {}).players || {})[side] || {}).character || {};
+        return String(character.name || "").toUpperCase().includes("CMYK");
+    }
+
+    function canSetCmykCard(source, host) {
+        if (!source || !host || source.instance_id === host.instance_id) return false;
+        if (!canControl() || state.phase !== "ready" || source.owner !== envelope.role) return false;
+        if (source.owner !== host.owner || source.zone !== "battle" || host.zone !== "battle") return false;
+        if (!isCmykPlayer(source.owner) || !isTechniqueCard(source) || !isTechniqueCard(host)) return false;
+        if (host.attached_to) return false;
+        const stagedIds = (((state.cmyk_ready_staged_cards || {})[source.owner]) || []).map(String);
+        const readyHostId = (state.cmyk_ready_host_cards || {})[source.owner];
+        if (stagedIds.length && !stagedIds.includes(String(source.instance_id || ""))) return false;
+        if (readyHostId && readyHostId !== host.instance_id) return false;
+        const ownedCards = allCards().filter((card) => card.owner === source.owner);
+        if (ownedCards.some((card) => card.attached_to === source.instance_id)) return false;
+        if (!source.attached_to && ownedCards.filter((card) => card.attached_to).length >= 3) return false;
+        return true;
+    }
+
+    function autoAttachMobileCmykReadyCards(hostCard, fromZone, toPlayer, toZone, payload) {
+        if (
+            state.phase !== "ready" || fromZone === "battle" || toZone !== "battle" ||
+            !hostCard || hostCard.owner !== toPlayer || !isCmykPlayer(toPlayer) ||
+            !isTechniqueCard(hostCard) || hostCard.attached_to
+        ) return;
+        const hostCards = state.cmyk_ready_host_cards || {};
+        if (hostCards[toPlayer]) return;
+        const stagedIds = (((state.cmyk_ready_staged_cards || {})[toPlayer]) || []).map(String);
+        if (!stagedIds.length || stagedIds.includes(String(hostCard.instance_id || ""))) return;
+        const stagedSet = new Set(stagedIds);
+        const candidates = ((((state.players || {})[toPlayer] || {}).zones || {}).battle || [])
+            .filter((card) => (
+                stagedSet.has(String(card.instance_id || "")) && !card.face_up &&
+                !card.attached_to && card.owner === toPlayer
+            ))
+            .slice(0, 3);
+        if (!candidates.length) return;
+        candidates.forEach((card, index) => {
+            card.attached_to = hostCard.instance_id;
+            card.attachment_expires = "battle";
+            card.return_to_hand_on_attachment_expiry = true;
+            card.set_order = index + 1;
+            card.face_up = false;
+            card.hidden = false;
+        });
+        state.cmyk_ready_host_cards = { ...hostCards, [toPlayer]: hostCard.instance_id };
+        payload.auto_attached_card_instance_ids = candidates.map((card) => card.instance_id);
+        payload.auto_attached_count = candidates.length;
+        payload.auto_set_host_card_instance_id = hostCard.instance_id;
+    }
+
     function joinPresent(values, separator) {
         return values.filter(hasValue).map((value) => String(value)).join(separator || " / ");
     }
@@ -226,7 +299,18 @@
     function hydrateCard(card) {
         if (!card || card.hidden || !card.card_id) return card;
         const metadata = metadataCache.get(String(card.card_id));
-        return metadata ? { ...metadata, ...card } : card;
+        if (!metadata) return card;
+        const hydrated = { ...metadata, ...card };
+        // Automatic matches retain Korean ruleset fields in state. Keep those
+        // runtime values pinned, but let localized display metadata win.
+        if (config.language && config.language !== "ko") {
+            ["name", "text", "detail_text"].forEach((field) => {
+                if (Object.prototype.hasOwnProperty.call(metadata, field)) {
+                    hydrated[field] = metadata[field];
+                }
+            });
+        }
+        return hydrated;
     }
 
     function cardName(card) {
@@ -379,6 +463,7 @@
         }
         scheduleMetadataFetch(collectMetadataIds());
         render();
+        window.dispatchEvent(new CustomEvent("lumen-simulator-state", { detail: envelope }));
     }
 
     function suppressAuthoritativeStateOnce() {
@@ -408,7 +493,10 @@
                 updateEnvelope(data);
                 return data;
             })
-            .catch(() => null);
+            .catch((error) => {
+                dispatchAutomaticClientError(error, "state_fetch");
+                return null;
+            });
     }
 
     function startPollingFallback() {
@@ -431,7 +519,10 @@
                 applyLogEvents(data, true);
                 return data;
             })
-            .catch(() => null);
+            .catch((error) => {
+                dispatchAutomaticClientError(error, "events_fetch");
+                return null;
+            });
     }
 
     function applyLogEvents(data, forceReset) {
@@ -767,13 +858,44 @@
             if (!state.players[toPlayer] || !state.players[toPlayer].zones || !state.players[toPlayer].zones[toZone]) return false;
             if (toPlayer !== owner && !["battle", "lumen"].includes(toZone)) return false;
             state.players[location.playerSide].zones[location.zone].splice(location.index, 1);
+            const preserveAttachment = (
+                location.zone === toZone ||
+                (state.phase === "battle" && location.zone === "battle" && toZone === "list")
+            );
+            if (!preserveAttachment) {
+                delete location.card.attached_to;
+                delete location.card.attachment_expires;
+                delete location.card.return_to_hand_on_attachment_expiry;
+                delete location.card.set_order;
+            }
             location.card.zone = toZone;
             location.card.zone_owner = toPlayer;
             state.players[toPlayer].zones[toZone].push(location.card);
+            autoAttachMobileCmykReadyCards(
+                hydrateCard(location.card), location.zone, toPlayer, toZone, localPayload,
+            );
             localPayload.from_player = location.playerSide;
             localPayload.from_zone = location.zone;
             localPayload.to_player = toPlayer;
             localPayload.card_label = cardName({ ...location.card, hidden: false });
+            appendOptimisticEvent(action, localPayload);
+            return true;
+        }
+
+        if (action === "attach_card") {
+            const source = findCardLocation(state, localPayload.card_instance_id);
+            const host = findCardLocation(state, localPayload.host_card_instance_id);
+            if (!source || !host || source.playerSide !== envelope.role || host.playerSide !== envelope.role) return false;
+            if (source.zone !== "battle" || host.zone !== "battle" || state.phase !== "ready") return false;
+            const attached = allCards().filter((card) => card.attached_to === host.card.instance_id);
+            source.card.attached_to = host.card.instance_id;
+            source.card.attachment_expires = "battle";
+            source.card.return_to_hand_on_attachment_expiry = true;
+            source.card.set_order = Math.max(0, ...attached.map((card) => Number(card.set_order || 0))) + 1;
+            source.card.face_up = false;
+            source.card.hidden = false;
+            localPayload.card_label = cardName({ ...source.card, hidden: false });
+            localPayload.host_card_label = cardName({ ...host.card, hidden: false });
             appendOptimisticEvent(action, localPayload);
             return true;
         }
@@ -1068,6 +1190,26 @@
             ? `<img src="${escapeHtml(hydrated.img_sm || hydrated.img)}" alt="">`
             : `<span>${escapeHtml(hydrated.hidden ? "PRIVATE" : cardName(hydrated))}</span>`;
         return `<div class="v2-mobile-mini-card ${hydrated.hidden ? "is-hidden" : ""}" role="button" tabindex="0" data-mobile-open-zone="${card.zone}" data-mobile-zone-side="${card.zone_owner}" data-mobile-card-instance="${escapeHtml(hydrated.instance_id)}">${image}${visibilityToggleMarkup(hydrated)}</div>`;
+    }
+
+    function renderMobileBattleCards(cards) {
+        const boardKey = (card) => card.instance_id || card.board_key || "";
+        const attachmentKey = (card) => card.attached_to || card.attached_to_board_key || "";
+        const cardById = new Map((cards || []).map((card) => [boardKey(card), card]));
+        const host = (cards || []).find((card) => !attachmentKey(card) || !cardById.has(attachmentKey(card)));
+        if (!host) return "";
+        const setCards = (cards || [])
+            .filter((card) => attachmentKey(card) === boardKey(host))
+            .sort((left, right) => Number(left.set_order || 0) - Number(right.set_order || 0));
+        if (!setCards.length) return renderMiniCard(host);
+        return `
+            <div class="v2-mobile-card-set-group">
+                ${renderMiniCard(host)}
+                <div class="v2-mobile-card-set-cards" aria-label="${escapeHtml(t("세트된 카드"))}">
+                    ${setCards.map(renderMiniCard).join("")}
+                </div>
+            </div>
+        `;
     }
 
     function passiveSummary(player) {
@@ -1391,7 +1533,7 @@
                 : "";
         const battleCards = cardsFor(side, "battle");
         const battleHtml = battleCards.length
-            ? renderMiniCard(battleCards[0])
+            ? renderMobileBattleCards(battleCards)
             : `<button class="v2-mobile-battle-open" type="button" data-mobile-open-zone="battle" data-mobile-zone-side="${side}">BT</button>`;
         const zoneButtons = mobileZones.map((zone) => {
             const count = cardsFor(side, zone).length;
@@ -1424,12 +1566,25 @@
         const image = !hydrated.hidden && (hydrated.img || hydrated.img_sm)
             ? `<img src="${escapeHtml(hydrated.img || hydrated.img_sm)}" alt="">`
             : `<span>${escapeHtml(hydrated.hidden ? t("비공개 카드") : cardName(hydrated))}</span>`;
-        const moves = canControl() && card.kind !== "character"
+        let moves = canControl() && card.kind !== "character"
             ? (moveTargets[card.zone] || []).slice(0, 4).map((toZone) => {
                 const toPlayer = targetPlayerForMove(card.zone_owner, card, toZone);
                 return `<button type="button" data-mobile-move-card="${escapeHtml(card.instance_id)}" data-mobile-to-player="${toPlayer}" data-mobile-to-zone="${toZone}">${zoneCodes[toZone]}</button>`;
             }).join("")
             : "";
+        if (
+            modalZone === "battle" && state.phase === "ready" &&
+            hydrated.owner === envelope.role && isCmykPlayer(hydrated.owner) &&
+            isTechniqueCard(hydrated)
+        ) {
+            const source = pendingSetCardId ? findCard(pendingSetCardId) : null;
+            if (!source || source.instance_id === hydrated.instance_id) {
+                const label = source ? t("세트 선택 취소") : t("세트 카드 선택");
+                moves += `<button type="button" data-mobile-set-source="${escapeHtml(hydrated.instance_id)}">${escapeHtml(label)}</button>`;
+            } else if (canSetCmykCard(source, hydrated)) {
+                moves += `<button type="button" data-mobile-set-host="${escapeHtml(hydrated.instance_id)}">${escapeHtml(t("여기에 세트"))}</button>`;
+            }
+        }
         const visibility = visibilityToggleMarkup(hydrated);
         return `
             <article class="v2-mobile-modal-card ${hydrated.hidden ? "is-hidden" : ""}" data-mobile-card-open="${escapeHtml(hydrated.instance_id)}" data-mobile-card-instance="${escapeHtml(hydrated.instance_id)}">
@@ -1507,8 +1662,12 @@
         if (event.type === "move_card") {
             const from = payload.from_player ? `${playerLabel(payload.from_player)} ${zoneLabel(payload.from_zone)}` : zoneLabel(payload.from_zone);
             const to = payload.to_player ? `${playerLabel(payload.to_player)} ${zoneLabel(payload.to_zone)}` : zoneLabel(payload.to_zone);
-            return `${actor} ${payload.card_label || t("카드")}: ${from} -> ${to}`;
+            const autoSet = Number(payload.auto_attached_count || 0) > 0
+                ? ` / ${payload.auto_attached_count}${t("장")} ${t("자동 세트")}`
+                : "";
+            return `${actor} ${payload.card_label || t("카드")}: ${from} -> ${to}${autoSet}`;
         }
+        if (event.type === "attach_card") return `${actor} ${payload.card_label || t("카드")} -> ${payload.host_card_label || t("카드")} ${t("세트")}`;
         if (event.type === "bulk_move") return `${actor} ${playerLabel(payload.player)} ${zoneLabel("battle")} ${payload.count || 0}${t("장")} -> ${zoneLabel(payload.to_zone)}`;
         if (event.type === "shuffle_hand") return `${playerLabel(payload.player)} ${zoneLabel("hand")} ${t("셔플")}`;
         if (event.type === "set_hand_visibility") return `${playerLabel(payload.target)} ${zoneLabel("hand")} ${payload.face_up ? t("공개") : t("비공개")} (${payload.count || 0}${t("장")})`;
@@ -1548,7 +1707,7 @@
         if (["request_action", "set_done", "hp", "fp", "fp_reset", "passive", "timer_timeout"].includes(event.type)) return payload.target || payload.owner || "";
         if (event.type === "bulk_move" || event.type === "shuffle_hand") return payload.player || "";
         if (event.type === "set_hand_visibility") return payload.target || "";
-        if (event.type === "move_card") return payload.owner || event.actor || payload.to_player || payload.from_player || "";
+        if (event.type === "move_card" || event.type === "attach_card") return payload.owner || event.actor || payload.to_player || payload.from_player || "";
         return event.actor || "";
     }
 
@@ -1729,6 +1888,7 @@
             try {
                 message = JSON.parse(event.data);
             } catch (error) {
+                dispatchAutomaticClientError(error, "websocket_message_parse");
                 return;
             }
             if (message.type === "state" && message.state) {
@@ -1970,6 +2130,24 @@
             });
             return;
         }
+        const setSource = event.target.closest("[data-mobile-set-source]");
+        if (setSource) {
+            const instanceId = setSource.dataset.mobileSetSource || "";
+            pendingSetCardId = pendingSetCardId === instanceId ? "" : instanceId;
+            renderModal();
+            if (pendingSetCardId) showToast(t("세트할 대상 기술을 선택하세요."));
+            return;
+        }
+        const setHost = event.target.closest("[data-mobile-set-host]");
+        if (setHost && pendingSetCardId) {
+            const sourceId = pendingSetCardId;
+            pendingSetCardId = "";
+            postAction("attach_card", {
+                card_instance_id: sourceId,
+                host_card_instance_id: setHost.dataset.mobileSetHost,
+            }).then(() => renderModal());
+            return;
+        }
         const passive = event.target.closest("[data-mobile-passive-target]");
         if (passive) {
             let value = passive.dataset.mobilePassiveValue;
@@ -2017,6 +2195,7 @@
     render();
     connectSocket();
     updateFullscreenButton();
+    window.addEventListener("lumen-simulator-refresh-request", () => fetchState(true));
     window.setInterval(renderTimer, 1000);
     window.addEventListener("resize", schedulePassiveHeightSync);
     document.addEventListener("fullscreenchange", updateFullscreenButton);
