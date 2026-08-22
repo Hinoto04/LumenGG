@@ -8,12 +8,16 @@ import secrets
 import traceback
 from dataclasses import dataclass, field
 from datetime import timedelta
+from functools import lru_cache
 from types import SimpleNamespace
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
+from django.db.models.signals import post_delete, post_save
+from django.dispatch import receiver
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from card.models import Card
 from deck.models import CardInDeck
@@ -34,6 +38,7 @@ from .models import (
     AutomaticIssueComment,
     AutomaticIssueReport,
     LumenSimulatorSession,
+    RulesetRelease,
     SimulatorAIPolicy,
 )
 from .services import (
@@ -50,6 +55,10 @@ AUTOMATIC_EVENT_LIMIT = 800
 AUTOMATIC_EVENT_KEEP = 500
 AUTOMATIC_COMMAND_LOG_LIMIT = 2000
 AUTOMATIC_COMMAND_LOG_KEEP = 1000
+AUTOMATIC_REWIND_ENABLED = False
+DEFAULT_AUTOMATIC_READY_SECONDS = 30
+DEFAULT_AUTOMATIC_EFFECT_SECONDS = 60
+AUTOMATIC_TIMER_CHOICES = {None, 15, 30, 45, 60, 90, 120}
 NEUTRAL_CHARACTER_ID = 1
 CHARACTER_MAIN_DECK_EXCEPTIONS = {5: 24, 15: 33, 16: 26, 17: 25}
 MIN_AI_POLICY_TRAINING_GAMES = 40
@@ -69,6 +78,12 @@ class AutomaticRuntimeFailure(EngineError):
 
 class CommandValidationError(ValueError):
     pass
+
+
+class ImmutableRulesetSnapshot(dict):
+    """Marker for a cached published ruleset that engine code only reads."""
+
+    _automatic_immutable_ruleset = True
 
 
 @dataclass
@@ -461,11 +476,41 @@ def _pin_release_card_data(state, snapshot):
     return state
 
 
-def initialize_automatic_document(base_state, release, *, seed=''):
+def automatic_session_settings(
+    *, ready_timeout_seconds=DEFAULT_AUTOMATIC_READY_SECONDS,
+    effect_timeout_seconds=DEFAULT_AUTOMATIC_EFFECT_SECONDS,
+):
+    def normalized(value, label):
+        if value in (None, '', 'none', 'unlimited', '0', 0):
+            return None
+        try:
+            seconds = int(value)
+        except (TypeError, ValueError):
+            raise ValueError(f'{label} 제한 시간이 올바르지 않습니다.') from None
+        if seconds not in AUTOMATIC_TIMER_CHOICES:
+            raise ValueError(f'{label} 제한 시간이 지원 범위를 벗어났습니다.')
+        return seconds
+
+    return {
+        'ready_timeout_seconds': normalized(
+            ready_timeout_seconds, '레디 선택',
+        ),
+        'effect_timeout_seconds': normalized(
+            effect_timeout_seconds, '효과 선택',
+        ),
+        'auto_advance_empty_phases': True,
+        'rewind_enabled': AUTOMATIC_REWIND_ENABLED,
+    }
+
+
+def initialize_automatic_document(base_state, release, *, seed='', settings=None):
     ruleset = copy.deepcopy(release.snapshot or {})
     ruleset['version'] = release.version
     state = _pin_release_card_data(copy.deepcopy(base_state), ruleset)
-    engine = AutomaticGameEngine.initialize(state, ruleset, now=timezone.now(), seed=seed)
+    engine = AutomaticGameEngine.initialize(
+        state, ruleset, now=timezone.now(), seed=seed,
+        settings=copy.deepcopy(settings or {}),
+    )
     return {
         'initial_state': copy.deepcopy(engine.state),
         'state': copy.deepcopy(engine.state),
@@ -500,18 +545,39 @@ def _role_for_command(session, body):
     return seat
 
 
+@lru_cache(maxsize=8)
+def _cached_ruleset(release_id):
+    release = RulesetRelease.objects.only(
+        'id', 'version', 'content_hash', 'snapshot',
+    ).get(pk=release_id)
+    result = ImmutableRulesetSnapshot(copy.deepcopy(release.snapshot or {}))
+    result['version'] = release.version
+    return result
+
+
+@receiver(
+    [post_save, post_delete], sender=RulesetRelease,
+    dispatch_uid='battlelog.clear_automatic_ruleset_cache',
+)
+def _clear_ruleset_cache_on_release_change(**_kwargs):
+    _cached_ruleset.cache_clear()
+
+
 def _ruleset(session):
+    attached = getattr(session, '_automatic_ruleset_cache', None)
+    if attached is not None:
+        return attached
     if not session.ruleset_release_id:
         raise AutomaticModeUnavailable('자동 세션에 고정된 규칙 릴리스가 없습니다.')
-    result = copy.deepcopy(session.ruleset_release.snapshot or {})
-    result['version'] = session.ruleset_release.version
+    result = _cached_ruleset(session.ruleset_release_id)
+    session._automatic_ruleset_cache = result
     return result
 
 
 def _command_fingerprint(body):
     allowed = {
         'command_id': body.get('command_id'),
-        'expected_version': body.get('expected_version'),
+        'seat': body.get('seat'),
         'action_id': body.get('action_id'),
         'selections': body.get('selections') or {},
     }
@@ -564,6 +630,72 @@ def _compact_command_log(document):
 def _stable_hash(value):
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _upgrade_automatic_document(document):
+    """Apply lightweight runtime defaults and remove retired rewind data."""
+    changed = False
+    state = document.setdefault('state', {})
+    engine = state.setdefault('engine', {})
+    settings = engine.setdefault('settings', {})
+    defaults = automatic_session_settings()
+    for key, value in defaults.items():
+        if key not in settings:
+            settings[key] = copy.deepcopy(value)
+            changed = True
+    if settings.get('rewind_enabled'):
+        settings['rewind_enabled'] = False
+        changed = True
+    if document.get('command_history'):
+        document['command_history'] = []
+        changed = True
+    if engine.pop('last_rewindable_command_id', None) is not None:
+        changed = True
+    if engine.get('rewind_request') is not None:
+        engine['rewind_request'] = None
+        changed = True
+    return changed
+
+
+def _automatic_document_needs_upgrade(document):
+    state = (document or {}).get('state') or {}
+    engine = state.get('engine') or {}
+    settings = engine.get('settings') or {}
+    return bool(
+        any(
+            key not in settings
+            for key in automatic_session_settings()
+        )
+        or settings.get('rewind_enabled')
+        or (document or {}).get('command_history')
+        or engine.get('last_rewindable_command_id')
+        or engine.get('rewind_request')
+    )
+
+
+def _automatic_document_needs_reconcile(
+    document, *, now=None, both_players_disconnected=False,
+):
+    if _automatic_document_needs_upgrade(document):
+        return True
+    state = (document or {}).get('state') or {}
+    engine = state.get('engine') or {}
+    settings = engine.get('settings') or {}
+    if (
+        settings.get('auto_advance_empty_phases', False)
+        and state.get('phase') in {'lumen', 'recovery'}
+        and engine.get('step') == 'phase_actions'
+    ):
+        return True
+    clock = engine.get('clock') or {}
+    if not clock or clock.get('paused') or both_players_disconnected:
+        return False
+    deadline = parse_datetime(str(clock.get('deadline') or ''))
+    if deadline is None:
+        return False
+    if timezone.is_naive(deadline):
+        deadline = timezone.make_aware(deadline)
+    return (now or timezone.now()) >= deadline
 
 
 def _disclosed_information(events, *, include_private=False):
@@ -657,7 +789,7 @@ def _fallback_to_manual(session_id, failure, command_id):
         }
         report = AutomaticIssueReport.objects.create(
             session=locked,
-            ruleset_release=locked.ruleset_release,
+            ruleset_release_id=locked.ruleset_release_id,
             origin=AutomaticIssueReport.ORIGIN_ENGINE,
             error_type=failure_payload['error_type'],
             summary=failure_payload['message'] or '자동 실행 오류',
@@ -708,7 +840,9 @@ def perform_automatic_command(session, body, *, allow_ai=False):
 
     try:
         with transaction.atomic():
-            locked = LumenSimulatorSession.objects.select_for_update().select_related('ruleset_release').get(id=session.id)
+            locked = LumenSimulatorSession.objects.select_for_update().get(
+                id=session.id,
+            )
             if locked.mode != LumenSimulatorSession.MODE_AUTOMATIC:
                 raise AutomaticModeUnavailable('이 세션은 자동 모드가 아닙니다.')
             role = _role_for_command(locked, body)
@@ -726,31 +860,56 @@ def perform_automatic_command(session, body, *, allow_ai=False):
                 if previous.get('fingerprint') != fingerprint:
                     raise CommandValidationError('같은 command_id를 다른 내용으로 재사용할 수 없습니다.')
                 return locked
-            if expected_version != locked.version:
-                raise StaleState(f'상태 버전이 오래되었습니다. 현재 버전: {locked.version}')
-
             command_now = timezone.now()
             state_before = copy.deepcopy(document.get('state') or {})
             events_before = list(document.get('events') or [])
             history = list(document.get('command_history') or [])
-            state_before.setdefault('engine', {})['last_rewindable_command_id'] = (
-                history[-1].get('command_id') if history else None
+            rewind_enabled = bool(
+                (state_before.get('engine') or {}).get('settings', {}).get(
+                    'rewind_enabled', False,
+                )
             )
+            if rewind_enabled:
+                state_before.setdefault('engine', {})['last_rewindable_command_id'] = (
+                    history[-1].get('command_id') if history else None
+                )
+            else:
+                history = []
+                document['command_history'] = []
+                state_before.setdefault('engine', {}).pop(
+                    'last_rewindable_command_id', None,
+                )
+                state_before['engine']['rewind_request'] = None
             engine = AutomaticGameEngine(
                 state_before, _ruleset(locked), version=locked.version,
                 now=command_now, events=events_before, seed=f'session:{locked.id}',
             )
             action = next((item for item in engine.legal_actions(role) if item.get('action_id') == action_id), None)
+            if expected_version != locked.version and not action:
+                raise StaleState(
+                    f'상태 버전이 오래되었습니다. 현재 버전: {locked.version}',
+                )
             if not action:
                 raise IllegalAction('현재 합법 행동이 아니거나 만료된 action_id입니다.')
             action_type = action.get('type')
-            if action_type == 'request_rewind' and not history:
+            if action_type == 'request_rewind' and (
+                not rewind_enabled or not history
+            ):
                 raise IllegalAction('되감을 사용자 명령이 없습니다.')
             engine.submit_action(role, action_id, selections, command_id=command_id)
 
-            state_after, events_after, rewound = _apply_accepted_rewind(
-                document, engine.state, engine.events, now=command_now,
-            )
+            if rewind_enabled:
+                state_after, events_after, rewound = _apply_accepted_rewind(
+                    document, engine.state, engine.events, now=command_now,
+                )
+            else:
+                state_after, events_after, rewound = (
+                    engine.state, engine.events, False,
+                )
+                state_after.setdefault('engine', {}).pop(
+                    'last_rewindable_command_id', None,
+                )
+                state_after['engine']['rewind_request'] = None
             command_log = list(document.get('command_log') or [])
             if rewound:
                 target_id = next(
@@ -766,7 +925,14 @@ def perform_automatic_command(session, body, *, allow_ai=False):
                         {**item, 'rewound_by': command_id} if item.get('command_id') == target_id else item
                         for item in command_log
                     ]
-            if action_type not in {'request_rewind', 'answer_rewind', 'pause_clock', 'resume_clock'} and not rewound:
+            if (
+                rewind_enabled
+                and action_type not in {
+                    'request_rewind', 'answer_rewind',
+                    'pause_clock', 'resume_clock',
+                }
+                and not rewound
+            ):
                 history.append({
                     'command_id': command_id, 'actor': role, 'action_type': action_type,
                     'state_before': copy.deepcopy(document.get('state') or {}),
@@ -775,7 +941,7 @@ def perform_automatic_command(session, body, *, allow_ai=False):
                 document['command_history'] = history[-AUTOMATIC_COMMAND_HISTORY_LIMIT:]
                 state_after.setdefault('engine', {})['last_rewindable_command_id'] = command_id
             request = (state_after.get('engine') or {}).get('rewind_request') or {}
-            if action_type == 'request_rewind':
+            if rewind_enabled and action_type == 'request_rewind':
                 request['target_command_id'] = history[-1].get('command_id')
 
             results.append({'command_id': command_id, 'fingerprint': fingerprint, 'version': locked.version + 1})
@@ -807,17 +973,64 @@ def reconcile_automatic_session(session, *, both_players_disconnected=False):
     """Lazily settle an elapsed deadline on reconnect/read/command boundaries."""
     if session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
         return session
+    if not _automatic_document_needs_reconcile(
+        session.document or {}, now=timezone.now(),
+        both_players_disconnected=both_players_disconnected,
+    ):
+        return session
     try:
         with transaction.atomic():
-            locked = LumenSimulatorSession.objects.select_for_update().select_related('ruleset_release').get(id=session.id)
-            engine = AutomaticGameEngine(
-                (locked.document or {}).get('state') or {}, _ruleset(locked),
-                version=locked.version, now=timezone.now(),
-                events=(locked.document or {}).get('events') or [], seed=f'session:{locked.id}',
+            locked = LumenSimulatorSession.objects.select_for_update().get(
+                id=session.id,
             )
-            if not engine.reconcile_clock(both_disconnected=both_players_disconnected):
+            stored_document = locked.document or {}
+            if _automatic_document_needs_upgrade(stored_document):
+                document = copy.deepcopy(stored_document)
+                upgraded = _upgrade_automatic_document(document)
+            else:
+                document = stored_document
+                upgraded = False
+            state = document.get('state') or {}
+            clock = (state.get('engine') or {}).get('clock') or {}
+            phase = state.get('phase')
+            step = (state.get('engine') or {}).get('step')
+            needs_auto_advance = (
+                ((state.get('engine') or {}).get('settings') or {}).get(
+                    'auto_advance_empty_phases', False,
+                )
+                and phase in {'lumen', 'recovery'}
+                and step == 'phase_actions'
+            )
+            deadline = parse_datetime(str(clock.get('deadline') or ''))
+            if deadline is not None:
+                if timezone.is_naive(deadline):
+                    deadline = timezone.make_aware(deadline)
+            clock_due = bool(
+                clock and not clock.get('paused')
+                and not both_players_disconnected
+                and deadline is not None
+                and timezone.now() >= deadline
+            )
+            if not clock_due and not needs_auto_advance:
+                if upgraded:
+                    locked.document = document
+                    locked.version += 1
+                    locked.save(update_fields=[
+                        'document', 'version', 'updated_at',
+                    ])
                 return locked
-            document = copy.deepcopy(locked.document or {})
+            engine = AutomaticGameEngine(
+                state, _ruleset(locked),
+                version=locked.version, now=timezone.now(),
+                events=document.get('events') or [], seed=f'session:{locked.id}',
+            )
+            reconciled = engine.reconcile_clock(
+                both_disconnected=both_players_disconnected,
+            ) if clock_due else False
+            if needs_auto_advance and not engine.is_waiting:
+                engine._continue()
+            if not reconciled and not needs_auto_advance and not upgraded:
+                return locked
             document['state'] = engine.state
             document['events'] = engine.events
             _compact_automatic_events(document)
@@ -829,14 +1042,14 @@ def reconcile_automatic_session(session, *, both_players_disconnected=False):
         return _fallback_to_manual(session.id, exc, '')
 
 
-def automatic_observation(session, role):
+def automatic_observation(session, role, *, include_state=True):
     if session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
         return None
     engine = AutomaticGameEngine(
         (session.document or {}).get('state') or {}, _ruleset(session), version=session.version,
         now=timezone.now(), events=[], seed=f'session:{session.id}',
     )
-    return engine.observe(role)
+    return engine.observe(role, include_state=include_state)
 
 
 def _ai_roles(session):
@@ -855,7 +1068,9 @@ def advance_ai_session(session, *, max_commands=100):
         return session
     try:
         for _index in range(max_commands):
-            session = LumenSimulatorSession.objects.select_related('ruleset_release', 'ai_policy').get(pk=session.pk)
+            session = LumenSimulatorSession.objects.select_related(
+                'ai_policy',
+            ).get(pk=session.pk)
             if session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
                 return session
             if not session.ai_policy_id:
@@ -901,7 +1116,7 @@ def advance_ai_session(session, *, max_commands=100):
         # perform_automatic_command already rolled back, reported the fault,
         # and persisted the permanent manual fallback.
         return LumenSimulatorSession.objects.select_related(
-            'ruleset_release', 'ai_policy',
+            'ai_policy',
         ).get(pk=session.pk)
     except Exception as exc:
         return _fallback_to_manual(
@@ -934,9 +1149,9 @@ def add_client_issue_report(
     if not isinstance(diagnostic, dict):
         raise ValueError('브라우저 오류 정보는 객체여야 합니다.')
     with transaction.atomic():
-        locked = LumenSimulatorSession.objects.select_for_update().select_related(
-            'ruleset_release',
-        ).get(pk=session.pk)
+        locked = LumenSimulatorSession.objects.select_for_update().get(
+            pk=session.pk,
+        )
         if (
             locked.mode != LumenSimulatorSession.MODE_AUTOMATIC
             and not locked.automation_failure
@@ -1011,7 +1226,7 @@ def add_client_issue_report(
         document = locked.document or {}
         report = AutomaticIssueReport.objects.create(
             session=locked,
-            ruleset_release=locked.ruleset_release,
+            ruleset_release_id=locked.ruleset_release_id,
             origin=AutomaticIssueReport.ORIGIN_CLIENT,
             error_type=error_type,
             summary=message,
@@ -1045,7 +1260,9 @@ def add_issue_report(session, role, details, *, user=None, report_id=None):
     if len(details) > 4000:
         raise ValueError('제보 내용은 4000자 이하여야 합니다.')
     with transaction.atomic():
-        locked = LumenSimulatorSession.objects.select_for_update().select_related('ruleset_release').get(pk=session.pk)
+        locked = LumenSimulatorSession.objects.select_for_update().get(
+            pk=session.pk,
+        )
         failure = locked.automation_failure or {}
         report = None
         requested_report_id = str(
@@ -1064,7 +1281,7 @@ def add_issue_report(session, role, details, *, user=None, report_id=None):
             document = locked.document or {}
             report = AutomaticIssueReport.objects.create(
                 session=locked,
-                ruleset_release=locked.ruleset_release,
+                ruleset_release_id=locked.ruleset_release_id,
                 origin=AutomaticIssueReport.ORIGIN_USER,
                 error_type='',
                 summary=details[:500],
@@ -1085,9 +1302,14 @@ def add_issue_report(session, role, details, *, user=None, report_id=None):
         return report
 
 
-def sanitize_automatic_state(serialized_state, observation, role=None, ruleset=None):
+def sanitize_automatic_state(
+    serialized_state, observation, role=None, ruleset=None, *, copy_state=True,
+):
     """Strip resolver internals and attach the role-specific public contract."""
-    state = copy.deepcopy(serialized_state or {})
+    state = (
+        copy.deepcopy(serialized_state or {})
+        if copy_state else (serialized_state or {})
+    )
     state.pop('random_seed', None)
     released_by_id = {
         str(card.get('id')): card

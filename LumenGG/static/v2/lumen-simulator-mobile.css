@@ -446,6 +446,7 @@
 
 .v2-mobile-passive-controls,
 .v2-mobile-passive-inner,
+.v2-mobile-passive-generic,
 .v2-mobile-passive-cards {
     display: flex;
     overflow-x: auto;
@@ -495,8 +496,9 @@
     font-size: .68rem;
 }
 
-.v2-mobile-passive-native.is-counter > span {
-    display: none;
+.v2-mobile-passive-generic {
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
 .v2-mobile-passive-native.is-active,
@@ -808,6 +810,51 @@
     font-weight: 800;
     line-height: 1.35;
     white-space: pre-line;
+}
+
+.v2-mobile-log-row strong,
+.v2-mobile-log-detail {
+    display: block;
+}
+
+.v2-mobile-log-category {
+    display: inline-flex;
+    margin-bottom: 4px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--v2-accent) 18%, transparent);
+    font-size: .62rem;
+    font-weight: 900;
+}
+
+.v2-mobile-log-detail {
+    margin-top: 4px;
+    color: var(--v2-muted);
+    font-size: .68rem;
+    font-weight: 700;
+}
+
+.v2-mobile-log-row.is-major-log {
+    width: 94%;
+    max-width: 94%;
+    padding: 9px 10px;
+    border-width: 2px;
+    background: color-mix(in srgb, var(--v2-panel-bg) 86%, var(--v2-accent) 14%);
+}
+
+.v2-mobile-log-row.is-battle-log,
+.v2-mobile-log-row.is-judgment-log {
+    border-color: color-mix(in srgb, var(--v2-accent) 70%, var(--v2-line));
+}
+
+.v2-mobile-log-row.is-damage-log,
+.v2-mobile-log-row.is-warning-log {
+    border-color: rgba(217, 105, 105, .68);
+}
+
+.v2-mobile-log-row.is-recover-log,
+.v2-mobile-log-row.is-effect-log {
+    border-color: rgba(91, 190, 176, .62);
 }
 
 .v2-mobile-log-row.is-own-log {

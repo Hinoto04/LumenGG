@@ -23,12 +23,17 @@ def cleanup_stale_presence(now=None):
 
 
 def presence_counts(scope, view_token):
-    cleanup_stale_presence()
+    # State polling is read-heavy. Do not run a global DELETE on every poll;
+    # stale rows are excluded here and physically removed on registration.
+    cutoff = timezone.now() - PRESENCE_TTL
     roles = _roles_for_scope(scope)
     counts = {role: 0 for role in roles}
     rows = (
         RealtimePresence.objects
-        .filter(scope=scope, view_token=view_token, role__in=roles)
+        .filter(
+            scope=scope, view_token=view_token, role__in=roles,
+            last_seen_at__gte=cutoff,
+        )
         .values('role')
         .annotate(total=Count('id'))
     )

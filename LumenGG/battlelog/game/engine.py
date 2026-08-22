@@ -37,6 +37,20 @@ class StaleState(EngineError):
     """The command was created for an older session version."""
 
 
+PASSIVE_STATE_KEY_ALIASES = {
+    # The manual calculator predates the automatic engine's semantic keys.
+    # Normalize its stored keys so both modes update the same state value.
+    'root_charge': 'charge',
+    'notice': 'advance_notice',
+    'silver_counter': 'hidden_bond',
+    'yang_counter': 'yang',
+    'yin_counter': 'yin',
+    'foresight_counter': 'foresight',
+    'ember_token': 'ember',
+    'howling_counter': 'howling',
+}
+
+
 def opponent(side):
     return 'p2' if side == 'p1' else 'p1'
 
@@ -132,7 +146,13 @@ class AutomaticGameEngine:
 
     def __init__(self, state, ruleset, *, version=1, now=None, events=None, seed=''):
         self.state = copy.deepcopy(state or {})
-        self.ruleset = copy.deepcopy(ruleset or {})
+        # Published cached rulesets are immutable snapshots. Ad-hoc rulesets
+        # remain defensively copied because tests/editors may mutate them.
+        self.ruleset = (
+            ruleset
+            if getattr(ruleset, '_automatic_immutable_ruleset', False)
+            else copy.deepcopy(ruleset or {})
+        )
         self.version = int(version or 1)
         self.now = _as_datetime(now) or _utc_now()
         self.events = copy.deepcopy(events or [])
@@ -141,7 +161,7 @@ class AutomaticGameEngine:
         self.resolver = EffectResolver(self)
 
     @classmethod
-    def initialize(cls, base_state, ruleset, *, now=None, seed=''):
+    def initialize(cls, base_state, ruleset, *, now=None, seed='', settings=None):
         """Turn the existing simulator zones/HP/FP payload into automatic state."""
         state = copy.deepcopy(base_state or {})
         state['turn'] = max(1, _number(state.get('turn'), 1))
@@ -187,6 +207,7 @@ class AutomaticGameEngine:
             'catch': None,
             'winner': None,
             'reason': '',
+            'settings': copy.deepcopy(settings or {}),
             'initial_passive_states': {
                 side: copy.deepcopy(((state.get('players') or {}).get(side) or {}).get('passive_state') or {})
                 for side in PLAYER_SIDES
@@ -194,6 +215,11 @@ class AutomaticGameEngine:
             'command_count': 0,
             'random_counter': 0,
             'id_counter': 0,
+            # Game-start, turn-start, and the first Lumen phase are distinct
+            # timing windows.  Keep the latter two behind this small startup
+            # pipeline so a choice in an earlier window cannot cause a later
+            # trigger to be collected against stale state.
+            'startup_stage': 'after_game_start',
         }
         engine = cls(state, ruleset, version=1, now=now, seed=seed)
         engine._reconcile_trait_states()
@@ -214,9 +240,6 @@ class AutomaticGameEngine:
             'priority_player': first,
         })
         engine._fire('game_start', {'turn': 1})
-        engine._fire('turn_start', {'turn': 1})
-        engine._refresh_continuous_rules()
-        engine._fire('phase_start', {'phase': 'lumen'})
         engine._continue()
         return engine
 
@@ -227,6 +250,7 @@ class AutomaticGameEngine:
             player['hp'] = _number(player.get('hp'))
             player['fp'] = _number(player.get('fp'))
             player.setdefault('passive_state', {})
+            self._normalize_passive_state_keys(player['passive_state'])
             zones = player.setdefault('zones', {})
             for zone in ('character', 'passive', 'battle', 'list', 'hand', 'side', 'break', 'lumen', 'ultimate'):
                 zones.setdefault(zone, [])
@@ -291,6 +315,7 @@ class AutomaticGameEngine:
             'catch': None,
             'winner': None,
             'reason': '',
+            'settings': {},
             # Older automatic documents did not persist the initial passive
             # snapshot. Their current state is the safest recovery baseline.
             'initial_passive_states': {
@@ -303,11 +328,28 @@ class AutomaticGameEngine:
         }
         for key, value in defaults.items():
             engine.setdefault(key, copy.deepcopy(value))
+        for passive_state in (engine.get('initial_passive_states') or {}).values():
+            self._normalize_passive_state_keys(passive_state)
         for side in PLAYER_SIDES:
             engine['shields'].setdefault(side, [])
             engine['turn_damage_received'].setdefault(side, 0)
         if self.state.get('priority_player') not in PLAYER_SIDES:
             self.state['priority_player'] = 'p1'
+
+    @staticmethod
+    def _normalize_passive_state_keys(passive_state):
+        if not isinstance(passive_state, dict):
+            return
+        for legacy_key, canonical_key in PASSIVE_STATE_KEY_ALIASES.items():
+            legacy = passive_state.pop(legacy_key, None)
+            if not isinstance(legacy, dict):
+                continue
+            current = passive_state.get(canonical_key)
+            if not isinstance(current, dict):
+                passive_state[canonical_key] = legacy
+                continue
+            if not current.get('label') and legacy.get('label'):
+                current['label'] = legacy['label']
 
     @property
     def engine_state(self):
@@ -384,7 +426,7 @@ class AutomaticGameEngine:
     def _action(self, action_type, *, label='', payload=None, **extra):
         core = {'type': action_type, 'payload': copy.deepcopy(payload or {})}
         encoded = json.dumps(
-            {'version': self.version, 'state': self._action_revision(), **core},
+            {'state': self._action_revision(), **core},
             ensure_ascii=False,
             sort_keys=True,
             separators=(',', ':'),
@@ -404,7 +446,6 @@ class AutomaticGameEngine:
             'turn': self.state.get('turn'),
             'phase': self.state.get('phase'),
             'step': engine.get('step'),
-            'commands': engine.get('command_count'),
             'decision': (engine.get('pending_decision') or {}).get('id'),
         }
 
@@ -481,7 +522,7 @@ class AutomaticGameEngine:
                             card=self._public_action_card(card),
                         ))
                 for card in self._zone(role, 'ultimate'):
-                    if self._rule_blocked('get_card', role, card):
+                    if _is_special(card) or self._rule_blocked('get_card', role, card):
                         continue
                     actions.append(self._action(
                         'select_ultimate', label=card.get('name') or '얼티밋 획득',
@@ -492,9 +533,10 @@ class AutomaticGameEngine:
         elif phase == 'battle' and step == 'combo':
             combo = engine.get('combo') or {}
             if combo.get('owner') == role and not combo.get('proposal_submitted'):
-                combo_actions = self._combo_actions(role, combo)
+                combo_actions = self._combo_actions(role, combo, staged=True)
                 actions.extend(combo_actions)
-                if not (
+                initial_pair_pending = not (combo.get('used') or [])
+                if not initial_pair_pending and not (
                     combo_actions
                     and self._required_combo_followup_rules(role, combo)
                 ):
@@ -513,6 +555,12 @@ class AutomaticGameEngine:
                             suffix += f'·{cost.get("counter")} {cost.get("amount")}개'
                         suffix += ')'
                     payload = {'card_instance_id': card.get('instance_id')}
+                    choice_speed = (
+                        option.get('fixed_speed')
+                        if option.get('fixed_speed') is not None
+                        else self.card_stat(card, 'frame', role, include_fp=False)
+                    )
+                    payload['choice_speed'] = choice_speed
                     if option.get('catch_rule_index') is not None:
                         payload['catch_rule_index'] = option['catch_rule_index']
                     actions.append(self._action(
@@ -520,6 +568,7 @@ class AutomaticGameEngine:
                         label=(card.get('name') or '캐치 사용') + suffix,
                         payload=payload,
                         card=self._private_action_card(card),
+                        choice_speed=choice_speed,
                     ))
                 exemption = self._catch_source_break_exemption(role, catch)
                 if exemption:
@@ -537,6 +586,14 @@ class AutomaticGameEngine:
                             'card_instance_id': card.get('instance_id'),
                             'source_break_counter_exemption': counter_key,
                         }
+                        choice_speed = (
+                            option.get('fixed_speed')
+                            if option.get('fixed_speed') is not None
+                            else self.card_stat(
+                                card, 'frame', role, include_fp=False,
+                            )
+                        )
+                        payload['choice_speed'] = choice_speed
                         if option.get('catch_rule_index') is not None:
                             payload['catch_rule_index'] = option['catch_rule_index']
                         actions.append(self._action(
@@ -544,10 +601,14 @@ class AutomaticGameEngine:
                             label=(card.get('name') or '캐치 사용') + suffix,
                             payload=payload,
                             card=self._private_action_card(card),
+                            choice_speed=choice_speed,
                         ))
                 actions.append(self._action('decline_catch', label='캐치 종료'))
         if not decision and not rewind:
-            if engine.get('last_rewindable_command_id'):
+            if (
+                (engine.get('settings') or {}).get('rewind_enabled', False)
+                and engine.get('last_rewindable_command_id')
+            ):
                 actions.append(self._action('request_rewind', label='직전 명령 되감기 요청'))
             actions.append(self._action('concede', label='기권'))
         return actions
@@ -587,6 +648,33 @@ class AutomaticGameEngine:
             self._get_card(role, payload['card_instance_id'])
         elif action_type == 'submit_decision':
             self._submit_decision(role, payload['decision_id'], selections.get('selected') or [])
+        elif action_type == 'select_combo_first':
+            combo = self.engine_state.get('combo') or {}
+            if combo.get('owner') != role or combo.get('used'):
+                raise IllegalAction('첫 콤보 카드를 선택할 수 있는 시점이 아닙니다.')
+            combo['initial_selection'] = {
+                'card_instance_id': payload.get('card_instance_id'),
+                'combo_speed': payload.get('combo_speed'),
+                'ignore_damage_penalty': bool(payload.get('ignore_damage_penalty')),
+                'ignore_speed': bool(payload.get('ignore_speed')),
+            }
+            self.emit('combo_first_selected', role, copy.deepcopy(combo['initial_selection']))
+        elif action_type == 'cancel_combo_first':
+            combo = self.engine_state.get('combo') or {}
+            if combo.get('owner') != role or not combo.get('initial_selection'):
+                raise IllegalAction('취소할 첫 콤보 선택이 없습니다.')
+            combo.pop('initial_selection', None)
+            self.emit('combo_first_selection_cancelled', role, {})
+        elif action_type == 'select_combo_followup':
+            proposal = payload.get('proposal') or {}
+            card_ids = proposal.get('card_instance_ids') or []
+            combo_speeds = proposal.get('combo_speeds') or []
+            ignore_damage_penalty = proposal.get('ignore_damage_penalty') or [False] * len(card_ids)
+            ignore_speed = proposal.get('ignore_speed') or [False] * len(card_ids)
+            self._play_combo(
+                role, list(card_ids), list(combo_speeds),
+                list(ignore_damage_penalty), list(ignore_speed),
+            )
         elif action_type in {'play_combo_sequence', 'play_combo_pair', 'play_combo_card'}:
             card_ids = payload.get('card_instance_ids') or [payload.get('card_instance_id')]
             combo_speeds = payload.get('combo_speeds') or [payload.get('combo_speed')]
@@ -615,6 +703,8 @@ class AutomaticGameEngine:
         elif action_type == 'resume_clock':
             self._resume_clock(role)
         elif action_type == 'request_rewind':
+            if not (self.engine_state.get('settings') or {}).get('rewind_enabled', False):
+                raise IllegalAction('이 자동 대전에서는 되감기를 사용하지 않습니다.')
             self._request_rewind(role)
         elif action_type == 'answer_rewind':
             self._answer_rewind(role, bool(payload.get('accept')))
@@ -713,10 +803,66 @@ class AutomaticGameEngine:
                 if not self._advance_pipeline(pipeline):
                     return
                 continue
+            if self._advance_startup_stage():
+                continue
             if self._settle_replaced_get_action():
+                continue
+            if self._auto_advance_actionless_phase():
                 continue
             return
         raise EngineError('자동 진행 단계 제한을 초과했습니다.')
+
+    def _advance_startup_stage(self):
+        """Open initial timing windows only after the previous one settles."""
+        stage = self.engine_state.get('startup_stage')
+        if stage == 'after_game_start':
+            self.engine_state['startup_stage'] = 'after_turn_start'
+            self._fire('turn_start', {'turn': self.state.get('turn', 1)})
+            return True
+        if stage == 'after_turn_start':
+            self.engine_state.pop('startup_stage', None)
+            self._refresh_continuous_rules()
+            self._fire('phase_start', {
+                'phase': 'lumen', 'turn': self.state.get('turn', 1),
+                'first_turn': True,
+            })
+            return True
+        return False
+
+    def _auto_advance_actionless_phase(self):
+        settings = self.engine_state.get('settings') or {}
+        if not settings.get('auto_advance_empty_phases', False):
+            return False
+        phase = self.state.get('phase')
+        step = self.engine_state.get('step')
+        if phase in {'lumen', 'recovery'} and step == 'phase_actions':
+            self.emit('phase_auto_advanced', 'system', {
+                'phase': phase, 'reason': 'no_player_action',
+            })
+            self._advance_phase()
+            return True
+        if phase != 'get' or step != 'get_actions':
+            return False
+        role = self.engine_state.get('current_actor')
+        if role not in PLAYER_SIDES:
+            return False
+        if role in (self.engine_state.get('forced_get_designators') or {}):
+            return False
+        has_get = any(
+            not _is_special(card)
+            and not self._rule_blocked('get_card', role, card)
+            for card in self._zone(role, 'list')
+        ) or any(
+            not self._rule_blocked('get_card', role, card)
+            for card in self._zone(role, 'ultimate')
+        )
+        if has_get:
+            return False
+        self.emit('phase_auto_advanced', 'system', {
+            'phase': phase, 'player': role, 'reason': 'no_get_action',
+        })
+        self._finish_get_action(role, None)
+        return True
 
     def _pass_phase(self, role):
         phase = self.state.get('phase')
@@ -811,7 +957,8 @@ class AutomaticGameEngine:
             engine.pop('get_skipped_players', None)
             for side in PLAYER_SIDES:
                 for card in self._zone(side, 'hand'):
-                    card['face_up'] = False
+                    if card.pop('hide_after_get', False):
+                        card['face_up'] = False
         end_turn_requested = bool(engine.pop('end_turn_requested', False))
         repeated = engine.pop('repeat_phase', None)
         if end_turn_requested:
@@ -853,18 +1000,17 @@ class AutomaticGameEngine:
             if forced_first in PLAYER_SIDES:
                 # Third Eye treats its controller as already Ready for timer
                 # purposes: the designated opponent receives the first
-                # ten-second Ready window immediately (Q&A 228).
+                # configured Ready window immediately (Q&A 228).
                 self._start_clock(
                     'ready', owner=forced_first,
-                    seconds=DEFAULT_READY_SECONDS,
+                    seconds=self._timeout_seconds(
+                        'ready_timeout_seconds', DEFAULT_READY_SECONDS,
+                    ),
                 )
         elif next_phase == 'battle':
             engine['step'] = 'battle_pipeline'
             engine['pipeline'] = {'kind': 'battle', 'stage': 'start'}
         elif next_phase == 'get':
-            for side in PLAYER_SIDES:
-                for card in self._zone(side, 'hand'):
-                    card['face_up'] = True
             engine['replaced_get'] = {}
             skip_get = engine.get('skip_get') or {}
             ordered_players = [
@@ -1007,11 +1153,21 @@ class AutomaticGameEngine:
         if forced_first == role:
             self.engine_state.pop('forced_ready_first', None)
             self.engine_state.pop('forced_ready_first_source', None)
-        self.emit('card_readied', role, {'card_instance_id': instance_id}, visibility='private')
+        self.emit('card_readied', role, {
+            'card_instance_id': instance_id,
+            'card_id': card.get('card_id'),
+            'card_code': card.get('code'),
+            'card_label': card.get('name') or card.get('code') or '카드',
+        }, visibility='private')
         self._fire('ready', {'controller': role, 'source_card_instance_id': instance_id, 'source_card': card})
         other = opponent(role)
         if other not in self.engine_state['ready_cards']:
-            self._start_clock('ready', owner=other, seconds=DEFAULT_READY_SECONDS)
+            self._start_clock(
+                'ready', owner=other,
+                seconds=self._timeout_seconds(
+                    'ready_timeout_seconds', DEFAULT_READY_SECONDS,
+                ),
+            )
         else:
             self._clear_clock()
             other_card = self._find_card(self.engine_state['ready_cards'][other])
@@ -1043,7 +1199,17 @@ class AutomaticGameEngine:
             battle['damage_event_count_before'] = sum(1 for event in self.events if event.get('type') == 'damage_dealt')
             battle['actual_damage_received'] = {side: 0 for side in PLAYER_SIDES}
             self.emit('battle_revealed', 'system', {
-                side: {'card_instance_id': battle[side]['instance_id'], 'card_code': battle[side]['card'].get('code')}
+                side: {
+                    'card_instance_id': battle[side]['instance_id'],
+                    'card_id': battle[side]['card'].get('card_id'),
+                    'card_code': battle[side]['card'].get('code'),
+                    'card_type': battle[side]['card'].get('type'),
+                    'card_label': (
+                        battle[side]['card'].get('name')
+                        or battle[side]['card'].get('code')
+                        or '카드'
+                    ),
+                }
                 for side in PLAYER_SIDES
             })
             pipeline['stage'] = 'reveal_cost'
@@ -1319,6 +1485,20 @@ class AutomaticGameEngine:
             'reference_speed': reference_speed,
             'speed': final_speed,
             'result': result,
+            'cards': {
+                side: {
+                    'card_instance_id': battle[side]['instance_id'],
+                    'card_id': battle[side]['card'].get('card_id'),
+                    'card_code': battle[side]['card'].get('code'),
+                    'card_type': battle[side]['card'].get('type'),
+                    'card_label': (
+                        battle[side]['card'].get('name')
+                        or battle[side]['card'].get('code')
+                        or '카드'
+                    ),
+                }
+                for side in PLAYER_SIDES
+            },
         })
 
     def _attack_vs_defense(self, attack, defense, attacker_side, defender_side):
@@ -1801,15 +1981,16 @@ class AutomaticGameEngine:
                 else:
                     retained.append(item)
             candidates = retained
+        mutual_combo = {
+            item.get('owner') for item in candidates
+        } >= set(PLAYER_SIDES)
         available_candidates = []
         for item in candidates:
-            if item.get('special') and not self._special_combo_has_legal_pair(
-                item.get('owner'), source=item.get('source'),
+            if (
+                not mutual_combo
+                and not self._combo_grant_can_open(item)
             ):
-                self.emit('combo_skipped', item.get('owner'), {
-                    'reason': 'special_combo_requires_pair',
-                    'source_card_instance_id': item.get('source'),
-                })
+                self._emit_unavailable_combo(item)
                 continue
             available_candidates.append(item)
         candidates = available_candidates
@@ -1928,6 +2109,58 @@ class AutomaticGameEngine:
                 'source_card_instance_id': source,
             })
 
+    def _combo_grant_can_open(self, item):
+        """Return whether a newly opened Combo has its mandatory first pair.
+
+        Production rulesets must be able to present both initial cards at
+        once.  The synthetic automatic-effect review ruleset is the sole
+        exception for normal Combos: it intentionally isolates one arbitrary
+        Combo slot without manufacturing unrelated filler cards.  Special
+        Combos always require their two-card proposal, including in reviews.
+        """
+        if not isinstance(item, dict):
+            return False
+        special = bool(item.get('special'))
+        if (
+            not special
+            and str(self.ruleset.get('version') or '')
+            == 'automatic-effect-v2'
+        ):
+            return True
+        return self._combo_has_legal_initial_pair(
+            item.get('owner'), source=item.get('source'), special=special,
+        )
+
+    def _emit_unavailable_combo(self, item):
+        item = item if isinstance(item, dict) else {'owner': item}
+        self.emit('combo_skipped', item.get('owner'), {
+            'reason': (
+                'special_combo_requires_pair'
+                if item.get('special')
+                else 'normal_combo_requires_two_cards'
+            ),
+            'source_card_instance_id': item.get('source'),
+        })
+
+    def _next_available_combo(self, queue):
+        """Pop invalid grants until an initial two-card proposal is possible."""
+        while queue:
+            raw = queue.pop(0)
+            if isinstance(raw, dict):
+                item = raw
+            else:
+                item = {
+                    'owner': raw,
+                    'source': (
+                        (self.engine_state.get('battle') or {}).get(raw) or {}
+                    ).get('instance_id'),
+                    'special': False,
+                }
+            if self._combo_grant_can_open(item):
+                return item
+            self._emit_unavailable_combo(item)
+        return None
+
     def end_combo(self):
         combo = self.engine_state.get('combo')
         if not combo:
@@ -1948,6 +2181,10 @@ class AutomaticGameEngine:
             'combo_used': copy.deepcopy(combo.get('used') or []),
             'combo_used_count': len(combo.get('used') or []),
             'source_card_instance_id': combo.get('source'),
+            'combo_card_instance_ids': [
+                *([combo.get('source')] if combo.get('source') else []),
+                *(combo.get('used') or []),
+            ],
         }
         if pipeline.get('stage') == 'owner_effects':
             pipeline['stage'] = 'opponent_effects'
@@ -1964,24 +2201,15 @@ class AutomaticGameEngine:
         self._return_borrowed_combo_cards(combo)
         self._expire_modifiers('combo')
         self.engine_state['pipeline'] = None
-        queue = self.engine_state.get('combo_queue') or []
+        queue = list(self.engine_state.get('combo_queue') or [])
         queue.extend(self.engine_state.pop('granted_combos', []) or [])
-        if queue:
-            next_combo = queue.pop(0)
-            if isinstance(next_combo, dict):
-                next_owner = next_combo.get('owner')
-                source = next_combo.get('source')
-                special = next_combo.get('special', False)
-            else:
-                next_owner = next_combo
-                source = ((self.engine_state.get('battle') or {}).get(next_owner) or {}).get('instance_id')
-                special = False
+        self.engine_state['combo_queue'] = queue
+        next_combo = self._next_available_combo(queue)
+        if next_combo:
             self.grant_combo(
-                next_owner, source=source, special=special,
-                trigger_event=not (
-                    isinstance(next_combo, dict)
-                    and next_combo.get('combo_triggered')
-                ),
+                next_combo.get('owner'), source=next_combo.get('source'),
+                special=next_combo.get('special', False),
+                trigger_event=not next_combo.get('combo_triggered'),
             )
             return True
         if self.engine_state.pop('resume_catch_after_combo', False):
@@ -2017,6 +2245,9 @@ class AutomaticGameEngine:
                 'controller': owner, 'combo_owner': owner,
                 'combo_used': [], 'combo_used_count': 0,
                 'source_card_instance_id': combo.get('source'),
+                'combo_card_instance_ids': [
+                    combo.get('source'),
+                ] if combo.get('source') else [],
                 'mutual': True,
             }
             self._fire(
@@ -2032,8 +2263,24 @@ class AutomaticGameEngine:
         self._cleanup_battle()
         return not self.is_waiting
 
-    def _combo_actions(self, role, combo):
+    def _combo_actions(self, role, combo, *, staged=False):
         if combo.get('proposal_submitted'):
+            return []
+        # A normal Combo begins by presenting its 2- and 3-Combo Techniques
+        # together.  After both cards have finished through ``after_use``,
+        # later extensions are offered one card at a time.  Effect-created
+        # special Combos likewise present their 1/2-Combo pair together and
+        # never expose an incomplete one-card proposal.
+        # Card-definition reviews deliberately isolate one arbitrary Combo
+        # slot. They use a synthetic ruleset version and retain the wider
+        # enumerator so a card's own rule can be tested without inventing
+        # unrelated filler cards. Real sessions always use the staged sizes.
+        review_isolation = str(self.ruleset.get('version') or '') == 'automatic-effect-v2'
+        proposal_size = (
+            None if review_isolation and not combo.get('special')
+            else (2 if not (combo.get('used') or []) else 1)
+        )
+        if combo.get('special') and (combo.get('used') or []):
             return []
         base_cards = []
         # Enumerate every owned zone and let ``_combo_zone_allowed`` enforce
@@ -2088,9 +2335,20 @@ class AutomaticGameEngine:
             proposed_cards, speeds, ignores, speed_ignores,
             proposed_rule_sets,
         ):
+            if proposal_size is not None and len(proposed_cards) != proposal_size:
+                return
             if combo.get('special') and len(proposed_cards) != 2:
                 return
             card_ids = [card.get('instance_id') for card in proposed_cards]
+            source_zones = []
+            for card_id in card_ids:
+                _owner, source_zone, _index, _card = self._find_location(card_id)
+                source_zones.append(source_zone)
+            first_combo_number = self._next_combo_number(combo)
+            combo_numbers = [
+                first_combo_number + index
+                for index in range(len(card_ids))
+            ]
             if any(
                 speed_ignore
                 and not self._combo_optional_speed_cost_affordable(
@@ -2103,19 +2361,32 @@ class AutomaticGameEngine:
             ):
                 return
             labels = []
-            for card, speed, ignore, speed_ignore in zip(
+            for card, speed, ignore, speed_ignore, rules in zip(
                 proposed_cards, speeds, ignores, speed_ignores,
+                proposed_rule_sets,
             ):
                 label = f'{card.get("name") or "카드"}({speed})'
                 if ignore:
                     label = f'{label}·보정 없음'
                 if speed_ignore:
-                    label = f'{label}·속도 무시'
+                    declared_within_window = any(
+                        rule.get('optional_any_speed')
+                        and self._combo_rule_respects_speed_window(rule)
+                        for rule in rules
+                    )
+                    label = (
+                        f'{label}·속도 선언'
+                        if declared_within_window
+                        else f'{label}·속도 무시'
+                    )
                 labels.append(label)
             if len(card_ids) == 1:
                 payload = {
                     'card_instance_id': card_ids[0],
                     'combo_speed': speeds[0],
+                    'choice_speed': speeds[0],
+                    'combo_number': combo_numbers[0],
+                    'source_zone': source_zones[0],
                     'ignore_damage_penalty': list(ignores),
                 }
                 if any(speed_ignores):
@@ -2124,12 +2395,17 @@ class AutomaticGameEngine:
                     'play_combo_card', label=labels[0],
                     payload=payload,
                     card=self._private_action_card(proposed_cards[0]),
+                    choice_speed=speeds[0],
+                    source_zone=source_zones[0],
+                    combo_number=combo_numbers[0],
                 ))
                 return
             action_type = 'play_combo_pair' if len(card_ids) == 2 else 'play_combo_sequence'
             payload = {
                 'card_instance_ids': card_ids,
                 'combo_speeds': list(speeds),
+                'combo_numbers': combo_numbers,
+                'source_zones': source_zones,
                 'ignore_damage_penalty': list(ignores),
             }
             if any(speed_ignores):
@@ -2165,16 +2441,24 @@ class AutomaticGameEngine:
                         proposed_cards, speeds, ignores, speed_ignores,
                         proposed_rule_sets,
                     )
-            proposal_cap = 2 if projected.get('special') else 5
+            proposal_cap = (
+                2 if projected.get('special')
+                else (5 if proposal_size is None else proposal_size)
+            )
             if len(proposed_cards) >= proposal_cap:
                 return
-            used_ids = {
-                *(projected.get('used') or []),
-                *(card.get('instance_id') for card in proposed_cards),
+            used_ids = set(projected.get('used') or [])
+            proposed_ids = {
+                card.get('instance_id') for card in proposed_cards
+                if card.get('instance_id')
             }
             for card in candidate_cards(projected):
                 instance_id = card.get('instance_id')
-                if not instance_id or instance_id in used_ids:
+                # A card cannot occupy two slots in one atomic proposal. A
+                # card already resolved earlier in this Combo is likewise
+                # excluded unless its own currently applicable rule grants
+                # an explicitly limited reuse (Tempo de Deux).
+                if not instance_id or instance_id in proposed_ids:
                     continue
                 found_owner, found_zone, _index, live_card = self._find_location(instance_id)
                 if not live_card:
@@ -2185,6 +2469,14 @@ class AutomaticGameEngine:
                         found_owner=found_owner, found_zone=found_zone,
                     )
                 )
+                if (
+                    instance_id in used_ids
+                    and not any(
+                        self._combo_rule_allows_reuse(rule, projected_card)
+                        for rule in combo_rules
+                    )
+                ):
+                    continue
                 if found_owner != role and not borrow_rule:
                     continue
                 if not self._combo_zone_allowed(role, live_card, found_zone, projected):
@@ -2229,6 +2521,9 @@ class AutomaticGameEngine:
                                     *(projected.get('used') or []), instance_id,
                                 ],
                             }
+                            next_projected['last_speed_ignored'] = bool(
+                                speed_ignore
+                            )
                             next_projected['counter_overrides'] = (
                                 self._project_combo_counter_overrides(
                                     role, projected_card, projected, combo_rules,
@@ -2284,20 +2579,147 @@ class AutomaticGameEngine:
                                 [*proposed_rule_sets, combo_rules],
                             )
 
-        propose(copy.deepcopy(combo), [], [], [], [], [])
-        return actions
+        proposal_seed = copy.deepcopy(combo)
+        # The Technique which opened Combo Time does not constrain the
+        # 2-Combo speed.  The speed chain starts with the selected 2-Combo
+        # Technique and is enforced for its follow-up from there.
+        if not review_isolation and not (combo.get('used') or []):
+            proposal_seed.pop('last_speed', None)
+            if not combo.get('special'):
+                proposal_seed['initial_pair_proposal'] = True
+        propose(proposal_seed, [], [], [], [], [])
 
-    def _special_combo_has_legal_pair(self, role, *, source=None):
+        # Real games stage the first proposal.  Showing every Cartesian pair
+        # is both hard to use and can explode for cards with multiple legal
+        # speeds.  Only first cards that have at least one legal follow-up are
+        # shown.  After one is selected, only its compatible follow-up cards
+        # are returned; the two cards are still committed and resolved as one
+        # atomic proposal.
+        if review_isolation or (combo.get('used') or []) or not staged:
+            return actions
+        pair_actions = [
+            action for action in actions
+            if action.get('type') == 'play_combo_pair'
+            and len((action.get('payload') or {}).get('card_instance_ids') or []) == 2
+        ]
+        selected_first = combo.get('initial_selection') or {}
+        if selected_first:
+            followups = []
+            for action in pair_actions:
+                payload = action.get('payload') or {}
+                ids = payload.get('card_instance_ids') or []
+                speeds = payload.get('combo_speeds') or []
+                ignores = payload.get('ignore_damage_penalty') or [False, False]
+                speed_ignores = payload.get('ignore_speed') or [False, False]
+                if not (
+                    ids[0] == selected_first.get('card_instance_id')
+                    and _number(speeds[0]) == _number(selected_first.get('combo_speed'))
+                    and bool(ignores[0]) == bool(selected_first.get('ignore_damage_penalty'))
+                    and bool(speed_ignores[0]) == bool(selected_first.get('ignore_speed'))
+                ):
+                    continue
+                second = self._find_card(ids[1])
+                if not second:
+                    continue
+                second_label = f'{second.get("name") or "카드"}({speeds[1]}속도)'
+                followups.append(self._action(
+                    'select_combo_followup', label=second_label,
+                    payload={
+                        'card_instance_id': ids[1],
+                        'choice_speed': speeds[1],
+                        'combo_number': (
+                            (payload.get('combo_numbers') or [2, 3])[1]
+                        ),
+                        'source_zone': (
+                            (payload.get('source_zones') or [None, None])[1]
+                        ),
+                        'proposal': copy.deepcopy(payload),
+                    },
+                    card=self._private_action_card(second),
+                    choice_speed=speeds[1],
+                    source_zone=(
+                        (payload.get('source_zones') or [None, None])[1]
+                    ),
+                    combo_number=(
+                        (payload.get('combo_numbers') or [2, 3])[1]
+                    ),
+                ))
+            if followups:
+                followups.append(self._action(
+                    'cancel_combo_first', label='첫 카드 다시 선택',
+                ))
+            return followups
+
+        first_actions = []
+        seen = set()
+        for action in pair_actions:
+            payload = action.get('payload') or {}
+            ids = payload.get('card_instance_ids') or []
+            speeds = payload.get('combo_speeds') or []
+            ignores = payload.get('ignore_damage_penalty') or [False, False]
+            speed_ignores = payload.get('ignore_speed') or [False, False]
+            key = (
+                ids[0], _number(speeds[0]), bool(ignores[0]),
+                bool(speed_ignores[0]),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            first = self._find_card(ids[0])
+            if not first:
+                continue
+            label = f'{first.get("name") or "카드"}({speeds[0]}속도)'
+            first_actions.append(self._action(
+                'select_combo_first', label=label,
+                payload={
+                    'card_instance_id': ids[0],
+                    'combo_speed': speeds[0],
+                    'choice_speed': speeds[0],
+                    'combo_number': (
+                        (payload.get('combo_numbers') or [2])[0]
+                    ),
+                    'source_zone': (
+                        (payload.get('source_zones') or [None])[0]
+                    ),
+                    'ignore_damage_penalty': bool(ignores[0]),
+                    'ignore_speed': bool(speed_ignores[0]),
+                },
+                card=self._private_action_card(first),
+                choice_speed=speeds[0],
+                source_zone=(
+                    (payload.get('source_zones') or [None])[0]
+                ),
+                combo_number=(
+                    (payload.get('combo_numbers') or [2])[0]
+                ),
+            ))
+        return first_actions
+
+    def _combo_has_legal_initial_pair(
+        self, role, *, source=None, special=False,
+    ):
         if role not in PLAYER_SIDES:
             return False
         combo = {
-            'owner': role, 'source': source, 'special': True,
-            'used': [], 'next_penalty': 0, 'proposal_submitted': False,
+            'owner': role, 'source': source, 'special': bool(special),
+            'used': [], 'next_penalty': 0 if special else 100,
+            'proposal_submitted': False,
         }
+        if source and not special:
+            source_card = self._find_card(source)
+            if source_card and _is_attack(source_card):
+                combo['last_speed'] = self.card_stat(
+                    source_card, 'frame', role, include_fp=False,
+                )
         return any(
-            action.get('type') in {'play_combo_pair', 'play_combo_sequence'}
+            action.get('type') == 'play_combo_pair'
             and len((action.get('payload') or {}).get('card_instance_ids') or []) == 2
             for action in self._combo_actions(role, combo)
+        )
+
+    def _special_combo_has_legal_pair(self, role, *, source=None):
+        return self._combo_has_legal_initial_pair(
+            role, source=source, special=True,
         )
 
     @staticmethod
@@ -2425,19 +2847,27 @@ class AutomaticGameEngine:
         if combo.get('proposal_submitted'):
             raise IllegalAction('콤보 카드는 이미 함께 제시했습니다.')
         card_ids = list(card_ids)
-        action_lengths = []
-        for action in self._combo_actions(role, combo):
-            payload = action.get('payload') or {}
-            ids = payload.get('card_instance_ids')
-            action_lengths.append(len(ids) if isinstance(ids, list) else 1)
-        maximum_cards = max(action_lengths or [0])
-        if not card_ids or len(card_ids) > maximum_cards or len(card_ids) != len(set(card_ids)):
+        # Public submissions can only reach this method through a server
+        # issued action whose payload fixes the exact proposal.  Keep direct
+        # calls available to deterministic card-review fixtures, which often
+        # isolate a later Combo card without constructing its earlier pair.
+        if (
+            not card_ids or len(card_ids) > 5
+            or len(card_ids) != len(set(card_ids))
+        ):
             raise IllegalAction('제시한 콤보 카드 수가 올바르지 않습니다.')
         if combo.get('special') and len(card_ids) != 2:
             raise IllegalAction('효과 콤보는 1·2콤보 두 장을 함께 제시해야 합니다.')
         combo['proposal_submitted'] = True
+        combo.pop('initial_selection', None)
         combo['proposed_card_ids'] = list(card_ids)
         combo['proposal_size'] = len(card_ids)
+        if (
+            not combo.get('special')
+            and not (combo.get('used') or [])
+            and len(card_ids) == 2
+        ):
+            combo['initial_pair_proposal'] = True
         self.emit('combo_proposed', role, {'card_instance_ids': list(card_ids)})
         self._start_combo_card(
             role, card_ids, list(combo_speeds or []),
@@ -2464,20 +2894,31 @@ class AutomaticGameEngine:
             ignore_speed[0] if ignore_speed else False
         )
         combo = self.engine_state.get('combo') or {}
+        # The Ready Technique is the 1-Combo source, but its Speed does not
+        # constrain the first Technique selected during Combo Time.  Keep the
+        # source Speed in the authoritative state because effects such as
+        # Grace still compare the actually consecutive cards; only legality
+        # and declared-Speed calculation use a source-less projection.
+        legality_combo = combo
+        if not combo.get('special') and not (combo.get('used') or []):
+            legality_combo = copy.deepcopy(combo)
+            legality_combo.pop('last_speed', None)
         instance_id = card_ids[0]
         self._refresh_continuous_rules()
         found_owner, found_zone, _index, card = self._find_location(instance_id)
         projected_card, combo_rules, borrow_rule = (
             self._combo_candidate_projection(
-                role, card, combo,
+                role, card, legality_combo,
                 found_owner=found_owner, found_zone=found_zone,
             ) if card else (None, [], None)
         )
         if (
             not card or (found_owner != role and not borrow_rule)
-            or not self._combo_zone_allowed(role, card, found_zone, combo)
+            or not self._combo_zone_allowed(
+                role, card, found_zone, legality_combo,
+            )
             or not self._combo_card_legal(
-                role, projected_card, combo,
+                role, projected_card, legality_combo,
                 selected_speed=combo_speeds[0] if combo_speeds else None,
                 ignore_cost=cost_paid_for == instance_id,
                 ignore_optional_speed_cost=(
@@ -2506,7 +2947,7 @@ class AutomaticGameEngine:
             use_optional_speed_rule
             and speed_cost_paid_for != instance_id
             and self._begin_combo_optional_speed_cost(
-                role, card, combo, combo_rules,
+                role, card, legality_combo, combo_rules,
                 card_ids=card_ids, combo_speeds=combo_speeds,
                 ignore_damage_penalty=ignore_damage_penalty,
                 ignore_speed=ignore_speed,
@@ -2544,7 +2985,7 @@ class AutomaticGameEngine:
         previous_combo_card = copy.deepcopy(self._combo_last_card(combo))
         previous_combo_speed = combo.get('last_speed')
         projected_card, combo_rules, borrow_rule = self._combo_candidate_projection(
-            role, card, combo,
+            role, card, legality_combo,
             found_owner=found_owner, found_zone=found_zone,
         )
         consumed_usage_keys = set()
@@ -2575,11 +3016,11 @@ class AutomaticGameEngine:
                         'usage_key': usage_key,
                     })
         applied_penalty = self._combo_applied_penalty(
-            role, projected_card, combo, penalty, rules=combo_rules,
+            role, projected_card, legality_combo, penalty, rules=combo_rules,
             use_optional_ignore=use_optional_penalty_rule,
         )
         available_speeds = self._combo_speed_options(
-            role, projected_card, combo, rules=combo_rules,
+            role, projected_card, legality_combo, rules=combo_rules,
             use_optional_speed_ignore=use_optional_speed_rule,
         )
         selected_speed = combo_speeds[0] if combo_speeds else available_speeds[0]
@@ -2788,6 +3229,9 @@ class AutomaticGameEngine:
             return True
         remaining = list(pipeline.get('remaining_ids') or [])
         combo['last_speed'] = self.card_stat(card, 'frame', role, include_fp=False)
+        combo['last_speed_ignored'] = bool(
+            pipeline.get('used_optional_ignore_speed')
+        )
         self.engine_state['pipeline'] = None
         self.engine_state['step'] = 'combo'
         if self.engine_state.get('status') == 'running' and self.engine_state.get('combo'):
@@ -2800,6 +3244,7 @@ class AutomaticGameEngine:
             elif (
                 not self._reopen_required_combo_followup(role, combo)
                 and not self._reopen_optional_combo_grant(role, combo)
+                and not self._reopen_combo_continuation(role, combo)
             ):
                 self.end_combo()
         return True
@@ -2863,29 +3308,112 @@ class AutomaticGameEngine:
             maximum = max(maximum, _number(combo.get('last_speed'), 0) + 2)
             speeds.update(range(1, maximum + 1))
         for rule in rules:
-            speeds.update(
+            rule_speeds = {
                 max(1, _number(value, 1))
                 for value in (rule.get('speed_options') or [])
-            )
+            }
+            speeds.update(rule_speeds)
+        # ``_combo_actions`` removes the opener's Speed while proposing the
+        # initial 2-Combo. From 3-Combo onward ordinary characters link at
+        # exactly +1 Speed; rules such as Viola's Matude widen that window.
         last_speed = combo.get('last_speed')
-        ignore_speed = any(rule.get('ignore_speed') for rule in rules) or optional_any_speed or bool(
-            use_optional_speed_ignore
-            and any(rule.get('optional_ignore_speed') for rule in rules)
+        # Some "declare any Speed" effects also bypass the link window, while
+        # Matude explicitly does not (Q&A 125). Keep that distinction on the
+        # concrete grant so unrelated cards such as Heretic Execution retain
+        # their reviewed behavior.
+        optional_any_speed_ignores_link = bool(
+            optional_any_speed
+            and any(
+                rule.get('optional_any_speed')
+                and not self._combo_rule_respects_speed_window(rule)
+                for rule in rules
+            )
         )
+        ignore_speed = (
+            any(rule.get('ignore_speed') for rule in rules)
+            or optional_any_speed_ignores_link
+            or bool(
+                use_optional_speed_ignore
+                and any(rule.get('optional_ignore_speed') for rule in rules)
+            )
+        )
+        maximum_deltas = [
+            _number(rule.get('max_speed_delta'))
+            for rule in rules
+            if _number(rule.get('max_speed_delta')) > 0
+        ]
+        # Card review sandboxes isolate an effect's own speed choices and do
+        # not model a character's ordinary link rule. Real rulesets always
+        # start at +1; explicit grants can widen it (Matude: +2).
+        if str(self.ruleset.get('version') or '') != 'automatic-effect-v2':
+            maximum_deltas.append(1)
+        maximum_delta = max(maximum_deltas) if maximum_deltas else None
+        bypass_maximum_delta = any(rule.get('any_speed') for rule in rules)
         return sorted(
             speed for speed in speeds
-            if ignore_speed or last_speed is None or speed >= _number(last_speed) + 1
+            if (
+                ignore_speed
+                or last_speed is None
+                or (
+                    speed >= _number(last_speed) + 1
+                    and (
+                        maximum_delta is None
+                        or bypass_maximum_delta
+                        or speed <= _number(last_speed) + maximum_delta
+                    )
+                )
+            )
+        )
+
+    def _combo_rule_source_code(self, rule, fallback_card=None):
+        """Resolve the card which granted a Combo rule.
+
+        Immutable ruleset releases can predate newly explicit DSL flags.  The
+        source instance is retained on both card rules and passive modifiers,
+        so established card rulings can remain compatible without mutating a
+        published release.
+        """
+        source_card = self._find_card((rule or {}).get('source'))
+        source_card = source_card or fallback_card or {}
+        return str(source_card.get('code') or '').strip().upper()
+
+    def _combo_rule_respects_speed_window(self, rule):
+        if (rule or {}).get('respect_speed_window') is True:
+            return True
+        # ST6-PS1 Matude: spending three Hidden Bond counters lets the player
+        # declare the card's Speed, but Q&A 125 still requires that declared
+        # Speed to be exactly +1 or +2 from the preceding Combo Technique.
+        return bool(
+            (rule or {}).get('optional_any_speed')
+            and (rule or {}).get('counter_cost') == {
+                'counter': 'hidden_bond', 'amount': 3,
+            }
+            and self._combo_rule_source_code(rule) == 'ST6-PS1'
+        )
+
+    def _combo_rule_allows_reuse(self, rule, card=None):
+        if (rule or {}).get('allow_reuse') is True:
+            return True
+        # CB02-AT-026 Tempo de Deux: releases published before allow_reuse
+        # existed already carry this unique, once-per-turn Battle reuse key.
+        return bool(
+            (rule or {}).get('usage_key') == 'cb02-at-026-battle-reuse'
+            and (rule or {}).get('max_uses') == 1
+            and self._combo_rule_source_code(rule, card) == 'CB02-AT-026'
         )
 
     def _combo_maximum(self, role, combo):
-        """Return the maximum combo number for this already-open combo.
+        """Return an explicit Combo cap, or ``None`` when it is unbounded.
 
-        A normal combo ends at 3-combo. Effects such as Red Line can install a
-        battle modifier before opening the combo and extend that limit. Card
-        specific ``max_combo`` rules are still checked separately for each
-        proposed card.
+        The rules do not impose a default maximum Combo number.  A cap exists
+        only when the open Combo or an active effect explicitly installs one.
+        Legacy extension rules remain meaningful when such a soft cap exists,
+        while ``max_combo_cap`` is always a hard restriction.
         """
-        maximum = _number(combo.get('max_combo'), 3)
+        maximum = (
+            max(1, _number(combo.get('max_combo'), 1))
+            if combo.get('max_combo') is not None else None
+        )
         modifiers = [
             *(self.engine_state.get('modifiers') or []),
             *(combo.get('proposal_modifiers') or []),
@@ -2908,13 +3436,17 @@ class AutomaticGameEngine:
                 )
             ):
                 continue
-            if modifier.get('max_combo') is not None:
-                maximum = max(
-                    maximum, _number(modifier.get('max_combo'), maximum),
-                )
+            if (
+                modifier.get('max_combo') is not None
+                and not modifier.get('allow_zones')
+            ):
+                value = max(1, _number(modifier.get('max_combo'), 1))
+                maximum = value if maximum is None else max(maximum, value)
             if modifier.get('max_combo_cap') is not None:
-                caps.append(_number(modifier.get('max_combo_cap'), 3))
-            if modifier in required_followups:
+                caps.append(max(
+                    1, _number(modifier.get('max_combo_cap'), 1),
+                ))
+            if modifier in required_followups and maximum is not None:
                 maximum = max(maximum, self._next_combo_number(combo))
             extension = _number(modifier.get('extend_combo_by'))
             if extension > 0:
@@ -2923,57 +3455,56 @@ class AutomaticGameEngine:
                 if usage_key:
                     extension_keys.add(usage_key)
                 extensions.append(extension)
-        # A card that explicitly says it can be used after the normal
-        # 3-combo limit must make that later proposal depth reachable before
-        # the card itself can be checked. Only cards in their permitted combo
-        # zone contribute, and the ordinary per-card legality check still
-        # decides whether a concrete proposal can use them.
-        last_card = self._combo_last_card(combo)
-        for zone, cards in self.state['players'][role]['zones'].items():
-            for card in cards:
-                if not _is_attack(card) or _is_special(card):
-                    continue
-                definition = self._definition_for_card(card)
-                for rule in definition.get('combo_rules') or []:
-                    if not isinstance(rule, dict):
+        # Older releases encoded "N Combo or later" permissions as an
+        # extension from the former default cap. They only need to raise a
+        # real, explicitly installed soft cap now; an unbounded Combo needs no
+        # extension at all.
+        if maximum is not None:
+            last_card = self._combo_last_card(combo)
+            for zone, cards in self.state['players'][role]['zones'].items():
+                for card in cards:
+                    if not _is_attack(card) or _is_special(card):
                         continue
-                    if (
-                        rule.get('numbered_effect')
-                        and card.get('numbered_effects_negated')
-                    ):
-                        continue
-                    extension = _number(
-                        rule.get('extend_combo_to') or rule.get('min_combo')
-                    )
-                    if extension <= maximum:
-                        continue
-                    if zone != 'hand' and zone not in (rule.get('allow_zones') or []):
-                        continue
-                    if rule.get('where') and not card_matches(card, rule.get('where')):
-                        continue
-                    if rule.get('after_where') and not card_matches(
-                        last_card, rule.get('after_where'), self.state,
-                        {'controller': role, 'source_card': card,
-                         'opponent_card': last_card,
-                         'combo_number': extension},
-                    ):
-                        continue
-                    context = {
-                        'controller': role, 'player': role,
-                        'source_card': card, 'opponent_card': last_card,
-                        'combo_number': extension,
-                    }
-                    if not condition_matches(rule.get('condition'), self.state, context):
-                        continue
-                    if not self._card_use_allowed(card, role, 'combo'):
-                        continue
-                    maximum = extension
-        maximum += sum(extensions)
+                    definition = self._definition_for_card(card)
+                    for rule in definition.get('combo_rules') or []:
+                        if not isinstance(rule, dict):
+                            continue
+                        if (
+                            rule.get('numbered_effect')
+                            and card.get('numbered_effects_negated')
+                        ):
+                            continue
+                        extension = _number(
+                            rule.get('extend_combo_to') or rule.get('min_combo')
+                        )
+                        if extension <= maximum:
+                            continue
+                        if zone != 'hand' and zone not in (rule.get('allow_zones') or []):
+                            continue
+                        if rule.get('where') and not card_matches(card, rule.get('where')):
+                            continue
+                        if rule.get('after_where') and not card_matches(
+                            last_card, rule.get('after_where'), self.state,
+                            {'controller': role, 'source_card': card,
+                             'opponent_card': last_card,
+                             'combo_number': extension},
+                        ):
+                            continue
+                        context = {
+                            'controller': role, 'player': role,
+                            'source_card': card, 'opponent_card': last_card,
+                            'combo_number': extension,
+                        }
+                        if not condition_matches(rule.get('condition'), self.state, context):
+                            continue
+                        if not self._card_use_allowed(card, role, 'combo'):
+                            continue
+                        maximum = extension
+            maximum += sum(extensions)
         if caps:
-            maximum = min(maximum, min(caps))
-        # Keep server-issued action enumeration bounded even for malformed
-        # draft data. Published definitions are validated more strictly.
-        return max(1, min(6, int(maximum)))
+            hard_cap = min(caps)
+            maximum = hard_cap if maximum is None else min(maximum, hard_cap)
+        return max(1, int(maximum)) if maximum is not None else None
 
     def _combo_candidate_maximum(self, role, card, combo, rules):
         """Return the deepest slot this concrete card may occupy.
@@ -2985,31 +3516,49 @@ class AutomaticGameEngine:
         after fixed maximum grants, which is required when Thief Gimmick adds
         one use after Madness has already opened the fourth Combo (Q&A 665).
         """
-        maximum = _number(combo.get('max_combo'), 3)
+        maximum = (
+            max(1, _number(combo.get('max_combo'), 1))
+            if combo.get('max_combo') is not None else None
+        )
         found_owner, card_zone, _index, _live = self._find_location(
             (card or {}).get('instance_id'),
         )
         caps = []
         extensions = []
         extension_keys = set()
+        unbounded_zone_permission = False
         for rule in rules or []:
             allow_zones = rule.get('allow_zones') or []
             zone_scoped = bool(allow_zones)
             extension_applies = not zone_scoped or card_zone in allow_zones
             if rule.get('op') == 'modify_combo':
                 if (
+                    zone_scoped and extension_applies
+                    and rule.get('max_combo') is None
+                    and rule.get('max_combo_cap') is None
+                ):
+                    # Zone permissions are alternatives, not cumulative
+                    # restrictions. A one-use List grant without a Combo
+                    # number remains usable even if another List permission
+                    # only covers (for example) up to 4-Combo.
+                    unbounded_zone_permission = True
+                if (
                     rule.get('requires_followup')
                     and self._combo_rule_location_allowed(
                         rule, role, found_owner, card_zone,
                     )
                 ):
-                    maximum = max(maximum, self._next_combo_number(combo))
+                    if maximum is not None:
+                        maximum = max(
+                            maximum, self._next_combo_number(combo),
+                        )
                 if extension_applies and rule.get('max_combo') is not None:
-                    maximum = max(
-                        maximum, _number(rule.get('max_combo'), maximum),
-                    )
+                    value = max(1, _number(rule.get('max_combo'), 1))
+                    maximum = value if maximum is None else max(maximum, value)
                 if rule.get('max_combo_cap') is not None:
-                    caps.append(_number(rule.get('max_combo_cap'), 3))
+                    caps.append(max(
+                        1, _number(rule.get('max_combo_cap'), 1),
+                    ))
                 extension = (
                     _number(rule.get('extend_combo_by'))
                     if extension_applies else 0
@@ -3021,16 +3570,20 @@ class AutomaticGameEngine:
                     if usage_key:
                         extension_keys.add(usage_key)
                     extensions.append(extension)
-            elif extension_applies:
+            elif extension_applies and maximum is not None:
                 maximum = max(
                     maximum,
                     _number(rule.get('extend_combo_to')),
                     _number(rule.get('min_combo')),
                 )
-        maximum += sum(extensions)
+        if maximum is not None:
+            maximum += sum(extensions)
+        if unbounded_zone_permission:
+            maximum = None
         if caps:
-            maximum = min(maximum, min(caps))
-        return max(1, min(6, int(maximum)))
+            hard_cap = min(caps)
+            maximum = hard_cap if maximum is None else min(maximum, hard_cap)
+        return max(1, int(maximum)) if maximum is not None else None
 
     def _combo_card_legal(
         self, role, card, combo, *, selected_speed=None, ignore_cost=False,
@@ -3135,10 +3688,15 @@ class AutomaticGameEngine:
         ):
             return False
         combo_number = self._next_combo_number(combo)
-        if combo_number > self._combo_maximum(role, combo):
+        maximum = self._combo_maximum(role, combo)
+        if maximum is not None and combo_number > maximum:
             return False
-        if combo_number > self._combo_candidate_maximum(
+        candidate_maximum = self._combo_candidate_maximum(
             role, card, combo, rules,
+        )
+        if (
+            candidate_maximum is not None
+            and combo_number > candidate_maximum
         ):
             return False
         if any(rule.get('min_combo') and combo_number < _number(rule.get('min_combo')) for rule in rules):
@@ -3577,6 +4135,28 @@ class AutomaticGameEngine:
         })
         return True
 
+    def _reopen_combo_continuation(self, role, combo):
+        """Offer fourth-or-later Combo cards after the prior batch resolves."""
+        if (
+            role not in PLAYER_SIDES or not combo
+            or combo.get('special') or len(combo.get('used') or []) < 2
+        ):
+            return False
+        combo['proposal_submitted'] = False
+        combo.pop('proposed_card_ids', None)
+        combo.pop('proposal_size', None)
+        actions = self._combo_actions(role, combo)
+        if not actions:
+            return False
+        self.emit('combo_continuation_opened', role, {
+            'after_card_instance_id': (self._combo_last_card(combo) or {}).get(
+                'instance_id'
+            ),
+            'legal_action_count': len(actions),
+            'next_combo_number': self._next_combo_number(combo),
+        })
+        return True
+
     def _combo_applied_penalty(
         self, role, card, combo, penalty, *, rules=None,
         use_optional_ignore=False,
@@ -3707,13 +4287,37 @@ class AutomaticGameEngine:
         self.engine_state['granted_catches'] = []
         self.engine_state['catch_queue'] = catches
         self.engine_state['catch_fp_history'] = []
-        if catches:
-            catch = catches.pop(0)
-            self.engine_state['catch'] = catch
-            self.engine_state['step'] = 'catch'
-            self.emit('catch_started', catch.get('owner'), copy.deepcopy(catch))
-        else:
-            self._continue_catch_queue()
+        self._continue_catch_queue()
+
+    def _catch_has_legal_option(self, catch):
+        role = (catch or {}).get('owner')
+        if role not in PLAYER_SIDES:
+            return False
+        if self._legal_catch_options(role, catch):
+            return True
+        exemption = self._catch_source_break_exemption(role, catch)
+        return bool(
+            exemption
+            and self._legal_catch_options(
+                role, catch,
+                counter_exemptions={str(exemption.get('counter') or '')},
+            )
+        )
+
+    def _remember_declined_fp_catch(self, catch):
+        if (catch or {}).get('source') != 'fp' or (catch or {}).get('performed'):
+            return
+        owner = catch.get('owner')
+        negative_side = opponent(owner) if owner in PLAYER_SIDES else None
+        if (
+            negative_side in PLAYER_SIDES
+            and _number(self.state['players'][negative_side].get('fp')) < 0
+        ):
+            preserved = self.engine_state.setdefault(
+                'preserve_negative_fp_through_recovery', [],
+            )
+            if negative_side not in preserved:
+                preserved.append(negative_side)
 
     def _catch_counter_cost_affordable(
         self, role, rule, *, counter_exemptions=None,
@@ -3734,6 +4338,8 @@ class AutomaticGameEngine:
     def _legal_catch_options(
         self, role, catch, *, ignore_cost_for=None, counter_exemptions=None,
     ):
+        if not catch or catch.get('owner') != role:
+            return []
         if not self._limited_grant_available(catch, role):
             return []
         options = []
@@ -3934,6 +4540,8 @@ class AutomaticGameEngine:
             },
         ):
             return
+        catch['performed'] = True
+        self.engine_state.pop('preserve_negative_fp_through_recovery', None)
         counter_cost = selected_option.get('counter_cost') or {}
         if counter_cost:
             counter_key = str(counter_cost.get('counter') or '')
@@ -4170,21 +4778,30 @@ class AutomaticGameEngine:
             )
             return True
         granted = list(self.engine_state.pop('granted_combos', []) or [])
-        if granted:
+        next_combo = self._next_available_combo(granted)
+        if next_combo:
             self.engine_state['catch'] = None
             self.engine_state['resume_catch_after_combo'] = True
-            self.engine_state.setdefault('combo_queue', []).extend(granted[1:])
-            first = granted[0]
+            self.engine_state.setdefault('combo_queue', []).extend(granted)
             self.grant_combo(
-                first.get('owner'), source=first.get('source'),
-                special=first.get('special', True),
+                next_combo.get('owner'), source=next_combo.get('source'),
+                special=next_combo.get('special', True),
             )
             return True
         if str(card.get('hit') or '') == '콤보':
-            self.engine_state['catch'] = None
-            self.engine_state['resume_catch_after_combo'] = True
-            self.grant_combo(role, source=pipeline['card_instance_id'])
-            return True
+            printed_combo = {
+                'owner': role, 'source': pipeline['card_instance_id'],
+                'special': False, 'combo_triggered': True,
+            }
+            if self._combo_grant_can_open(printed_combo):
+                self.engine_state['catch'] = None
+                self.engine_state['resume_catch_after_combo'] = True
+                # Catch has no separate judgment-trigger sequence. Its
+                # printed Combo judgment is announced when Combo Time opens,
+                # so opponent Combo reactions fire here exactly once.
+                self.grant_combo(role, source=pipeline['card_instance_id'])
+                return True
+            self._emit_unavailable_combo(printed_combo)
         self.end_catch()
         return True
 
@@ -4192,6 +4809,7 @@ class AutomaticGameEngine:
         catch = self.engine_state.get('catch')
         if not catch:
             return
+        self._remember_declined_fp_catch(catch)
         if not catch.get('opportunity_resolved'):
             self._fire_catch_opportunity_resolved(catch, declined=True)
             if self.is_waiting:
@@ -4276,6 +4894,23 @@ class AutomaticGameEngine:
                     'reason': 'usage_limit', 'usage_key': next_catch.get('usage_key'),
                 })
                 continue
+            if not self._catch_has_legal_option(next_catch):
+                self.emit('catch_skipped', next_catch.get('owner'), {
+                    'reason': 'no_legal_card',
+                    'source': next_catch.get('source'),
+                })
+                self._fire_catch_opportunity_resolved(
+                    next_catch, declined=True,
+                )
+                if self.is_waiting:
+                    self.engine_state['catch'] = next_catch
+                    self.engine_state['pipeline'] = {
+                        'kind': 'catch_end', 'stage': 'done',
+                        'catch': copy.deepcopy(next_catch),
+                    }
+                    self.engine_state['step'] = 'catch_resolution'
+                    return
+                continue
             self.engine_state['catch'] = next_catch
             self.engine_state['step'] = 'catch'
             self.emit('catch_started', next_catch.get('owner'), copy.deepcopy(next_catch))
@@ -4296,6 +4931,13 @@ class AutomaticGameEngine:
                 'max_speed': fp if fp > 0 else -other_fp,
                 'fp_signature': signature,
             }
+            if not self._catch_has_legal_option(next_catch):
+                self._remember_declined_fp_catch(next_catch)
+                self.emit('catch_skipped', side, {
+                    'reason': 'no_legal_card', 'source': 'fp',
+                    'max_speed': next_catch.get('max_speed'),
+                })
+                continue
             self.engine_state['catch'] = next_catch
             self.engine_state['step'] = 'catch'
             self.emit('catch_started', side, copy.deepcopy(next_catch))
@@ -4475,7 +5117,7 @@ class AutomaticGameEngine:
         source_zone = 'ultimate' if self._find_card(instance_id, owner=role, zone='ultimate') else 'list'
         card = self._find_card(instance_id, owner=role, zone=source_zone)
         if (
-            not card or (source_zone == 'list' and _is_special(card))
+            not card or _is_special(card)
             or self._rule_blocked('get_card', role, card)
         ):
             raise IllegalAction('획득할 수 없는 카드입니다.')
@@ -4573,15 +5215,32 @@ class AutomaticGameEngine:
         self._finish_get_action(beneficiary, instance_id)
 
     def _recovery_core(self):
-        # Negative FP is recovered to zero by the core recovery rule.
+        # A negative-FP Catch opportunity that was declined or had no legal
+        # card carries that FP through this Recovery.  Declaring a Catch still
+        # clears both players' FP in ``_play_catch``.
+        preserved = set(
+            self.engine_state.pop(
+                'preserve_negative_fp_through_recovery', [],
+            ) or []
+        )
         for side in PLAYER_SIDES:
-            if self.state['players'][side]['fp'] < 0:
+            if self.state['players'][side]['fp'] < 0 and side not in preserved:
                 self.set_fp(side, 0, source='recovery')
 
     # ------------------------------------------------------------------
     # Timers, decisions, no-response and rewind
 
+    def _timeout_seconds(self, key, fallback):
+        settings = self.engine_state.get('settings') or {}
+        if key in settings:
+            value = settings.get(key)
+            return None if value is None else max(0, _number(value))
+        return fallback
+
     def _start_clock(self, kind, *, owner, seconds):
+        if seconds is None or _number(seconds) <= 0:
+            self._clear_clock()
+            return
         self.engine_state['clock'] = {
             'kind': kind, 'owner': owner, 'duration_seconds': int(seconds),
             'deadline': (self.now + timedelta(seconds=int(seconds))).isoformat(),
@@ -4652,7 +5311,12 @@ class AutomaticGameEngine:
             'continuation': copy.deepcopy(continuation or {}), 'created_at': self.now.isoformat(),
         }
         self.engine_state['pending_decision'] = decision
-        self._start_clock('decision', owner=owner, seconds=DEFAULT_EFFECT_CHOICE_SECONDS)
+        self._start_clock(
+            'decision', owner=owner,
+            seconds=self._timeout_seconds(
+                'effect_timeout_seconds', DEFAULT_EFFECT_CHOICE_SECONDS,
+            ),
+        )
         self.emit('decision_requested', owner, {'decision_id': decision['id'], 'kind': kind}, visibility='private')
         return decision
 
@@ -4719,8 +5383,41 @@ class AutomaticGameEngine:
     def _resolve_decision(self, decision, selected, *, timed_out):
         self.engine_state['pending_decision'] = None
         self._clear_clock()
+        options_by_id = {
+            str(option.get('id')): option
+            for option in decision.get('options') or []
+        }
+        selected_options = []
+        for selected_id in selected:
+            option = options_by_id.get(str(selected_id)) or {}
+            selected_card = self._find_card(str(selected_id))
+            selected_options.append({
+                key: copy.deepcopy(value)
+                for key, value in {
+                    'id': str(selected_id),
+                    'label': option.get('label') or str(selected_id),
+                    'card_instance_id': (
+                        option.get('card_instance_id')
+                        or (selected_card or {}).get('instance_id')
+                    ),
+                    'card_id': (
+                        option.get('card_id')
+                        or (selected_card or {}).get('card_id')
+                    ),
+                    'card_code': (
+                        option.get('card_code')
+                        or (selected_card or {}).get('code')
+                    ),
+                }.items()
+                if value is not None
+            })
         self.emit('decision_resolved', decision.get('owner'), {
-            'decision_id': decision.get('id'), 'selected': selected, 'timed_out': timed_out,
+            'decision_id': decision.get('id'),
+            'kind': decision.get('kind'),
+            'prompt': decision.get('prompt'),
+            'selected': selected,
+            'selected_options': selected_options,
+            'timed_out': timed_out,
         }, visibility='private')
         continuation = decision.get('continuation') or {}
         if continuation.get('type') == 'optional_effect':
@@ -5013,7 +5710,12 @@ class AutomaticGameEngine:
             instance_id = self._append_virtual_no_response(missing)
             self.engine_state['ready_cards'][missing] = instance_id
             if chooser not in self.engine_state['ready_cards']:
-                self._start_clock('ready', owner=chooser, seconds=DEFAULT_READY_SECONDS)
+                self._start_clock(
+                    'ready', owner=chooser,
+                    seconds=self._timeout_seconds(
+                        'ready_timeout_seconds', DEFAULT_READY_SECONDS,
+                    ),
+                )
                 return False
             other_card = self._find_card(self.engine_state['ready_cards'][chooser])
             if other_card and other_card.get('virtual'):
@@ -5023,7 +5725,14 @@ class AutomaticGameEngine:
                 self._request_virtual_result(missing, chooser)
             return False
         options = [
-            {'id': card.get('instance_id'), 'label': card.get('name') or '비공개 카드'}
+            {
+                'id': card.get('instance_id'),
+                'label': card.get('name') or '카드',
+                # This is intentionally disclosed only through the chooser's
+                # private pending decision; the opponent hand itself remains
+                # redacted in every board projection.
+                'card': self._private_action_card(card),
+            }
             for card in self._zone(missing, 'hand') if self._legal_ready_card(card)
         ]
         if options:
@@ -5092,7 +5801,12 @@ class AutomaticGameEngine:
             if self._rule_blocked('grab_negation', defender):
                 continue
             options = [
-                {'id': card.get('instance_id'), 'label': card.get('name') or '그랩 기술'}
+                {
+                    'id': card.get('instance_id'),
+                    'label': card.get('name') or '그랩 기술',
+                    'card_instance_id': card.get('instance_id'),
+                    'card': self._private_action_card(card),
+                }
                 for card in self._zone(defender, 'hand')
                 if (
                     _is_attack(card)
@@ -5107,8 +5821,8 @@ class AutomaticGameEngine:
             if options:
                 self.create_decision(
                     owner=defender, kind='grab_negation', prompt='패의 그랩을 브레이크해 상대 그랩을 무효로 할 수 있습니다.',
-                    options=[*options, {'id': 'decline', 'label': '무효화하지 않음'}],
-                    minimum=1, maximum=1, default=['decline'], optional=True,
+                    options=options,
+                    minimum=0, maximum=1, default=[], optional=True,
                     continuation={'type': 'grab_negation'},
                 )
                 return True
@@ -5408,7 +6122,7 @@ class AutomaticGameEngine:
         self, instance_id, to_zone, *, to_player=None, reason='',
         effect_controller=None, effect_source=None,
         preserve_attachment=False, block_hand_until=None, set_flags=None,
-        allow_special_destination=False,
+        allow_special_destination=False, face_up=None,
         defer_triggers=False, trigger_queue=None, _skip_effect_checks=False,
     ):
         from_player, from_zone, index, card = self._find_location(instance_id)
@@ -5513,10 +6227,24 @@ class AutomaticGameEngine:
             card.pop('non_technique_while_face_down', None)
             card.pop('effects_negated', None)
             card.pop('secret_time_host', None)
-        card['face_up'] = (
-            to_zone in {'character', 'passive', 'list', 'break', 'ultimate'}
-            or (to_zone == 'hand' and self.state.get('phase') == 'get')
-        )
+        if face_up is None:
+            public_get_hand = (
+                to_zone == 'hand' and self.state.get('phase') == 'get'
+            )
+            card['face_up'] = (
+                to_zone in {
+                    'character', 'passive', 'list', 'break', 'lumen',
+                    'ultimate',
+                }
+                or public_get_hand
+            )
+            if public_get_hand:
+                card['hide_after_get'] = True
+        else:
+            card['face_up'] = bool(face_up)
+            card.pop('hide_after_get', None)
+        if to_zone != 'hand':
+            card.pop('hide_after_get', None)
         self._apply_card_form(card, to_zone)
         self.state['players'][target]['zones'][to_zone].append(card)
         if from_zone != to_zone or from_player != target:
@@ -5533,6 +6261,8 @@ class AutomaticGameEngine:
         self.emit('card_moved', owner, {
             'card_instance_id': instance_id, 'from_player': from_player, 'from_zone': from_zone,
             'to_player': target, 'to_zone': to_zone, 'reason': reason,
+            'card_id': card.get('card_id'), 'card_code': card.get('code'),
+            'card_label': card.get('name') or card.get('code') or '카드',
         }, visibility='public' if card.get('face_up') else 'private')
         self._enforce_list_limit(target)
         self._reconcile_trait_states()
@@ -6033,10 +6763,18 @@ class AutomaticGameEngine:
                     'effect_controller': effect_controller, 'effect_source': effect_source,
                 })
                 return False
+            was_face_up = bool(card.get('face_up'))
             card['face_up'] = bool(face_up)
             payload = {
                 'card_instance_id': instance_id, 'face_up': bool(face_up),
+                'was_face_up': was_face_up,
             }
+            if face_up or was_face_up:
+                payload.update({
+                    'card_id': card.get('card_id'),
+                    'card_code': card.get('code'),
+                    'card_label': card.get('name') or card.get('code') or '카드',
+                })
             if face_up:
                 payload['card'] = {
                     key: copy.deepcopy(card.get(key))
@@ -6811,6 +7549,23 @@ class AutomaticGameEngine:
                     if isinstance(player, dict):
                         player = opponent(item['controller']) if 'opponent' in player else item['controller']
                     resolved_effect = copy.deepcopy(effect)
+                    if (
+                        op in {'prevent', 'negate', 'replace'}
+                        and resolved_effect.get('scope') is None
+                    ):
+                        # A Technique's numberless prohibition normally means
+                        # "this Technique".  It may be projected while the
+                        # card is still in Hand/List, but it must not prohibit
+                        # the same judgment against an unrelated Technique.
+                        # Persistent public-zone cards are global unless their
+                        # DSL explicitly selects a narrower scope.
+                        resolved_effect['scope'] = (
+                            'all'
+                            if item.get('zone') in {
+                                'character', 'passive', 'lumen', 'ultimate',
+                            }
+                            else 'source_card'
+                        )
                     if op == 'modify_damage':
                         resolved_effect['amount'] = resolve_value(
                             effect.get('amount', 0), self.state, item.get('context') or {},
@@ -7281,7 +8036,13 @@ class AutomaticGameEngine:
         actor = controller if controller in PLAYER_SIDES else card.get('owner')
         self.emit('card_attached', actor, {
             'card_instance_id': instance_id,
+            'card_id': card.get('card_id'),
+            'card_code': card.get('code'),
+            'card_label': card.get('name') or card.get('code') or '카드',
             'host_instance_id': host_instance_id,
+            'host_card_id': host.get('card_id'),
+            'host_card_code': host.get('code'),
+            'host_card_label': host.get('name') or host.get('code') or '카드',
         })
         self._fire('card_attached', {
             'controller': actor,
@@ -7620,7 +8381,13 @@ class AutomaticGameEngine:
 
     @staticmethod
     def _public_action_card(card):
-        return {key: card.get(key) for key in ('instance_id', 'code', 'name', 'type', 'frame', 'damage', 'pos', 'special')}
+        return {
+            key: card.get(key)
+            for key in (
+                'instance_id', 'card_id', 'code', 'name', 'type', 'frame',
+                'damage', 'pos', 'special', 'img', 'img_sm',
+            )
+        }
 
     @staticmethod
     def _private_action_card(card):
@@ -8036,6 +8803,18 @@ class AutomaticGameEngine:
             target_zones = replacement.get('target_zones')
             if target_zones is not None and zone not in target_zones:
                 continue
+            if replacement.get('scope') == 'source_card':
+                source_id = replacement.get('source')
+                scoped_card = (
+                    card
+                    if side == replacement.get('controller')
+                    else against_card
+                ) or {}
+                if (
+                    not source_id
+                    or scoped_card.get('instance_id') != source_id
+                ):
+                    continue
             if replacement.get('where') and not card_matches(card, replacement.get('where')):
                 continue
             if replacement.get('against_where') and not card_matches(against_card, replacement.get('against_where')):
@@ -8102,7 +8881,13 @@ class AutomaticGameEngine:
             cards.pop()
             overflow['face_up'] = True
             self._zone(side, 'break').append(overflow)
-            self.emit('card_broken', side, {'card_instance_id': instance_id, 'reason': 'list_limit'})
+            self.emit('card_broken', side, {
+                'card_instance_id': instance_id,
+                'card_id': overflow.get('card_id'),
+                'card_code': overflow.get('code'),
+                'card_label': overflow.get('name') or overflow.get('code') or '카드',
+                'reason': 'list_limit',
+            })
             self._fire('card_broken', {
                 'controller': side, 'source_card_instance_id': instance_id,
                 'source_card': copy.deepcopy(overflow), 'reason': 'list_limit',
@@ -8422,7 +9207,7 @@ class AutomaticGameEngine:
         self._finish(winner, str(reason or 'card_effect'))
         return True
 
-    def observe(self, role):
+    def observe(self, role, *, include_state=True):
         """Return the role-filtered automatic overlay for humans or AI."""
         # Project current continuous rules before copying state.  In particular,
         # Trait-granted states must be visible to the player/AI observation even
@@ -8438,10 +9223,18 @@ class AutomaticGameEngine:
             if decision_payload:
                 decision_payload.pop('continuation', None)
         return {
-            'state': self._observation_state(role),
+            'state': self._observation_state(role) if include_state else None,
             'legal_actions': self.legal_actions(role),
             'pending_decision': decision_payload,
             'clocks': copy.deepcopy(self.engine_state.get('clock')),
+            'timer_settings': {
+                'ready_timeout_seconds': self._timeout_seconds(
+                    'ready_timeout_seconds', DEFAULT_READY_SECONDS,
+                ),
+                'effect_timeout_seconds': self._timeout_seconds(
+                    'effect_timeout_seconds', DEFAULT_EFFECT_CHOICE_SECONDS,
+                ),
+            },
             'engine_status': {
                 'status': self.engine_state.get('status'), 'step': self.engine_state.get('step'),
                 'winner': self.engine_state.get('winner'), 'reason': self.engine_state.get('reason'),

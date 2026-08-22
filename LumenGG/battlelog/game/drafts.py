@@ -2751,7 +2751,10 @@ def infer_effect_commands(text, *, continuous=False):
             },
             'default': [], 'selection_key': selection_key,
             'then': [
-                {'op': 'move_card', 'selection_key': selection_key, 'to_zone': 'lumen'},
+                {
+                    'op': 'move_card', 'selection_key': selection_key,
+                    'to_zone': 'lumen', 'face_up': False,
+                },
                 {'op': 'hide', 'selection_key': selection_key},
             ],
         }))
@@ -2772,7 +2775,10 @@ def infer_effect_commands(text, *, continuous=False):
             'default': [], 'selection_key': selection_key,
             'then': [
                 {'op': 'reveal', 'selection_key': selection_key},
-                {'op': 'move_card', 'selection_key': selection_key, 'to_zone': 'lumen'},
+                {
+                    'op': 'move_card', 'selection_key': selection_key,
+                    'to_zone': 'lumen', 'face_up': False,
+                },
                 {'op': 'hide', 'selection_key': selection_key},
             ],
         }))
@@ -4727,6 +4733,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 # Technique has already occupied the second Combo slot.
                 'source_zones': ['battle'], 'allow_zones': ['battle'],
                 'min_combo': 3, 'ignore_speed': True,
+                'allow_reuse': True,
                 'after_where': {'character_key': 'viola'},
                 'condition': copy.deepcopy(hidden_bond),
                 'usage_key': 'cb02-at-026-battle-reuse',
@@ -5229,6 +5236,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             catch.update({
                 'kind': 'effect', 'mode': 'optional', 'timing': 'guard',
                 'active_zones': ['hand'],
+                'allow_non_source_trigger': True,
                 'trigger': {'event': 'guard', 'events': ['guard', 'clash']},
                 'condition': {
                     'op': 'all', 'conditions': [
@@ -5288,6 +5296,18 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 }],
             })
             restriction.pop('condition', None)
+        # Short editor drafts may keep the parser-generated ``function`` id
+        # instead of the catalog's numbered id. The hand reveal is still an
+        # explicit reaction to another Technique's Guard/Clash timing.
+        for hand_reaction in abilities:
+            trigger_events = (hand_reaction.get('trigger') or {}).get(
+                'events'
+            ) or [(hand_reaction.get('trigger') or {}).get('event')]
+            if (
+                hand_reaction.get('active_zones') == ['hand']
+                and set(trigger_events).intersection({'guard', 'clash'})
+            ):
+                hand_reaction['allow_non_source_trigger'] = True
     if normalized_code == 'CB02-PS-001':
         definition['deck_rules'] = {
             'main_size': {'min': 30, 'max': 30},
@@ -6753,7 +6773,6 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     'player': {'controller': True},
                     'allow_zones': ['list'],
                     'break_after_use': True,
-                    'extend_combo_by': 1,
                     'usage_key': 'st4-005-list-combo',
                     'usage_key_source_scoped': True,
                     'usage_scope': 'battle', 'max_uses': 1,
@@ -7741,7 +7760,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         by_id = {ability.get('id'): ability for ability in abilities}
         clash_damage = by_id.get('awl-at-038-n1')
         fourth_combo = by_id.get('awl-at-038-n2')
-        definition['combo_rules'] = [{'extend_combo_to': 4}]
+        definition['combo_rules'] = [{'min_combo': 4}]
         if clash_damage:
             clash_damage.update({
                 'kind': 'effect', 'mode': 'mandatory',
@@ -8219,6 +8238,10 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'effects': [{
                     'op': 'modify_combo',
                     'player': {'controller': True},
+                    # Matude expands Viola's ordinary +1 link to +2. Keep the
+                    # ceiling as an explicit Combo rule so it also applies to
+                    # the fourth and every later Technique.
+                    'max_speed_delta': 2,
                     'counter_on_speed_delta': {
                         'counter': 'hidden_bond', 'delta': 2,
                         'amount': 1, 'max': 3,
@@ -8245,6 +8268,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     'where': {'character_key': 'viola'},
                     'source_zones': ['hand'],
                     'optional_any_speed': True,
+                    'respect_speed_window': True,
                     'counter_cost': {'counter': 'hidden_bond', 'amount': 3},
                     'requires_followup_at_combo': 2,
                     'duration': 'continuous',
@@ -9689,7 +9713,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                         {
                             'op': 'move_card',
                             'selection_key': 'cb01_at_013_placed_cards',
-                            'to_zone': 'lumen',
+                            'to_zone': 'lumen', 'face_up': False,
                         },
                         {
                             'op': 'hide',
@@ -12053,7 +12077,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         recovery_selector = {
             'kind': 'card', 'player': {'controller': True},
             'zones': ['side'], 'where': {'character_key': 'viola'},
-            'min': 2, 'max': 2,
+            'min': 0, 'max': 2,
             'as_operation': 'move_card', 'to_zone': 'hand',
         }
         if combo:
@@ -12094,10 +12118,10 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                                 'effect': {
                                     'op': 'request_choice',
                                     'player': {'controller': True},
-                                    'prompt': '패로 가져올 Viola 기술 2장을 선택하세요.',
+                                    'prompt': '패로 가져올 비올라 기술을 2장까지 선택하세요.',
                                     'selector': recovery_selector,
                                     'selection_key': recovery_selected,
-                                    'default': [],
+                                    'default': [], 'optional': True,
                                     'then': [{
                                         'op': 'move_card',
                                         'selection_key': recovery_selected,
@@ -12130,6 +12154,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             deploy.update({
                 'kind': 'effect', 'mode': 'mandatory',
                 'timing': 'clash', 'active_zones': ['list'],
+                'allow_non_source_trigger': True,
                 'draft_compiled': True,
                 'trigger': {'event': 'clash'},
                 'effects': [{'op': 'move_card', 'to_zone': 'lumen'}],
@@ -14954,6 +14979,8 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             combo_end.update({
                 'kind': 'effect', 'mode': 'mandatory',
                 'timing': 'cleanup', 'trigger': {'event': 'combo_end'},
+                'active_zones': ['battle'],
+                'requires_combo_use': True,
                 'draft_compiled': True,
                 'effects': [
                     {
@@ -14997,7 +15024,6 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 ],
             })
             combo_end.pop('condition', None)
-            combo_end.pop('active_zones', None)
     if normalized_code == 'DFR-AT-023':
         by_id = {ability.get('id'): ability for ability in abilities}
         function = by_id.get('dfr-at-023-function')
@@ -16299,6 +16325,151 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 ],
             })
             guard.pop('condition', None)
+    if normalized_code == 'CB03-AT-034':
+        by_id = {ability.get('id'): ability for ability in abilities}
+        setup = by_id.get('cb03-at-034-function')
+        distance = by_id.get('cb03-at-034-n1')
+        if setup:
+            setup.update({
+                'kind': 'function', 'mode': 'mandatory',
+                'timing': 'function', 'active_zones': ['side'],
+                'trigger': {'event': 'game_start'},
+                'draft_compiled': True,
+                'effects': [{
+                    'op': 'move_card', 'to_zone': 'lumen',
+                }],
+            })
+            setup.pop('condition', None)
+        if distance:
+            discard_key = 'cb03_at_034_defense_discard'
+            discarded_key = 'cb03_at_034_defense_discarded'
+            broken_key = 'cb03_at_034_source_broken'
+            discard_selector = {
+                'kind': 'card', 'player': {'controller': True},
+                'zones': ['hand'], 'min': 1, 'max': 1,
+                'where': {'type_contains': '수비'},
+                'as_operation': 'discard',
+            }
+            distance.update({
+                'kind': 'effect', 'mode': 'optional',
+                'timing': 'use', 'active_zones': ['battle'],
+                'trigger': {'event': 'use'},
+                'condition': {
+                    'op': 'gte',
+                    'left': 'context.opponent_card.guard', 'right': -7,
+                },
+                'availability_selector': copy.deepcopy(discard_selector),
+                'draft_compiled': True,
+                'effects': [
+                    {
+                        'op': 'break_card', 'result_key': broken_key,
+                    },
+                    {
+                        'op': 'conditional',
+                        'condition': {
+                            'op': 'equals',
+                            'left': {
+                                'op': 'selection_count',
+                                'selection_key': broken_key,
+                            },
+                            'right': 1,
+                        },
+                        'then': [{
+                            'op': 'request_choice',
+                            'player': {'controller': True},
+                            'prompt': '버릴 수비 기술 1장을 선택하세요.',
+                            'selector': copy.deepcopy(discard_selector),
+                            'selection_key': discard_key,
+                            'default': [],
+                            'then': [
+                                {
+                                    'op': 'discard',
+                                    'selection_key': discard_key,
+                                    'result_key': discarded_key,
+                                },
+                                {
+                                    'op': 'conditional',
+                                    'condition': {
+                                        'op': 'equals',
+                                        'left': {
+                                            'op': 'selection_count',
+                                            'selection_key': discarded_key,
+                                        },
+                                        'right': 1,
+                                    },
+                                    'then': [{
+                                        'op': 'prevent',
+                                        'kind': 'use_card',
+                                        'player': {'opponent': True},
+                                        'duration': 'turn',
+                                    }],
+                                    'else': [],
+                                },
+                            ],
+                        }],
+                        'else': [],
+                    },
+                ],
+            })
+    if normalized_code == 'CB03-AT-035':
+        by_id = {ability.get('id'): ability for ability in abilities}
+        dodge = by_id.get('cb03-at-035-function')
+        position = by_id.get('cb03-at-035-n1')
+        damage = by_id.get('cb03-at-035-n2')
+        definition['defense_rules'] = [{'max_speed': 7}]
+        if dodge:
+            dodge.update({
+                'kind': 'function', 'mode': 'continuous',
+                'timing': 'function', 'active_zones': ['battle'],
+                'draft_compiled': True,
+                'effects': [{
+                    'op': 'prevent', 'kind': 'dodge',
+                    'player': {'controller': True},
+                    'duration': 'continuous',
+                    'condition': {
+                        'op': 'gt',
+                        'left': 'context.opponent_card.frame', 'right': 7,
+                    },
+                    'where': {'code': 'CB03-AT-035'},
+                }],
+            })
+            dodge.pop('trigger', None)
+            dodge.pop('condition', None)
+        if position:
+            position.update({
+                'kind': 'effect', 'mode': 'mandatory',
+                'timing': 'before_judgment',
+                'active_zones': ['battle'],
+                'trigger': {'event': 'before_judgment'},
+                'condition': {
+                    'op': 'lte',
+                    'left': 'context.opponent_speed', 'right': 5,
+                },
+                'draft_compiled': True,
+                'effects': [{
+                    'op': 'modify_judgment',
+                    'player': {'controller': True},
+                    'field': 'special', 'value': '중단 회피',
+                }],
+            })
+        if damage:
+            damage.update({
+                'kind': 'effect', 'mode': 'mandatory',
+                'timing': 'hit_counter', 'active_zones': ['battle'],
+                'trigger': {'event': 'counter'},
+                'condition': {
+                    'op': 'card_matches',
+                    'card': {'path': 'context.opponent_card'},
+                    'where': {'body': '손'},
+                },
+                'draft_compiled': True,
+                'effects': [{
+                    'op': 'modify_stat',
+                    'player': {'controller': True},
+                    'stat': 'damage', 'amount': 200,
+                    'duration': 'battle',
+                }],
+            })
     if normalized_code == 'UNC-AT-007':
         source_refs = copy.deepcopy(definition.get('source_refs') or {})
         qna_ids = [61, 219, 233, 399, 475, 588, 618]
@@ -17434,7 +17605,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             'speed_options': [6, 7, 8, 9],
         }]
         definition['catch_rules'] = [{
-            'fixed_speed': 8, 'break_after_use': True,
+            'optional_fixed_speed': 8, 'break_after_use': True,
             'numbered_effect': True,
         }]
         abilities[:] = [
@@ -17462,6 +17633,10 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'draft': True, 'draft_compiled': True,
                 'active_zones': ['battle'],
                 'trigger': {'event': 'catch'},
+                'condition': {
+                    'op': 'equals', 'left': 'context.fixed_speed',
+                    'right': 8,
+                },
                 'effects': [
                     {
                         'op': 'change_counter',
@@ -19433,6 +19608,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'source_refs': copy.deepcopy(source_refs),
                 'draft': True, 'draft_compiled': True,
                 'active_zones': ['side'],
+                'allow_non_source_trigger': True,
                 'trigger': {'event': 'clash'},
                 'condition': copy.deepcopy(own_event),
                 'dedupe_trigger_key': 'lmi-at-041-side-placement',
@@ -20862,6 +21038,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             conversion.update({
                 'kind': 'effect', 'mode': 'optional',
                 'timing': 'combo', 'active_zones': ['side'],
+                'allow_non_source_trigger': True,
                 # ``combo`` is source-only for the Technique currently being
                 # resolved.  ``combo_window`` is the shared timing window in
                 # which a Side-zone Technique may react.
@@ -20946,6 +21123,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 {
                     'op': 'move_card', 'selection_key': secret_key,
                     'to_zone': 'lumen', 'to_player': {'opponent': True},
+                    'face_up': False,
                     'set_flags': {
                         'secret_time_host': {
                             'path': 'context.source_card_instance_id',
@@ -24678,7 +24856,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         }
         definition['combo_rules'] = [
             {
-                'min_combo': 4, 'extend_combo_to': 4,
+                'min_combo': 4,
                 'ignore_speed': True, 'numbered_effect': True,
                 'condition': copy.deepcopy(four_plus),
             },
@@ -25308,6 +25486,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'visibility': 'public', 'source_refs': source_refs,
                 'draft': True, 'draft_compiled': True,
                 'active_zones': ['battle', 'list'],
+                'allow_non_source_trigger': True,
                 'trigger': {'event': 'combo'},
                 'dedupe_trigger_key': 'st3-010-opponent-combo',
                 'condition': {
@@ -25419,7 +25598,8 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                         {'op': 'reveal', 'selection_key': selected_key},
                         {
                             'op': 'move_card', 'selection_key': selected_key,
-                            'to_zone': 'lumen', 'result_key': moved_key,
+                            'to_zone': 'lumen', 'face_up': False,
+                            'result_key': moved_key,
                         },
                         {'op': 'hide', 'selection_key': selected_key},
                         {
@@ -26001,7 +26181,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             ],
         }
         definition['combo_rules'] = [{
-            'min_combo': 4, 'extend_combo_to': 4,
+            'min_combo': 4,
             'end_after_use': True, 'numbered_effect': True,
         }]
         for ability in abilities:

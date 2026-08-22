@@ -738,6 +738,7 @@ def _validate_effect(value, path, issues):
     if op == 'move_card':
         for field_name in (
             'preserve_attachment', 'allow_special_destination', 'as_get',
+            'face_up',
         ):
             if field_name in value and not isinstance(value.get(field_name), bool):
                 _issue(issues, f'{path}.{field_name}', '카드 이동 플래그는 불리언이어야 합니다.')
@@ -1299,6 +1300,16 @@ def _validate_effect(value, path, issues):
                 issues, f'{path}.extend_combo_by',
                 '콤보 추가 횟수는 1 이상의 정수여야 합니다.',
             )
+        max_speed_delta = value.get('max_speed_delta')
+        if max_speed_delta is not None and (
+            not isinstance(max_speed_delta, int)
+            or isinstance(max_speed_delta, bool)
+            or max_speed_delta < 1
+        ):
+            _issue(
+                issues, f'{path}.max_speed_delta',
+                '다음 콤보 속도 차이 상한은 1 이상의 정수여야 합니다.',
+            )
         if value.get('min_combo') and value.get('max_combo') and value['max_combo'] < value['min_combo']:
             _issue(issues, path, '최대 콤보 번호는 최소 콤보 번호 이상이어야 합니다.')
         usage_key = str(value.get('usage_key') or '').strip()
@@ -1333,11 +1344,18 @@ def _validate_effect(value, path, issues):
             'negate_effects',
             'end_after_use', 'return_to_hand_after_use', 'exclude_source',
             'numbered_effect', 'requires_followup',
-            'reopen_combo',
+            'reopen_combo', 'allow_reuse', 'respect_speed_window',
             'break_on_optional_ignore_damage_penalty',
         ):
             if field_name in value and not isinstance(value.get(field_name), bool):
                 _issue(issues, f'{path}.{field_name}', '콤보 예외 플래그는 불리언이어야 합니다.')
+        if value.get('allow_reuse') and (
+            not usage_key or value.get('max_uses') is None
+        ):
+            _issue(
+                issues, f'{path}.allow_reuse',
+                '같은 카드 재사용 허용에는 사용 키와 최대 사용 횟수가 필요합니다.',
+            )
         followup_combo = value.get('requires_followup_at_combo')
         if followup_combo is not None and (
             not isinstance(followup_combo, int)
@@ -2117,6 +2135,20 @@ def validate_effect_definition(definition, *, require_coverage=False, card_has_t
             _issue(
                 issues, f'{path}.active_when_attached',
                 '세트 상태 활성 여부는 불리언이어야 합니다.',
+            )
+        if 'allow_non_source_trigger' in ability and not isinstance(
+            ability.get('allow_non_source_trigger'), bool,
+        ):
+            _issue(
+                issues, f'{path}.allow_non_source_trigger',
+                '다른 기술이 만든 타이밍에 반응하는지 여부는 불리언이어야 합니다.',
+            )
+        if 'requires_combo_use' in ability and not isinstance(
+            ability.get('requires_combo_use'), bool,
+        ):
+            _issue(
+                issues, f'{path}.requires_combo_use',
+                '콤보에서 직접 사용된 카드만 유발하는지 여부는 불리언이어야 합니다.',
             )
         dedupe_trigger_key = ability.get('dedupe_trigger_key')
         if dedupe_trigger_key is not None and not re.fullmatch(

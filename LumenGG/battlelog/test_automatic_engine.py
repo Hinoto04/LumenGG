@@ -65,12 +65,14 @@ from .automatic_services import (
     automatic_mode_release,
     initialize_automatic_document,
     perform_automatic_command,
+    reconcile_automatic_session,
     sanitize_automatic_state,
     validate_automatic_deck,
 )
 from .game.ai import DEFAULT_POLICY_WEIGHTS, choose_action
 from .game.catalog import (
     CatalogValidationReport,
+    EXPECTED_CARD_COUNT,
     RulesetPublicationError,
     _json_hash,
     effect_source_digest,
@@ -85,7 +87,12 @@ from .management.commands.train_simulator_ai import Command as TrainSimulatorAIC
 from .management.console import console_safe_json
 from .models import AutomaticIssueReport, LumenSimulatorSession, RulesetRelease, SimulatorAIPolicy
 from .routing import websocket_urlpatterns
-from .simulator_services import _filtered_event, serialize_simulator_session
+from .services import _passive_ui
+from .simulator_services import (
+    _filtered_event,
+    _localize_filtered_state,
+    serialize_simulator_session,
+)
 
 
 EMPTY_DEFINITION = {'schema_version': 1, 'abilities': []}
@@ -184,6 +191,26 @@ class AutomaticEngineTests(SimpleTestCase):
             {issue.path for issue in issues},
         )
 
+    def test_combo_reuse_schema_requires_an_explicit_usage_limit(self):
+        definition = {
+            'schema_version': 1, 'abilities': [],
+            'combo_rules': [{
+                'allow_zones': ['battle'], 'allow_reuse': True,
+            }],
+        }
+        issues = validate_effect_definition(definition)
+        self.assertIn(
+            '$.combo_rules[0].allow_reuse',
+            {issue.path for issue in issues},
+        )
+
+        definition['combo_rules'][0].update({
+            'usage_key': 'limited-battle-reuse',
+            'usage_scope': 'turn', 'max_uses': 1,
+            'respect_speed_window': True,
+        })
+        self.assertEqual(validate_effect_definition(definition), [])
+
     def make_engine(self, p1_cards=None, p2_cards=None, **state_options):
         cards = [*(p1_cards or []), *(p2_cards or [])]
         return AutomaticGameEngine.initialize(
@@ -191,10 +218,100 @@ class AutomaticEngineTests(SimpleTestCase):
             now=datetime(2026, 8, 17, tzinfo=timezone.utc), seed='test-seed',
         )
 
+    def test_automatic_engine_normalizes_legacy_calculator_passive_keys(self):
+        state = base_state()
+        state['players']['p1']['passive_state'] = {
+            'foresight_counter': {'count': 2, 'label': '예지 카운터'},
+            'ember_token': {'count': 3, 'label': '불씨 토큰'},
+            'root_charge': {'value': True, 'label': '차지'},
+        }
+
+        engine = AutomaticGameEngine.initialize(
+            state, ruleset(),
+            now=datetime(2026, 8, 17, tzinfo=timezone.utc),
+            seed='passive-key-aliases',
+        )
+        passive = engine.state['players']['p1']['passive_state']
+
+        self.assertNotIn('foresight_counter', passive)
+        self.assertNotIn('ember_token', passive)
+        self.assertNotIn('root_charge', passive)
+        self.assertEqual(passive['foresight']['count'], 2)
+        self.assertEqual(passive['ember']['count'], 3)
+        self.assertTrue(passive['charge']['value'])
+        engine.change_counter('p1', 'foresight', 1)
+        self.assertEqual(passive['foresight']['count'], 3)
+
+    def test_desktop_and_mobile_clients_bridge_automatic_passives_into_calculator_ui(self):
+        static_root = Path(__file__).resolve().parents[1] / 'static' / 'v2'
+        desktop = (static_root / 'lumen-simulator.js').read_text(encoding='utf-8')
+        mobile = (static_root / 'lumen-simulator-mobile.js').read_text(encoding='utf-8')
+        mobile_css = (static_root / 'lumen-simulator-mobile.css').read_text(encoding='utf-8')
+
+        for script in (desktop, mobile):
+            self.assertIn('PASSIVE_UI_KEY_ALIASES', script)
+            self.assertIn('configuredPassiveKeys(passiveUi, options)', script)
+            self.assertIn('entry.display_label', script)
+            self.assertIn('genericPassiveMarkup(genericEntries)', script)
+        self.assertNotIn(
+            '.v2-mobile-passive-native.is-counter > span {\n    display: none;',
+            mobile_css,
+        )
+
     def act(self, engine, role, action_type, selections=None):
-        action = next(item for item in engine.legal_actions(role) if item['type'] == action_type)
+        action = next((
+            item for item in engine.legal_actions(role)
+            if item['type'] == action_type
+        ), None)
+        if action is None and action_type == 'play_combo_pair':
+            requested = selections or {}
+            requested_ids = requested.get('card_instance_ids')
+            pair = next(
+                item for item in engine._combo_actions(
+                    role, engine.engine_state.get('combo') or {},
+                )
+                if item['type'] == 'play_combo_pair'
+                and (
+                    not requested_ids
+                    or item['payload']['card_instance_ids'] == requested_ids
+                )
+            )
+            return self.submit_initial_combo_pair(engine, role, pair)
+        if action is None:
+            raise StopIteration(action_type)
         engine.submit_action(role, action['action_id'], selections or {}, command_id=f'cmd-{len(engine.events)}')
         return action
+
+    def submit_initial_combo_pair(self, engine, role, pair):
+        payload = pair.get('payload') or {}
+        ids = payload.get('card_instance_ids') or []
+        speeds = payload.get('combo_speeds') or []
+        ignores = payload.get('ignore_damage_penalty') or [False, False]
+        speed_ignores = payload.get('ignore_speed') or [False, False]
+        first = next(
+            action for action in engine.legal_actions(role)
+            if action['type'] == 'select_combo_first'
+            and action['payload']['card_instance_id'] == ids[0]
+            and action['payload']['combo_speed'] == speeds[0]
+            and bool(action['payload'].get('ignore_damage_penalty'))
+            == bool(ignores[0])
+            and bool(action['payload'].get('ignore_speed'))
+            == bool(speed_ignores[0])
+        )
+        engine.submit_action(
+            role, first['action_id'], {},
+            command_id=f'combo-first-{len(engine.events)}',
+        )
+        followup = next(
+            action for action in engine.legal_actions(role)
+            if action['type'] == 'select_combo_followup'
+            and action['payload'].get('proposal') == payload
+        )
+        engine.submit_action(
+            role, followup['action_id'], {},
+            command_id=f'combo-followup-{len(engine.events)}',
+        )
+        return pair
 
     def resolve_effect_orders(self, engine, *, first_ability_id=None):
         """Resolve only same-timing order prompts, leaving effect choices intact."""
@@ -224,6 +341,112 @@ class AutomaticEngineTests(SimpleTestCase):
         self.act(engine, 'p1', 'ready_card')
         self.act(engine, 'p2', 'ready_card')
 
+    def test_catch_without_legal_card_is_skipped_before_action_window(self):
+        source = attack('catch-skip-source', 'p1')
+        engine = self.make_engine([], [])
+        engine.state['phase'] = 'battle'
+        engine.state['players']['p1']['zones']['battle'] = [source]
+        engine.engine_state['granted_catches'] = [{
+            'owner': 'p1', 'source': source['instance_id'],
+            'allow_zones': ['hand'], 'max_speed': 8,
+        }]
+
+        engine._open_catch_or_cleanup()
+
+        self.assertNotEqual(engine.engine_state.get('step'), 'catch')
+        self.assertFalse(any(
+            event['type'] == 'catch_started' for event in engine.events
+        ))
+        self.assertTrue(any(
+            event['type'] == 'catch_skipped'
+            and event['payload'].get('reason') == 'no_legal_card'
+            for event in engine.events
+        ))
+
+    def test_declined_negative_fp_catch_survives_recovery(self):
+        engine = self.make_engine([], [], p1_fp=0, p2_fp=-3)
+        engine.state['phase'] = 'battle'
+        engine.engine_state['step'] = 'catch'
+        engine.engine_state['catch'] = {
+            'owner': 'p1', 'source': 'fp', 'max_speed': 3,
+        }
+
+        engine.end_catch()
+        engine._recovery_core()
+
+        self.assertEqual(engine.state['players']['p2']['fp'], -3)
+
+    def test_get_never_offers_or_moves_special_from_ultimate_zone(self):
+        special = attack('ultimate-special', 'p1')
+        special.update({'type': '특수', 'frame': None, 'damage': None})
+        engine = self.make_engine([], [])
+        engine.state['players']['p1']['zones']['ultimate'] = [special]
+        engine.state['phase'] = 'get'
+        engine.engine_state.update({
+            'step': 'get_actions', 'current_actor': 'p1',
+            'get_order': ['p1'], 'get_done': [],
+        })
+
+        self.assertFalse(any(
+            action['type'] == 'select_ultimate'
+            for action in engine.legal_actions('p1')
+        ))
+        with self.assertRaises(IllegalAction):
+            engine._get_card('p1', special['instance_id'])
+
+    def test_optional_effect_order_allows_none_and_selected_effect_is_preapproved(self):
+        cards = []
+        release_cards = []
+        for index in range(2):
+            card = attack(
+                f'optional-order-{index}', 'p1',
+                code=f'OPTIONAL-ORDER-{index}',
+            )
+            card.update({
+                'type': '패시브', 'frame': None, 'damage': None,
+                'face_up': True,
+            })
+            cards.append(card)
+            release_cards.append(card)
+        state = base_state([], [], p1_fp=0)
+        state['players']['p1']['zones']['passive'] = cards
+        release = ruleset(*release_cards)
+        for index, card in enumerate(cards):
+            release['cards'][card['code']]['effect_definition'] = {
+                'schema_version': 1,
+                'abilities': [{
+                    'id': f'optional-order-{index}',
+                    'kind': 'effect', 'mode': 'optional',
+                    'timing': 'function', 'active_zones': ['passive'],
+                    'trigger': {'event': 'phase_start'},
+                    'effects': [{
+                        'op': 'change_fp',
+                        'player': {'controller': True}, 'amount': index + 1,
+                    }],
+                }],
+            }
+
+        declined = AutomaticGameEngine(state, release, seed='optional-none')
+        declined._fire('phase_start', {'phase': 'lumen'})
+        decision = declined.engine_state['pending_decision']
+        self.assertEqual((decision['minimum'], decision['maximum']), (0, 1))
+        declined._submit_decision('p1', decision['id'], [])
+        self.assertEqual(declined.state['players']['p1']['fp'], 0)
+        self.assertIsNone(declined.engine_state.get('pending_decision'))
+
+        selected = AutomaticGameEngine(state, release, seed='optional-selected')
+        selected._fire('phase_start', {'phase': 'lumen'})
+        decision = selected.engine_state['pending_decision']
+        chosen = next(
+            option for option in decision['options']
+            if option['ability_id'] == 'optional-order-1'
+        )
+        selected._submit_decision('p1', decision['id'], [chosen['id']])
+        self.assertEqual(selected.state['players']['p1']['fp'], 2)
+        remaining = selected.engine_state.get('pending_decision') or {}
+        self.assertEqual(remaining.get('kind'), 'optional_effect')
+        self.assertNotEqual(remaining.get('prompt'), 'optional-order-1')
+
     def test_phase_ready_battle_and_simultaneous_hit(self):
         p1 = attack('p1-a', 'p1', frame=5, damage=400)
         p2 = attack('p2-a', 'p2', frame=5, damage=300)
@@ -233,11 +456,189 @@ class AutomaticEngineTests(SimpleTestCase):
 
         judged = next(event for event in engine.events if event['type'] == 'battle_judged')
         self.assertEqual(judged['payload']['result'], {'p1': 'hit', 'p2': 'hit'})
+        self.assertEqual(
+            judged['payload']['cards']['p1']['card_label'], 'p1-a',
+        )
+        self.assertEqual(
+            judged['payload']['cards']['p2']['card_label'], 'p2-a',
+        )
         self.assertEqual(engine.state['players']['p1']['hp'], 4700)
         self.assertEqual(engine.state['players']['p2']['hp'], 4600)
         self.assertEqual(engine.state['phase'], 'get')
         self.assertIn('p1-a', [card['instance_id'] for card in engine.state['players']['p1']['zones']['hand']])
         self.assertIn('p2-a', [card['instance_id'] for card in engine.state['players']['p2']['zones']['hand']])
+
+    def test_actionless_lumen_and_recovery_phases_advance_automatically(self):
+        p1 = attack('p1-auto', 'p1')
+        p2 = attack('p2-auto', 'p2')
+        settings = {
+            'auto_advance_empty_phases': True,
+            'rewind_enabled': False,
+            'ready_timeout_seconds': 30,
+            'effect_timeout_seconds': 60,
+        }
+
+        engine = AutomaticGameEngine.initialize(
+            base_state([p1], [p2]), ruleset(p1, p2),
+            now=datetime(2026, 8, 17, tzinfo=timezone.utc),
+            seed='auto-phase', settings=settings,
+        )
+
+        self.assertEqual(engine.state['phase'], 'ready')
+        self.assertFalse(any(
+            action['type'] == 'pass_phase'
+            for side in ('p1', 'p2')
+            for action in engine.legal_actions(side)
+        ))
+        self.assertTrue(any(
+            event['type'] == 'phase_auto_advanced'
+            and event['payload'].get('phase') == 'lumen'
+            for event in engine.events
+        ))
+
+        engine.state['phase'] = 'recovery'
+        engine.engine_state['step'] = 'phase_actions'
+        engine._continue()
+
+        self.assertEqual(engine.state['phase'], 'ready')
+        self.assertEqual(engine.state['turn'], 2)
+
+    def test_configured_and_unlimited_automatic_clocks(self):
+        p1 = attack('p1-timer', 'p1')
+        p2 = attack('p2-timer', 'p2')
+        engine = AutomaticGameEngine.initialize(
+            base_state([p1], [p2]), ruleset(p1, p2),
+            now=datetime(2026, 8, 17, tzinfo=timezone.utc),
+            seed='configured-timer', settings={
+                'auto_advance_empty_phases': True,
+                'ready_timeout_seconds': 90,
+                'effect_timeout_seconds': 120,
+            },
+        )
+        self.act(engine, 'p1', 'ready_card')
+        self.assertEqual(engine.engine_state['clock']['duration_seconds'], 90)
+        engine.create_decision(
+            owner='p2', kind='test', prompt='선택',
+            options=[{'id': 'one', 'label': '하나'}],
+        )
+        self.assertEqual(engine.engine_state['clock']['duration_seconds'], 120)
+
+        unlimited = AutomaticGameEngine.initialize(
+            base_state([copy.deepcopy(p1)], [copy.deepcopy(p2)]),
+            ruleset(p1, p2),
+            now=datetime(2026, 8, 17, tzinfo=timezone.utc),
+            seed='unlimited-timer', settings={
+                'auto_advance_empty_phases': True,
+                'ready_timeout_seconds': None,
+                'effect_timeout_seconds': None,
+            },
+        )
+        self.act(unlimited, 'p1', 'ready_card')
+        self.assertIsNone(unlimited.engine_state['clock'])
+        unlimited.create_decision(
+            owner='p2', kind='test', prompt='선택',
+            options=[{'id': 'one', 'label': '하나'}],
+        )
+        self.assertIsNone(unlimited.engine_state['clock'])
+
+    def test_get_only_reveals_acquired_card_until_get_ends(self):
+        private_hand = attack('p2-private', 'p2')
+        acquired = attack('p2-acquired', 'p2')
+        state = base_state([], [private_hand])
+        state['players']['p2']['zones']['list'].append(acquired)
+        engine = AutomaticGameEngine.initialize(
+            state, ruleset(private_hand, acquired), seed='get-privacy',
+        )
+        engine.state['phase'] = 'battle'
+        engine.engine_state['step'] = 'battle_pipeline'
+        engine._advance_phase('get')
+
+        self.assertFalse(engine._find_card('p2-private')['face_up'])
+        engine.move_card('p2-acquired', 'hand', reason='get')
+        self.assertTrue(engine._find_card('p2-acquired')['face_up'])
+        during_get = engine.observe('p1')['state']['players']['p2']['zones']['hand']
+        self.assertTrue(any(card.get('hidden') for card in during_get))
+        self.assertTrue(any(not card.get('hidden') for card in during_get))
+
+        engine._advance_phase('recovery')
+        after_get = engine.observe('p1')['state']['players']['p2']['zones']['hand']
+        self.assertTrue(all(card.get('hidden') for card in after_get))
+
+    def test_lumen_move_is_face_up_unless_effect_explicitly_hides_it(self):
+        public_card = attack('public-lumen', 'p1')
+        hidden_card = attack('hidden-lumen', 'p1')
+        legacy_hidden = attack('legacy-hidden-lumen', 'p1')
+        engine = self.make_engine(
+            [public_card, hidden_card, legacy_hidden], [],
+        )
+
+        moved_public = engine.move_card('public-lumen', 'lumen', reason='effect')
+        moved_hidden = engine.move_card(
+            'hidden-lumen', 'lumen', reason='effect', face_up=False,
+        )
+        engine.resolver.execute_effects([
+            {
+                'op': 'move_card', 'selection_key': 'legacy_selected',
+                'to_zone': 'lumen',
+            },
+            {'op': 'hide', 'selection_key': 'legacy_selected'},
+        ], {
+            'controller': 'p1',
+            'legacy_selected': ['legacy-hidden-lumen'],
+        })
+        moved_legacy = engine._find_card('legacy-hidden-lumen')
+
+        self.assertTrue(moved_public['face_up'])
+        self.assertFalse(moved_hidden['face_up'])
+        self.assertFalse(moved_legacy['face_up'])
+        movements = [
+            event for event in engine.events
+            if event['type'] == 'card_moved'
+            and event['payload'].get('card_instance_id') in {
+                'public-lumen', 'hidden-lumen', 'legacy-hidden-lumen',
+            }
+        ]
+        self.assertEqual(
+            [(event['payload']['card_instance_id'], event['visibility']) for event in movements],
+            [
+                ('public-lumen', 'public'),
+                ('hidden-lumen', 'private'),
+                ('legacy-hidden-lumen', 'private'),
+            ],
+        )
+
+    def test_ready_choices_are_private_until_battle_reveal_logs_both_cards(self):
+        p1 = attack('p1-ready-log', 'p1')
+        p1['name'] = 'P1 레디 기술'
+        p2 = attack('p2-ready-log', 'p2')
+        p2['name'] = 'P2 레디 기술'
+        engine = self.make_engine([p1], [p2])
+        self.enter_ready(engine)
+
+        self.act(engine, 'p1', 'ready_card')
+        private_ready = next(
+            event for event in reversed(engine.events)
+            if event['type'] == 'card_readied'
+        )
+        self.assertEqual(private_ready['visibility'], 'private')
+        self.assertEqual(private_ready['payload']['card_label'], 'P1 레디 기술')
+        self.assertEqual(
+            _filtered_event(private_ready, engine.state, 'p2')['type'],
+            'private_event',
+        )
+        self.assertFalse(any(
+            event['type'] == 'battle_revealed' for event in engine.events
+        ))
+
+        self.act(engine, 'p2', 'ready_card')
+
+        revealed = next(
+            event for event in engine.events
+            if event['type'] == 'battle_revealed'
+        )
+        self.assertEqual(revealed['visibility'], 'public')
+        self.assertEqual(revealed['payload']['p1']['card_label'], 'P1 레디 기술')
+        self.assertEqual(revealed['payload']['p2']['card_label'], 'P2 레디 기술')
 
     def test_setup_event_records_revealed_hands_and_lists(self):
         p1 = attack('p1-opening', 'p1')
@@ -560,10 +961,27 @@ class AutomaticEngineTests(SimpleTestCase):
         self.act(engine, 'p1', 'ready_card')
         self.act(engine, 'p2', 'ready_card')
         self.assertEqual(engine.state['engine']['pending_decision']['owner'], 'p1')
+        optional_action = next(
+            action for action in engine.observe('p1')['legal_actions']
+            if action['type'] == 'submit_decision'
+        )
+        options = {option['id']: option for option in optional_action['options']}
+        self.assertEqual(options['accept']['card_instance_id'], 'p1-a')
+        self.assertEqual(options['accept']['effect_mode'], 'optional')
+        self.assertEqual(options['accept']['source_zone'], 'battle')
+        self.assertEqual(options['accept']['active_zones'], ['battle'])
+        self.assertNotIn('card_instance_id', options['decline'])
         self.act(engine, 'p1', 'submit_decision', {'selected': ['accept']})
 
         self.assertEqual(engine.state['players']['p2']['hp'], 4800)
         self.assertIsNone(engine.state['engine']['pending_decision'])
+        resolved = next(
+            event for event in engine.events
+            if event['type'] == 'effect_resolved'
+            and event['payload']['ability_id'] == 'optional-damage'
+        )
+        self.assertEqual(resolved['payload']['card_label'], 'p1-a')
+        self.assertEqual(resolved['payload']['card_code'], 'OPT')
 
     def test_cleanup_waits_for_card_moved_decision_before_get(self):
         p1 = attack('p1-a', 'p1', code='MOVE-WAIT', damage=100)
@@ -693,6 +1111,10 @@ class AutomaticEngineTests(SimpleTestCase):
 
         resolved = [event for event in engine.events if event['type'] == 'decision_resolved'][-1]
         self.assertEqual(resolved['payload']['selected'], ['c', 'a'])
+        self.assertEqual(
+            resolved['payload']['selected_options'],
+            [{'id': 'c', 'label': 'c'}, {'id': 'a', 'label': 'a'}],
+        )
 
     def test_non_owner_can_pause_and_either_player_can_resume_clock(self):
         engine = self.make_engine(
@@ -858,6 +1280,34 @@ class AutomaticEngineTests(SimpleTestCase):
 
         self.assertEqual(engine.engine_state['pending_decision']['kind'], 'no_response_card')
         self.assertEqual(engine.engine_state['pending_decision']['owner'], 'p1')
+
+    def test_no_response_chooser_receives_card_images_without_hand_leak(self):
+        p1 = attack('p1-ready', 'p1')
+        p2 = attack('p2-secret', 'p2')
+        p2.update({'card_id': 42, 'img': '/media/cards/p2-secret.webp'})
+        engine = self.make_engine([p1], [p2])
+        self.enter_ready(engine)
+        self.act(engine, 'p1', 'ready_card')
+        deadline = datetime.fromisoformat(engine.engine_state['clock']['deadline'])
+        engine.now = deadline + timedelta(seconds=1)
+
+        engine.reconcile_clock()
+
+        chooser = engine.observe('p1')
+        decision_action = next(
+            action for action in chooser['legal_actions']
+            if action['type'] == 'submit_decision'
+        )
+        option_card = decision_action['options'][0]['card']
+        self.assertEqual(option_card['card_id'], 42)
+        self.assertEqual(option_card['img'], '/media/cards/p2-secret.webp')
+        self.assertTrue(all(
+            card.get('hidden')
+            for card in chooser['state']['players']['p2']['zones']['hand']
+        ))
+
+        non_chooser = engine.observe('p2')
+        self.assertNotIn('options', non_chooser['pending_decision'])
 
     def test_random_selection_is_deterministic_and_logged(self):
         options = [{'id': str(index)} for index in range(8)]
@@ -1109,6 +1559,148 @@ class AutomaticEngineTests(SimpleTestCase):
 
         self.assertEqual(options.training_pair, ['3:4', '5:6'])
 
+    def test_automatic_client_uses_card_choice_dock_and_inline_stale_recovery(self):
+        project_root = Path(__file__).resolve().parent.parent
+        script = (
+            project_root / 'static' / 'v2' / 'lumen-simulator-automatic.js'
+        ).read_text(encoding='utf-8')
+        style = (
+            project_root / 'static' / 'v2' / 'lumen-simulator-automatic.css'
+        ).read_text(encoding='utf-8')
+        desktop_script = (
+            project_root / 'static' / 'v2' / 'lumen-simulator.js'
+        ).read_text(encoding='utf-8')
+        mobile_script = (
+            project_root / 'static' / 'v2' / 'lumen-simulator-mobile.js'
+        ).read_text(encoding='utf-8')
+        log_script = (
+            project_root / 'static' / 'v2' / 'lumen-simulator-log.js'
+        ).read_text(encoding='utf-8')
+
+        self.assertNotIn('window.alert(', script)
+        self.assertIn('equivalentLegalAction', script)
+        self.assertNotIn('data-automatic-choice-detail', script)
+        self.assertIn('lumen-simulator-apply-state', script)
+        self.assertIn('lumen-simulator-open-card-detail', script)
+        self.assertIn('lumen-simulator-open-card-detail', desktop_script)
+        self.assertIn('lumen-simulator-open-card-detail', mobile_script)
+        self.assertIn('lumen-simulator-card-metadata', script)
+        self.assertIn('lumen-simulator-card-metadata', desktop_script)
+        self.assertIn('lumen-simulator-card-metadata', mobile_script)
+        self.assertIn('function choiceEntryLabel', script)
+        self.assertIn('option.card_instance_id || option.id', script)
+        self.assertIn('emptySelectionValues', script)
+        self.assertIn('optionId === "decline"', script)
+        self.assertIn('`${selectedCount} 확정`', script)
+        self.assertNotIn('"선택하지 않음"', script)
+        self.assertIn('v2-automatic-choice-progress', script)
+        self.assertIn('Math.pow(actualRatio, 1.65)', script)
+        self.assertIn('v2-automatic-speed-badge', script)
+        self.assertIn('const EFFECT_MODE_ICONS', script)
+        self.assertIn('const EFFECT_ZONE_ICONS', script)
+        self.assertIn('GET PHASE : 획득할 기술을 선택하세요.', script)
+        self.assertIn('function actionChoicePrompt', script)
+        self.assertIn('findVisibleCardZone', script)
+        self.assertIn('cards.scrollLeft = previousScroll', script)
+        self.assertIn('cards.addEventListener("wheel"', script)
+        self.assertIn('cards.scrollLeft += event.deltaY', script)
+        self.assertIn('{passive: false}', script)
+        self.assertIn('function renderAutomaticFocus', script)
+        self.assertIn('function renderFocusPlayer', script)
+        self.assertIn('"v2-button v2-automatic-fullscreen"', script)
+        self.assertIn('fullscreen.dataset.fullscreenToggle = "";', script)
+        self.assertNotIn('function focusPassiveEntries', script)
+        self.assertNotIn('"v2-automatic-focus-zones"', script)
+        self.assertNotIn('"v2-automatic-focus-passives"', script)
+        self.assertIn('function scheduleAutomaticBoardFocus', script)
+        self.assertIn('function observeAutomaticBoard', script)
+        self.assertIn(
+            'automaticBoardObserver.observe(board, {childList: true, subtree: true});',
+            script,
+        )
+        self.assertIn('let automaticExpandedZoneKey = "";', script)
+        self.assertNotIn('automaticAllZonesExpanded', script)
+        self.assertIn(
+            'automaticExpandedZoneKey = automaticExpandedZoneKey === key ? "" : key;',
+            script,
+        )
+        self.assertIn('let choiceLayerMinimized = false;', script)
+        self.assertIn(
+            '"v2-button v2-automatic-choice-hide", "숨기기"', script,
+        )
+        self.assertIn('"선택창 열기"', script)
+        self.assertIn('.v2-automatic-choice-layer', style)
+        self.assertIn('.v2-automatic-focus-matchup', style)
+        self.assertIn(
+            '.has-automatic-simulator .v2-sim-controlbar', style,
+        )
+        self.assertIn(
+            '.v2-sim-zone:not(.v2-sim-zone-battle):not(.v2-sim-zone-hand):not(.is-automatic-expanded)',
+            style,
+        )
+        self.assertIn('border: solid currentColor;', style)
+        self.assertIn('transform: rotate(-45deg);', style)
+        self.assertNotIn('content: "▸";', style)
+        self.assertIn(
+            '.has-automatic-simulator .v2-mobile-player > .v2-mobile-hp',
+            style,
+        )
+        self.assertIn(
+            '.has-automatic-simulator .v2-sim-page:fullscreen', style,
+        )
+        self.assertIn(
+            'body.v2-simulator-mode.is-v2-simulator-fullscreen .v2-header',
+            style,
+        )
+        self.assertIn('grid-template-rows: repeat(5, auto);', style)
+        self.assertNotIn(
+            '--sim-card-width-setting: clamp(56px, 10dvh, 84px)', style,
+        )
+        self.assertNotIn(
+            '--sim-card-height-setting: clamp(78px, 14dvh, 118px)', style,
+        )
+        self.assertIn('function toggleSimulatorFullscreen', desktop_script)
+        self.assertIn(
+            'function updateSimulatorFullscreenPresentation', desktop_script,
+        )
+        self.assertIn(
+            '.v2-automatic-choice-layer.is-minimized', style,
+        )
+        self.assertNotIn('padding-bottom: min(46vh, 27rem);', style)
+        self.assertNotIn('padding-bottom: min(52dvh, 28rem);', style)
+        self.assertIn('width: min(66.666vw, 90rem);', style)
+        self.assertIn('.v2-automatic-card-detail-effect', style)
+        self.assertIn(
+            ':root[data-theme="light"] .v2-automatic-choice-layer', style,
+        )
+        self.assertIn(
+            ':root[data-theme="light"] .v2-automatic-choice-head strong',
+            style,
+        )
+        self.assertIn(
+            ':root[data-theme="light"] .v2-automatic-choice-card.is-selected',
+            style,
+        )
+        self.assertIn('.v2-automatic-effect-badge.is-mandatory', style)
+        self.assertIn('.v2-automatic-effect-badge.is-optional', style)
+        self.assertIn('.v2-automatic-choice-progress', style)
+        self.assertIn('.v2-automatic-speed-badge', style)
+        self.assertIn('.v2-automatic-zone-badge', style)
+        self.assertIn(
+            ':root[data-theme="light"] .v2-sim-card-detail '
+            '.v2-automatic-card-detail-effect > strong',
+            style,
+        )
+        self.assertIn('LumenSimulatorLogFormatter', log_script)
+        self.assertIn('battle_judged', log_script)
+        self.assertIn('decision_resolved', log_script)
+        self.assertIn('HIDDEN_EVENT_TYPES', log_script)
+        self.assertIn('function prepare(events)', log_script)
+        self.assertIn('eventPresentation', desktop_script)
+        self.assertIn('eventPresentation', mobile_script)
+        self.assertIn('function cleanKeywordText', desktop_script)
+        self.assertIn('genericEntries', desktop_script)
+
     def test_rulebook_verification_rejects_wrong_page_count(self):
         from pypdf import PdfWriter
 
@@ -1130,15 +1722,15 @@ class AutomaticEngineTests(SimpleTestCase):
 
     def test_catalog_report_exposes_review_progress(self):
         report = CatalogValidationReport(
-            card_count=453,
+            card_count=EXPECTED_CARD_COUNT,
             ability_count=1200,
             reviewed_card_count=321,
             ability_card_count=317,
             no_effect_card_count=4,
         ).as_dict()
 
-        self.assertEqual(report['remaining_card_count'], 132)
-        self.assertEqual(report['review_progress_percent'], 70.9)
+        self.assertEqual(report['remaining_card_count'], 134)
+        self.assertEqual(report['review_progress_percent'], 70.5)
 
 
     def test_effect_schema_requires_publication_source(self):
@@ -1362,14 +1954,15 @@ class AutomaticEngineTests(SimpleTestCase):
         starter = attack('combo-speed-starter', 'p1', frame=5, hit='콤보')
         equal = attack('combo-speed-equal', 'p1', frame=5)
         rising = attack('combo-speed-rising', 'p1', frame=6)
+        later = attack('combo-speed-later', 'p1', frame=7)
         opposing = attack('combo-speed-opposing', 'p2', frame=7)
         state = base_state([], [])
         state['phase'] = 'battle'
         state['players']['p1']['zones']['battle'] = [starter]
-        state['players']['p1']['zones']['hand'] = [equal, rising]
+        state['players']['p1']['zones']['hand'] = [equal, rising, later]
         state['players']['p2']['zones']['battle'] = [opposing]
         engine = AutomaticGameEngine.initialize(
-            state, ruleset(starter, equal, rising, opposing),
+            state, ruleset(starter, equal, rising, later, opposing),
             seed='combo-source-speed',
         )
         engine.state['phase'] = 'battle'
@@ -1381,19 +1974,1043 @@ class AutomaticEngineTests(SimpleTestCase):
         engine.grant_combo('p1', source=starter['instance_id'])
 
         actions = engine.legal_actions('p1')
-        single_ids = {
-            (action.get('payload') or {}).get('card_instance_id')
-            for action in actions if action.get('type') == 'play_combo_card'
+        pair_ids = {
+            tuple((action.get('payload') or {}).get('card_instance_ids') or [])
+            for action in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            ) if action.get('type') == 'play_combo_pair'
         }
-        self.assertNotIn(equal['instance_id'], single_ids)
-        self.assertIn(rising['instance_id'], single_ids)
+        self.assertIn((equal['instance_id'], rising['instance_id']), pair_ids)
+        self.assertIn((rising['instance_id'], later['instance_id']), pair_ids)
+        first_ids = {
+            (action.get('payload') or {}).get('card_instance_id')
+            for action in actions
+            if action.get('type') == 'select_combo_first'
+        }
+        self.assertEqual(first_ids, {
+            equal['instance_id'], rising['instance_id'],
+        })
+        self.assertFalse(any(
+            action.get('type') == 'play_combo_card' for action in actions
+        ))
         self.assertEqual(engine.engine_state['combo']['last_speed'], 5)
+
+        pair = next(
+            action for action in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            )
+            if action.get('type') == 'play_combo_pair'
+            and action['payload']['card_instance_ids'] == [
+                equal['instance_id'], rising['instance_id'],
+            ]
+        )
+        self.submit_initial_combo_pair(engine, 'p1', pair)
+        self.assertEqual([
+            event['payload']['card_instance_id']
+            for event in engine.events
+            if event.get('type') == 'combo_card_used'
+        ], [equal['instance_id'], rising['instance_id']])
+
+    def test_prelude_combo_filters_speed_eleven_and_accepts_plie_shade(self):
+        prelude = attack(
+            'prelude-speed-source', 'p1', code='PRELUDE-SPEED-SOURCE',
+            frame=8, damage=400, hit='콤보',
+        )
+        quick = attack(
+            'quick-accent-six', 'p1', code='UNC-AT-038',
+            frame=5, damage=400,
+        )
+        plie = attack(
+            'plie-shade-followup', 'p1', code='ST6-003',
+            frame=7, damage=400,
+        )
+        arina = attack(
+            'arina-battement-eleven', 'p1', code='ST6-007',
+            frame=11, damage=600, special='그랩',
+        )
+        tempo = attack(
+            'tempo-de-deux-eleven', 'p1', code='CB02-AT-026',
+            frame=11, damage=300,
+        )
+        legal_fourth = attack(
+            'legal-fourth-combo-nine', 'p1', code='LEGAL-FOURTH-NINE',
+            frame=9, damage=400,
+        )
+        list_target = attack(
+            'plie-shade-list-target', 'p1', code='PLIE-LIST-TARGET',
+            frame=4, damage=300,
+        )
+        opposing = attack('prelude-combo-opposing', 'p2', frame=9)
+        matude = attack(
+            'viola-matude-passive', 'p1', code='ST6-PS1',
+        )
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['passive'] = [matude]
+        state['players']['p1']['zones']['battle'] = [prelude]
+        state['players']['p1']['zones']['hand'] = [
+            quick, plie, arina, tempo, legal_fourth,
+        ]
+        state['players']['p1']['zones']['list'] = [list_target]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        release = ruleset(
+            prelude, quick, plie, arina, tempo, legal_fourth, list_target,
+            opposing, matude,
+        )
+        release['cards']['ST6-PS1']['effect_definition'] = build_effect_draft(
+            'ST6-PS1',
+            '콤보 시 2속도를 건너뛰며 이을 수 있다. '
+            '그 경우 [[token:hidden_bond]] 카운터를 1개 올린다.(최대 3개)\n'
+            '콤보 타임 때 [[token:hidden_bond]] 카운터를 3개 소모하여 '
+            '패에서 원하는 <[[character:viola]]> 기술 1장을 '
+            '원하는 속도로 사용할 수 있다.',
+            qna_ids=[121, 122, 123, 124, 125, 127, 139, 445, 625],
+        )
+        # Match immutable releases published before this ruling became an
+        # explicit DSL field. Runtime compatibility must still enforce it.
+        matude_modifier = (
+            release['cards']['ST6-PS1']['effect_definition']['abilities'][2]
+            ['effects'][0]
+        )
+        matude_modifier.pop('respect_speed_window', None)
+        release['cards']['UNC-AT-038']['effect_definition'] = (
+            build_effect_draft(
+                'UNC-AT-038',
+                '①콤보 시 6~9속도로 사용할 수 있다.\n'
+                '②캐치 시 8속도로 사용할 수 있다. 그 경우, '
+                '[[state:hidden_bond]] 카운터를 1개 얻고 이 기술의 '
+                '데미지+100. 그 후, 이 기술을 브레이크한다.',
+            )
+        )
+        release['cards']['ST6-003']['effect_definition'] = build_effect_draft(
+            'ST6-003',
+            '①콤보 시 8속도로 사용할 수 있다. '
+            '그 경우 이 기술을 브레이크하고 리스트에서 기술 1장을 가져온다.',
+            qna_ids=[307, 580],
+        )
+        release['cards']['ST6-007']['effect_definition'] = build_effect_draft(
+            'ST6-007',
+            '①콤보 시 [[token:hidden_bond]] 카운터가 있다면 '
+            '10 또는 12속도로 사용할 수 있다. '
+            '5콤보 이후 사용했다면 데미지 감소를 적용하지 않는다.',
+        )
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='prelude-quick-plie-speed-chain',
+        )
+        engine.state['phase'] = 'battle'
+        engine.engine_state['battle'] = {
+            'p1': {'instance_id': prelude['instance_id'], 'card': prelude},
+            'p2': {'instance_id': opposing['instance_id'], 'card': opposing},
+        }
+        engine.grant_combo('p1', source=prelude['instance_id'])
+
+        quick_six = next((
+            action for action in engine.legal_actions('p1')
+            if action.get('type') == 'select_combo_first'
+            and action['payload']['card_instance_id'] == quick['instance_id']
+            and action['payload']['choice_speed'] == 6
+        ), None)
+        self.assertIsNotNone(
+            quick_six,
+            engine._combo_actions('p1', engine.engine_state['combo']),
+        )
+        engine.submit_action(
+            'p1', quick_six['action_id'], {}, command_id='select-quick-six',
+        )
+        followups = [
+            action for action in engine.legal_actions('p1')
+            if action.get('type') == 'select_combo_followup'
+        ]
+        self.assertEqual({
+            action['payload']['choice_speed']
+            for action in followups
+            if action['payload']['card_instance_id'] == plie['instance_id']
+        }, {7, 8})
+        self.assertFalse(any(
+            action['payload']['card_instance_id'] in {
+                arina['instance_id'], tempo['instance_id'],
+            }
+            for action in followups
+        ))
+
+        plie_eight = next(
+            action for action in followups
+            if action['payload']['card_instance_id'] == plie['instance_id']
+            and action['payload']['choice_speed'] == 8
+        )
+        engine.submit_action(
+            'p1', plie_eight['action_id'], {}, command_id='select-plie-eight',
+        )
+
+        choice = engine.engine_state.get('pending_decision') or {}
+        if choice.get('kind') == 'effect_order':
+            plie_effect = next(
+                option for option in choice.get('options') or []
+                if option.get('ability_id') == 'st6-003-n1'
+            )
+            self.act(
+                engine, 'p1', 'submit_decision',
+                {'selected': [plie_effect['id']]},
+            )
+            choice = engine.engine_state.get('pending_decision') or {}
+        self.assertEqual(choice.get('kind'), 'effect_choice', choice)
+        self.assertEqual(
+            [option['id'] for option in choice.get('options') or []],
+            [list_target['instance_id']],
+        )
+        self.act(
+            engine, 'p1', 'submit_decision',
+            {'selected': [list_target['instance_id']]},
+        )
+
+        self.assertEqual([
+            event['payload']['card_instance_id']
+            for event in engine.events
+            if event.get('type') == 'combo_card_used'
+        ], [quick['instance_id'], plie['instance_id']])
+        self.assertIsNotNone(engine._find_card(
+            plie['instance_id'], owner='p1', zone='break',
+        ))
+        self.assertIsNotNone(engine._find_card(
+            list_target['instance_id'], owner='p1', zone='hand',
+        ))
+        continuation = [
+            action for action in engine.legal_actions('p1')
+            if action.get('type') == 'play_combo_card'
+        ]
+        self.assertFalse(any(
+            action['payload']['card_instance_id'] == tempo['instance_id']
+            for action in continuation
+        ), continuation)
+        # Matude granted one Hidden Bond for the +2 Plié link. Arena's own
+        # effect therefore supplies 10/12, but only 10 remains inside the
+        # next +1/+2 window; its printed 11 and effect speed 12 stay hidden.
+        self.assertEqual({
+            action['payload']['combo_speed']
+            for action in continuation
+            if action['payload']['card_instance_id'] == arina['instance_id']
+        }, {10})
+        legal_action = next(
+            action for action in continuation
+            if action['payload']['card_instance_id'] == legal_fourth['instance_id']
+        )
+        self.assertEqual(legal_action['payload']['combo_number'], 4)
+        self.assertEqual(legal_action['payload']['choice_speed'], 9)
+        self.assertEqual(legal_action['payload']['source_zone'], 'hand')
+        combo = engine.engine_state.get('combo')
+        self.assertIsNotNone(combo)
+        live_arina = engine._find_card(arina['instance_id'])
+        fourth_rules = engine._combo_rules('p1', live_arina, combo)
+        self.assertEqual(engine._next_combo_number(combo), 4)
+        self.assertEqual(
+            engine._combo_applied_penalty(
+                'p1', live_arina, combo, combo['next_penalty'],
+                rules=fourth_rules,
+            ),
+            300,
+        )
+        sixth_combo = copy.deepcopy(combo)
+        sixth_combo['used'] = [
+            quick['instance_id'], plie['instance_id'],
+            'viola-fourth-combo', 'viola-fifth-combo',
+        ]
+        sixth_rules = engine._combo_rules('p1', live_arina, sixth_combo)
+        self.assertEqual(engine._next_combo_number(sixth_combo), 6)
+        self.assertEqual(
+            engine._combo_applied_penalty(
+                'p1', live_arina, sixth_combo, 500, rules=sixth_rules,
+            ),
+            0,
+        )
+
+    def test_matude_declared_speed_still_obeys_and_sets_the_combo_link_window(self):
+        origin = attack(
+            'matude-link-origin', 'p1', frame=10, damage=700, hit='콤보',
+        )
+        previous = attack(
+            'matude-link-previous', 'p1', frame=12, damage=700,
+        )
+        desired = attack(
+            'matude-link-desired', 'p1', frame=5, damage=800,
+        )
+        legal_followup = attack(
+            'matude-link-legal-sixteen', 'p1', frame=16, damage=800,
+        )
+        too_slow_followup = attack(
+            'matude-link-illegal-seventeen', 'p1', frame=17, damage=800,
+        )
+        opposing = attack('matude-link-opposing', 'p2', frame=8)
+        matude = attack('matude-link-passive', 'p1', code='ST6-PS1')
+        for card in (
+            origin, previous, desired, legal_followup, too_slow_followup,
+        ):
+            card['character_key'] = 'viola'
+        matude.update({'type': '특성', 'frame': None, 'damage': None})
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['passive'] = [matude]
+        state['players']['p1']['zones']['battle'] = [origin, previous]
+        state['players']['p1']['zones']['hand'] = [
+            desired, legal_followup, too_slow_followup,
+        ]
+        state['players']['p1']['passive_state']['hidden_bond'] = {
+            'count': 3, 'label': '은연',
+        }
+        state['players']['p2']['zones']['battle'] = [opposing]
+        release = ruleset(
+            origin, previous, desired, legal_followup,
+            too_slow_followup, opposing, matude,
+        )
+        release['cards']['ST6-PS1']['effect_definition'] = build_effect_draft(
+            'ST6-PS1',
+            '콤보 시 2속도를 건너뛰며 이을 수 있다. '
+            '그 경우 [[token:hidden_bond]] 카운터를 1개 올린다.(최대 3개)\n'
+            '콤보 타임 때 [[token:hidden_bond]] 카운터를 3개 소모하여 '
+            '패에서 원하는 <[[character:viola]]> 기술 1장을 '
+            '원하는 속도로 사용할 수 있다.',
+            qna_ids=[121, 122, 123, 124, 125, 127, 139, 445, 625],
+        )
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='matude-declared-speed-link-window',
+        )
+        engine.state['phase'] = 'battle'
+        engine.grant_combo(
+            'p1', source=origin['instance_id'], trigger_event=False,
+        )
+        combo = engine.engine_state['combo']
+        combo.update({
+            'used': [previous['instance_id']], 'last_speed': 12,
+            'next_penalty': 200, 'proposal_submitted': False,
+        })
+
+        desired_actions = [
+            action for action in engine.legal_actions('p1')
+            if action.get('type') == 'play_combo_card'
+            and action['payload']['card_instance_id'] == desired['instance_id']
+            and bool((action['payload'].get('ignore_speed') or [False])[0])
+        ]
+        self.assertEqual({
+            action['payload']['combo_speed'] for action in desired_actions
+        }, {13, 14})
+
+        declared_fourteen = next(
+            action for action in desired_actions
+            if action['payload']['combo_speed'] == 14
+        )
+        engine.submit_action(
+            'p1', declared_fourteen['action_id'], {},
+            command_id='matude-declare-fourteen',
+        )
+
+        self.assertEqual(engine.engine_state['combo']['last_speed'], 14)
+        self.assertEqual(
+            engine.state['players']['p1']['passive_state']
+            ['hidden_bond']['count'],
+            1,
+        )
+        continuation = [
+            action for action in engine.legal_actions('p1')
+            if action.get('type') == 'play_combo_card'
+        ]
+        self.assertTrue(any(
+            action['payload']['card_instance_id']
+            == legal_followup['instance_id']
+            and action['payload']['combo_speed'] == 16
+            for action in continuation
+        ), continuation)
+        self.assertFalse(any(
+            action['payload']['card_instance_id']
+            == too_slow_followup['instance_id']
+            for action in continuation
+        ), continuation)
+
+    def test_tempo_de_deux_can_reuse_its_resolved_battle_copy(self):
+        quick = attack(
+            'tempo-reuse-quick-nine', 'p1', code='TEMPO-QUICK',
+            frame=9, damage=700, hit='콤보',
+        )
+        tempo = attack(
+            'tempo-reuse-eleven', 'p1', code='CB02-AT-026',
+            frame=11, damage=300,
+        )
+        pain = attack(
+            'tempo-reuse-pain-thirteen', 'p1', code='TEMPO-PAIN',
+            frame=13, damage=700,
+        )
+        opposing = attack('tempo-reuse-opposing', 'p2', frame=8)
+        matude = attack('tempo-reuse-passive', 'p1', code='ST6-PS1')
+        for card in (quick, tempo, pain):
+            card['character_key'] = 'viola'
+        matude.update({'type': '특성', 'frame': None, 'damage': None})
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['passive'] = [matude]
+        state['players']['p1']['zones']['battle'] = [quick]
+        state['players']['p1']['zones']['hand'] = [tempo, pain]
+        state['players']['p1']['passive_state']['hidden_bond'] = {
+            'count': 1, 'label': '은연',
+        }
+        state['players']['p2']['zones']['battle'] = [opposing]
+        release = ruleset(quick, tempo, pain, opposing, matude)
+        release['cards']['ST6-PS1']['effect_definition'] = build_effect_draft(
+            'ST6-PS1',
+            '콤보 시 2속도를 건너뛰며 이을 수 있다. '
+            '그 경우 [[token:hidden_bond]] 카운터를 1개 올린다.(최대 3개)\n'
+            '콤보 타임 때 [[token:hidden_bond]] 카운터를 3개 소모하여 '
+            '패에서 원하는 <[[character:viola]]> 기술 1장을 '
+            '원하는 속도로 사용할 수 있다.',
+            qna_ids=[121, 122, 123, 124, 125, 127, 139, 445, 625],
+        )
+        release['cards']['CB02-AT-026']['effect_definition'] = (
+            build_effect_draft(
+                'CB02-AT-026',
+                '①1턴에 1번 콤보 시, [[token:hidden_bond]]카운터가 있을 경우 '
+                '배틀 존의 이 기술을 다른 <[[character:viola]]> 기술 뒤에 '
+                '속도를 무시하고 이을 수 있다.\n'
+                '②이 기술이 한 턴에 두 번 이상 사용되었을 경우, 이 기술은 '
+                '데미지 보정을 적용하지 않는다.',
+                qna_ids=[679, 685],
+            )
+        )
+        # CB03 predates allow_reuse but already has the unique limited rule.
+        tempo_reuse_rule = next(
+            rule for rule in release['cards']['CB02-AT-026']
+            ['effect_definition']['combo_rules']
+            if rule.get('usage_key') == 'cb02-at-026-battle-reuse'
+        )
+        tempo_reuse_rule.pop('allow_reuse', None)
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='tempo-de-deux-real-combo-reuse',
+        )
+        engine.state['phase'] = 'battle'
+        engine.grant_combo(
+            'p1', source=quick['instance_id'], trigger_event=False,
+        )
+        pair = next(
+            action for action in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            )
+            if action.get('type') == 'play_combo_pair'
+            and action['payload']['card_instance_ids'] == [
+                tempo['instance_id'], pain['instance_id'],
+            ]
+            and action['payload']['combo_speeds'] == [11, 13]
+        )
+        self.submit_initial_combo_pair(engine, 'p1', pair)
+
+        reuse = next((
+            action for action in engine.legal_actions('p1')
+            if action.get('type') == 'play_combo_card'
+            and action['payload']['card_instance_id'] == tempo['instance_id']
+            and action['payload']['combo_speed'] == 11
+            and action['payload']['source_zone'] == 'battle'
+        ), None)
+        self.assertIsNotNone(reuse, engine.legal_actions('p1'))
+        engine.submit_action(
+            'p1', reuse['action_id'], {}, command_id='reuse-tempo-de-deux',
+        )
+
+        tempo_events = [
+            event for event in engine.events
+            if event.get('type') == 'combo_card_used'
+            and event['payload']['card_instance_id'] == tempo['instance_id']
+        ]
+        self.assertEqual(len(tempo_events), 2)
+        self.assertEqual(tempo_events[-1]['payload']['damage'], 300)
+        self.assertEqual(
+            engine.engine_state['usage']['turn']['p1']
+            ['cb02-at-026-battle-reuse'],
+            1,
+        )
+
+    def test_combo_end_effects_only_use_techniques_in_that_combo(self):
+        starter = attack('combo-end-starter', 'p1', code='COMBO-END-STARTER')
+        included = attack('combo-end-included', 'p1', code='COMBO-END-INCLUDED')
+        unrelated = attack('combo-end-unrelated', 'p1', code='COMBO-END-UNRELATED')
+        opposing = attack('combo-end-opposing', 'p2')
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [
+            starter, included, unrelated,
+        ]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        release = ruleset(starter, included, unrelated, opposing)
+        for card, counter in (
+            (included, 'included_combo_end'),
+            (unrelated, 'unrelated_combo_end'),
+        ):
+            release['cards'][card['code']]['effect_definition'] = {
+                'schema_version': 1,
+                'abilities': [{
+                    'id': counter, 'kind': 'effect', 'mode': 'mandatory',
+                    'timing': 'cleanup', 'visibility': 'public',
+                    'active_zones': ['battle'],
+                    'trigger': {'event': 'combo_end'},
+                    'effects': [{
+                        'op': 'change_counter',
+                        'player': {'controller': True},
+                        'counter': counter, 'amount': 1,
+                    }],
+                }],
+            }
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='combo-end-source-membership',
+        )
+        engine.engine_state['combo'] = {
+            'owner': 'p1', 'source': starter['instance_id'],
+            'used': [included['instance_id']], 'next_penalty': 200,
+        }
+
+        engine.end_combo()
+        engine._continue()
+
+        passive = engine.state['players']['p1']['passive_state']
+        self.assertEqual(passive['included_combo_end']['count'], 1)
+        self.assertNotIn('unrelated_combo_end', passive)
+
+    def test_endless_ballare_combo_end_requires_direct_combo_use(self):
+        endless = attack(
+            'endless-ballare', 'p1', code='DFR-AT-020', frame=9,
+        )
+        starter = attack('endless-starter', 'p1', code='ENDLESS-STARTER')
+        opposing = attack('endless-opposing', 'p2')
+        release = ruleset(endless, starter, opposing)
+        release['cards'][endless['code']]['effect_definition'] = {
+            'schema_version': 1,
+            'abilities': [{
+                # Deliberately omit both new fields to match immutable CB03,
+                # published before active_zones/requires_combo_use were added.
+                'id': 'dfr-at-020-n2', 'kind': 'effect',
+                'mode': 'mandatory', 'timing': 'cleanup',
+                'visibility': 'public',
+                'trigger': {'event': 'combo_end'},
+                'effects': [{
+                    'op': 'change_counter',
+                    'player': {'controller': True},
+                    'counter': 'endless_combo_end', 'amount': 1,
+                }],
+            }],
+        }
+
+        def resolve(used, *, break_before_end=False):
+            state = base_state([], [])
+            state['phase'] = 'battle'
+            state['players']['p1']['zones']['battle'] = [
+                copy.deepcopy(endless), copy.deepcopy(starter),
+            ]
+            state['players']['p2']['zones']['battle'] = [
+                copy.deepcopy(opposing),
+            ]
+            engine = AutomaticGameEngine(
+                state, copy.deepcopy(release), seed=f'endless-{bool(used)}',
+            )
+            engine.engine_state['combo'] = {
+                'owner': 'p1', 'source': starter['instance_id'],
+                'used': list(used), 'next_penalty': 200,
+            }
+            if break_before_end:
+                engine.move_card(
+                    endless['instance_id'], 'break',
+                    reason='test_combo_member_left_battle',
+                )
+            engine.end_combo()
+            engine._continue()
+            return (
+                (engine.state['players']['p1']['passive_state'].get(
+                    'endless_combo_end'
+                ) or {}).get('count', 0)
+            )
+
+        self.assertEqual(resolve([]), 0)
+        self.assertEqual(resolve([endless['instance_id']]), 1)
+        self.assertEqual(resolve(
+            [endless['instance_id']], break_before_end=True,
+        ), 1)
+
+    def test_endless_ballare_legacy_release_resolves_real_combo_end_choices(self):
+        endless = attack(
+            'legacy-endless-ballare', 'p1', code='DFR-AT-020', frame=9,
+            damage=100,
+        )
+        endless['name'] = '엔드리스 발라레'
+        starter = attack(
+            'legacy-endless-starter', 'p1', code='LEGACY-ENDLESS-STARTER',
+        )
+        owner_list = attack(
+            'legacy-endless-owner-list', 'p1', code='LEGACY-OWNER-LIST',
+        )
+        opposing = attack(
+            'legacy-endless-opposing', 'p2', code='LEGACY-ENDLESS-OPPOSING',
+        )
+        opponent_list = attack(
+            'legacy-endless-opponent-list', 'p2', code='LEGACY-OPPONENT-LIST',
+        )
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['hp'] = 3000
+        state['players']['p1']['zones']['battle'] = [starter, endless]
+        state['players']['p1']['zones']['list'] = [owner_list]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        state['players']['p2']['zones']['list'] = [opponent_list]
+        release = ruleset(
+            endless, starter, owner_list, opposing, opponent_list,
+        )
+        definition = build_effect_draft(
+            'DFR-AT-020',
+            '이 기술은 자신의 체력이 3000 이하일 경우에만 사용할 수 있다.\n'
+            '이 기술은 데미지 보정을 받지 않는다.\n'
+            '①사용 시, 이번 턴 리커버리 페이즈 종료 시에 패/리스트/사이드 '
+            '덱의 [엔드리스 발라레]를 브레이크한다.\n'
+            '②콤보 타임 종료 시, 이하의 효과를 적용한다.\n'
+            '-리스트나 배틀 존의 기술을 3장까지 패로 가져올 수 있다.\n'
+            '-상대는 리스트에서 기술 1장을 획득할 수 있다.\n\n'
+            '-레디 페이즈를 다시 진행한다.',
+        )
+        combo_end = next(
+            ability for ability in definition['abilities']
+            if ability.get('id') == 'dfr-at-020-n2'
+        )
+        combo_end.pop('active_zones', None)
+        combo_end.pop('requires_combo_use', None)
+        release['cards']['DFR-AT-020']['effect_definition'] = definition
+        engine = AutomaticGameEngine(
+            state, release, seed='legacy-endless-real-combo-end',
+        )
+        engine.engine_state.update({
+            'step': 'combo',
+            'combo': {
+                'owner': 'p1', 'source': starter['instance_id'],
+                'used': [endless['instance_id']], 'next_penalty': 200,
+            },
+        })
+
+        engine.end_combo()
+        engine._continue()
+        owner_decision = engine.engine_state['pending_decision']
+        self.assertEqual(owner_decision['owner'], 'p1')
+        self.assertIn(
+            owner_list['instance_id'],
+            [option['id'] for option in owner_decision['options']],
+        )
+        engine._submit_decision(
+            'p1', owner_decision['id'], [owner_list['instance_id']],
+        )
+        engine._continue()
+
+        opponent_decision = engine.engine_state['pending_decision']
+        self.assertEqual(opponent_decision['owner'], 'p2')
+        self.assertIn(
+            opponent_list['instance_id'],
+            [option['id'] for option in opponent_decision['options']],
+        )
+        engine._submit_decision(
+            'p2', opponent_decision['id'], [opponent_list['instance_id']],
+        )
+        engine._continue()
+
+        self.assertIsNotNone(engine._find_card(
+            owner_list['instance_id'], owner='p1', zone='hand',
+        ))
+        self.assertIsNotNone(engine._find_card(
+            opponent_list['instance_id'], owner='p2', zone='hand',
+        ))
+        self.assertEqual(engine.state['phase'], 'ready')
+        self.assertTrue(any(
+            event.get('type') == 'effect_resolved'
+            and (event.get('payload') or {}).get('ability_id')
+            == 'dfr-at-020-n2'
+            for event in engine.events
+        ))
+
+    def test_prelude_recovery_choice_survives_real_phase_transition(self):
+        prelude = attack(
+            'prelude-runtime', 'p1', code='RFS-AT-035', frame=8,
+        )
+        first_cost = attack('prelude-cost-hand', 'p1')
+        second_cost = attack('prelude-cost-list', 'p1')
+        viola = attack('prelude-viola-side', 'p1')
+        viola['character_key'] = 'viola'
+        opposing = attack('prelude-opposing', 'p2')
+        text = (
+            '①콤보 시, 패나 리스트에서 기술 2장을 사이드 덱으로 보낼 수 '
+            '있다.\n그 경우, 이번 턴 리커버리 페이즈에 사이드 덱에서 '
+            '<[[character:viola]]> 기술 2장을 패로 가져온다.\n'
+            '②콤보 타임 종료 시, 이번 턴 겟 페이즈에서 이 기술을 패로 '
+            '가져올 수 없다.'
+        )
+        release = ruleset(
+            prelude, first_cost, second_cost, viola, opposing,
+        )
+        release['cards'][prelude['code']]['effect_definition'] = (
+            build_effect_draft(prelude['code'], text)
+        )
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [prelude]
+        state['players']['p1']['zones']['hand'] = [first_cost]
+        state['players']['p1']['zones']['list'] = [second_cost]
+        state['players']['p1']['zones']['side'] = [viola]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        engine = AutomaticGameEngine(
+            state, release, seed='prelude-real-recovery-transition',
+        )
+
+        engine._fire('combo', {
+            'controller': 'p1',
+            'source_card_instance_id': prelude['instance_id'],
+            'source_card': copy.deepcopy(prelude),
+            'source_only_event': True,
+        })
+        activation = engine.engine_state['pending_decision']
+        engine._submit_decision('p1', activation['id'], ['accept'])
+        cost_choice = engine.engine_state['pending_decision']
+        engine._submit_decision('p1', cost_choice['id'], [
+            first_cost['instance_id'], second_cost['instance_id'],
+        ])
+        self.assertEqual(len(engine.engine_state['scheduled']), 1)
+
+        engine.state['phase'] = 'get'
+        engine.engine_state['step'] = 'get_actions'
+        engine._advance_phase('recovery')
+
+        recovery_choice = engine.engine_state['pending_decision']
+        self.assertEqual(recovery_choice['kind'], 'effect_choice')
+        self.assertEqual(
+            (recovery_choice['minimum'], recovery_choice['maximum']), (0, 1),
+        )
+        self.assertEqual(
+            [option['id'] for option in recovery_choice['options']],
+            [viola['instance_id']],
+        )
+        engine._submit_decision(
+            'p1', recovery_choice['id'], [viola['instance_id']],
+        )
+        self.assertIsNotNone(engine._find_card(
+            viola['instance_id'], owner='p1', zone='hand',
+        ))
+
+    def test_normal_combo_is_skipped_when_only_one_initial_card_is_legal(self):
+        starter = attack(
+            'single-combo-starter', 'p1', frame=5, hit='콤보',
+        )
+        only_followup = attack(
+            'single-combo-followup', 'p1', frame=6, damage=500,
+        )
+        opposing = attack('single-combo-opposing', 'p2', frame=8)
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [starter]
+        state['players']['p1']['zones']['hand'] = [only_followup]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        engine = AutomaticGameEngine.initialize(
+            state, ruleset(starter, only_followup, opposing),
+            seed='combo-initial-pair-required',
+        )
+        engine.state['phase'] = 'battle'
+        engine.engine_state['battle'] = {
+            'p1': {'instance_id': starter['instance_id'], 'card': starter},
+            'p2': {'instance_id': opposing['instance_id'], 'card': opposing},
+            'result': {'p1': 'hit', 'p2': 'countered'},
+        }
+
+        self.assertFalse(engine._open_combo_from_battle())
+        self.assertIsNone(engine.engine_state.get('combo'))
+        skipped = [
+            event for event in engine.events
+            if event.get('type') == 'combo_skipped'
+        ]
+        self.assertEqual(len(skipped), 1)
+        self.assertEqual(
+            skipped[0]['payload']['reason'],
+            'normal_combo_requires_two_cards',
+        )
+
+    def test_combo_offers_initial_pair_then_fourth_after_both_after_use_steps(self):
+        starter = attack('staged-starter', 'p1', frame=2, hit='콤보')
+        second = attack(
+            'staged-second', 'p1', code='STAGED-SECOND', frame=3,
+            damage=600,
+        )
+        third = attack(
+            'staged-third', 'p1', code='STAGED-THIRD', frame=4,
+            damage=600,
+        )
+        fourth = attack(
+            'staged-fourth', 'p1', code='ST1-019', frame=5,
+            damage=600,
+        )
+        opposing = attack('staged-opposing', 'p2', frame=7)
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [starter]
+        state['players']['p1']['zones']['hand'] = [second, third, fourth]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        release = ruleset(starter, second, third, fourth, opposing)
+        for card, ability_id in (
+            (second, 'staged-second-after-use'),
+            (third, 'staged-third-after-use'),
+        ):
+            release['cards'][card['code']]['effect_definition'] = {
+                'schema_version': 1,
+                'abilities': [{
+                    'id': ability_id, 'kind': 'effect',
+                    'mode': 'mandatory', 'timing': 'after_use',
+                    'visibility': 'public',
+                    'trigger': {'event': 'after_use'},
+                    'effects': [{
+                        'op': 'change_counter',
+                        'player': {'controller': True},
+                        'counter': ability_id, 'amount': 1,
+                    }],
+                }],
+            }
+        release['cards']['ST1-019']['effect_definition'] = build_effect_draft(
+            'ST1-019',
+            '②콤보 시, 3콤보 후 사용할 수 있으며 사용 후 콤보 타임을 종료한다.',
+        )
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='combo-staged-proposals',
+        )
+        engine.state['phase'] = 'battle'
+        engine.engine_state['battle'] = {
+            'p1': {'instance_id': starter['instance_id'], 'card': starter},
+            'p2': {'instance_id': opposing['instance_id'], 'card': opposing},
+        }
+        engine.grant_combo('p1', source=starter['instance_id'])
+
+        initial_actions = engine.legal_actions('p1')
+        first = next(
+            action for action in initial_actions
+            if action.get('type') == 'select_combo_first'
+            and action['payload']['card_instance_id'] == second['instance_id']
+        )
+        self.assertFalse(any(
+            action.get('type') in {
+                'play_combo_card', 'play_combo_sequence', 'end_combo',
+            }
+            for action in initial_actions
+        ))
+
+        engine.submit_action('p1', first['action_id'], {}, command_id='staged-first')
+        followup = next(
+            action for action in engine.legal_actions('p1')
+            if action.get('type') == 'select_combo_followup'
+            and action['payload']['card_instance_id'] == third['instance_id']
+        )
+        engine.submit_action(
+            'p1', followup['action_id'], {}, command_id='staged-initial-pair',
+        )
+
+        continuation_actions = engine.legal_actions('p1')
+        self.assertTrue(any(
+            action.get('type') == 'play_combo_card'
+            and action['payload']['card_instance_id'] == fourth['instance_id']
+            for action in continuation_actions
+        ))
+        self.assertFalse(any(
+            action.get('type') in {'play_combo_pair', 'play_combo_sequence'}
+            for action in continuation_actions
+        ))
+        event_types_and_abilities = [
+            (
+                event.get('type'),
+                (event.get('payload') or {}).get('ability_id'),
+            )
+            for event in engine.events
+        ]
+        continuation_index = next(
+            index for index, item in enumerate(event_types_and_abilities)
+            if item[0] == 'combo_continuation_opened'
+        )
+        for ability_id in (
+            'staged-second-after-use', 'staged-third-after-use',
+        ):
+            effect_index = next(
+                index for index, item in enumerate(event_types_and_abilities)
+                if item == ('effect_resolved', ability_id)
+            )
+            self.assertLess(effect_index, continuation_index)
+
+    def test_combo_has_no_default_maximum_and_reopens_after_every_later_card(self):
+        starter = attack(
+            'unbounded-combo-starter', 'p1', frame=2, damage=1000,
+            hit='콤보',
+        )
+        followups = [
+            attack(
+                f'unbounded-combo-{combo_number}', 'p1',
+                frame=combo_number + 1, damage=1000,
+            )
+            for combo_number in range(2, 7)
+        ]
+        opposing = attack('unbounded-combo-opposing', 'p2', frame=9)
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [starter]
+        state['players']['p1']['zones']['hand'] = list(followups)
+        state['players']['p2']['zones']['battle'] = [opposing]
+        engine = AutomaticGameEngine.initialize(
+            state, ruleset(starter, *followups, opposing),
+            seed='unbounded-combo-continuation',
+        )
+        engine.state['phase'] = 'battle'
+        engine.engine_state['battle'] = {
+            'p1': {'instance_id': starter['instance_id'], 'card': starter},
+            'p2': {'instance_id': opposing['instance_id'], 'card': opposing},
+        }
+        engine.grant_combo('p1', source=starter['instance_id'])
+
+        first = next(
+            action for action in engine.legal_actions('p1')
+            if action.get('type') == 'select_combo_first'
+            and action['payload']['card_instance_id']
+            == followups[0]['instance_id']
+        )
+        engine.submit_action(
+            'p1', first['action_id'], {}, command_id='unbounded-first',
+        )
+        third = next(
+            action for action in engine.legal_actions('p1')
+            if action.get('type') == 'select_combo_followup'
+            and action['payload']['card_instance_id']
+            == followups[1]['instance_id']
+        )
+        engine.submit_action(
+            'p1', third['action_id'], {}, command_id='unbounded-third',
+        )
+
+        for combo_number, card in enumerate(followups[2:], start=4):
+            action = next(
+                action for action in engine.legal_actions('p1')
+                if action.get('type') == 'play_combo_card'
+                and action['payload']['card_instance_id']
+                == card['instance_id']
+            )
+            engine.submit_action(
+                'p1', action['action_id'], {},
+                command_id=f'unbounded-{combo_number}',
+            )
+
+        self.assertEqual([
+            event['payload']['card_instance_id']
+            for event in engine.events
+            if event.get('type') == 'combo_card_used'
+        ], [card['instance_id'] for card in followups])
+        self.assertIsNone(engine._combo_maximum(
+            'p1', engine.engine_state.get('combo') or {},
+        ))
+
+    def test_result_triggers_are_source_bound_and_counter_direction_is_stable(self):
+        def definition(ability_id, event, counter, *, active_zones=None, allow=False):
+            ability = {
+                'id': ability_id, 'kind': 'effect', 'mode': 'mandatory',
+                'timing': event, 'visibility': 'public',
+                'trigger': {'event': event},
+                'effects': [{
+                    'op': 'change_counter',
+                    'player': {'controller': True},
+                    'counter': counter, 'amount': 1,
+                }],
+            }
+            if active_zones is not None:
+                ability['active_zones'] = active_zones
+            if allow:
+                ability['allow_non_source_trigger'] = True
+            return {'schema_version': 1, 'abilities': [ability]}
+
+        for label, winner_frame, winner_special in (
+            ('speed', 4, None),
+            ('special-dodge', 8, '상단 회피'),
+        ):
+            with self.subTest(label=label):
+                winner = attack(
+                    f'{label}-winner', 'p1', code=f'{label}-WINNER',
+                    frame=winner_frame, special=winner_special,
+                )
+                loser = attack(
+                    f'{label}-loser', 'p2', code=f'{label}-LOSER',
+                    frame=6 if label == 'speed' else 4,
+                    position='상단',
+                )
+                list_rocket = attack(
+                    f'{label}-list-rocket', 'p2',
+                    code=f'{label}-LIST-ROCKET',
+                )
+                explicit_listener = attack(
+                    f'{label}-explicit-listener', 'p2',
+                    code=f'{label}-EXPLICIT-LISTENER',
+                )
+                state = base_state([winner], [loser])
+                state['players']['p2']['zones']['list'] = [
+                    list_rocket, explicit_listener,
+                ]
+                release = ruleset(
+                    winner, loser, list_rocket, explicit_listener,
+                )
+                release['cards'][winner['code']]['effect_definition'] = definition(
+                    f'{label}-own-counter', 'counter', 'own_counter',
+                )
+                release['cards'][loser['code']]['effect_definition'] = definition(
+                    f'{label}-opponent-counter', 'opponent_counter',
+                    'opponent_counter',
+                )
+                release['cards'][list_rocket['code']]['effect_definition'] = definition(
+                    f'{label}-invalid-list-opponent-counter',
+                    'opponent_counter', 'invalid_list_trigger',
+                    active_zones=['list'],
+                )
+                release['cards'][explicit_listener['code']]['effect_definition'] = definition(
+                    f'{label}-explicit-list-reaction',
+                    'opponent_counter', 'explicit_list_trigger',
+                    active_zones=['list'], allow=True,
+                )
+                engine = AutomaticGameEngine.initialize(
+                    state, release, seed=f'counter-source-binding:{label}',
+                )
+
+                self.ready_both(engine)
+                self.resolve_effect_orders(engine)
+
+                judged = next(
+                    event for event in engine.events
+                    if event.get('type') == 'battle_judged'
+                )
+                self.assertEqual(
+                    judged['payload']['result'],
+                    {'p1': 'counter', 'p2': 'countered'},
+                )
+                resolved = [
+                    (event.get('payload') or {}).get('ability_id')
+                    for event in engine.events
+                    if event.get('type') == 'effect_resolved'
+                ]
+                self.assertEqual(
+                    resolved.count(f'{label}-own-counter'), 1,
+                )
+                self.assertEqual(
+                    resolved.count(f'{label}-opponent-counter'), 1,
+                )
+                self.assertNotIn(
+                    f'{label}-invalid-list-opponent-counter', resolved,
+                )
+                self.assertEqual(
+                    resolved.count(f'{label}-explicit-list-reaction'), 1,
+                )
+                self.assertEqual(
+                    engine.state['players']['p1']['passive_state']
+                    ['own_counter']['count'],
+                    1,
+                )
+                p2_passive = engine.state['players']['p2']['passive_state']
+                self.assertEqual(p2_passive['opponent_counter']['count'], 1)
+                self.assertNotIn('invalid_list_trigger', p2_passive)
+                self.assertEqual(p2_passive['explicit_list_trigger']['count'], 1)
 
     def test_late_combo_card_extends_proposal_depth_from_its_static_rule(self):
         starter = attack('late-starter', 'p1', frame=4, damage=500, hit='콤보')
         second = attack('late-second', 'p1', frame=5, damage=500, hit='0')
-        third = attack('late-third', 'p1', frame=7, damage=500, hit='0')
-        late = attack('late-fourth', 'p1', code='ST1-019', frame=10, damage=500, hit='0')
+        third = attack('late-third', 'p1', frame=6, damage=500, hit='0')
+        late = attack('late-fourth', 'p1', code='ST1-019', frame=7, damage=500, hit='0')
         opposing = attack('late-opposing', 'p2', frame=6, damage=400)
         state = base_state([second, third, late], [])
         state['phase'] = 'battle'
@@ -1419,21 +3036,26 @@ class AutomaticEngineTests(SimpleTestCase):
         }
         engine.grant_combo('p1', source=starter['instance_id'])
 
-        actions = engine.legal_actions('p1')
-        sequences = [
+        actions = engine._combo_actions('p1', engine.engine_state['combo'])
+        pairs = [
             (action.get('payload') or {}).get('card_instance_ids')
             for action in actions
-            if action.get('type') == 'play_combo_sequence'
+            if action.get('type') == 'play_combo_pair'
         ]
         self.assertIn(
-            [second['instance_id'], third['instance_id'], late['instance_id']],
-            sequences,
+            [second['instance_id'], third['instance_id']], pairs,
         )
-        self.assertFalse(any(
+        pair = next(
+            action for action in actions
+            if (action.get('payload') or {}).get('card_instance_ids')
+            == [second['instance_id'], third['instance_id']]
+        )
+        self.submit_initial_combo_pair(engine, 'p1', pair)
+        followups = engine.legal_actions('p1')
+        self.assertTrue(any(
             action.get('type') == 'play_combo_card'
             and (action.get('payload') or {}).get('card_instance_id')
-            == late['instance_id']
-            for action in actions
+            == late['instance_id'] for action in followups
         ))
 
     def test_st1_019_draft_compiles_grab_and_delayed_combo_rules(self):
@@ -1656,7 +3278,7 @@ class AutomaticEngineTests(SimpleTestCase):
     def test_multiple_trigger_events_resolve_the_same_ability_at_each_event(self):
         source = attack('source', 'p1', code='SOURCE')
         state = base_state([], [])
-        state['players']['p1']['zones']['lumen'].append(source)
+        state['players']['p1']['zones']['battle'].append(source)
         release = ruleset(source)
         definition = build_effect_draft(
             'SOURCE', '①히트 및 카운터 시, 1FP를 얻는다.',
@@ -1672,8 +3294,12 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(definition['abilities'][0]['trigger'], {
             'event': 'hit', 'events': ['hit', 'counter'],
         })
-        engine._fire('hit', {})
-        engine._fire('counter', {})
+        source_context = {
+            'controller': 'p1', 'source_card': source,
+            'source_card_instance_id': source['instance_id'],
+        }
+        engine._fire('hit', source_context)
+        engine._fire('counter', source_context)
         self.assertEqual(engine.state['players']['p1']['fp'], 2)
         self.assertEqual(validate_effect_definition(definition, card_has_text=True), [])
 
@@ -1712,14 +3338,17 @@ class AutomaticEngineTests(SimpleTestCase):
 
     def test_hit_judgment_change_opens_combo_in_the_same_battle(self):
         attacker = attack('judgment-attacker', 'p1', code='JUDGMENT', hit='0')
+        combo_two = attack('judgment-combo-two', 'p1', frame=6)
+        combo_three = attack('judgment-combo-three', 'p1', frame=7)
         defender = defense('failed-defense', 'p2', top=None)
-        release = ruleset(attacker, defender)
+        release = ruleset(attacker, combo_two, combo_three, defender)
         definition = build_effect_draft(
             'JUDGMENT', '①히트 시, 이 기술의 히트 판정을 <콤보>로 변경한다.',
         )
         release['cards']['JUDGMENT']['effect_definition'] = definition
         engine = AutomaticGameEngine.initialize(
-            base_state([attacker], [defender]), release, seed='judgment-test',
+            base_state([attacker, combo_two, combo_three], [defender]),
+            release, seed='judgment-test',
         )
 
         command = definition['abilities'][0]['effects'][0]
@@ -2405,6 +4034,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(face_down['selector']['zones'], ['hand'])
         self.assertEqual([item['op'] for item in face_down['then']], ['move_card', 'hide'])
         self.assertEqual(face_down['then'][0]['to_zone'], 'lumen')
+        self.assertFalse(face_down['then'][0]['face_up'])
         self.assertEqual(self_move, [{'op': 'move_card', 'to_zone': 'side'}])
         self.assertEqual(condition['abilities'][1]['condition'], {
             'op': 'lte', 'left': 'context.controller_hp', 'right': 3000,
@@ -4080,8 +5710,9 @@ class AutomaticEngineTests(SimpleTestCase):
         release['cards']['COMBO-CANDIDATE']['effect_definition'] = definition
         engine = AutomaticGameEngine.initialize(state, release, seed='combo-speeds')
         engine.engine_state['combo'] = {
-            'owner': 'p1', 'source': 'combo-source', 'used': [],
-            'last_speed': 6, 'next_penalty': 100,
+            'owner': 'p1', 'source': 'combo-source',
+            'used': ['resolved-two', 'resolved-three'],
+            'last_speed': 6, 'next_penalty': 300, 'max_combo': 4,
         }
         engine.engine_state['step'] = 'combo'
 
@@ -4090,7 +5721,9 @@ class AutomaticEngineTests(SimpleTestCase):
             if action['type'] == 'play_combo_card'
         ]
 
-        self.assertEqual([action['payload']['combo_speed'] for action in actions], [7, 9])
+        self.assertEqual(
+            [action['payload']['combo_speed'] for action in actions], [7],
+        )
         engine._play_combo('p1', ['combo-candidate'], [7])
         self.assertEqual(
             engine.card_stat(engine._find_card('combo-candidate'), 'frame', 'p1'), 7,
@@ -4112,8 +5745,9 @@ class AutomaticEngineTests(SimpleTestCase):
         release['cards']['ANY-SPEED']['effect_definition'] = definition
         engine = AutomaticGameEngine.initialize(state, release, seed='any-combo-speed')
         engine.engine_state['combo'] = {
-            'owner': 'p1', 'source': 'combo-source', 'used': [],
-            'last_speed': 8, 'next_penalty': 100,
+            'owner': 'p1', 'source': 'combo-source',
+            'used': ['resolved-two', 'resolved-three'],
+            'last_speed': 8, 'next_penalty': 300, 'max_combo': 4,
         }
         engine.engine_state['step'] = 'combo'
 
@@ -6856,6 +8490,7 @@ class AutomaticEngineTests(SimpleTestCase):
         selected = without_state['owner-p1-selects-second-list-technique']
         self.assertEqual(len(selected['option_ids']), 2)
         self.assertEqual(selected['selected_zone'], 'lumen')
+        self.assertTrue(selected['selected_face_up'])
         replay = without_state[
             'qna-650-state-change-does-not-replay-second-effect'
         ]
@@ -8808,7 +10443,7 @@ class AutomaticEngineTests(SimpleTestCase):
             validate_effect_definition(definition, card_has_text=True), [],
         )
 
-    def test_awl_at_038_reviews_clash_damage_and_four_combo_extension(self):
+    def test_awl_at_038_reviews_clash_damage_and_four_combo_minimum(self):
         text = (
             '①상쇄 시, 상대 기술의 속도가 8속도 이상일 경우 '
             '이 기술 데미지+200\n'
@@ -8858,17 +10493,20 @@ class AutomaticEngineTests(SimpleTestCase):
         combo = {
             item['name']: item for item in by_id['awl-at-038-n2'].scenarios
         }
-        self.assertEqual(combo['normal-two-combo-remains-legal']['damage'], 600)
-        self.assertEqual(combo['normal-three-combo-remains-legal']['damage'], 500)
-        self.assertEqual(combo['effect-extends-use-to-four-combo']['damage'], 400)
+        self.assertFalse(combo['two-combo-is-before-minimum']['legal'])
+        self.assertFalse(combo['three-combo-is-before-minimum']['legal'])
+        self.assertEqual(combo['four-combo-meets-minimum']['damage'], 400)
         invalid = copy.deepcopy(definition)
-        invalid['combo_rules'][0]['extend_combo_to'] = 1
-        self.assertTrue(any(
-            issue.path.endswith('.extend_combo_to')
-            for issue in validate_effect_definition(
-                invalid, card_has_text=True,
-            )
-        ))
+        invalid['combo_rules'][0]['min_combo'] = 3
+        self.assertFalse(review_automatic_definition(
+            invalid, card_has_text=True,
+            card_snapshot={
+                'code': 'AWL-AT-038', 'name': '제트 라이징',
+                'type': '공격', 'text': text, 'frame': 11, 'damage': 700,
+                'pos': '중단', 'body': '', 'special': '중단 상쇄',
+                'hit': '콤보', 'guard': '-8', 'counter': '콤보',
+            },
+        ).passed)
         self.assertEqual(
             validate_effect_definition(definition, card_has_text=True), [],
         )
@@ -10346,9 +11984,10 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(resolved['source_zone'], 'break')
         self.assertTrue(resolved['damage_before_break'])
         rejected = catch[
-            'catch-maximum-seven-rejects-fixed-speed-eight'
+            'catch-maximum-seven-keeps-printed-speed-five'
         ]
-        self.assertEqual(rejected['action_count'], 0)
+        self.assertEqual(rejected['action_count'], 1)
+        self.assertEqual(rejected['available_speeds'], [5])
         negated = catch[
             'numbered-effects-negated-use-printed-speed-without-bonus-or-break'
         ]
@@ -11023,7 +12662,7 @@ class AutomaticEngineTests(SimpleTestCase):
             'dark-night-owner-p1-four-combo-ignores-scaling'
         ]
         self.assertTrue(fourth['legal'])
-        self.assertEqual(fourth['maximum_combo'], 4)
+        self.assertIsNone(fourth['maximum_combo'])
         self.assertEqual(fourth['damage'], 500)
         qna_407 = combo[
             'qna-407-dark-night-gained-in-same-battle-enables-four-combo'
@@ -11033,8 +12672,9 @@ class AutomaticEngineTests(SimpleTestCase):
         negated = combo[
             'negated-numbered-effect-cannot-extend-to-four-combo'
         ]
-        self.assertFalse(negated['legal'])
-        self.assertEqual(negated['maximum_combo'], 3)
+        self.assertTrue(negated['legal'])
+        self.assertIsNone(negated['maximum_combo'])
+        self.assertEqual(negated['damage'], 200)
 
         recovery = {
             item['name']: item
@@ -13051,11 +14691,11 @@ class AutomaticEngineTests(SimpleTestCase):
             'p2', 'p2-midnight-effect-catch-source',
         ))
         declined = catch_priority[
-            'qna-406-declining-effect-catch-offers-owner-fp-catch'
+            'qna-406-declining-effect-catch-skips-unusable-fp-catch'
         ]
         self.assertEqual(
             (declined['after_owner'], declined['after_source']),
-            ('p1', 'fp'),
+            (None, None),
         )
         played = catch_priority[
             'qna-406-playing-effect-catch-resets-fp-before-fp-catch'
@@ -15507,6 +17147,178 @@ class AutomaticEngineTests(SimpleTestCase):
         )
         self.assertFalse(mutated_result.passed)
 
+    def test_cb03_at_034_reviews_setup_atomic_cost_and_turn_use_lock(self):
+        text = (
+            '게임 시작 시, 사이드 덱에서 루멘 존에 배치한다. '
+            '①기술의 사용 시, 상대 기술의 가드 판정이 <-7> 이상이라면 '
+            '패에서 수비 기술 1장을 버리고 이 기술을 브레이크할 수 있다. '
+            '그 경우, 이번 턴 상대는 추가로 카드를 사용할 수 없다.'
+        )
+        snapshot = {
+            'code': 'CB03-AT-034', 'name': '세이프티 디스턴스',
+            'type': '특수', 'text': text, 'detail_text': '',
+            'frame': None, 'damage': None, 'pos': None, 'body': '',
+            'special': None, 'hit': '0', 'guard': '0', 'counter': '0',
+            'g_top': None, 'g_mid': None, 'g_bot': None,
+            'character_id': 1, 'ultimate': False,
+        }
+        definition = build_effect_draft('CB03-AT-034', text)
+        result = review_automatic_definition(
+            definition, card_has_text=True, card_snapshot=snapshot,
+        )
+
+        self.assertTrue(result.passed, result.as_dict())
+        self.assertEqual(len(result.abilities), 2)
+        self.assertEqual(
+            sum(len(item.scenarios) for item in result.abilities), 14,
+        )
+        self.assertTrue(all(
+            item.passed and len(item.scenarios) >= 3
+            and all(scenario['deterministic'] for scenario in item.scenarios)
+            for item in result.abilities
+        ))
+        by_id = {item.ability_id: item for item in result.abilities}
+        setup = {
+            item['name']: item
+            for item in by_id['cb03-at-034-function'].scenarios
+        }
+        self.assertEqual(
+            setup['owner-p1-game-start-moves-side-to-lumen'][
+                'source_zone'
+            ],
+            'lumen',
+        )
+        distance = {
+            item['name']: item
+            for item in by_id['cb03-at-034-n1'].scenarios
+        }
+        paid = distance[
+            'owner-p1-boundary-pays-both-costs-and-blocks-use'
+        ]
+        self.assertEqual(
+            (paid['source_zone'], paid['selected_zone']),
+            ('break', 'list'),
+        )
+        self.assertTrue(paid['use_blocked'])
+        self.assertTrue(paid['current_battle_card_preserved'])
+        blocked_cost = distance[
+            'blocked-source-break-stops-discard-and-lock'
+        ]
+        self.assertEqual(blocked_cost['candidate_zones'], ['hand'])
+        self.assertFalse(blocked_cost['use_blocked'])
+        self.assertTrue(
+            distance['turn-expiry-removes-use-lock'][
+                'use_allowed_after_expiry'
+            ]
+        )
+        self.assertEqual(
+            validate_effect_definition(definition, card_has_text=True), [],
+        )
+
+        mutated = copy.deepcopy(definition)
+        mutated_n1 = next(
+            item for item in mutated['abilities']
+            if item['id'] == 'cb03-at-034-n1'
+        )
+        prevent = next(
+            node for node in _effect_nodes(mutated_n1['effects'])
+            if node.get('op') == 'prevent'
+        )
+        prevent['kind'] = 'catch'
+        mutated_result = review_automatic_definition(
+            mutated, card_has_text=True, card_snapshot=snapshot,
+        )
+        self.assertFalse(mutated_result.passed)
+
+    def test_cb03_at_035_reviews_dodge_change_and_counter_damage(self):
+        text = (
+            '이 기술은 <7속도 이하> 기술만 회피한다.\n'
+            '①판정 전, 상대 기술이 <5속도 이하>일 경우 이 기술의 '
+            '특수 판정을 <중단 회피>로 변경한다.\n'
+            '②카운터 시, 상대 기술에 <손>판정이 있을 경우 '
+            '이 기술의 데미지+200'
+        )
+        snapshot = {
+            'code': 'CB03-AT-035', 'name': '비셔스 바이트',
+            'type': '공격', 'text': text, 'detail_text': '',
+            'frame': 10, 'damage': 400, 'pos': '상단', 'body': '손',
+            'special': '상단 회피', 'hit': '4', 'guard': '0',
+            'counter': '5', 'g_top': None, 'g_mid': None, 'g_bot': None,
+            'character_id': 1, 'ultimate': False,
+        }
+        definition = build_effect_draft('CB03-AT-035', text)
+        result = review_automatic_definition(
+            definition, card_has_text=True, card_snapshot=snapshot,
+        )
+
+        self.assertTrue(result.passed, result.as_dict())
+        self.assertEqual(len(result.abilities), 3)
+        self.assertEqual(
+            sum(len(item.scenarios) for item in result.abilities), 18,
+        )
+        self.assertTrue(all(
+            item.passed and len(item.scenarios) >= 3
+            and all(scenario['deterministic'] for scenario in item.scenarios)
+            for item in result.abilities
+        ))
+        by_id = {item.ability_id: item for item in result.abilities}
+        dodge = {
+            item['name']: item
+            for item in by_id['cb03-at-035-function'].scenarios
+        }
+        self.assertEqual(
+            dodge['speed-eight-is-not-dodged']['result'],
+            ['hit', 'failed_defense'],
+        )
+        position = {
+            item['name']: item
+            for item in by_id['cb03-at-035-n1'].scenarios
+        }
+        self.assertEqual(
+            position['owner-p1-speed-five-changes-to-mid-dodge'][
+                'special'
+            ],
+            '중단 회피',
+        )
+        self.assertEqual(
+            position['speed-six-keeps-printed-top-dodge']['special'],
+            '상단 회피',
+        )
+        damage = {
+            item['name']: item
+            for item in by_id['cb03-at-035-n2'].scenarios
+        }
+        self.assertEqual(
+            damage['owner-p1-counters-hand-technique-for-plus-200'][
+                'damage'
+            ],
+            600,
+        )
+        self.assertEqual(
+            damage['opponent-counter-does-not-trigger-this-card']['damage'],
+            400,
+        )
+        self.assertEqual(
+            damage['battle-expiry-removes-damage-bonus'][
+                'damage_after_expiry'
+            ],
+            400,
+        )
+        self.assertEqual(
+            validate_effect_definition(definition, card_has_text=True), [],
+        )
+
+        mutated = copy.deepcopy(definition)
+        mutated_n1 = next(
+            item for item in mutated['abilities']
+            if item['id'] == 'cb03-at-035-n1'
+        )
+        mutated_n1['condition']['right'] = 6
+        mutated_result = review_automatic_definition(
+            mutated, card_has_text=True, card_snapshot=snapshot,
+        )
+        self.assertFalse(mutated_result.passed)
+
     def test_dfr_at_004_reviews_nonstacking_guitar_and_numbered_combo_speed(self):
         text = (
             '①[[token:guitar]](<[[character:cmyk]]> 기술에 세트된 경우, '
@@ -16640,6 +18452,7 @@ class AutomaticEngineTests(SimpleTestCase):
         combo = {
             item['name']: item for item in by_id['dfr-at-020-n2'].scenarios
         }
+        self.assertTrue(definition['abilities'][2]['requires_combo_use'])
         selected = combo['both-players-select-maximum-and-ready-restarts']
         self.assertEqual(
             [item['owner'] for item in selected['trace']], ['p1', 'p2'],
@@ -18933,7 +20746,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(success['activation_kind'], 'optional_effect')
         self.assertEqual(success['cost_choice_range'], (2, 2))
         self.assertEqual(success['scheduled_before_recovery'], 1)
-        self.assertEqual(success['recovery_choice_range'], (2, 2))
+        self.assertEqual(success['recovery_choice_range'], (0, 2))
         self.assertEqual(
             sum(zone == 'side' for zone in success['cost_zones'].values()), 2,
         )
@@ -18985,6 +20798,12 @@ class AutomaticEngineTests(SimpleTestCase):
             'op': 'prevent', 'kind': 'get_card', 'scope': 'source_card',
             'player': {'controller': True}, 'duration': 'turn',
         })
+        self.assertEqual(
+            combo_definition['effects'][0]['then'][1]['then'][0]['effect'][
+                'selector'
+            ]['min'],
+            0,
+        )
         self.assertEqual(
             validate_effect_definition(definition, card_has_text=True), [],
         )
@@ -22965,6 +24784,91 @@ class AutomaticEngineTests(SimpleTestCase):
         judgment = next(event for event in engine.events if event['type'] == 'battle_judged')
         self.assertEqual(judgment['payload']['result'], {'p1': 'hit', 'p2': 'failed_defense'})
 
+    def test_inactive_unguardable_card_does_not_stop_down_guard_from_guarding_lap_cats(self):
+        down_guard = defense(
+            'down-guard', 'p1', top='회피', mid='방어', bottom='방어',
+        )
+        down_guard.update({'code': 'ST1-012', 'name': '다운 가드'})
+        lap_cats = attack(
+            'lap-cats', 'p2', code='ST1-001', frame=5, damage=400,
+            position='하단',
+        )
+        lap_cats['name'] = '랩 캐츠'
+        inactive_rocket = attack(
+            'inactive-rocket', 'p2', code='ST1-009', frame=13,
+            damage=1200, position='상단',
+        )
+        inactive_rocket['name'] = '라이! 레피! 로켓!'
+        engine = self.make_engine(
+            [down_guard], [lap_cats, inactive_rocket],
+        )
+        engine.ruleset['cards']['ST1-009']['effect_definition'] = {
+            'schema_version': 1,
+            'abilities': [{
+                'id': 'st1-009-function', 'kind': 'function',
+                'mode': 'continuous', 'timing': 'function',
+                'effects': [
+                    {
+                        'op': 'prevent', 'kind': 'guard',
+                        'player': {'opponent': True},
+                        'duration': 'continuous',
+                    },
+                    {
+                        'op': 'prevent', 'kind': 'clash',
+                        'player': {'opponent': True},
+                        'duration': 'continuous',
+                    },
+                ],
+            }],
+        }
+        self.enter_ready(engine)
+        self.act(engine, 'p1', 'ready_card')
+        lap_action = next(
+            item for item in engine.legal_actions('p2')
+            if item['type'] == 'ready_card'
+            and item['payload']['card_instance_id'] == 'lap-cats'
+        )
+        engine.submit_action(
+            'p2', lap_action['action_id'], {}, command_id='ready-lap-cats',
+        )
+
+        judgment = next(
+            event for event in engine.events
+            if event['type'] == 'battle_judged'
+        )
+        self.assertEqual(
+            judgment['payload']['result'],
+            {'p1': 'guard', 'p2': 'guarded'},
+        )
+
+    def test_current_technique_continuous_function_is_active_without_explicit_zone(self):
+        attacker = attack('active-unguardable', 'p1', frame=5, damage=400)
+        defender = defense('active-guard', 'p2', top='방어')
+        engine = self.make_engine([attacker], [defender])
+        engine.ruleset['cards'][attacker['code']]['effect_definition'] = {
+            'schema_version': 1,
+            'abilities': [{
+                'id': 'active-unguardable-function', 'kind': 'function',
+                'mode': 'continuous', 'timing': 'function',
+                'effects': [{
+                    'op': 'prevent', 'kind': 'guard',
+                    'player': {'opponent': True},
+                    'duration': 'continuous',
+                }],
+            }],
+        }
+
+        self.ready_both(engine)
+
+        judgment = next(
+            event for event in engine.events
+            if event['type'] == 'battle_judged'
+        )
+        self.assertEqual(
+            judgment['payload']['result'],
+            {'p1': 'hit', 'p2': 'failed_defense'},
+        )
+
     def test_conditional_prevent_limits_defense_dodge_speed(self):
         attacker = attack('slow-attack', 'p1', frame=9, damage=400)
         defender = defense('limited-dodge', 'p2', top='회피')
@@ -23043,15 +24947,15 @@ class AutomaticEngineTests(SimpleTestCase):
         engine.grant_combo('p1', source=source['instance_id'])
 
         proposal = next(
-            item for item in engine.legal_actions('p1')
+            item for item in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            )
             if item['type'] == 'play_combo_pair'
             and item['payload']['card_instance_ids'] == [
                 predecessor['instance_id'], current['instance_id'],
             ]
         )
-        engine.submit_action(
-            'p1', proposal['action_id'], proposal['payload'], command_id='combo-proposal',
-        )
+        self.submit_initial_combo_pair(engine, 'p1', proposal)
         self.assertEqual(engine.engine_state['pending_decision']['kind'], 'optional_effect')
 
         self.act(engine, 'p1', 'submit_decision', {'selected': ['accept']})
@@ -23330,11 +25234,13 @@ class AutomaticEngineTests(SimpleTestCase):
         first['text'] = '[[state:paladin]]: 테스트'
         second = attack('saintess-list-second', 'p1', frame=7, damage=500)
         second['text'] = '[[state:saintess]]: 테스트'
+        followup = attack('paladin-hand-followup', 'p1', frame=7, damage=500)
         state = base_state([], [])
         state['phase'] = 'battle'
         state['players']['p1']['zones']['battle'] = [source]
+        state['players']['p1']['zones']['hand'] = [followup]
         state['players']['p1']['zones']['list'] = [first, second]
-        release = ruleset(source, first, second)
+        release = ruleset(source, first, second, followup)
         release['cards']['DFR-AT-026']['effect_definition'] = definition
         engine = AutomaticGameEngine.initialize(state, release, seed='flexible-list-combo')
         engine.state['phase'] = 'battle'
@@ -23354,12 +25260,16 @@ class AutomaticEngineTests(SimpleTestCase):
 
         engine.grant_combo('p1', source=source['instance_id'])
         combo_actions = engine._combo_actions('p1', engine.engine_state['combo'])
-        self.assertTrue(any(
-            action['type'] == 'play_combo_card'
-            and action['payload']['card_instance_id'] == first['instance_id']
-            for action in combo_actions
-        ))
-        engine._play_combo('p1', [first['instance_id']])
+        action = next(
+            action for action in combo_actions
+            if action['type'] == 'play_combo_pair'
+            and action['payload']['card_instance_ids']
+            == [first['instance_id'], followup['instance_id']]
+        )
+        engine._play_combo(
+            'p1', action['payload']['card_instance_ids'],
+            action['payload']['combo_speeds'],
+        )
 
         usage = engine.engine_state['usage']['turn']['p1']
         self.assertEqual(usage[modifier['usage_key']], 1)
@@ -23583,6 +25493,7 @@ class AutomaticEngineTests(SimpleTestCase):
         )
         source = attack('borrow-source', 'p1', code='LMI-AT-023', frame=12, hit='콤보')
         borrowed = attack('borrowed-list-card', 'p2', code='BORROWED-CARD', frame=10, damage=500)
+        followup = attack('borrow-followup', 'p1', frame=11, damage=400)
         borrowed_definition = {
             'schema_version': 1,
             'abilities': [{
@@ -23598,8 +25509,9 @@ class AutomaticEngineTests(SimpleTestCase):
         state = base_state([], [])
         state['phase'] = 'battle'
         state['players']['p1']['zones']['battle'] = [source]
+        state['players']['p1']['zones']['hand'] = [followup]
         state['players']['p2']['zones']['list'] = [borrowed]
-        release = ruleset(source, borrowed)
+        release = ruleset(source, borrowed, followup)
         release['cards']['LMI-AT-023']['effect_definition'] = definition
         release['cards']['BORROWED-CARD']['effect_definition'] = borrowed_definition
         engine = AutomaticGameEngine.initialize(state, release, seed='borrow-opponent-combo')
@@ -23611,14 +25523,20 @@ class AutomaticEngineTests(SimpleTestCase):
         self.act(engine, 'p1', 'submit_decision', {'selected': ['accept']})
         borrowed_action = next(
             action for action in engine._combo_actions('p1', engine.engine_state['combo'])
-            if action['type'] == 'play_combo_card'
-            and action['payload']['card_instance_id'] == borrowed['instance_id']
+            if action['type'] == 'play_combo_pair'
+            and action['payload']['card_instance_ids'] == [
+                borrowed['instance_id'], followup['instance_id'],
+            ]
         )
-        self.assertEqual(borrowed_action['payload']['combo_speed'], 10)
+        self.assertEqual(borrowed_action['payload']['combo_speeds'], [10, 11])
 
-        engine._play_combo('p1', [borrowed['instance_id']], [10])
+        engine._play_combo(
+            'p1', [borrowed['instance_id'], followup['instance_id']], [10, 11],
+        )
         engine._continue()
-        self.assertEqual(engine.state['players']['p2']['hp'], 4600)
+        # The borrowed 2-Combo deals 400 after its normal penalty and the
+        # required 3-Combo deals another 200.
+        self.assertEqual(engine.state['players']['p2']['hp'], 4400)
         returned = engine._find_card(borrowed['instance_id'], owner='p2', zone='list')
         self.assertIsNotNone(returned)
         self.assertNotIn('borrowed_combo', returned)
@@ -23874,6 +25792,68 @@ class AutomaticEngineTests(SimpleTestCase):
         )
         self.assertEqual(validate_effect_definition(definition, card_has_text=True), [])
 
+    def test_first_lumen_window_waits_for_all_game_start_effects(self):
+        """A blocking setup choice must not pre-collect Lumen triggers."""
+        blocker = attack(
+            'game-start-choice-blocker', 'p1', code='BLOCK-PS-001',
+        )
+        third_eye = attack(
+            'third-eye-startup-order', 'p2', code='CRS-PS-002',
+        )
+        opposing_hand = attack('third-eye-hidden-hand', 'p1')
+        state = base_state([opposing_hand], [])
+        state['players']['p1']['zones']['passive'] = [blocker]
+        state['players']['p2']['zones']['passive'] = [third_eye]
+        release = ruleset(blocker, third_eye, opposing_hand)
+        release['cards'][blocker['code']]['effect_definition'] = {
+            'schema_version': 1,
+            'abilities': [{
+                'id': 'blocking-game-start-choice', 'kind': 'effect',
+                'mode': 'optional', 'timing': 'function',
+                'visibility': 'public', 'active_zones': ['passive'],
+                'trigger': {'event': 'game_start'},
+                'effects': [],
+            }],
+        }
+        release['cards'][third_eye['code']]['effect_definition'] = (
+            build_effect_draft(
+                'CRS-PS-002',
+                '게임 시작 시, 자신은 [[token:foresight]]카운터 2개를 얻는다.\n'
+                '①루멘 페이즈 시, [[token:foresight]]카운터 1개를 '
+                '제거하고 발동할 수 있다.\n'
+                '이번 턴, 상대는 무작위로 패 1장을 공개하고 있어야 하며 '
+                '레디 페이즈 시, 먼저 레디하여야 한다. 그 후, 임의의 '
+                '[[token:foresight]]카운터를 제거할 수 있다.\n'
+                '제거한 카운터 수만큼 이번 턴 상대는 무작위 패를 공개한다.\n'
+                '②게임 중 1번, 자신의 체력이 2000 이하가 되었을 때 '
+                '[[token:foresight]]카운터 1개를 얻는다.',
+            )
+        )
+
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='separate-game-start-and-first-lumen',
+        )
+
+        decision = engine.engine_state.get('pending_decision') or {}
+        self.assertEqual(decision.get('owner'), 'p1')
+        self.assertEqual(decision.get('kind'), 'optional_effect')
+        self.assertNotIn(
+            'foresight',
+            engine.state['players']['p2']['passive_state'],
+        )
+        self.act(
+            engine, 'p1', 'submit_decision', {'selected': ['decline']},
+        )
+
+        self.assertEqual(
+            engine.state['players']['p2']['passive_state']['foresight']['count'],
+            2,
+        )
+        lumen_decision = engine.engine_state.get('pending_decision') or {}
+        self.assertEqual(lumen_decision.get('owner'), 'p2')
+        self.assertEqual(lumen_decision.get('kind'), 'optional_effect')
+        self.assertNotIn('startup_stage', engine.engine_state)
+
     def test_disaster_guess_supports_attack_parity_defense_and_repeat_after_wrong(self):
         definition = build_effect_draft(
             'DFR-AT-033',
@@ -24017,15 +25997,15 @@ class AutomaticEngineTests(SimpleTestCase):
         engine.grant_combo('p1', source=one_combo['instance_id'])
 
         proposal = next(
-            action for action in engine.legal_actions('p1')
+            action for action in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            )
             if action['type'] == 'play_combo_pair'
             and action['payload']['card_instance_ids'] == [
                 source['instance_id'], one_combo['instance_id'],
             ]
         )
-        engine.submit_action(
-            'p1', proposal['action_id'], {}, command_id='divertissement-proposal',
-        )
+        self.submit_initial_combo_pair(engine, 'p1', proposal)
         self.assertEqual(engine.engine_state['pending_decision']['kind'], 'optional_effect')
         self.act(engine, 'p1', 'submit_decision', {'selected': ['accept']})
         self.assertEqual(
@@ -24664,11 +26644,12 @@ class AutomaticEngineTests(SimpleTestCase):
     def test_source_effect_grants_one_list_combo_and_breaks_that_card_after_use(self):
         source = attack('source-card', 'p1', code='SOURCE-CARD', frame=5, hit='콤보')
         candidate = attack('list-card', 'p1', code='LIST-CARD', frame=7, damage=500)
-        state = base_state([], [])
+        followup = attack('list-combo-followup', 'p1', frame=8, damage=400)
+        state = base_state([followup], [])
         state['phase'] = 'battle'
         state['players']['p1']['zones']['battle'] = [source]
         state['players']['p1']['zones']['list'] = [candidate]
-        release = ruleset(source, candidate)
+        release = ruleset(source, candidate, followup)
         definition = build_effect_draft(
             'SOURCE-CARD',
             '①카운터 시 리스트에 있는 기술 1장을 콤보에 사용할 수 있다.\n'
@@ -24692,10 +26673,12 @@ class AutomaticEngineTests(SimpleTestCase):
         engine.grant_combo('p1', source='source-card')
         action = next(
             item for item in engine._combo_actions('p1', engine.engine_state['combo'])
-            if item['type'] == 'play_combo_card'
-            and item['payload']['card_instance_id'] == 'list-card'
+            if item['type'] == 'play_combo_pair'
+            and item['payload']['card_instance_ids'] == [
+                'list-card', 'list-combo-followup',
+            ]
         )
-        self.act(engine, 'p1', 'play_combo_card', action['payload'])
+        self.act(engine, 'p1', 'play_combo_pair', action['payload'])
 
         self.assertIsNotNone(engine._find_card('list-card', owner='p1', zone='break'))
         self.assertIsNone(engine._find_card('list-card', owner='p1', zone='battle'))
@@ -25275,7 +27258,9 @@ class AutomaticEngineTests(SimpleTestCase):
         }
         engine.engine_state['combo'] = {
             'owner': 'p1', 'source': support['instance_id'],
-            'special': False, 'used': [], 'next_penalty': 100,
+            'special': False,
+            'used': ['resolved-two', 'resolved-three'],
+            'next_penalty': 300, 'max_combo': 4,
             'proposal_submitted': False,
         }
         engine.engine_state['step'] = 'combo'
@@ -26109,10 +28094,12 @@ class AutomaticEngineTests(SimpleTestCase):
 
         source = attack('combo-source', 'p1', code='UNC-AT-017', hit='콤보')
         charged = attack('charged', 'p1', code='CHARGED', frame=6, damage=500)
+        charged_followup = attack('charged-followup', 'p1', frame=7, damage=400)
         charged['text'] = '[[state:charge]]'
-        release = ruleset(source, charged)
+        release = ruleset(source, charged, charged_followup)
         engine = AutomaticGameEngine.initialize(
-            base_state([charged], []), release, seed='combo-damage-bonus',
+            base_state([charged, charged_followup], []), release,
+            seed='combo-damage-bonus',
         )
         engine.state['phase'] = 'battle'
         engine.state['players']['p1']['zones']['battle'] = [source]
@@ -26121,21 +28108,23 @@ class AutomaticEngineTests(SimpleTestCase):
             {'controller': 'p1', 'source_card_instance_id': 'combo-source'},
         )
         engine.grant_combo('p1', source='combo-source')
-        self.act(engine, 'p1', 'play_combo_card')
+        self.act(engine, 'p1', 'play_combo_pair')
         used = next(event for event in engine.events if event['type'] == 'combo_card_used')
         self.assertEqual(used['payload']['damage'], 500)
 
         repeated_card = attack('repeated', 'p1', code='CB02-AT-026', frame=6, damage=500)
-        repeat_release = ruleset(source, repeated_card)
+        repeated_followup = attack('repeated-followup', 'p1', frame=7, damage=400)
+        repeat_release = ruleset(source, repeated_card, repeated_followup)
         repeat_release['cards']['CB02-AT-026']['effect_definition'] = repeated
         repeat_engine = AutomaticGameEngine.initialize(
-            base_state([repeated_card], []), repeat_release, seed='second-use-combo',
+            base_state([repeated_card, repeated_followup], []), repeat_release,
+            seed='second-use-combo',
         )
         repeat_engine.state['phase'] = 'battle'
         repeat_engine.state['players']['p1']['zones']['battle'] = [source]
         repeat_engine._mark_card_used(repeated_card, 'p1', 'ready')
         repeat_engine.grant_combo('p1', source='combo-source')
-        self.act(repeat_engine, 'p1', 'play_combo_card')
+        self.act(repeat_engine, 'p1', 'play_combo_pair')
         used = next(event for event in repeat_engine.events if event['type'] == 'combo_card_used')
         self.assertEqual(used['payload']['damage'], 500)
         self.assertEqual(validate_effect_definition(repeated, card_has_text=True), [])
@@ -26835,6 +28824,10 @@ class AutomaticEngineTests(SimpleTestCase):
         engine = AutomaticGameEngine.initialize(state, release, seed='st4-list-cost')
         engine.state['phase'] = 'battle'
         engine.grant_combo('p1')
+        engine.engine_state['combo'].update({
+            'used': ['resolved-two', 'resolved-three'],
+            'next_penalty': 300, 'max_combo': 4,
+        })
 
         self.assertTrue(any(
             action['type'] == 'play_combo_card'
@@ -26869,6 +28862,10 @@ class AutomaticEngineTests(SimpleTestCase):
         )
         insufficient.state['phase'] = 'battle'
         insufficient.grant_combo('p1')
+        insufficient.engine_state['combo'].update({
+            'used': ['resolved-two', 'resolved-three'],
+            'next_penalty': 300, 'max_combo': 4,
+        })
         self.assertFalse(any(
             action['type'] == 'play_combo_card'
             and action['payload']['card_instance_id'] == 'st4-insufficient'
@@ -26887,6 +28884,10 @@ class AutomaticEngineTests(SimpleTestCase):
         )
         hand_engine.state['phase'] = 'battle'
         hand_engine.grant_combo('p1')
+        hand_engine.engine_state['combo'].update({
+            'used': ['resolved-two', 'resolved-three'],
+            'next_penalty': 300, 'max_combo': 4,
+        })
         hand_engine._play_combo('p1', ['st4-hand'])
         hand_engine._continue()
         self.assertIsNone(hand_engine.engine_state.get('pending_decision'))
@@ -27075,9 +29076,9 @@ class AutomaticEngineTests(SimpleTestCase):
         qna_665 = counters[
             'qna-665-madness-fourth-then-list-fifth-breaks'
         ]
-        self.assertEqual(qna_665['maximum'], 5)
+        self.assertIsNone(qna_665['maximum'])
         self.assertTrue(qna_665['list_legal'])
-        self.assertFalse(qna_665['hand_legal'])
+        self.assertTrue(qna_665['hand_legal'])
         self.assertEqual(qna_665['selected_zone'], 'break')
         self.assertEqual(qna_665['combo_damage'], 600)
         self.assertEqual(qna_665['usage_count'], 1)
@@ -27086,7 +29087,7 @@ class AutomaticEngineTests(SimpleTestCase):
                 'two_list_sequence_offered'
             ],
         )
-        self.assertFalse(
+        self.assertTrue(
             counters['thief-grant-alone-extends-only-to-fourth'][
                 'list_legal'
             ],
@@ -27100,12 +29101,10 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertFalse(review_automatic_definition(
             invalid_scope, card_has_text=True, card_snapshot=snapshot,
         ).passed)
-        invalid_extension = copy.deepcopy(definition)
-        invalid_extension['abilities'][1]['effects'][0].pop(
-            'extend_combo_by'
-        )
+        invalid_grant = copy.deepcopy(definition)
+        invalid_grant['abilities'][1]['effects'][0].pop('allow_zones')
         self.assertFalse(review_automatic_definition(
-            invalid_extension, card_has_text=True, card_snapshot=snapshot,
+            invalid_grant, card_has_text=True, card_snapshot=snapshot,
         ).passed)
         invalid_limit = copy.deepcopy(definition)
         invalid_limit['abilities'][1]['effects'][0]['max_uses'] = 2
@@ -28027,7 +30026,7 @@ class AutomaticEngineTests(SimpleTestCase):
             heal_state, heal_release, seed='pmp-at-009-heal',
         )
         heal_engine.engine_state['combo'] = {
-            'owner': 'p1', 'source': 'combo-source',
+            'owner': 'p1', 'source': heal_source['instance_id'],
             'used': ['combo-2', 'combo-3', 'combo-4'], 'next_penalty': 400,
         }
         heal_engine.end_combo()
@@ -29600,6 +31599,15 @@ class AutomaticEngineTests(SimpleTestCase):
             {option['ability_id'] for option in first['options']},
             {'p1-reset', 'p1-gain'},
         )
+        self.assertTrue(all(
+            option['effect_mode'] == 'mandatory'
+            and option['source_zone'] == 'passive'
+            and option['active_zones'] == ['passive']
+            and option['card_instance_id'] in {
+                'p1-order-reset', 'p1-order-gain',
+            }
+            for option in first['options']
+        ))
         p2_observation = engine.observe('p2')['pending_decision']
         self.assertEqual(p2_observation['owner'], 'p1')
         self.assertNotIn('options', p2_observation)
@@ -29666,7 +31674,9 @@ class AutomaticEngineTests(SimpleTestCase):
         decision = copy.deepcopy(engine.engine_state['pending_decision'])
         self.assertEqual(decision['kind'], 'effect_order')
 
-        engine.now = datetime(2026, 8, 19, 0, 0, 31, tzinfo=timezone.utc)
+        engine.now = datetime.fromisoformat(
+            engine.engine_state['clock']['deadline'],
+        ) + timedelta(seconds=1)
         engine.reconcile_clock()
 
         history = engine.engine_state['ability_resolution_history']
@@ -29724,6 +31734,40 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertIn('p2-grab', [card['instance_id'] for card in engine.state['players']['p2']['zones']['break']])
         self.assertIn('p1-grab', [card['instance_id'] for card in engine.state['players']['p1']['zones']['hand']])
 
+    def test_grab_negation_uses_visible_hand_card_choice_and_allows_empty_confirmation(self):
+        battle_grab = attack('decline-p1-grab', 'p1', special='그랩')
+        defender = defense('decline-p2-defense', 'p2')
+        hand_grab = attack('decline-p2-grab', 'p2', special='그랩')
+        engine = self.make_engine([battle_grab], [defender, hand_grab])
+        self.enter_ready(engine)
+        self.act(engine, 'p1', 'ready_card')
+        ready_defense = next(
+            action for action in engine.legal_actions('p2')
+            if action['type'] == 'ready_card'
+            and action['payload']['card_instance_id'] == defender['instance_id']
+        )
+        engine.submit_action(
+            'p2', ready_defense['action_id'], {},
+            command_id='decline-ready-defense',
+        )
+
+        decision = engine.engine_state['pending_decision']
+        self.assertEqual(decision['kind'], 'grab_negation')
+        self.assertEqual((decision['minimum'], decision['maximum']), (0, 1))
+        self.assertEqual(len(decision['options']), 1)
+        option = decision['options'][0]
+        self.assertEqual(option['card_instance_id'], hand_grab['instance_id'])
+        self.assertFalse(option['card'].get('hidden', False))
+
+        self.act(engine, 'p2', 'submit_decision', {'selected': []})
+
+        self.assertFalse(any(
+            event['type'] == 'grab_negated' for event in engine.events
+        ))
+        self.assertIsNotNone(engine._find_card(
+            hand_grab['instance_id'], owner='p2', zone='hand',
+        ))
+
     def test_combo_rechecks_next_card_speed_and_damage(self):
         first = attack('combo-1', 'p1', frame=5, damage=500)
         too_fast = attack('combo-2', 'p1', frame=5, damage=500)
@@ -29732,7 +31776,9 @@ class AutomaticEngineTests(SimpleTestCase):
         engine.state['phase'] = 'battle'
         engine.grant_combo('p1')
         proposals = [
-            item for item in engine.legal_actions('p1')
+            item for item in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            )
             if item['type'] == 'play_combo_pair'
         ]
         proposed_ids = {
@@ -29745,7 +31791,7 @@ class AutomaticEngineTests(SimpleTestCase):
             item for item in proposals
             if item['payload']['card_instance_ids'] == ['combo-1', 'combo-3']
         )
-        engine.submit_action('p1', action['action_id'], {}, command_id='combo-pair')
+        self.submit_initial_combo_pair(engine, 'p1', action)
 
         self.assertEqual(engine.state['players']['p2']['hp'], 4300)
         self.assertIsNone(engine.engine_state.get('combo'))
@@ -29777,11 +31823,13 @@ class AutomaticEngineTests(SimpleTestCase):
         engine.grant_combo('p1')
 
         proposal = next(
-            item for item in engine.legal_actions('p1')
+            item for item in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            )
             if item['type'] == 'play_combo_pair'
             and item['payload']['card_instance_ids'] == ['combo-effect', 'combo-next']
         )
-        engine.submit_action('p1', proposal['action_id'], {}, command_id='combo-speed-pair')
+        self.submit_initial_combo_pair(engine, 'p1', proposal)
 
         self.assertIsNotNone(engine._find_card('combo-next', owner='p1', zone='hand'))
         self.assertTrue(any(
@@ -29794,8 +31842,9 @@ class AutomaticEngineTests(SimpleTestCase):
 
     def test_combo_proposal_excludes_card_acquired_by_two_combo_effect_qa580(self):
         first = attack('combo-acquirer', 'p1', code='COMBO-ACQUIRER', frame=5, damage=500)
+        paired = attack('combo-paired', 'p1', frame=6, damage=400)
         acquired = attack('newly-acquired', 'p1', frame=6, damage=500)
-        release = ruleset(first, acquired)
+        release = ruleset(first, paired, acquired)
         release['cards']['COMBO-ACQUIRER']['effect_definition'] = {
             'schema_version': 1,
             'abilities': [{
@@ -29819,18 +31868,22 @@ class AutomaticEngineTests(SimpleTestCase):
                 }],
             }],
         }
-        state = base_state([first], [])
+        state = base_state([first, paired], [])
         state['players']['p1']['zones']['list'] = [acquired]
         engine = AutomaticGameEngine.initialize(state, release, seed='qa580-acquire-after-proposal')
         engine.state['phase'] = 'battle'
         engine.grant_combo('p1')
 
         proposal = next(
-            item for item in engine.legal_actions('p1')
-            if item['type'] == 'play_combo_card'
-            and item['payload']['card_instance_id'] == first['instance_id']
+            item for item in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            )
+            if item['type'] == 'play_combo_pair'
+            and item['payload']['card_instance_ids'] == [
+                first['instance_id'], paired['instance_id'],
+            ]
         )
-        engine.submit_action('p1', proposal['action_id'], {}, command_id='qa580-single')
+        self.submit_initial_combo_pair(engine, 'p1', proposal)
         self.assertEqual(engine.engine_state['pending_decision']['kind'], 'effect_choice')
         self.act(
             engine, 'p1', 'submit_decision',
@@ -29844,7 +31897,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual([
             event['payload']['card_instance_ids'] for event in engine.events
             if event['type'] == 'combo_proposed'
-        ], [[first['instance_id']]])
+        ], [[first['instance_id'], paired['instance_id']]])
         self.assertFalse(any(
             event['type'] == 'combo_card_used'
             and event['payload'].get('card_instance_id') == acquired['instance_id']
@@ -29864,10 +31917,12 @@ class AutomaticEngineTests(SimpleTestCase):
             and item['payload']['card_instance_ids'] == [
                 first['instance_id'], acquired['instance_id'],
             ]
-            for item in available.legal_actions('p1')
+            for item in available._combo_actions(
+                'p1', available.engine_state['combo'],
+            )
         ))
 
-    def test_combo_modifier_can_issue_one_four_combo_sequence(self):
+    def test_combo_modifier_offers_fourth_only_after_initial_pair_resolves(self):
         source = attack('four-combo-source', 'p1', frame=1, damage=500)
         cards = [
             attack(f'four-combo-{index}', 'p1', frame=index + 2, damage=500)
@@ -29885,15 +31940,27 @@ class AutomaticEngineTests(SimpleTestCase):
         })
         engine.grant_combo('p1', source=source['instance_id'])
 
-        sequence = next(
-            item for item in engine.legal_actions('p1')
-            if item['type'] == 'play_combo_sequence'
+        pair = next(
+            item for item in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            )
+            if item['type'] == 'play_combo_pair'
             and item['payload']['card_instance_ids'] == [
-                card['instance_id'] for card in cards
+                cards[0]['instance_id'], cards[1]['instance_id'],
             ]
         )
+        self.submit_initial_combo_pair(engine, 'p1', pair)
+
+        self.assertEqual(sum(
+            1 for event in engine.events if event['type'] == 'combo_card_used'
+        ), 2)
+        fourth = next(
+            item for item in engine.legal_actions('p1')
+            if item['type'] == 'play_combo_card'
+            and item['payload']['card_instance_id'] == cards[2]['instance_id']
+        )
         engine.submit_action(
-            'p1', sequence['action_id'], {}, command_id='four-combo-proposal',
+            'p1', fourth['action_id'], {}, command_id='four-combo-followup',
         )
 
         self.assertEqual(engine.state['players']['p2']['hp'], 4100)
@@ -29904,7 +31971,9 @@ class AutomaticEngineTests(SimpleTestCase):
 
     def test_combo_stops_when_current_card_is_broken_by_effect(self):
         card = attack('combo-break', 'p1', code='COMBO-BREAK', damage=500)
-        release = ruleset(card)
+        preceding = attack('combo-before-break', 'p1', frame=4, damage=400)
+        card['frame'] = 5
+        release = ruleset(card, preceding)
         release['cards']['COMBO-BREAK']['effect_definition'] = {
             'schema_version': 1,
             'abilities': [{
@@ -29914,13 +31983,15 @@ class AutomaticEngineTests(SimpleTestCase):
                 'effects': [{'op': 'break_card'}],
             }],
         }
-        engine = AutomaticGameEngine.initialize(base_state([card], []), release, seed='combo-break')
+        engine = AutomaticGameEngine.initialize(
+            base_state([preceding, card], []), release, seed='combo-break',
+        )
         engine.state['phase'] = 'battle'
         engine.grant_combo('p1')
 
-        self.act(engine, 'p1', 'play_combo_card')
+        self.act(engine, 'p1', 'play_combo_pair')
 
-        self.assertEqual(engine.state['players']['p2']['hp'], 5000)
+        self.assertEqual(engine.state['players']['p2']['hp'], 4700)
         self.assertIsNone(engine.engine_state.get('combo'))
         self.assertTrue(any(event['type'] == 'combo_interrupted' for event in engine.events))
 
@@ -33058,15 +35129,18 @@ class AutomaticEngineTests(SimpleTestCase):
         protocol.update({'type': '특수', 'frame': None, 'damage': None})
         combo_card = attack('nya-lumen-combo', 'p1', frame=6, damage=500)
         combo_card['character_key'] = 'nya'
+        combo_followup = attack('nya-combo-followup', 'p1', frame=7, damage=400)
         get_card = attack('nya-lumen-get', 'p1', frame=8, damage=500)
         get_card['character_key'] = 'nya'
         source = attack('combo-source', 'p1', frame=4, damage=500, hit='콤보')
-        state = base_state([], [])
+        state = base_state([combo_followup], [])
         state['phase'] = 'battle'
         state['players']['p1']['zones']['side'] = [protocol]
         state['players']['p1']['zones']['battle'] = [source]
         state['players']['p1']['zones']['lumen'] = [combo_card, get_card]
-        release = ruleset(protocol, combo_card, get_card, source)
+        release = ruleset(
+            protocol, combo_card, combo_followup, get_card, source,
+        )
         release['cards']['LMI-AT-011']['effect_definition'] = definition
         engine = AutomaticGameEngine.initialize(state, release, seed='exceed-protocol')
         engine.state['phase'] = 'battle'
@@ -33096,14 +35170,15 @@ class AutomaticEngineTests(SimpleTestCase):
 
         engine.grant_combo('p1', source=source['instance_id'])
         combo_action = next(
-            item for item in engine.legal_actions('p1')
-            if item['type'] == 'play_combo_card'
-            and item['payload']['card_instance_id'] == combo_card['instance_id']
+            item for item in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            )
+            if item['type'] == 'play_combo_pair'
+            and item['payload']['card_instance_ids'] == [
+                combo_card['instance_id'], combo_followup['instance_id'],
+            ]
         )
-        engine.submit_action(
-            'p1', combo_action['action_id'], combo_action['payload'],
-            command_id='exceed-lumen-combo',
-        )
+        self.submit_initial_combo_pair(engine, 'p1', combo_action)
         self.assertIsNotNone(engine._find_card(combo_card['instance_id'], owner='p1', zone='break'))
         self.assertFalse(any(
             item['type'] == 'play_combo_card'
@@ -34132,23 +36207,10 @@ class AutomaticEngineTests(SimpleTestCase):
         }
 
         engine.grant_combo('p2', source=live_source['instance_id'])
-        actions = [
-            item for item in engine.legal_actions('p2')
-            if item['type'] == 'play_combo_card'
-            and item['payload']['card_instance_id'] == combo_cards[0]['instance_id']
-        ]
-        self.assertEqual(
-            {tuple(item['payload']['ignore_damage_penalty']) for item in actions},
-            {(False,), (True,)},
-            msg={
-                'step': engine.engine_state.get('step'),
-                'combo': engine.engine_state.get('combo'),
-                'modifiers': engine.engine_state.get('modifiers'),
-                'actions': engine.legal_actions('p2'),
-            },
-        )
         pair_actions = [
-            item for item in engine.legal_actions('p2')
+            item for item in engine._combo_actions(
+                'p2', engine.engine_state['combo'],
+            )
             if item['type'] == 'play_combo_pair'
             and item['payload']['card_instance_ids'] == [
                 combo_cards[0]['instance_id'], combo_cards[1]['instance_id'],
@@ -34163,9 +36225,7 @@ class AutomaticEngineTests(SimpleTestCase):
             item for item in pair_actions
             if item['payload']['ignore_damage_penalty'] == [False, True]
         )
-        engine.submit_action(
-            'p2', bonus_second['action_id'], {}, command_id='paki-combo-pair',
-        )
+        self.submit_initial_combo_pair(engine, 'p2', bonus_second)
         self.assertEqual(engine.state['players']['p1']['hp'], 4100)
         self.assertFalse(any(
             event['type'] == 'limited_use_consumed'
@@ -34174,7 +36234,13 @@ class AutomaticEngineTests(SimpleTestCase):
             for event in engine.events
         ))
 
-        self.assertIsNone(engine.engine_state.get('combo'))
+        self.assertIsNotNone(engine.engine_state.get('combo'))
+        self.assertTrue(any(
+            action.get('type') == 'play_combo_card'
+            and action['payload']['card_instance_id']
+            == combo_cards[2]['instance_id']
+            for action in engine.legal_actions('p2')
+        ))
         self.assertFalse(any(
             event['type'] == 'combo_card_used'
             and event['payload'].get('card_instance_id') == combo_cards[2]['instance_id']
@@ -34201,13 +36267,16 @@ class AutomaticEngineTests(SimpleTestCase):
         })
         opener = attack('window-opener', 'p1', frame=1, damage=600)
         combo_card = attack('window-combo-card', 'p1', code='WINDOW-COMBO', frame=3)
+        combo_followup = attack('window-combo-followup', 'p1', frame=4)
         opponent_card = attack('window-opponent', 'p2')
-        state = base_state([combo_card], [])
+        state = base_state([combo_card, combo_followup], [])
         state['players']['p1']['zones']['battle'] = [opener]
         state['players']['p1']['zones']['lumen'] = [feather]
         state['players']['p1']['zones']['side'] = [dagger]
         state['players']['p2']['zones']['battle'] = [opponent_card]
-        release = ruleset(feather, dagger, opener, combo_card, opponent_card)
+        release = ruleset(
+            feather, dagger, opener, combo_card, combo_followup, opponent_card,
+        )
         release['cards']['LMI-AT-041']['effect_definition'] = build_effect_draft(
             'LMI-AT-041', black_feather_text,
         )
@@ -34245,12 +36314,16 @@ class AutomaticEngineTests(SimpleTestCase):
         }
         engine.grant_combo('p1', source=live_opener['instance_id'])
         play = next(
-            item for item in engine.legal_actions('p1')
-            if item['type'] == 'play_combo_card'
-            and item['payload']['card_instance_id'] == combo_card['instance_id']
+            item for item in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            )
+            if item['type'] == 'play_combo_pair'
+            and item['payload']['card_instance_ids'] == [
+                combo_card['instance_id'], combo_followup['instance_id'],
+            ]
         )
 
-        engine.submit_action('p1', play['action_id'], {}, command_id='combo-window-card')
+        self.submit_initial_combo_pair(engine, 'p1', play)
 
         self.assertTrue(
             engine.state['players']['p1']['passive_state']['dark_night']['value']
@@ -34344,8 +36417,6 @@ class AutomaticEngineTests(SimpleTestCase):
         before_hp = engine.state['players']['p2']['hp']
         engine._fire('combo', clash_context)
         self.resolve_effect_orders(engine)
-        self.assertEqual(engine.engine_state['pending_decision']['kind'], 'optional_effect')
-        self.act(engine, 'p1', 'submit_decision', {'selected': ['accept']})
         self.assertIsNone(engine.engine_state.get('pending_decision'))
         self.assertEqual(engine.state['players']['p2']['hp'], before_hp - 400)
         self.assertFalse(any(card.get('token_key') == 'dagger' for card in engine._zone('p1', 'lumen')))
@@ -37419,11 +39490,10 @@ class AutomaticEngineTests(SimpleTestCase):
         )
 
         madness = results['CB01-AT-015']
-        self.assertEqual(
+        self.assertIsNone(
             madness['cb01-at-015-n2'][
                 'qna-665-thief-extension-allows-fifth-combo'
             ]['maximum'],
-            5,
         )
         self.assertFalse(
             madness['cb01-at-015-n3'][
@@ -38476,7 +40546,7 @@ class CrsAt024AutomaticEffectReviewTests(TestCase):
                 text='',
                 effect_definition=no_effect,
             )
-            for index in range(453)
+            for index in range(EXPECTED_CARD_COUNT)
         ], batch_size=200)
 
     def test_crs_at_024_review_covers_charge_refresh_and_ready_lock(self):
@@ -38559,7 +40629,7 @@ class IntegratedAutomaticEffectReviewTests(TestCase):
                 text='',
                 effect_definition=no_effect,
             )
-            for index in range(453)
+            for index in range(EXPECTED_CARD_COUNT)
         ], batch_size=200)
 
     def test_cb01_final_ultimate_cards_have_deterministic_card_reviews(self):
@@ -39711,7 +41781,7 @@ class IntegratedAutomaticEffectReviewTests(TestCase):
         )
 
         self.assertTrue(result.passed, result.as_dict())
-        self.assertEqual(result.as_dict()['scenario_count'], 16)
+        self.assertEqual(result.as_dict()['scenario_count'], 17)
         by_id = {ability.ability_id: ability for ability in result.abilities}
         reuse = {
             item['name']: item
@@ -39787,17 +41857,19 @@ class RulesetPublicationTests(TestCase):
                 text='',
                 effect_definition=no_effect,
             )
-            for index in range(453)
+            for index in range(EXPECTED_CARD_COUNT)
         ], batch_size=200)
 
     def test_published_release_is_immutable_activates_and_pins_catalog(self):
         first, report = publish_ruleset_release('publication-v1')
 
         self.assertTrue(report.is_valid, report.errors)
-        self.assertEqual(report.card_count, 453)
-        self.assertEqual(report.reviewed_card_count, 453)
-        self.assertEqual(report.no_effect_card_count, 453)
-        self.assertEqual(len(first.snapshot['cards']), 453)
+        self.assertEqual(report.card_count, EXPECTED_CARD_COUNT)
+        self.assertEqual(report.reviewed_card_count, EXPECTED_CARD_COUNT)
+        self.assertEqual(report.no_effect_card_count, EXPECTED_CARD_COUNT)
+        self.assertEqual(
+            len(first.snapshot['cards']), EXPECTED_CARD_COUNT,
+        )
         self.assertEqual(first.content_hash, _json_hash(first.snapshot))
         self.assertEqual(automatic_mode_release(), first)
         start_page = self.client.get(reverse('battlelog:simulatorStart'))
@@ -39995,6 +42067,25 @@ class AutomaticPersistenceTests(TestCase):
         self.assertIn('p2', advanced.document['state']['engine']['phase_passes'])
         self.assertNotIn('p1', advanced.document['state']['engine']['phase_passes'])
 
+    def test_legacy_session_is_compacted_and_enters_ready_on_reconnect(self):
+        session = self.make_session(p2_controller='human')
+        document = copy.deepcopy(session.document)
+        document['command_history'] = [{
+            'command_id': 'legacy-rewind',
+            'state_before': copy.deepcopy(document['state']),
+            'event_count_before': 0,
+        }]
+        session.document = document
+        session.save(update_fields=['document'])
+
+        upgraded = reconcile_automatic_session(session)
+
+        self.assertEqual(upgraded.document['command_history'], [])
+        self.assertEqual(upgraded.document['state']['phase'], 'ready')
+        settings = upgraded.document['state']['engine']['settings']
+        self.assertTrue(settings['auto_advance_empty_phases'])
+        self.assertFalse(settings['rewind_enabled'])
+
     def test_ai_session_without_pinned_policy_reports_and_falls_back(self):
         session = self.make_session()
         document = session.document
@@ -40025,7 +42116,7 @@ class AutomaticPersistenceTests(TestCase):
                 'seat_token': session.player1_token,
             })
 
-    def test_automatic_command_is_idempotent_and_rejects_stale_version(self):
+    def test_automatic_command_is_idempotent_and_accepts_still_legal_stale_action(self):
         session = self.make_session(p2_controller='human')
         engine = AutomaticGameEngine(
             session.document['state'], self.snapshot,
@@ -40051,17 +42142,30 @@ class AutomaticPersistenceTests(TestCase):
             version=replayed.version, events=replayed.document['events'],
         )
         p2_action = next(item for item in current.legal_actions('p2') if item['type'] == 'pass_phase')
+        advanced = perform_automatic_command(replayed, {
+            'command_id': 'semantic-stale-pass',
+            'expected_version': session.version,
+            'action_id': p2_action['action_id'],
+            'seat': 'p2',
+            'seat_token': session.player2_token,
+        })
+        self.assertEqual(advanced.document['state']['phase'], 'ready')
+
         with self.assertRaises(StaleState):
-            perform_automatic_command(replayed, {
-                'command_id': 'stale-pass',
+            perform_automatic_command(advanced, {
+                'command_id': 'obsolete-stale-pass',
                 'expected_version': session.version,
-                'action_id': p2_action['action_id'],
-                'seat': 'p2',
-                'seat_token': session.player2_token,
+                'action_id': action['action_id'],
+                'seat': 'p1',
+                'seat_token': session.player1_token,
             })
 
     def test_accepted_rewind_restores_previous_user_command_and_keeps_audit(self):
         session = self.make_session(p2_controller='human')
+        document = copy.deepcopy(session.document)
+        document['state']['engine']['settings']['rewind_enabled'] = True
+        session.document = document
+        session.save(update_fields=['document'])
         engine = AutomaticGameEngine(
             session.document['state'], self.snapshot,
             version=session.version, events=session.document['events'],
@@ -40188,8 +42292,8 @@ class AutomaticWebSocketTests(TransactionTestCase):
         async_to_sync(self._exercise_websocket_command)()
 
         self.session.refresh_from_db()
-        self.assertEqual(self.session.version, 2)
-        self.assertIn('p1', self.session.document['state']['engine']['phase_passes'])
+        self.assertEqual(self.session.version, 3)
+        self.assertIn('p1', self.session.document['state']['engine']['ready_cards'])
 
     async def _exercise_websocket_command(self):
         communicator = WebsocketCommunicator(
@@ -40204,7 +42308,7 @@ class AutomaticWebSocketTests(TransactionTestCase):
             envelope = initial['state']
             action = next(
                 item for item in envelope['legal_actions']
-                if item['type'] == 'pass_phase'
+                if item['type'] == 'ready_card'
             )
             await communicator.send_json_to({
                 'type': 'command',
@@ -40234,6 +42338,7 @@ class AutomaticWebSocketTests(TransactionTestCase):
             rejected = await self._receive_type(communicator, 'error')
             self.assertEqual(rejected['request_id'], 'ws-stale-request')
             self.assertEqual(rejected['code'], 'stale_state')
+            self.assertGreater(rejected['state']['version'], envelope['version'])
         finally:
             await communicator.disconnect()
 
@@ -40800,6 +42905,7 @@ class SimulatorAIHTTPTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='ai-http-user', password='pw')
         self.character = Character.objects.create(
+            id=9001,
             name='AI HTTP Character',
             localization_key='ai_http_character',
             description='',
@@ -40839,7 +42945,7 @@ class SimulatorAIHTTPTests(TestCase):
                 )
             self.decks.append(deck)
         released_cards = {}
-        for index in range(453):
+        for index in range(EXPECTED_CARD_COUNT):
             card = self.cards[index] if index < len(self.cards) else None
             code = card.code if card else f'AI-DUMMY-{index:03d}'
             released_cards[code] = {
@@ -40880,11 +42986,96 @@ class SimulatorAIHTTPTests(TestCase):
         self.release = RulesetRelease.objects.create(
             version='ai-http-rules-v1',
             schema_version=1,
-            source_manifest={'validation': {'is_valid': True, 'card_count': 453}},
+            source_manifest={
+                'validation': {
+                    'is_valid': True,
+                    'card_count': EXPECTED_CARD_COUNT,
+                },
+            },
             snapshot=snapshot,
             content_hash=_json_hash(snapshot),
             is_active=True,
         )
+
+    def test_passive_state_and_counter_labels_are_localized_for_the_client(self):
+        state = base_state()
+        state['players']['p1']['passive_state'] = {
+            'charge': {'value': True, 'label': 'charge'},
+            'ember': {'count': 2, 'label': 'ember'},
+            'foresight_counter': {'count': 3, 'label': '예지 카운터'},
+        }
+
+        english = _localize_filtered_state(copy.deepcopy(state), 'en')
+        japanese = _localize_filtered_state(copy.deepcopy(state), 'ja')
+
+        self.assertEqual(
+            english['players']['p1']['passive_state']['charge']['display_label'],
+            'Charge',
+        )
+        self.assertEqual(
+            english['players']['p1']['passive_state']['ember']['display_label'],
+            'Ember',
+        )
+        self.assertEqual(
+            english['players']['p1']['passive_state']['foresight_counter']['display_label'],
+            'Foresight',
+        )
+        self.assertEqual(
+            japanese['players']['p1']['passive_state']['charge']['display_label'],
+            'チャージ',
+        )
+        self.assertEqual(
+            japanese['players']['p1']['passive_state']['ember']['display_label'],
+            '火種',
+        )
+
+    def test_custom_calculator_ui_declares_the_automatic_state_keys_it_renders(self):
+        self.character.datas = {
+            **self.character.datas,
+            'simulator_passive_ui': {
+                'template': 'battlelog/passive_ui/tao.html',
+                'css': 'battlelog/passive_ui/tao_simulator.css',
+                'js': 'battlelog/passive_ui/tao_simulator.js',
+            },
+        }
+        self.character.save(update_fields=['datas'])
+
+        passive_ui = _passive_ui(self.character, context='simulator')
+
+        self.assertEqual(
+            set(passive_ui['managed_keys']),
+            {'yin', 'yang', 'harmony', 'harmony_damage', 'harmony_fp'},
+        )
+
+    def test_calculator_counter_labels_use_semantic_translations(self):
+        self.character.datas = {
+            **self.character.datas,
+            'simulator_passive_ui': {
+                'options': {
+                    'controls': [
+                        {
+                            'type': 'counter', 'key': 'ember_token',
+                            'label': '불씨 토큰',
+                        },
+                        {
+                            'type': 'counter', 'key': 'foresight_counter',
+                            'label': '예지 카운터',
+                        },
+                    ],
+                },
+            },
+        }
+        self.character.save(update_fields=['datas'])
+
+        passive_ui = _passive_ui(
+            self.character, language='en', context='simulator',
+        )
+
+        labels = [
+            control['label']
+            for control in passive_ui['options']['controls']
+        ]
+        self.assertEqual(labels, ['Ember Token', 'Foresight Counter'])
 
     def test_start_page_exposes_manual_automatic_and_ai_options(self):
         response = self.client.get(reverse('battlelog:simulatorStart'))
@@ -40893,6 +43084,9 @@ class SimulatorAIHTTPTests(TestCase):
         self.assertContains(response, 'value="automatic"')
         self.assertContains(response, 'value="ai"')
         self.assertContains(response, 'linear-selfplay-v1.4.0')
+        self.assertContains(response, 'name="ready_timeout_seconds"')
+        self.assertContains(response, 'name="effect_timeout_seconds"')
+        self.assertContains(response, 'value="none"')
 
     def test_unverified_active_policy_cannot_expose_or_start_ai_match(self):
         SimulatorAIPolicy.objects.filter(is_active=True).update(is_active=False)
@@ -40994,7 +43188,7 @@ class SimulatorAIHTTPTests(TestCase):
         )
         action = next(
             item for item in envelope['legal_actions']
-            if item['type'] == 'pass_phase'
+            if item['type'] == 'ready_card'
         )
 
         command_response = self.client.post(
@@ -41014,7 +43208,143 @@ class SimulatorAIHTTPTests(TestCase):
         self.assertTrue(command_response.json()['ok'])
         self.assertEqual(command_response.json()['state']['version'], session.version + 1)
         session.refresh_from_db()
-        self.assertIn('p1', session.document['state']['engine']['phase_passes'])
+        self.assertIn('p1', session.document['state']['engine']['ready_cards'])
+        self.assertEqual(
+            session.document['state']['engine']['clock']['duration_seconds'],
+            30,
+        )
+        self.assertEqual(session.document['command_history'], [])
+        self.assertFalse(any(
+            item['type'] == 'request_rewind'
+            for item in command_response.json()['state']['legal_actions']
+        ))
+
+    def test_stale_automatic_command_returns_latest_retryable_state(self):
+        response = self.client.post(reverse('battlelog:simulatorStart'), {
+            'player1_name': 'Human 1',
+            'player2_name': 'Human 2',
+            'player1_deck': self.decks[0].id,
+            'player2_deck': self.decks[1].id,
+            'mode': 'automatic',
+            'opponent_type': 'human',
+        })
+        self.assertEqual(response.status_code, 302)
+        session = LumenSimulatorSession.objects.get()
+        envelope = serialize_simulator_session(
+            session, 'p1', session.player1_token, include_events=False,
+        )
+        action = next(
+            item for item in envelope['legal_actions']
+            if item['type'] == 'ready_card'
+        )
+
+        accepted = self.client.post(
+            reverse(
+                'battlelog:simulatorCommand',
+                kwargs={'view_token': session.view_token},
+            ),
+            data=json.dumps({
+                'seat': 'p1',
+                'seat_token': session.player1_token,
+                'command_id': 'accepted-http-command',
+                'expected_version': session.version,
+                'action_id': action['action_id'],
+                'selections': {},
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(accepted.status_code, 200)
+
+        stale_response = self.client.post(
+            reverse(
+                'battlelog:simulatorCommand',
+                kwargs={'view_token': session.view_token},
+            ),
+            data=json.dumps({
+                'seat': 'p1',
+                'seat_token': session.player1_token,
+                'command_id': 'stale-http-command',
+                'expected_version': session.version,
+                'action_id': action['action_id'],
+                'selections': {},
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(stale_response.status_code, 409)
+        payload = stale_response.json()
+        self.assertEqual(payload['code'], 'stale_state')
+        self.assertEqual(payload['state']['version'], session.version + 1)
+        self.assertFalse(any(
+            item.get('action_id') == action['action_id']
+            for item in payload['state']['legal_actions']
+        ))
+
+    def test_other_player_ready_from_same_version_is_accepted(self):
+        response = self.client.post(reverse('battlelog:simulatorStart'), {
+            'player1_name': 'Human 1', 'player2_name': 'Human 2',
+            'player1_deck': self.decks[0].id,
+            'player2_deck': self.decks[1].id,
+            'mode': 'automatic', 'opponent_type': 'human',
+        })
+        self.assertEqual(response.status_code, 302)
+        session = LumenSimulatorSession.objects.get()
+        p1 = serialize_simulator_session(
+            session, 'p1', session.player1_token, include_events=False,
+        )
+        p2 = serialize_simulator_session(
+            session, 'p2', session.player2_token, include_events=False,
+        )
+        opponent_hand = p1['state']['players']['p2']['zones']['hand']
+        self.assertTrue(all(card.get('hidden') for card in opponent_hand))
+        self.assertTrue(all('card_id' not in card for card in opponent_hand))
+        p1_action = next(
+            item for item in p1['legal_actions'] if item['type'] == 'ready_card'
+        )
+        p2_action = next(
+            item for item in p2['legal_actions'] if item['type'] == 'ready_card'
+        )
+        command_url = reverse(
+            'battlelog:simulatorCommand',
+            kwargs={'view_token': session.view_token},
+        )
+
+        first = self.client.post(command_url, data=json.dumps({
+            'seat': 'p1', 'seat_token': session.player1_token,
+            'command_id': 'p1-ready-same-version',
+            'expected_version': p1['version'],
+            'action_id': p1_action['action_id'], 'selections': {},
+        }), content_type='application/json')
+        second = self.client.post(command_url, data=json.dumps({
+            'seat': 'p2', 'seat_token': session.player2_token,
+            'command_id': 'p2-ready-same-version',
+            'expected_version': p2['version'],
+            'action_id': p2_action['action_id'], 'selections': {},
+        }), content_type='application/json')
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200, second.content)
+        session.refresh_from_db()
+        self.assertNotEqual(session.document['state']['phase'], 'ready')
+
+    def test_start_accepts_unlimited_ready_and_custom_effect_timer(self):
+        response = self.client.post(reverse('battlelog:simulatorStart'), {
+            'player1_name': 'Human 1', 'player2_name': 'Human 2',
+            'player1_deck': self.decks[0].id,
+            'player2_deck': self.decks[1].id,
+            'mode': 'automatic', 'opponent_type': 'human',
+            'ready_timeout_seconds': 'none',
+            'effect_timeout_seconds': '120',
+        })
+
+        self.assertEqual(response.status_code, 302, response.content)
+        session = LumenSimulatorSession.objects.get()
+        settings = session.document['state']['engine']['settings']
+        self.assertIsNone(settings['ready_timeout_seconds'])
+        self.assertEqual(settings['effect_timeout_seconds'], 120)
+        self.assertTrue(settings['auto_advance_empty_phases'])
+        self.assertFalse(settings['rewind_enabled'])
+        self.assertEqual(session.document['state']['phase'], 'ready')
 
     def test_player_can_submit_issue_details_over_http(self):
         session = LumenSimulatorSession.objects.create(

@@ -458,6 +458,25 @@ class BattleCalculatorTests(TestCase):
         unregister_presence('battle-control')
         self.assertEqual(battle_presence_counts('battle-presence'), {'control': 0, 'viewer': 1})
 
+    def test_presence_reads_ignore_stale_rows_without_deleting_on_poll(self):
+        register_presence(
+            RealtimePresence.SCOPE_SIMULATOR,
+            'stale-sim-presence', 'p1', 'stale-sim-p1',
+        )
+        RealtimePresence.objects.filter(channel_name='stale-sim-p1').update(
+            last_seen_at=timezone.now() - timedelta(minutes=2),
+        )
+
+        self.assertEqual(
+            simulator_presence_counts('stale-sim-presence'),
+            {'p1': 0, 'p2': 0, 'viewer': 0},
+        )
+        self.assertTrue(
+            RealtimePresence.objects.filter(
+                channel_name='stale-sim-p1',
+            ).exists(),
+        )
+
 
 class LumenSimulatorTests(TestCase):
     def setUp(self):

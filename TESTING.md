@@ -60,7 +60,7 @@ python -m pip install -r LumenGG\requirements.txt
 ```
 
 After applying migrations, verify the pinned rulebook and inspect card effect
-coverage. Automatic mode stays hidden until all 453 cards pass validation and
+coverage. Automatic mode stays hidden until all 455 cards pass validation and
 an immutable release is activated.
 
 ```powershell
@@ -815,6 +815,12 @@ the counters are paid before that card's own use condition (Q&A 124), a
 2-Combo declaration requires a legal 3-Combo follow-up (Q&A 125), and a
 two-Speed declaration can earn one Grace back at After-use (Q&A 445). Three
 reviewed groups cover 15 deterministic scenarios.
+
+The declared-Speed action does not bypass the normal Combo link window. From
+3-Combo onward its offered values remain exactly the preceding declared Speed
+plus 1 or 2, and the following Technique is checked from the chosen declared
+Speed (Q&A 125). This is encoded as Matude's card-specific
+`respect_speed_window` grant so other reviewed any-Speed effects are unchanged.
 `ST6-001` (Shadow Cut) applies its numberless -200 damage continuously only
 while its owner has no Grace counter, then adds +200 at Counter timing.  The
 two modifiers compose to 500 damage with no Grace on Counter and 700 with at
@@ -1556,7 +1562,8 @@ scenarios for its starting counters, optional random hand reveal, additional
 counter amount, turn-end concealment, forced Ready order, and once-per-game HP
 threshold. Already revealed cards are excluded from random reveal candidates
 and cap the additional amount (Q&A 678); a forced player receives an immediate
-10-second Ready clock and may Ready the revealed card (Q&A 228/229); simultaneous
+configured Ready clock (30 seconds by default) and may Ready the revealed card
+(Q&A 228/229); simultaneous
 Third Eyes retain the priority player's first-applied instruction so the
 non-priority player Readies first (Q&A 602). Charm immediately ends the reveal
 and Ready-order effect without consuming the later HP-threshold opportunity
@@ -2321,6 +2328,13 @@ only once per turn; its second use ignores the Combo Damage penalty even when
 the first use was negated (Q&A 679), while Nevermore's turn use lock still wins
 (Q&A 685).
 
+Tempo de Dou's Battle permission also carries an explicitly limited
+`allow_reuse` grant. This lets the same resolved card instance re-enter a later
+slot of the current Combo (for example Speed 11 → 13 → the same Tempo de Dou at
+11), while the once-per-turn usage key prevents an unbounded reuse loop. Its
+review now covers 17 deterministic scenarios, including legal-action
+enumeration of the already-used Battle copy.
+
 `CB02-AT-040` and `CB02-AT-041` add four reviewed ability groups and 34
 deterministic scenarios. Order: Karkinos moves from Side to Lumen at game
 start, reacts independently to every Yohann parity result during Disaster I
@@ -2863,3 +2877,86 @@ The final isolated SQLite regression suite passes all 916 tests. Single-state
 training evaluation also preserves the historical seed format, so existing
 deterministic policy replay benchmarks remain reproducible while multi-state
 evaluations add an explicit state index to their paired seeds.
+
+## Automatic choice dock and stale-state recovery (2026-08-21)
+
+Automatic command conflicts no longer surface a blocking browser alert. A
+`stale_state` HTTP response includes the latest role-filtered session state;
+the client restores that state, finds the same action by its stable type and
+payload, and retries it once when the selected values remain legal. If the
+game has genuinely moved on, the player sees a non-blocking inline message and
+the refreshed choices. Ready, Get, Combo, and Catch card movement is also
+projected onto the desktop or mobile board immediately while the server
+command is in flight, then replaced by the authoritative response.
+
+The former top-panel select and repeated action buttons were replaced with a
+centered bottom choice dock whose desktop width is approximately two-thirds of
+the viewport. It contains only the choice prompt, image tiles, auxiliary
+actions, and confirmation controls. Card-backed legal actions and effect
+decision cards render as image tiles, multi-card Combo proposals render as an
+overlapping sequence, and abstract branches use a visual effect tile.
+Selection order and minimum/maximum counts are visible, and submission requires
+the bottom confirmation button. Selecting a card opens the simulator's existing
+desktop card drawer or mobile card-detail modal. That existing detail UI now
+highlights the current effect prompt, selected option, and multi-card use order.
+The automatic dock shares the normal simulator's asynchronously loaded card
+metadata, so card-backed choices rerender with the actual image and use only
+the card name as the caption. For optional effects, the activation choice is
+bound to its source card image and no separate activation/decline buttons are
+shown. Selecting the card and confirming submits activation; confirming with
+no card selected submits the decline value (or an empty selection for a
+zero-minimum decision). Effect cards show a mandatory/optional badge at the
+upper-left and one or more declared activation-zone badges at the upper-right.
+Effect wording stays in the existing detail UI, whose highlighted effect block
+has explicit dark text and warm light surfaces in the light theme. The compact
+mobile choice dock respects the safe-area inset.
+
+The local development server serves both updated assets with HTTP 200, all
+three simulator JavaScript files pass `node --check`, Django system checks
+pass, and the complete isolated SQLite suite passes all 918 tests. No browser
+instance was connected for screenshot-based visual QA during this run.
+
+## Automatic synchronization, privacy, and timers (2026-08-22)
+
+Published ruleset snapshots are now loaded through a process-local immutable
+cache instead of being joined into every simulator-session query. Automatic
+serialization also skips duplicate state projections and database-backed hand
+limit work that the pinned ruleset already supplies. Presence reads exclude
+expired rows without issuing a global `DELETE` on every state poll. On the
+current production-shaped sample, repeated session-row reads fell from about
+79 ms to 18 ms and a warmed role-filtered automatic serialization fell from
+roughly 120 ms to 60-70 ms.
+
+Automatic rewind is retired for live sessions. Its three full state snapshots
+previously occupied roughly 247-311 KB in sampled 454-589 KB session documents.
+On reconnect, legacy snapshots and pending rewind state are removed once. The
+remaining compact command result/log records still provide idempotency and an
+audit trail.
+
+Action IDs no longer change solely because another command increased the
+session version. A stale-version command is accepted when its exact server-
+issued action is still in that role's current legal-action set. This allows
+both players to Ready from the same displayed version; an action whose card,
+phase, decision, or role is no longer legal still returns `stale_state` with
+the latest filtered state over both HTTP and WebSocket.
+
+New and upgraded automatic sessions skip actionless Lumen and Recovery phases,
+and skip an individual Get turn only when that player has no legal card to
+acquire. Existing hand cards are no longer exposed on Get entry. A card openly
+acquired from the List stays public only through that Get phase and is then
+concealed. The opponent hand remains redacted, while the private No Response
+chooser action contains the eligible cards' IDs, names, and images so the
+bottom card-choice dock can render them.
+
+The simulator start form now configures Ready and effect-choice deadlines for
+both human and AI automatic matches. Defaults are 30 and 60 seconds; supported
+choices include longer deadlines and `제한 없음`. Unlimited decisions remain
+pending without a server clock. The automatic status panel shows the pinned
+timer settings.
+
+Verification: `node --check` passes for the changed simulator scripts, Django
+system checks pass, and the isolated SQLite suite passes all 930 tests. MySQL
+passes the 10 automatic persistence/locking tests and all 13 HTTP integration
+tests, including same-version dual Ready, timer persistence, stale-action
+rejection, and hidden-hand projection. No browser instance was connected, so
+screenshot-based visual QA remains pending.

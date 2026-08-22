@@ -20,13 +20,25 @@ from common.language import (
     translated_character_field,
     ui_text,
 )
-from common.localization import render_localized_markup
+from common.localization import (
+    render_localized_markup,
+    term_translation_key,
+    translate_key,
+    translation_source_exists,
+)
 from deck.models import CardInDeck, Deck
 
 from .models import LumenSimulatorSession
 from .game.card_identity import is_passive_card, normalize_passive_card
 from .presence import simulator_presence_counts
-from .services import _passive_ui, character_hand_table, hand_limit_for_hp, initial_hp_for_character, initial_passive_state_for_character
+from .services import (
+    PASSIVE_UI_SEMANTIC_SLUG_ALIASES,
+    _passive_ui,
+    character_hand_table,
+    hand_limit_for_hp,
+    initial_hp_for_character,
+    initial_passive_state_for_character,
+)
 
 
 SIMULATOR_SESSION_LIFETIME = timedelta(hours=1)
@@ -80,7 +92,10 @@ CARD_METADATA_FIELDS = (
 
 
 def simulator_queryset():
-    return LumenSimulatorSession.objects.select_related('ruleset_release', 'ai_policy')
+    # Ruleset snapshots are several megabytes and immutable. Loading them in
+    # every session query made each poll and command unnecessarily expensive;
+    # automatic_services keeps a small release cache instead.
+    return LumenSimulatorSession.objects.select_related('ai_policy')
 
 
 def simulator_session_expires_at(now=None):
@@ -314,6 +329,8 @@ def create_simulator_session(
     mode='manual',
     player1_controller='human',
     player2_controller='human',
+    ready_timeout_seconds=30,
+    effect_timeout_seconds=60,
 ):
     controllers = {player1_controller, player2_controller}
     if not controllers <= {LumenSimulatorSession.CONTROLLER_HUMAN, LumenSimulatorSession.CONTROLLER_AI}:
@@ -333,6 +350,7 @@ def create_simulator_session(
             active_ai_policy,
             ai_policy_payload,
             automatic_mode_release,
+            automatic_session_settings,
             advance_ai_session,
             ensure_automatic_decks,
             initialize_automatic_document,
@@ -348,6 +366,10 @@ def create_simulator_session(
             initial_state,
             ruleset_release,
             seed=f'{view_token}:{ruleset_release.content_hash}',
+            settings=automatic_session_settings(
+                ready_timeout_seconds=ready_timeout_seconds,
+                effect_timeout_seconds=effect_timeout_seconds,
+            ),
         )
         if LumenSimulatorSession.CONTROLLER_AI in controllers:
             ai_policy = active_ai_policy()
@@ -1980,6 +2002,23 @@ def _localize_filtered_state(state, language):
                 character_payload['name'] = translated_character_field(character, language, 'name')
             character_payload['passive_ui'] = _passive_ui(character, language, context='simulator')
 
+        for key, entry in (player.get('passive_state') or {}).items():
+            if not isinstance(entry, dict):
+                continue
+            semantic_kind = 'token' if 'count' in entry else 'state'
+            semantic_slug = PASSIVE_UI_SEMANTIC_SLUG_ALIASES.get(str(key), str(key))
+            source_key = term_translation_key(semantic_kind, semantic_slug)
+            if translation_source_exists(source_key):
+                entry['display_label'] = translate_key(source_key, language)
+                continue
+            stored_label = str(entry.get('label') or '').strip()
+            if stored_label and stored_label != str(key):
+                entry['display_label'] = ui_text(
+                    game_term(stored_label, language), language,
+                )
+            else:
+                entry['display_label'] = str(key).replace('_', ' ')
+
         for cards in (player.get('zones') or {}).values():
             for card in cards:
                 if card.get('hidden'):
@@ -1993,8 +2032,14 @@ def _localize_filtered_state(state, language):
     return state
 
 
-def _filtered_state(state, viewer_side, language=DEFAULT_LANGUAGE):
-    state = _with_serialized_hand_limits(state)
+def _filtered_state(
+    state, viewer_side, language=DEFAULT_LANGUAGE, *,
+    include_database_hand_limits=True,
+):
+    state = (
+        _with_serialized_hand_limits(state)
+        if include_database_hand_limits else copy.deepcopy(state)
+    )
     _normalize_passive_zone_cards(state)
     _ensure_turn_changes(state)
     _ensure_counter_revisions(state)
@@ -2081,10 +2126,32 @@ def _filtered_event(event, state, viewer_side, language=DEFAULT_LANGUAGE):
         }
     payload = filtered.get('payload') or {}
     event_type = filtered.get('type')
-    if event_type == 'attach_card':
+    if event_type in {'battle_revealed', 'battle_judged'}:
+        cards = payload.get('cards') if event_type == 'battle_judged' else payload
+        if isinstance(cards, dict):
+            for side in PLAYER_SIDES:
+                card = cards.get(side)
+                if isinstance(card, dict):
+                    card['card_label'] = _payload_card_label(card, language)
+    if event_type in {
+        'card_moved', 'card_readied', 'card_visibility_changed',
+        'effect_resolved', 'card_broken',
+    } and payload.get('card_label'):
+        payload['card_label'] = _payload_card_label(payload, language)
+    if event_type == 'decision_resolved':
+        for option in payload.get('selected_options') or []:
+            if isinstance(option, dict) and option.get('label'):
+                option['label'] = _payload_card_label(
+                    option, language, label_key='label', card_id_key='card_id',
+                )
+    if event_type in {'attach_card', 'card_attached'}:
         for instance_key, label_key, card_id_key in (
             ('card_instance_id', 'card_label', 'card_id'),
-            ('host_card_instance_id', 'host_card_label', 'host_card_id'),
+            (
+                'host_card_instance_id'
+                if event_type == 'attach_card' else 'host_instance_id',
+                'host_card_label', 'host_card_id',
+            ),
         ):
             _, _, _, card = _find_card_location(state, payload.get(instance_key))
             if not card or not _card_visible_to(card, viewer_side):
@@ -2198,7 +2265,7 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
             }
             if session.automation_failure else None
         ),
-        'ruleset_version': session.ruleset_release.version if session.ruleset_release_id else None,
+        'ruleset_version': None,
         'presence': simulator_presence_counts(session.view_token),
         'role': role,
         'can_control': (
@@ -2223,7 +2290,12 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
         'player2_url': player2_url,
         'phase_labels': _localized_phase_labels(language),
         'zone_labels': _localized_zone_labels(language),
-        'state': _filtered_state(state, role, language),
+        'state': _filtered_state(
+            state, role, language,
+            include_database_hand_limits=(
+                session.mode != LumenSimulatorSession.MODE_AUTOMATIC
+            ),
+        ),
         'event_count': archived_event_count + len(raw_events),
     }
     if include_events:
@@ -2235,9 +2307,16 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
         ]
         payload['event_limit'] = _event_limit(event_limit)
     if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
-        from .automatic_services import automatic_observation, sanitize_automatic_state
+        from .automatic_services import (
+            _ruleset,
+            automatic_observation,
+            sanitize_automatic_state,
+        )
 
-        observation = automatic_observation(session, role)
+        ruleset = _ruleset(session)
+        observation = automatic_observation(
+            session, role, include_state=False,
+        )
         if (
             role in PLAYER_SIDES
             and (
@@ -2251,7 +2330,8 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
             observation['legal_actions'] = []
         payload['state'] = sanitize_automatic_state(
             payload['state'], observation, role=role,
-            ruleset=session.ruleset_release.snapshot if session.ruleset_release_id else {},
+            ruleset=ruleset,
+            copy_state=False,
         )
         payload.update({key: value for key, value in observation.items() if key != 'state'})
     if language == DEFAULT_LANGUAGE:

@@ -21,6 +21,37 @@ EVENT_TIMING = {
     'card_guess_resolved': 'result', 'grab_negated': 'result',
 }
 
+# These timings ordinarily belong to the Technique that is currently being
+# used or judged. A different Technique sitting in Battle/List/Hand/Side or
+# Break must not react merely because it has text with the same timing. Cards
+# in persistent public zones may still define controller-wide reactions, and
+# exceptional effects can opt in with ``allow_non_source_trigger``.
+SOURCE_TECHNIQUE_EVENTS = {
+    'use', 'before_judgment', 'dodge', 'opponent_dodge',
+    'guard', 'opponent_guard', 'hit', 'counter',
+    'opponent_hit', 'opponent_counter', 'clash', 'opponent_clash',
+    'combo', 'combo_window', 'catch', 'after_judgment', 'after_use',
+}
+GLOBAL_REACTION_ZONES = {'passive', 'lumen', 'ultimate'}
+
+# Compatibility for already-published immutable ruleset snapshots created
+# before ``allow_non_source_trigger`` became part of DSL v1.  These are the
+# catalog's deliberate Hand/List/Side reactions to another Technique's result
+# timing. New definitions must use the explicit schema flag instead.
+KNOWN_NON_SOURCE_TRIGGER_ABILITIES = {
+    'cb02-at-035-n1', 'cb02-at-035-function',
+    'rfs-at-038-n1',
+    'lmi-at-041-side-placement',
+    'crs-at-054-n1',
+    'st3-010-opponent-combo',
+}
+
+# Compatibility for immutable releases created before ``requires_combo_use``
+# was introduced.  Endless Ballare's Combo-end text belongs only to a Combo
+# in which the card was actually played as a Combo Technique; merely remaining
+# in Battle, or being the Ready Technique that opened Combo Time, is not enough.
+KNOWN_COMBO_USE_REQUIRED_ABILITIES = {'dfr-at-020-n2'}
+
 
 class EffectResolutionError(ValueError):
     pass
@@ -28,6 +59,13 @@ class EffectResolutionError(ValueError):
 
 def _opponent(side):
     return 'p2' if side == 'p1' else 'p1'
+
+
+def _is_technique(card):
+    if (card or {}).get('non_technique_while_face_down'):
+        return False
+    card_type = str((card or {}).get('type') or '')
+    return any(kind in card_type for kind in ('공격', '수비', '특수'))
 
 
 def state_path(root, path, default=None):
@@ -588,18 +626,66 @@ class EffectResolver:
                 is_source = card.get('instance_id') == event_context.get('source_card_instance_id')
                 is_attached_source = card.get('attached_to') == event_context.get('source_card_instance_id')
                 attached_active = is_attached_source and ability.get('active_when_attached') is True
+                explicit_global_reaction = bool(
+                    active_zones is not None
+                    and zone in GLOBAL_REACTION_ZONES
+                    and zone in active_zones
+                )
+                combo_use_required = bool(
+                    ability.get('requires_combo_use') is True
+                    or ability.get('id') in KNOWN_COMBO_USE_REQUIRED_ABILITIES
+                )
+                used_in_combo = bool(
+                    event_type == 'combo_end'
+                    and combo_use_required
+                    and card.get('instance_id') in set(
+                        event_context.get('combo_used') or []
+                    )
+                )
+                if (
+                    event_type == 'combo_end'
+                    and combo_use_required
+                    and card.get('instance_id') not in set(
+                        event_context.get('combo_used') or []
+                    )
+                ):
+                    continue
+                if (
+                    event_type == 'combo_end'
+                    and _is_technique(card)
+                    and card.get('instance_id') not in set(
+                        event_context.get('combo_card_instance_ids')
+                        or [event_context.get('source_card_instance_id')]
+                    )
+                    and not explicit_global_reaction
+                    and zone not in GLOBAL_REACTION_ZONES
+                    and ability.get('allow_non_source_trigger') is not True
+                ):
+                    continue
                 if event_context.get('source_only_event') and not (is_source or attached_active):
                     continue
                 if (
-                    event_context.get('source_battle_card_only')
-                    and zone == 'battle'
-                    and not (is_source or attached_active)
+                    (
+                        event_context.get('source_battle_card_only')
+                        or event_context.get('source_technique_event')
+                        or event_type in SOURCE_TECHNIQUE_EVENTS
+                    )
+                    and _is_technique(card)
+                    and not (
+                        is_source or attached_active
+                        or explicit_global_reaction
+                    )
+                    and ability.get('allow_non_source_trigger') is not True
+                    and ability.get('id') not in KNOWN_NON_SOURCE_TRIGGER_ABILITIES
                 ):
                     continue
                 default_active = zone in {'passive', 'lumen', 'ultimate'} or is_source or attached_active
-                if active_zones is not None and zone not in active_zones:
+                if (
+                    active_zones is not None and zone not in active_zones
+                    and not used_in_combo
+                ):
                     continue
-                if active_zones is None and not default_active:
+                if active_zones is None and not default_active and not used_in_combo:
                     continue
                 context = {
                     **event_context,
@@ -826,6 +912,10 @@ class EffectResolver:
                         )
                     engine_state['resolution_queue'].insert(0, chosen)
                     continue
+                all_optional = all(
+                    (candidate.get('ability') or {}).get('mode') == 'optional'
+                    for candidate in candidates
+                )
                 self.engine.create_decision(
                     owner=group.get('controller'),
                     kind='effect_order',
@@ -839,10 +929,32 @@ class EffectResolver:
                             or '효과'
                         ),
                         'card_code': candidate.get('card_code'),
+                        'card_instance_id': candidate.get('card_instance_id'),
+                        'effect_mode': (
+                            (candidate.get('ability') or {}).get('mode')
+                            or 'mandatory'
+                        ),
+                        'source_zone': (
+                            candidate.get('zone')
+                            or (candidate.get('context') or {}).get('source_zone')
+                        ),
+                        'active_zones': copy.deepcopy(
+                            (candidate.get('ability') or {}).get('active_zones')
+                            or ([
+                                candidate.get('zone')
+                                or (candidate.get('context') or {}).get('source_zone')
+                            ] if (
+                                candidate.get('zone')
+                                or (candidate.get('context') or {}).get('source_zone')
+                            ) else [])
+                        ),
                         'ability_id': (candidate.get('ability') or {}).get('id'),
                     } for candidate in candidates],
-                    minimum=1, maximum=1,
-                    default=[candidates[0].get('resolution_order_id')],
+                    minimum=0 if all_optional else 1, maximum=1,
+                    default=[] if all_optional else [
+                        candidates[0].get('resolution_order_id')
+                    ],
+                    optional=all_optional,
                     continuation={
                         'type': 'effect_order', 'group_id': group_id,
                     },
@@ -866,13 +978,31 @@ class EffectResolver:
             ):
                 continue
             mode = ability.get('mode')
-            if mode == 'optional':
+            if mode == 'optional' and not item.get('activation_preapproved'):
                 self.engine.create_decision(
                     owner=item['controller'],
                     kind='optional_effect',
                     prompt=ability.get('label') or item.get('card_code') or ability.get('id'),
                     options=[
-                        {'id': 'accept', 'label': '발동'},
+                        {
+                            'id': 'accept', 'label': '발동',
+                            'card_instance_id': item.get('card_instance_id'),
+                            'effect_mode': 'optional',
+                            'source_zone': (
+                                item.get('zone')
+                                or (item.get('context') or {}).get('source_zone')
+                            ),
+                            'active_zones': copy.deepcopy(
+                                ability.get('active_zones')
+                                or ([
+                                    item.get('zone')
+                                    or (item.get('context') or {}).get('source_zone')
+                                ] if (
+                                    item.get('zone')
+                                    or (item.get('context') or {}).get('source_zone')
+                                ) else [])
+                            ),
+                        },
                         {'id': 'decline', 'label': '발동하지 않음'},
                     ],
                     minimum=1,
@@ -888,6 +1018,14 @@ class EffectResolver:
         groups = self.state['engine'].setdefault('resolution_order_groups', {})
         group = groups.get(str(group_id or '')) or {}
         items = group.get('items') or []
+        if selected_id is None:
+            if items and all(
+                (item.get('ability') or {}).get('mode') == 'optional'
+                for item in items
+            ):
+                groups.pop(str(group_id or ''), None)
+                return self.drain()
+            raise EffectResolutionError('필수 효과의 해결 순서를 선택해야 합니다.')
         selected_index = next((
             index for index, item in enumerate(items)
             if str(item.get('resolution_order_id') or '')
@@ -896,6 +1034,8 @@ class EffectResolver:
         if selected_index is None:
             raise EffectResolutionError('선택한 효과 순서가 더 이상 유효하지 않습니다.')
         chosen = items.pop(selected_index)
+        if (chosen.get('ability') or {}).get('mode') == 'optional':
+            chosen['activation_preapproved'] = True
         if not items:
             groups.pop(str(group_id or ''), None)
         self.state['engine'].setdefault('resolution_queue', []).insert(0, chosen)
@@ -1004,8 +1144,15 @@ class EffectResolver:
             context['effect_damage_limit'] = copy.deepcopy(definition['effect_damage_limit'])
         self.engine.emit('effect_resolved', item['controller'], {
             'card_instance_id': item.get('card_instance_id'),
+            'card_id': (context.get('source_card') or {}).get('card_id'),
             'card_code': item.get('card_code'),
+            'card_label': (
+                (context.get('source_card') or {}).get('name')
+                or item.get('card_code')
+                or '카드'
+            ),
             'ability_id': ability.get('id'),
+            'effect_label': ability.get('label'),
         }, visibility=ability.get('visibility', 'public'))
         self.state['engine'].setdefault('ability_resolution_history', []).append({
             'turn': int(self.state.get('turn') or 1),
@@ -1109,7 +1256,34 @@ class EffectResolver:
                     'context': copy.deepcopy(context),
                 })
                 return
-            self.execute_effect(effect, context)
+            resolved_effect = effect
+            if (
+                effect.get('op') == 'move_card'
+                and effect.get('to_zone') == 'lumen'
+                and 'face_up' not in effect
+            ):
+                # Releases published before move_card.face_up existed encoded
+                # an explicitly face-down Lumen placement as move -> hide.
+                # Preserve that intent without briefly publishing the card in
+                # the movement event. Secret Time used the same legacy shape
+                # with a face-down-only flag and a conditional hide.
+                following = (
+                    effects[index + 1]
+                    if index + 1 < len(effects or []) else {}
+                )
+                same_selection_hide = bool(
+                    following.get('op') == 'hide'
+                    and following.get('selection_key')
+                    == effect.get('selection_key')
+                )
+                legacy_face_down_flag = bool(
+                    (effect.get('set_flags') or {}).get(
+                        'non_technique_while_face_down'
+                    )
+                )
+                if same_selection_hide or legacy_face_down_flag:
+                    resolved_effect = {**effect, 'face_up': False}
+            self.execute_effect(resolved_effect, context)
             if context.get('_abort_effect_sequence'):
                 return
 
@@ -1257,6 +1431,10 @@ class EffectResolver:
                     preserve_attachment=bool(effect.get('preserve_attachment')),
                     allow_special_destination=bool(
                         effect.get('allow_special_destination')
+                    ),
+                    face_up=(
+                        effect.get('face_up')
+                        if 'face_up' in effect else None
                     ),
                     block_hand_until=effect.get('block_hand_until'),
                     set_flags={
@@ -2069,10 +2247,12 @@ class EffectResolver:
                 )
             )
         )
-        inspected = {
-            key: copy.deepcopy(selected.get(key))
-            for key in ('code', 'name', 'type', 'frame')
-        }
+        inspected = self.engine._private_action_card(selected)
+        inspected.update({
+            'instance_id': selected.get('instance_id'),
+            'owner': selected.get('owner'),
+            'face_up': True, 'hidden': False,
+        })
         self.engine.emit('card_inspected', controller, {
             'card_instance_id': card_instance_id, 'card': inspected,
             'source': context.get('source_card_instance_id'),

@@ -35,6 +35,7 @@
     let modalZone = "";
     let pendingSetCardId = "";
     let selectedCardId = "";
+    let automaticEffectDetail = null;
     let logOpen = false;
     let events = Array.isArray(envelope.events) ? envelope.events : [];
     let eventsLoaded = Array.isArray(envelope.events);
@@ -290,10 +291,17 @@
     }
 
     function cacheMetadata(cards) {
+        const cached = {};
         Object.entries(cards || {}).forEach(([cardId, metadata]) => {
             if (!cardId || !metadata || typeof metadata !== "object") return;
             metadataCache.set(String(cardId), metadata);
+            cached[String(cardId)] = metadata;
         });
+        if (Object.keys(cached).length) {
+            window.dispatchEvent(new CustomEvent("lumen-simulator-card-metadata", {
+                detail: {cards: cached},
+            }));
+        }
     }
 
     function hydrateCard(card) {
@@ -448,7 +456,7 @@
         };
     }
 
-    function updateEnvelope(nextEnvelope) {
+    function updateEnvelope(nextEnvelope, options) {
         if (!nextEnvelope || nextEnvelope.unchanged) {
             if (nextEnvelope && nextEnvelope.presence) envelope.presence = nextEnvelope.presence;
             return;
@@ -463,8 +471,24 @@
         }
         scheduleMetadataFetch(collectMetadataIds());
         render();
-        window.dispatchEvent(new CustomEvent("lumen-simulator-state", { detail: envelope }));
+        if (!(options && options.silent)) {
+            window.dispatchEvent(new CustomEvent("lumen-simulator-state", { detail: envelope }));
+        }
     }
+
+    window.addEventListener("lumen-simulator-apply-state", (event) => {
+        const detail = event.detail || {};
+        if (!detail.envelope) return;
+        updateEnvelope(detail.envelope, {silent: !!detail.optimistic});
+    });
+
+    window.addEventListener("lumen-simulator-open-card-detail", (event) => {
+        const detail = event.detail || {};
+        const instanceId = String(detail.instance_id || "");
+        const card = instanceId ? findCard(instanceId) : null;
+        if (!card || card.hidden) return;
+        openCardDetail(instanceId, detail);
+    });
 
     function suppressAuthoritativeStateOnce() {
         suppressAuthoritativeStateUntil = Math.max(
@@ -1032,11 +1056,61 @@
         return ["controls", "badges", "latchedStatuses"].some((key) => Array.isArray(options[key]) && options[key].length);
     }
 
+    const PASSIVE_UI_KEY_ALIASES = {
+        root_charge: ["charge"],
+        notice: ["advance_notice"],
+        silver_counter: ["hidden_bond"],
+        yang_counter: ["yang"],
+        yin_counter: ["yin"],
+        foresight_counter: ["foresight"],
+        ember_token: ["ember"],
+        howling_counter: ["howling"],
+    };
+
+    function passiveEntry(passiveState, key) {
+        const aliases = PASSIVE_UI_KEY_ALIASES[String(key)] || [];
+        const matchedAlias = aliases.find((alias) => Object.prototype.hasOwnProperty.call(passiveState, alias));
+        return passiveState[matchedAlias || String(key)] || {};
+    }
+
     function passiveEntryValue(passiveState, key, fallback) {
-        const entry = passiveState[String(key)] || {};
+        const entry = passiveEntry(passiveState, key);
         if (entry.value !== undefined) return entry.value;
         if (entry.count !== undefined) return entry.count;
         return fallback;
+    }
+
+    function passiveDisplayLabel(key, entry) {
+        return entry.display_label || t(entry.label || key);
+    }
+
+    function configuredPassiveKeys(passiveUi, options) {
+        const keys = new Set((passiveUi.managed_keys || []).map(String));
+        [
+            ...(options.controls || []),
+            ...(options.badges || []),
+            ...(options.latchedStatuses || []),
+        ].forEach((item) => {
+            if (!item || !item.key) return;
+            keys.add(String(item.key));
+            (PASSIVE_UI_KEY_ALIASES[String(item.key)] || []).forEach((key) => keys.add(key));
+        });
+        return keys;
+    }
+
+    function genericPassiveMarkup(entries) {
+        return entries.map(([key, entry]) => {
+            const raw = entry.value !== undefined ? entry.value : entry.count ?? "";
+            const value = typeof raw === "boolean" ? (raw ? t("활성") : t("비활성")) : raw;
+            const typeClass = entry.count !== undefined ? "is-counter" : "is-status";
+            const activeClass = entry.value === true ? "is-active" : "";
+            return `
+                <div class="v2-mobile-passive-native ${typeClass} ${activeClass}">
+                    <span>${escapeHtml(passiveDisplayLabel(key, entry))}</span>
+                    <strong>${escapeHtml(value)}</strong>
+                </div>
+            `;
+        }).join("");
     }
 
     function passiveNumber(value, fallback) {
@@ -1216,8 +1290,9 @@
         const entries = Object.entries(player.passive_state || {});
         const chips = [];
         entries.forEach(([key, entry]) => {
-            const value = entry.value !== undefined ? entry.value : entry.count ?? "";
-            chips.push(`<span class="v2-mobile-passive-chip">${escapeHtml(entry.label || key)} ${escapeHtml(value)}</span>`);
+            const raw = entry.value !== undefined ? entry.value : entry.count ?? "";
+            const value = typeof raw === "boolean" ? (raw ? t("활성") : t("비활성")) : raw;
+            chips.push(`<span class="v2-mobile-passive-chip">${escapeHtml(passiveDisplayLabel(key, entry))} ${escapeHtml(value)}</span>`);
         });
         const passiveCards = (((player.zones || {}).passive) || []).filter((card) => !card.hidden);
         if (!chips.length && passiveCards.length) {
@@ -1257,7 +1332,7 @@
         const renderedStatusKeys = new Set();
         (options.controls || []).forEach((control) => {
             if (!control || !control.key) return;
-            const label = control.label || control.key;
+            const label = control.label || passiveDisplayLabel(control.key, passiveEntry(passiveState, control.key));
             if (control.type === "counter") {
                 const current = Math.max(0, passiveNumber(passiveEntryValue(passiveState, control.key, 0)));
                 const max = control.max === undefined || control.max === null ? null : passiveNumber(control.max);
@@ -1318,7 +1393,7 @@
         });
         [...(options.badges || []), ...(options.latchedStatuses || [])].forEach((badge) => {
             if (badge.key && renderedStatusKeys.has(badge.key)) return;
-            const label = badge.label || badge.key || t("패시브");
+            const label = badge.label || (badge.key ? passiveDisplayLabel(badge.key, passiveEntry(passiveState, badge.key)) : t("패시브"));
             const stored = passiveBool(passiveEntryValue(passiveState, badge.key, false));
             const met = passiveConditionMet(badge.condition || badge.activateWhen, player, passiveState);
             const keep = passiveConditionMet(badge.keepWhile || badge.activateWhen || badge.condition, player, passiveState);
@@ -1479,6 +1554,8 @@
         const passiveCards = ((player.zones && player.zones.passive) || []).filter((card) => !card.hidden);
         const passiveUi = ((player.character || {}).passive_ui) || {};
         const options = passiveOptions(passiveUi);
+        const configuredKeys = configuredPassiveKeys(passiveUi, options);
+        const genericEntries = Object.entries(passiveState).filter(([key]) => !configuredKeys.has(key));
         const controlsNode = document.createElement("div");
         controlsNode.className = "v2-mobile-passive-controls";
         if (hasPassiveControls(options)) {
@@ -1487,7 +1564,13 @@
             controlsNode.classList.add("has-custom-passive");
             renderCustomPassiveUi(side, controlsNode, passiveUi);
         } else {
-            controlsNode.innerHTML = passiveSummary(player);
+            controlsNode.innerHTML = genericEntries.length ? genericPassiveMarkup(genericEntries) : passiveSummary(player);
+        }
+        if ((hasPassiveControls(options) || passiveUi.html || passiveUi.css || passiveUi.js) && genericEntries.length) {
+            const genericNode = document.createElement("div");
+            genericNode.className = "v2-mobile-passive-generic";
+            genericNode.innerHTML = genericPassiveMarkup(genericEntries);
+            controlsNode.appendChild(genericNode);
         }
         const hasControls = !!controlsNode.children.length;
         if (passiveCards.length) {
@@ -1625,6 +1708,14 @@
         const image = card.img || card.img_sm || "";
         const details = [];
         const text = effectText(card);
+        const automaticDetail = automaticEffectDetail || {};
+        const automaticPrompt = String(automaticDetail.effect_prompt || automaticDetail.option_label || "").trim();
+        const automaticOption = String(automaticDetail.option_label || "").trim();
+        const automaticSequence = Array.isArray(automaticDetail.sequence_labels)
+            ? automaticDetail.sequence_labels.map(String).filter(Boolean)
+            : [];
+        const showAutomaticEffect = String(automaticDetail.instance_id || "") === String(card.instance_id || "")
+            && (automaticPrompt || automaticOption || automaticSequence.length > 1);
         if (isAttackCard(card)) {
             details.push(`<p class="v2-mobile-card-detail-line">${escapeHtml(valueOrDashLabel(card, "hit"))} | ${escapeHtml(valueOrDashLabel(card, "guard"))} | ${escapeHtml(valueOrDashLabel(card, "counter"))}</p>`);
             const judgments = joinPresent([displayValue(card, "body"), displayValue(card, "special")], " / ");
@@ -1636,15 +1727,24 @@
         holder.innerHTML = `
             ${image ? `<img src="${escapeHtml(image)}" alt="">` : ""}
             <h2>${escapeHtml(cardName(card))}</h2>
+            ${showAutomaticEffect ? `
+                <section class="v2-automatic-card-detail-effect" aria-live="polite">
+                    <span>현재 처리할 효과</span>
+                    ${automaticPrompt ? `<strong>${escapeHtml(automaticPrompt)}</strong>` : ""}
+                    ${automaticOption && automaticOption !== automaticPrompt ? `<p>${escapeHtml(automaticOption)}</p>` : ""}
+                    ${automaticSequence.length > 1 ? `<small>사용 순서: ${escapeHtml(automaticSequence.join(" → "))}</small>` : ""}
+                </section>
+            ` : ""}
             <section class="v2-mobile-card-detail-text">${details.join("")}</section>
         `;
         modal.hidden = false;
     }
 
-    function openCardDetail(instanceId) {
+    function openCardDetail(instanceId, effectDetail) {
         const card = hydrateCard(findCard(instanceId));
         if (!card || card.hidden) return;
         selectedCardId = instanceId || "";
+        automaticEffectDetail = effectDetail || null;
         if (card.card_id && !metadataCache.has(String(card.card_id))) {
             scheduleMetadataFetch([String(card.card_id)]);
         }
@@ -1653,12 +1753,40 @@
 
     function closeCardDetail() {
         selectedCardId = "";
+        automaticEffectDetail = null;
         renderCardDetail();
     }
 
     function eventLabel(event) {
         const payload = event.payload || {};
         const actor = playerLabel(event.actor);
+        if (event.type === "battle_revealed") {
+            const readyCard = (side) => {
+                const card = payload[side] || {};
+                return card.card_label || card.card_code || t("카드");
+            };
+            return `${t("레디 공개")} - ${playerLabel("p1")}: ${readyCard("p1")} / ${playerLabel("p2")}: ${readyCard("p2")}`;
+        }
+        if (event.type === "card_readied") {
+            return `${actor} ${payload.card_label || payload.card_code || t("카드")} ${t("레디 선택")}`;
+        }
+        if (event.type === "decision_resolved") {
+            const selected = (payload.selected_options || [])
+                .map((option) => option && (option.label || option.id))
+                .filter(Boolean)
+                .join(", ");
+            const result = selected || t("선택하지 않음");
+            return `${actor} ${payload.prompt || t("효과 선택")}: ${result}`;
+        }
+        if (event.type === "card_moved") {
+            const from = payload.from_player ? `${playerLabel(payload.from_player)} ${zoneLabel(payload.from_zone)}` : zoneLabel(payload.from_zone);
+            const to = payload.to_player ? `${playerLabel(payload.to_player)} ${zoneLabel(payload.to_zone)}` : zoneLabel(payload.to_zone);
+            return `${actor} ${payload.card_label || payload.card_code || t("카드")}: ${from} -> ${to}`;
+        }
+        if (event.type === "card_visibility_changed") {
+            const revealed = payload.face_up ? t("공개") : t("비공개");
+            return `${actor} ${payload.card_label || (payload.card || {}).name || t("카드")} ${revealed}`;
+        }
         if (event.type === "move_card") {
             const from = payload.from_player ? `${playerLabel(payload.from_player)} ${zoneLabel(payload.from_zone)}` : zoneLabel(payload.from_zone);
             const to = payload.to_player ? `${playerLabel(payload.to_player)} ${zoneLabel(payload.to_zone)}` : zoneLabel(payload.to_zone);
@@ -1701,13 +1829,37 @@
         return event.type;
     }
 
+    function eventPresentation(event) {
+        const formatter = window.LumenSimulatorLogFormatter;
+        if (
+            (config.automaticMode || envelope.mode === "automatic")
+            && formatter && typeof formatter.format === "function"
+        ) {
+            return formatter.format(event, {
+                t,
+                playerLabel,
+                zoneLabel,
+                phaseLabel,
+                formatSigned,
+            });
+        }
+        return {
+            summary: t(eventLabel(event)),
+            category: "",
+            detail: "",
+            tone: "",
+            major: false,
+            hidden: false,
+        };
+    }
+
     function eventRelatedSide(event) {
         const payload = event.payload || {};
         if (["set_phase", "phase_advance", "next_turn"].includes(event.type)) return "";
         if (["request_action", "set_done", "hp", "fp", "fp_reset", "passive", "timer_timeout"].includes(event.type)) return payload.target || payload.owner || "";
         if (event.type === "bulk_move" || event.type === "shuffle_hand") return payload.player || "";
         if (event.type === "set_hand_visibility") return payload.target || "";
-        if (event.type === "move_card" || event.type === "attach_card") return payload.owner || event.actor || payload.to_player || payload.from_player || "";
+        if (["move_card", "card_moved", "attach_card"].includes(event.type)) return payload.owner || event.actor || payload.to_player || payload.from_player || "";
         return event.actor || "";
     }
 
@@ -1729,17 +1881,41 @@
             holder.appendChild(loading);
             return;
         }
-        if (!events.length) {
+        const formatter = window.LumenSimulatorLogFormatter;
+        const preparedEvents = (
+            (config.automaticMode || envelope.mode === "automatic")
+            && formatter && typeof formatter.prepare === "function"
+        ) ? formatter.prepare(events) : events;
+        const visibleEvents = preparedEvents
+            .map((event) => ({ event, presentation: eventPresentation(event) }))
+            .filter((item) => !item.presentation.hidden);
+        if (!visibleEvents.length) {
             const empty = document.createElement("p");
             empty.className = "v2-mobile-empty";
             empty.textContent = t("표시할 기록이 없습니다.");
             holder.appendChild(empty);
             return;
         }
-        events.forEach((event) => {
+        visibleEvents.forEach(({ event, presentation }) => {
             const row = document.createElement("div");
             row.className = `v2-mobile-log-row ${logAlignmentClass(event)}${event.optimistic ? " is-optimistic" : ""}`;
-            row.textContent = t(eventLabel(event));
+            if (presentation.major) row.classList.add("is-major-log");
+            if (presentation.tone) row.classList.add(`is-${presentation.tone}-log`);
+            if (presentation.category) {
+                const category = document.createElement("span");
+                category.className = "v2-mobile-log-category";
+                category.textContent = presentation.category;
+                row.appendChild(category);
+            }
+            const summary = document.createElement("strong");
+            summary.textContent = presentation.summary;
+            row.appendChild(summary);
+            if (presentation.detail) {
+                const detail = document.createElement("small");
+                detail.className = "v2-mobile-log-detail";
+                detail.textContent = presentation.detail;
+                row.appendChild(detail);
+            }
             holder.appendChild(row);
         });
         holder.scrollTop = holder.scrollHeight;

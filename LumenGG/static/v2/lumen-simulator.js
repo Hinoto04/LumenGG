@@ -60,6 +60,7 @@
     let nextRequestId = 1;
     let logOpen = false;
     let selectedCardId = "";
+    let automaticEffectDetail = null;
     let pendingTimerTimeoutKey = "";
     let reportedTimerTimeoutKey = "";
     let actionBatchTimer = null;
@@ -73,6 +74,10 @@
     let realtimeToastMessage = "";
     let realtimeToastCount = 0;
     let selectedLogCard = null;
+    let inspectedCardTimer = null;
+    let lastInspectedEventId = String(([
+        ...events,
+    ].reverse().find((event) => event && event.type === "card_inspected") || {}).id || "");
     let draggedCardInstanceId = "";
     let lastPhaseOverlayKey = `${state.turn || 1}:${state.phase || ""}`;
     let lastSignalOverlayKey = "";
@@ -347,15 +352,29 @@
 
     function effectText(card) {
         if (!card) return "";
-        if (hasValue(card.text_label)) return String(card.text_label);
-        return hasValue(card.text) ? t(card.text) : "";
+        if (hasValue(card.text_label)) return cleanKeywordText(card.text_label);
+        return hasValue(card.text) ? cleanKeywordText(t(card.text)) : "";
+    }
+
+    function cleanKeywordText(value) {
+        return String(value || "").replace(
+            /\[\[(?:[^:\]]+:)?([^\]]+)\]\]/g,
+            (_match, label) => String(label || "").replace(/_/g, " "),
+        );
     }
 
     function cacheCardMetadata(cards) {
+        const cached = {};
         Object.entries(cards || {}).forEach(([cardId, metadata]) => {
             if (!cardId || !metadata || typeof metadata !== "object") return;
             cardMetadataCache.set(String(cardId), metadata);
+            cached[String(cardId)] = metadata;
         });
+        if (Object.keys(cached).length) {
+            window.dispatchEvent(new CustomEvent("lumen-simulator-card-metadata", {
+                detail: {cards: cached},
+            }));
+        }
     }
 
     function hydrateCard(card) {
@@ -541,11 +560,61 @@
         return ["controls", "badges", "latchedStatuses"].some((key) => Array.isArray(options[key]) && options[key].length);
     }
 
+    const PASSIVE_UI_KEY_ALIASES = {
+        root_charge: ["charge"],
+        notice: ["advance_notice"],
+        silver_counter: ["hidden_bond"],
+        yang_counter: ["yang"],
+        yin_counter: ["yin"],
+        foresight_counter: ["foresight"],
+        ember_token: ["ember"],
+        howling_counter: ["howling"],
+    };
+
+    function passiveEntry(passiveState, key) {
+        const aliases = PASSIVE_UI_KEY_ALIASES[String(key)] || [];
+        const matchedAlias = aliases.find((alias) => Object.prototype.hasOwnProperty.call(passiveState, alias));
+        return passiveState[matchedAlias || String(key)] || {};
+    }
+
     function passiveEntryValue(passiveState, key, fallback) {
-        const entry = passiveState[String(key)] || {};
+        const entry = passiveEntry(passiveState, key);
         if (entry.value !== undefined) return entry.value;
         if (entry.count !== undefined) return entry.count;
         return fallback;
+    }
+
+    function passiveDisplayLabel(key, entry) {
+        return entry.display_label || t(entry.label || key);
+    }
+
+    function configuredPassiveKeys(passiveUi, options) {
+        const keys = new Set((passiveUi.managed_keys || []).map(String));
+        [
+            ...(options.controls || []),
+            ...(options.badges || []),
+            ...(options.latchedStatuses || []),
+        ].forEach((item) => {
+            if (!item || !item.key) return;
+            keys.add(String(item.key));
+            (PASSIVE_UI_KEY_ALIASES[String(item.key)] || []).forEach((key) => keys.add(key));
+        });
+        return keys;
+    }
+
+    function genericPassiveMarkup(entries) {
+        return entries.map(([key, entry]) => {
+            const raw = entry.value !== undefined ? entry.value : entry.count ?? "";
+            const value = typeof raw === "boolean" ? (raw ? t("활성") : t("비활성")) : raw;
+            const typeClass = entry.count !== undefined ? "is-counter" : "is-status";
+            const activeClass = entry.value === true ? "is-active" : "";
+            return `
+                <div class="v2-sim-passive-native ${typeClass} ${activeClass}">
+                    <span>${escapeHtml(passiveDisplayLabel(key, entry))}</span>
+                    <strong>${escapeHtml(value)}</strong>
+                </div>
+            `;
+        }).join("");
     }
 
     function passiveNumber(value, fallback) {
@@ -633,19 +702,40 @@
         return true;
     }
 
-    function selectCardInstance(instanceId) {
+    function selectCardInstance(instanceId, effectDetail) {
         selectedCardId = instanceId || "";
         selectedLogCard = null;
+        automaticEffectDetail = effectDetail || null;
         renderCardDetail();
     }
 
     function selectLogCard(card) {
         selectedCardId = "";
         selectedLogCard = card || null;
+        automaticEffectDetail = null;
         if (selectedLogCard && selectedLogCard.card_id) {
             scheduleCardMetadataFetch(new Set([String(selectedLogCard.card_id)]));
         }
         renderCardDetail();
+    }
+
+    function automaticEffectMarkup(card) {
+        const detail = automaticEffectDetail || {};
+        if (!card || String(detail.instance_id || "") !== String(card.instance_id || "")) return "";
+        const prompt = cleanKeywordText(detail.effect_prompt || detail.option_label).trim();
+        const option = cleanKeywordText(detail.option_label).trim();
+        const sequence = Array.isArray(detail.sequence_labels)
+            ? detail.sequence_labels.map(String).filter(Boolean)
+            : [];
+        if (!prompt && !option && sequence.length < 2) return "";
+        return `
+            <section class="v2-automatic-card-detail-effect" aria-live="polite">
+                <span>현재 처리할 효과</span>
+                ${prompt ? `<strong>${escapeHtml(prompt)}</strong>` : ""}
+                ${option && option !== prompt ? `<p>${escapeHtml(option)}</p>` : ""}
+                ${sequence.length > 1 ? `<small>사용 순서: ${escapeHtml(sequence.join(" → "))}</small>` : ""}
+            </section>
+        `;
     }
 
     function logCardPayload(event) {
@@ -753,11 +843,45 @@
             envelope.events = previousEvents;
             if (envelope.event_count === undefined) envelope.event_count = previousEventCount;
         }
+        const inspectedEvent = [...events].reverse().find(
+            (event) => event && event.type === "card_inspected"
+                && event.payload && event.payload.card,
+        );
+        const inspectedEventId = String((inspectedEvent || {}).id || "");
+        if (inspectedEventId && inspectedEventId !== lastInspectedEventId) {
+            lastInspectedEventId = inspectedEventId;
+            window.clearTimeout(inspectedCardTimer);
+            selectedCardId = "";
+            automaticEffectDetail = null;
+            selectedLogCard = cloneData(inspectedEvent.payload.card);
+            inspectedCardTimer = window.setTimeout(() => {
+                if (String(lastInspectedEventId) !== inspectedEventId) return;
+                selectedLogCard = null;
+                inspectedCardTimer = null;
+                renderCardDetail();
+            }, 3500);
+        }
         ensureKnownCardMetadata();
         render();
-        window.dispatchEvent(new CustomEvent("lumen-simulator-state", { detail: envelope }));
+        if (!(options && options.silent)) {
+            window.dispatchEvent(new CustomEvent("lumen-simulator-state", { detail: envelope }));
+        }
         return envelope;
     }
+
+    window.addEventListener("lumen-simulator-apply-state", (event) => {
+        const detail = event.detail || {};
+        if (!detail.envelope) return;
+        updateEnvelope(detail.envelope, {force: true, silent: !!detail.optimistic});
+    });
+
+    window.addEventListener("lumen-simulator-open-card-detail", (event) => {
+        const detail = event.detail || {};
+        const instanceId = String(detail.instance_id || "");
+        const card = instanceId ? findCard(instanceId) : null;
+        if (!card || card.hidden) return;
+        selectCardInstance(instanceId, detail);
+    });
 
     function cloneData(value) {
         return JSON.parse(JSON.stringify(value));
@@ -1967,12 +2091,9 @@
         const passiveUi = character.passive_ui || {};
         const options = passiveOptions(passiveUi);
         const entries = Object.entries(passiveState);
-        const rows = entries.length
-            ? entries.map(([key, entry]) => {
-                const value = entry.value !== undefined ? entry.value : entry.count ?? "";
-                return `<span>${escapeHtml(entry.label || key)} <strong>${escapeHtml(value)}</strong></span>`;
-            }).join("")
-            : "";
+        const configuredKeys = configuredPassiveKeys(passiveUi, options);
+        const genericEntries = entries.filter(([key]) => !configuredKeys.has(key));
+        const rows = genericPassiveMarkup(genericEntries);
         const controlsNode = document.createElement("div");
         controlsNode.className = "v2-sim-passive-controls";
         const cardsNode = document.createElement("div");
@@ -1985,9 +2106,10 @@
         } else if (hasCustomPanel) {
             controlsNode.classList.add("has-custom-passive");
             renderCustomPassiveUi(side, controlsNode, passiveUi);
-        } else if (rows) {
+        }
+        if (rows) {
             const listNode = document.createElement("div");
-            listNode.className = "v2-sim-passive-list";
+            listNode.className = "v2-sim-passive-generic";
             listNode.innerHTML = rows;
             controlsNode.appendChild(listNode);
         }
@@ -2025,7 +2147,7 @@
         const renderedStatusKeys = new Set();
         (options.controls || []).forEach((control) => {
             if (!control || !control.key) return;
-            const label = control.label || control.key;
+            const label = control.label || passiveDisplayLabel(control.key, passiveEntry(passiveState, control.key));
             if (control.type === "counter") {
                 const current = Math.max(0, passiveNumber(passiveEntryValue(passiveState, control.key, 0)));
                 const max = control.max === undefined || control.max === null ? null : passiveNumber(control.max);
@@ -2094,7 +2216,7 @@
         const badges = [...(options.badges || []), ...(options.latchedStatuses || [])];
         badges.forEach((badge) => {
             if (badge.key && renderedStatusKeys.has(badge.key)) return;
-            const label = badge.label || badge.key || t("패시브");
+            const label = badge.label || (badge.key ? passiveDisplayLabel(badge.key, passiveEntry(passiveState, badge.key)) : t("패시브"));
             const stored = passiveBool(passiveEntryValue(passiveState, badge.key, false));
             const met = passiveConditionMet(badge.condition || badge.activateWhen, player, passiveState);
             const keep = passiveConditionMet(badge.keepWhile || badge.activateWhen || badge.condition, player, passiveState);
@@ -2431,6 +2553,37 @@
     function eventLabel(event) {
         const payload = event.payload || {};
         const actor = playerLabel(event.actor);
+        if (event.type === "battle_revealed") {
+            const readyCard = (side) => {
+                const card = payload[side] || {};
+                return card.card_label || card.card_code || t("카드");
+            };
+            return `${t("레디 공개")} - ${playerLabel("p1")}: ${readyCard("p1")} / ${playerLabel("p2")}: ${readyCard("p2")}`;
+        }
+        if (event.type === "card_readied") {
+            return `${actor} ${payload.card_label || payload.card_code || t("카드")} ${t("레디 선택")}`;
+        }
+        if (event.type === "decision_resolved") {
+            const selected = (payload.selected_options || [])
+                .map((option) => option && (option.label || option.id))
+                .filter(Boolean)
+                .join(", ");
+            const result = selected || t("선택하지 않음");
+            return `${actor} ${payload.prompt || t("효과 선택")}: ${result}`;
+        }
+        if (event.type === "card_moved") {
+            const from = payload.from_player
+                ? `${playerLabel(payload.from_player)} ${zoneLabel(payload.from_zone)}`
+                : zoneLabel(payload.from_zone);
+            const to = payload.to_player
+                ? `${playerLabel(payload.to_player)} ${zoneLabel(payload.to_zone)}`
+                : zoneLabel(payload.to_zone);
+            return `${actor} ${payload.card_label || payload.card_code || t("카드")}: ${from} → ${to}`;
+        }
+        if (event.type === "card_visibility_changed") {
+            const revealed = payload.face_up ? t("공개") : t("비공개");
+            return `${actor} ${payload.card_label || (payload.card || {}).name || t("카드")} ${revealed}`;
+        }
         if (event.type === "move_card") {
             const from = payload.from_player
                 ? `${playerLabel(payload.from_player)} ${zoneLabel(payload.from_zone)}`
@@ -2483,6 +2636,30 @@
         return event.type;
     }
 
+    function eventPresentation(event) {
+        const formatter = window.LumenSimulatorLogFormatter;
+        if (
+            (config.automaticMode || envelope.mode === "automatic")
+            && formatter && typeof formatter.format === "function"
+        ) {
+            return formatter.format(event, {
+                t,
+                playerLabel,
+                zoneLabel,
+                phaseLabel,
+                formatSigned,
+            });
+        }
+        return {
+            summary: t(eventLabel(event)),
+            category: "",
+            detail: "",
+            tone: "",
+            major: false,
+            hidden: false,
+        };
+    }
+
     function eventRelatedSide(event) {
         const payload = event.payload || {};
         if (["set_phase", "phase_advance", "next_turn"].includes(event.type)) return "";
@@ -2494,7 +2671,7 @@
         if (["yohan_declare_reveal", "yohan_foresight_reveal", "nia_lumen_cards_to_list", "cmyk_new_single", "blackout_random_get"].includes(event.type)) return payload.target || event.actor || "";
         if (event.type === "set_visibility") return payload.owner || event.actor || "";
         if (event.type === "signal") return event.actor || "";
-        if (event.type === "move_card") return payload.owner || event.actor || payload.to_player || payload.from_player || "";
+        if (["move_card", "card_moved"].includes(event.type)) return payload.owner || event.actor || payload.to_player || payload.from_player || "";
         if (event.type === "timer") return payload.owner || event.actor || "";
         if (event.type === "log_note") return event.actor || "";
         return event.actor || "";
@@ -2520,7 +2697,14 @@
             holder.appendChild(loading);
             return;
         }
-        const rows = events.slice().reverse();
+        const formatter = window.LumenSimulatorLogFormatter;
+        const preparedEvents = (
+            (config.automaticMode || envelope.mode === "automatic")
+            && formatter && typeof formatter.prepare === "function"
+        ) ? formatter.prepare(events) : events;
+        const rows = preparedEvents.slice().reverse()
+            .map((event) => ({ event, presentation: eventPresentation(event) }))
+            .filter((item) => !item.presentation.hidden);
         if (!rows.length) {
             const empty = document.createElement("p");
             empty.className = "v2-battle-empty";
@@ -2535,9 +2719,11 @@
             notice.textContent = t(`이전 로그 ${omitted}개는 생략되었습니다.`);
             holder.appendChild(notice);
         }
-        rows.forEach((event) => {
+        rows.forEach(({ event, presentation }) => {
             const row = document.createElement("div");
             row.className = "v2-sim-log-row";
+            if (presentation.major) row.classList.add("is-major-log");
+            if (presentation.tone) row.classList.add(`is-${presentation.tone}-log`);
             const relatedSide = eventRelatedSide(event);
             if (relatedSide === "p1") row.classList.add("is-p1");
             if (relatedSide === "p2") row.classList.add("is-p2");
@@ -2548,9 +2734,21 @@
                 if (logCard.instanceId) row.dataset.logCardInstance = logCard.instanceId;
                 if (logCard.card) row.dataset.logCard = JSON.stringify(logCard.card);
             }
+            if (presentation.category) {
+                const category = document.createElement("span");
+                category.className = "v2-sim-log-category";
+                category.textContent = presentation.category;
+                row.append(category);
+            }
             const label = document.createElement("strong");
-            label.textContent = t(eventLabel(event));
+            label.textContent = presentation.summary;
             row.append(label);
+            if (presentation.detail) {
+                const detail = document.createElement("small");
+                detail.className = "v2-sim-log-detail";
+                detail.textContent = presentation.detail;
+                row.append(detail);
+            }
             holder.appendChild(row);
         });
     }
@@ -2581,6 +2779,7 @@
         holder.innerHTML = `
             ${image ? `<img src="${escapeHtml(image)}" alt="">` : ""}
             <h2>${escapeHtml(cardDisplayName(card))}</h2>
+            ${automaticEffectMarkup(card)}
             ${actions}
             <section class="v2-sim-card-detail-text">${details.join("")}</section>
         `;
@@ -2785,6 +2984,46 @@
         scheduleShuffleCooldownTick();
     }
 
+    function simulatorFullscreenElement() {
+        return document.fullscreenElement
+            || document.webkitFullscreenElement
+            || document.msFullscreenElement
+            || null;
+    }
+
+    function updateSimulatorFullscreenPresentation() {
+        const active = !!simulatorFullscreenElement();
+        document.body.classList.toggle("is-v2-simulator-fullscreen", active);
+        root.querySelectorAll("[data-fullscreen-toggle]").forEach((button) => {
+            const label = active ? t("전체화면 종료") : t("전체화면");
+            button.textContent = label;
+            button.title = label;
+            button.setAttribute("aria-label", label);
+            button.setAttribute("aria-pressed", String(active));
+            button.classList.toggle("is-active", active);
+        });
+    }
+
+    function toggleSimulatorFullscreen() {
+        const active = !!simulatorFullscreenElement();
+        const target = root || document.documentElement;
+        const method = active
+            ? document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen
+            : target.requestFullscreen || target.webkitRequestFullscreen || target.msRequestFullscreen;
+        const receiver = active ? document : target;
+        if (typeof method !== "function") return;
+        try {
+            const result = method.call(receiver);
+            if (result && typeof result.catch === "function") {
+                result.catch(() => {}).finally(updateSimulatorFullscreenPresentation);
+            } else {
+                updateSimulatorFullscreenPresentation();
+            }
+        } catch (_error) {
+            updateSimulatorFullscreenPresentation();
+        }
+    }
+
     function renderPresence() {
         const holder = document.querySelector("[data-sim-presence]");
         if (!holder) return;
@@ -2982,6 +3221,7 @@
         if (button.dataset.cardDrawerClose !== undefined) {
             selectedCardId = "";
             selectedLogCard = null;
+            automaticEffectDetail = null;
             renderCardDetail();
             return;
         }
@@ -3163,12 +3403,7 @@
             return;
         }
         if (button.dataset.fullscreenToggle !== undefined) {
-            const target = document.querySelector("[data-lumen-simulator]") || document.documentElement;
-            if (!document.fullscreenElement && target.requestFullscreen) {
-                target.requestFullscreen().catch(() => {});
-            } else if (document.exitFullscreen) {
-                document.exitFullscreen().catch(() => {});
-            }
+            toggleSimulatorFullscreen();
         }
     });
 
@@ -3183,10 +3418,12 @@
     document.addEventListener("click", (event) => {
         if (!selectedCardId && !selectedLogCard) return;
         if (event.target.closest("[data-card-drawer]")) return;
+        if (event.target.closest(".v2-automatic-choice-layer")) return;
         if (event.target.closest("[data-card-open]")) return;
         if (event.target.closest("[data-log-card-instance], [data-log-card]")) return;
         selectedCardId = "";
         selectedLogCard = null;
+        automaticEffectDetail = null;
         renderCardDetail();
     });
 
@@ -3228,7 +3465,12 @@
     });
 
     window.addEventListener("resize", scheduleFitCardGrids);
-    document.addEventListener("fullscreenchange", scheduleFitCardGrids);
+    document.addEventListener("fullscreenchange", () => {
+        updateSimulatorFullscreenPresentation();
+        scheduleFitCardGrids();
+    });
+    document.addEventListener("webkitfullscreenchange", updateSimulatorFullscreenPresentation);
+    document.addEventListener("MSFullscreenChange", updateSimulatorFullscreenPresentation);
 
     function fetchEvents() {
         const url = eventsUrl();
@@ -3429,6 +3671,7 @@
     loadCardSizeSetting();
     applyCardSizeSetting();
     render();
+    updateSimulatorFullscreenPresentation();
     connectSocket();
     window.setInterval(() => {
         if (socketReady && socket && socket.readyState === WebSocket.OPEN) {

@@ -651,7 +651,7 @@
 }
 
 .v2-sim-passive-cards,
-.v2-sim-passive-list,
+.v2-sim-passive-generic,
 .v2-sim-passive-custom,
 .v2-sim-passive-controls {
     display: flex;
@@ -700,17 +700,6 @@
     object-fit: cover;
 }
 
-.v2-sim-passive-list span {
-    flex: 0 0 auto;
-    min-height: 24px;
-    padding: 3px 7px;
-    border: 1px solid var(--v2-line);
-    border-radius: 8px;
-    color: var(--v2-muted);
-    background: var(--v2-soft-bg);
-    font-size: .76rem;
-}
-
 .v2-sim-passive-custom {
     max-width: min(520px, 100%);
     max-height: 74px;
@@ -733,12 +722,13 @@
     font-weight: 900;
 }
 
-.v2-sim-passive-list:empty {
+.v2-sim-passive-generic:empty {
     display: none;
 }
 
-.v2-sim-passive-list strong {
-    color: var(--v2-text);
+.v2-sim-passive-generic {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
 }
 
 .v2-sim-passive-native {
@@ -936,6 +926,38 @@
 .v2-sim-zone.is-drop-hover {
     border-color: var(--v2-accent);
     background: rgba(224, 180, 91, .08);
+}
+
+:root[data-theme="light"] .v2-sim-counter,
+:root[data-theme="light"] .v2-sim-fp-value {
+    border-color: rgba(73, 53, 26, .38);
+    color: #241f19;
+    background: #fffaf2;
+    box-shadow: 0 1px 3px rgba(65, 47, 25, .12);
+}
+
+:root[data-theme="light"] .v2-sim-counter.is-damage {
+    border-color: rgba(174, 57, 57, .46);
+    color: #8f2929;
+    background: #fff1f1;
+}
+
+:root[data-theme="light"] .v2-sim-counter.is-heal {
+    border-color: rgba(22, 118, 96, .46);
+    color: #12644f;
+    background: #edfbf7;
+}
+
+:root[data-theme="light"] .v2-sim-fp-value.is-positive {
+    border-color: rgba(22, 118, 96, .58);
+    color: #0f5d49;
+    background: linear-gradient(135deg, rgba(91, 190, 176, .28), #fffaf2 76%);
+}
+
+:root[data-theme="light"] .v2-sim-fp-value.is-negative {
+    border-color: rgba(174, 57, 57, .58);
+    color: #8f2929;
+    background: linear-gradient(135deg, rgba(217, 105, 105, .24), #fffaf2 76%);
 }
 
 .v2-sim-card-set-group {
@@ -1307,6 +1329,52 @@
     font-size: .86rem;
     line-height: 1.35;
     white-space: pre-line;
+}
+
+.v2-sim-log-category {
+    display: inline-flex;
+    align-items: center;
+    min-height: 20px;
+    margin-bottom: 5px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    color: var(--v2-text);
+    background: color-mix(in srgb, var(--v2-accent) 18%, transparent);
+    font-size: .68rem;
+    font-weight: 900;
+    letter-spacing: .02em;
+}
+
+.v2-sim-log-detail {
+    display: block;
+    margin-top: 5px;
+    color: var(--v2-muted);
+    font-size: .74rem;
+    font-weight: 700;
+    line-height: 1.4;
+    white-space: pre-line;
+}
+
+.v2-sim-log-row.is-major-log {
+    width: min(96%, 410px);
+    padding: 10px;
+    border-width: 2px;
+    background: color-mix(in srgb, var(--v2-soft-bg) 88%, var(--v2-accent) 12%);
+}
+
+.v2-sim-log-row.is-battle-log,
+.v2-sim-log-row.is-judgment-log {
+    border-color: color-mix(in srgb, var(--v2-accent) 70%, var(--v2-line));
+}
+
+.v2-sim-log-row.is-damage-log,
+.v2-sim-log-row.is-warning-log {
+    border-color: rgba(217, 105, 105, .68);
+}
+
+.v2-sim-log-row.is-recover-log,
+.v2-sim-log-row.is-effect-log {
+    border-color: rgba(91, 190, 176, .62);
 }
 
 .v2-sim-log-row.is-own-log {

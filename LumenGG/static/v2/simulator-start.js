@@ -7,6 +7,9 @@
     const results = root.querySelector("[data-simulator-deck-search-results]");
     const modeSelect = root.querySelector("#simulator_mode");
     const opponentSelect = root.querySelector("[data-opponent-type]");
+    const automaticTimerSettings = Array.from(
+        root.querySelectorAll("[data-automatic-timer-setting]"),
+    );
     if (!searchUrl || !searchInput || !results) return;
 
     const playerInputs = {
@@ -33,9 +36,17 @@
                 playerInputs.p2.name.value = "Lumen AI";
             }
         }
+        const automatic = modeSelect.value === "automatic";
+        automaticTimerSettings.forEach((field) => {
+            field.hidden = !automatic;
+            field.querySelectorAll("select").forEach((select) => {
+                select.disabled = !automatic;
+            });
+        });
     }
 
     if (opponentSelect) opponentSelect.addEventListener("change", syncOpponentMode);
+    if (modeSelect) modeSelect.addEventListener("change", syncOpponentMode);
     syncOpponentMode();
 
     function playerNameWithCharacter(currentName, fallback, characterName) {

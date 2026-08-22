@@ -10,7 +10,8 @@ from .simulation import run_policy_game
 
 MUTABLE_WEIGHTS = (
     'pass_phase', 'ready_card', 'select_get_card', 'select_ultimate',
-    'submit_decision', 'play_combo_card', 'play_combo_pair', 'end_combo',
+    'submit_decision', 'play_combo_card', 'play_combo_pair',
+    'select_combo_first', 'select_combo_followup', 'end_combo',
     'play_catch_card', 'decline_catch', 'card_damage', 'card_speed',
     'card_attack', 'card_defense', 'low_hp_defense', 'hp_advantage_attack',
     'zero_damage_attack',

@@ -37,7 +37,11 @@ function isHarmony() {
 }
 
 function selectedEffect() {
-    return String(api.get("harmony_effect", "") || "");
+    const stored = String(api.get("harmony_effect", "") || "");
+    if (stored) return stored;
+    if (isActive(api.get("harmony_damage", false))) return "damage_100";
+    if (isActive(api.get("harmony_fp", false))) return "fp_1";
+    return "";
 }
 
 function shouldActivateHarmony(yang, yin) {

@@ -121,6 +121,12 @@ def simulatorStart(req):
                         player2_deck,
                         mode=requested_mode,
                         player2_controller=player2_controller,
+                        ready_timeout_seconds=req.POST.get(
+                            'ready_timeout_seconds', '30',
+                        ),
+                        effect_timeout_seconds=req.POST.get(
+                            'effect_timeout_seconds', '60',
+                        ),
                     )
                 except ValueError as exc:
                     context['errors'].append(str(exc))
@@ -139,6 +145,12 @@ def simulatorStart(req):
             'player2_deck': player2_deck_id,
             'mode': req.POST.get('mode', 'manual'),
             'opponent_type': req.POST.get('opponent_type', 'human'),
+            'ready_timeout_seconds': req.POST.get(
+                'ready_timeout_seconds', '30',
+            ),
+            'effect_timeout_seconds': req.POST.get(
+                'effect_timeout_seconds', '60',
+            ),
         })
 
     context['errors'] = [ui_text(error, language) for error in context['errors']]
@@ -391,7 +403,16 @@ def simulatorCommand(req, view_token):
     except PermissionDenied:
         return JsonResponse({'ok': False, 'error': ui_text('조작 권한이 없습니다.', get_language(req))}, status=403)
     except StaleState as exc:
-        return JsonResponse({'ok': False, 'error': str(exc), 'code': 'stale_state'}, status=409)
+        latest = _get_simulator_session(view_token)
+        return JsonResponse({
+            'ok': False,
+            'error': str(exc),
+            'code': 'stale_state',
+            'state': serialize_simulator_session(
+                latest, seat, seat_token,
+                language=get_language(req), include_events=False,
+            ),
+        }, status=409)
     except IllegalAction as exc:
         return JsonResponse({'ok': False, 'error': str(exc), 'code': 'illegal_action'}, status=400)
     except AutomaticRuntimeFailure as exc:

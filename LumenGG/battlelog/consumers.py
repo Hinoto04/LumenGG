@@ -315,7 +315,14 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
             self.send_error('조작 권한이 없습니다.', request_id=request_id)
             return
         except StaleState as exc:
-            self.send_error(str(exc), request_id=request_id, code='stale_state')
+            latest = simulator_queryset().get(view_token=self.view_token)
+            self.send_error(
+                str(exc), request_id=request_id, code='stale_state',
+                state=serialize_simulator_session(
+                    latest, self.seat, self.seat_token,
+                    language=self.language, include_events=False,
+                ),
+            )
             return
         except IllegalAction as exc:
             self.send_error(str(exc), request_id=request_id, code='illegal_action')
@@ -403,7 +410,7 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
         except (TypeError, ValueError):
             return 0
 
-    def send_error(self, message, request_id=None, code=None):
+    def send_error(self, message, request_id=None, code=None, state=None):
         payload = {
             'type': 'error',
             'request_id': request_id,
@@ -412,4 +419,6 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
         }
         if code:
             payload['code'] = code
+        if state is not None:
+            payload['state'] = state
         self.send_json(payload)

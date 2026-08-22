@@ -25,6 +25,11 @@ from common.language import (
     translated_character_field,
     ui_text,
 )
+from common.localization import (
+    term_translation_key,
+    translate_key,
+    translation_source_exists,
+)
 
 from .event_buffer import (
     clear_pending_battle_events,
@@ -45,6 +50,24 @@ STANDALONE_SESSION_LIFETIME = timedelta(hours=1)
 TOURNAMENT_SESSION_LIFETIME_AFTER_FINISH = timedelta(days=7)
 PASSIVE_UI_TEMPLATE_PREFIX = 'battlelog/passive_ui/'
 PASSIVE_UI_STATIC_PREFIX = 'battlelog/passive_ui/'
+PASSIVE_UI_MANAGED_KEYS_BY_SCRIPT = {
+    'battlelog/passive_ui/root.js': ('charge',),
+    'battlelog/passive_ui/tao_simulator.js': (
+        'yin', 'yang', 'harmony', 'harmony_damage', 'harmony_fp',
+    ),
+    'battlelog/passive_ui/yohan_simulator.js': ('foresight', 'disaster_one'),
+    'battlelog/passive_ui/cmyk_simulator.js': ('new_single_created',),
+}
+PASSIVE_UI_SEMANTIC_SLUG_ALIASES = {
+    'root_charge': 'charge',
+    'notice': 'advance_notice',
+    'silver_counter': 'hidden_bond',
+    'yang_counter': 'yang',
+    'yin_counter': 'yin',
+    'foresight_counter': 'foresight',
+    'ember_token': 'ember',
+    'howling_counter': 'howling',
+}
 YOHAN_INITIAL_FORESIGHT_COUNT = 2
 
 
@@ -524,9 +547,27 @@ def _localize_passive_ui_options(value, language):
         return [_localize_passive_ui_options(item, language) for item in value]
     if isinstance(value, dict):
         localized = {}
+        semantic_label = ''
+        passive_key = str(value.get('key') or '')
+        if passive_key:
+            semantic_kind = 'token' if value.get('type') == 'counter' else 'state'
+            semantic_slug = PASSIVE_UI_SEMANTIC_SLUG_ALIASES.get(
+                passive_key, passive_key,
+            )
+            source_key = term_translation_key(semantic_kind, semantic_slug)
+            if translation_source_exists(source_key):
+                semantic_label = translate_key(source_key, language)
         for key, item in value.items():
             if key in PASSIVE_UI_TRANSLATABLE_KEYS and isinstance(item, str):
-                localized[key] = ui_text(game_term(item, language), language)
+                if key == 'label' and semantic_label:
+                    suffix = ''
+                    if '카운터' in item:
+                        suffix = f' {game_term("카운터", language)}'
+                    elif '토큰' in item:
+                        suffix = f' {game_term("토큰", language)}'
+                    localized[key] = f'{semantic_label}{suffix}'
+                else:
+                    localized[key] = ui_text(game_term(item, language), language)
             else:
                 localized[key] = _localize_passive_ui_options(item, language)
         return localized
@@ -730,11 +771,24 @@ def _passive_ui(character, language=DEFAULT_LANGUAGE, context='battle'):
         }
     template_path = raw_ui.get('template') or raw_ui.get('template_path') or raw_ui.get('templatePath') or raw_ui.get('html_path') or raw_ui.get('htmlPath')
     html = _render_passive_ui_template(template_path, character, language) if template_path else str(raw_ui.get('html') or '')
+    script_reference = str(
+        raw_ui.get('js_path') or raw_ui.get('jsPath')
+        or raw_ui.get('js_file') or raw_ui.get('jsFile')
+        or raw_ui.get('js') or ''
+    ).replace('\\', '/').lstrip('/')
+    managed_keys = raw_ui.get('managed_keys') or raw_ui.get('managedKeys') or ()
+    if not isinstance(managed_keys, (list, tuple)):
+        managed_keys = ()
+    managed_keys = list(dict.fromkeys([
+        *(str(key) for key in managed_keys if key),
+        *PASSIVE_UI_MANAGED_KEYS_BY_SCRIPT.get(script_reference, ()),
+    ]))
     return {
         'html': html,
         'css': _passive_ui_text_or_static(raw_ui, 'css', '.css'),
         'js': _passive_ui_text_or_static(raw_ui, 'js', '.js'),
         'options': _localize_passive_ui_options(options, language),
+        'managed_keys': managed_keys,
     }
 
 

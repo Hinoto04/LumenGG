@@ -49,6 +49,28 @@
                 <small>{% tr "AI 대전은 자동 규칙 모드에서 진행되며 AI가 플레이어2를 조작합니다." %}</small>
                 {% endif %}
             </div>
+            <div class="v2-admin-field" data-automatic-timer-setting>
+                <label for="simulator_ready_timeout">{% tr "레디 선택 제한 시간" %}</label>
+                <select id="simulator_ready_timeout" name="ready_timeout_seconds">
+                    <option value="30"{% if ready_timeout_seconds|default:"30" == "30" %} selected{% endif %}>30{% tr "초" %}</option>
+                    <option value="45"{% if ready_timeout_seconds == "45" %} selected{% endif %}>45{% tr "초" %}</option>
+                    <option value="60"{% if ready_timeout_seconds == "60" %} selected{% endif %}>60{% tr "초" %}</option>
+                    <option value="90"{% if ready_timeout_seconds == "90" %} selected{% endif %}>90{% tr "초" %}</option>
+                    <option value="none"{% if ready_timeout_seconds == "none" %} selected{% endif %}>{% tr "제한 없음" %}</option>
+                </select>
+                <small>{% tr "한 플레이어가 레디한 뒤 상대에게 적용됩니다." %}</small>
+            </div>
+            <div class="v2-admin-field" data-automatic-timer-setting>
+                <label for="simulator_effect_timeout">{% tr "효과 선택 제한 시간" %}</label>
+                <select id="simulator_effect_timeout" name="effect_timeout_seconds">
+                    <option value="30"{% if effect_timeout_seconds == "30" %} selected{% endif %}>30{% tr "초" %}</option>
+                    <option value="60"{% if effect_timeout_seconds|default:"60" == "60" %} selected{% endif %}>60{% tr "초" %}</option>
+                    <option value="90"{% if effect_timeout_seconds == "90" %} selected{% endif %}>90{% tr "초" %}</option>
+                    <option value="120"{% if effect_timeout_seconds == "120" %} selected{% endif %}>120{% tr "초" %}</option>
+                    <option value="none"{% if effect_timeout_seconds == "none" %} selected{% endif %}>{% tr "제한 없음" %}</option>
+                </select>
+                <small>{% tr "카드 효과의 대상·처리 선택에 적용됩니다." %}</small>
+            </div>
             <div class="v2-admin-field">
                 <label for="player1_name">{% tr "플레이어1 이름" %}</label>
                 <input id="player1_name" name="player1_name" type="text" value="{{ player1_name|default:"플레이어1"|ui:current_language }}" maxlength="60" data-player-name="p1">

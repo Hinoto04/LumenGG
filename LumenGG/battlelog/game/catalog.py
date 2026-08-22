@@ -32,7 +32,7 @@ CARD_RUNTIME_FIELDS = (
     'special', 'hit', 'guard', 'counter', 'g_top', 'g_mid', 'g_bot',
     'ultimate', 'character_id', 'keyword', 'hiddenKeyword', 'search',
 )
-EXPECTED_CARD_COUNT = 453
+EXPECTED_CARD_COUNT = 455
 
 
 @dataclass
