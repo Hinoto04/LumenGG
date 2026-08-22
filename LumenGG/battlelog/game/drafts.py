@@ -17546,7 +17546,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         }
         catch_where = {
             'is_technique': True,
-            'text_contains': '[[state:hidden_bond]]',
+            'text_contains': '[[token:hidden_bond]]',
         }
         definition['play_condition'] = copy.deepcopy(hidden_bond_available)
         definition['defense_rules'] = [{
@@ -24137,7 +24137,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             'zones': ['list'], 'min': 1, 'max': 1,
             'where': {
                 'is_technique': True,
-                'text_contains': '[[state:hidden_bond]]',
+                'text_contains': '[[token:hidden_bond]]',
             },
         }
         definition['play_condition'] = copy.deepcopy(hidden_bond_available)

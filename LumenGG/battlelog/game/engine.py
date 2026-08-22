@@ -3154,8 +3154,12 @@ class AutomaticGameEngine:
             ):
                 return self._interrupt_combo_resolution(pipeline, 'source_card_left_battle')
             pipeline['stage'] = 'damage'
-            self._fire('hit', context)
-            return not self.is_waiting
+            # A Technique used during Combo Time resolves its Combo/use/after-
+            # use timings and damage, but it does not create a new Hit or
+            # Counter timing.  Its printed Hit judgment still supplies FP in
+            # the damage stage below.  Keep this legacy ``hit`` pipeline stage
+            # so sessions persisted mid-resolution can resume safely.
+            return True
         if stage == 'damage':
             if (
                 not pipeline.get('continue_after_source_left')

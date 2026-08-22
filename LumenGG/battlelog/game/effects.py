@@ -21,6 +21,21 @@ EVENT_TIMING = {
     'card_guess_resolved': 'result', 'grab_negated': 'result',
 }
 
+# Early automatic ruleset releases described the hidden-bond counter with a
+# ``state`` marker even though the catalog card text uses a ``token`` marker.
+# Text selectors are intentionally literal for every other marker, but this
+# compatibility alias keeps those immutable releases playable.
+_TEXT_FILTER_ALIASES = {
+    '[[state:hidden_bond]]': '[[token:hidden_bond]]',
+}
+
+
+def _normalized_filter_text(value):
+    normalized = str(value or '')
+    for legacy, canonical in _TEXT_FILTER_ALIASES.items():
+        normalized = normalized.replace(legacy, canonical)
+    return normalized
+
 # These timings ordinarily belong to the Technique that is currently being
 # used or judged. A different Technique sitting in Battle/List/Hand/Side or
 # Break must not react merely because it has text with the same timing. Cards
@@ -475,10 +490,15 @@ def card_matches(card, where, state=None, context=None):
             if not any(str(item) in keywords for item in expected):
                 return False
         elif key == 'text_contains':
-            if str(expected) not in str(card.get('text') or ''):
+            text = _normalized_filter_text(card.get('text'))
+            if _normalized_filter_text(expected) not in text:
                 return False
         elif key == 'text_contains_any':
-            if not any(str(item) in str(card.get('text') or '') for item in (expected or [])):
+            text = _normalized_filter_text(card.get('text'))
+            if not any(
+                _normalized_filter_text(item) in text
+                for item in (expected or [])
+            ):
                 return False
         elif key == 'text_effect_prefix':
             marker = str(expected or '').strip()
@@ -490,7 +510,9 @@ def card_matches(card, where, state=None, context=None):
             ):
                 return False
         elif key == 'text_not_contains':
-            if str(expected) in str(card.get('text') or ''):
+            if _normalized_filter_text(expected) in _normalized_filter_text(
+                card.get('text'),
+            ):
                 return False
         elif key == 'type_in':
             if card.get('non_technique_while_face_down') or card.get('type') not in expected:

@@ -11862,11 +11862,11 @@ class AutomaticEngineTests(SimpleTestCase):
 
     def test_unc_at_037_reviews_list_catch_and_source_break_counter_exemption(self):
         text = (
-            '이 기술은 [[state:hidden_bond]] 카운터가 없다면 사용할 수 없다.\n'
+            '이 기술은 [[token:hidden_bond]] 카운터가 없다면 사용할 수 없다.\n'
             '이 기술은 10속도 이하 기술만 회피할 수 있다.\n'
-            '①히트 및 카운터 시, 리스트에서 [[state:hidden_bond]] 카운터를 '
+            '①히트 및 카운터 시, 리스트에서 [[token:hidden_bond]] 카운터를 '
             '소모하는 기술로 캐치할 수 있다. 그 경우, 이 기술을 브레이크했다면 '
-            '캐치한 기술은 [[state:hidden_bond]] 카운터를 소모하지 않는다.'
+            '캐치한 기술은 [[token:hidden_bond]] 카운터를 소모하지 않는다.'
         )
         qna_ids = [131, 367, 384, 406, 588, 641]
         definition = build_effect_draft(
@@ -11932,6 +11932,144 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(
             validate_effect_definition(definition, card_has_text=True), [],
         )
+
+    def test_unc_at_037_published_state_marker_still_opens_token_text_catch(self):
+        source = attack(
+            'nightmare-jete', 'p1', code='UNC-AT-037', frame=12,
+            damage=500, hit='+5', counter='+7',
+        )
+        catch_card = attack(
+            'leg-doll', 'p1', code='ST6-008', frame=12, damage=500,
+        )
+        catch_card['text'] = (
+            '캐치 시 [[token:hidden_bond]] 카운터 1개를 소모하면 '
+            '9속도로 사용할 수 있다.'
+        )
+        opposing_card = attack(
+            'opposing-card', 'p2', code='OPPOSING-CARD', frame=13,
+        )
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [source]
+        state['players']['p1']['zones']['list'] = [catch_card]
+        state['players']['p2']['zones']['battle'] = [opposing_card]
+        release = ruleset(source, catch_card, opposing_card)
+        definition = build_effect_draft(
+            'UNC-AT-037',
+            '[[token:hidden_bond]] 카운터가 없으면 사용할 수 없다.\n'
+            '①히트 및 카운터 시, 리스트에서 [[token:hidden_bond]] '
+            '카운터를 소모하는 기술로 캐치할 수 있다.',
+        )
+        # CB03 and earlier immutable snapshots contain this legacy selector.
+        catch_ability = next(
+            ability for ability in definition['abilities']
+            if ability['id'] == 'unc-at-037-n1'
+        )
+        catch_ability['condition']['where']['text_contains'] = (
+            '[[state:hidden_bond]]'
+        )
+        catch_ability['effects'][0]['where']['text_contains'] = (
+            '[[state:hidden_bond]]'
+        )
+        release['cards']['UNC-AT-037']['effect_definition'] = definition
+
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='nightmare-jete-published-marker',
+        )
+        engine.state['phase'] = 'battle'
+        engine.engine_state['battle'] = {
+            'p1': {
+                'card': copy.deepcopy(source),
+                'instance_id': source['instance_id'],
+            },
+            'p2': {
+                'card': copy.deepcopy(opposing_card),
+                'instance_id': opposing_card['instance_id'],
+            },
+            'result': {'p1': 'hit', 'p2': 'countered'},
+        }
+        engine._fire('hit', {
+            'controller': 'p1',
+            'source_card_instance_id': source['instance_id'],
+            'source_card': source,
+            'opponent_card': opposing_card,
+            'result': 'hit',
+            'source_battle_card_only': True,
+        })
+
+        self.assertEqual(len(engine.engine_state['granted_catches']), 1)
+        engine._open_catch_or_cleanup()
+        self.assertEqual(engine.engine_state['step'], 'catch')
+        self.assertEqual(engine.engine_state['catch']['owner'], 'p1')
+        catch_ids = {
+            action['payload']['card_instance_id']
+            for action in engine.legal_actions('p1')
+            if action['type'] == 'play_catch_card'
+        }
+        self.assertIn(catch_card['instance_id'], catch_ids)
+
+    def test_unc_at_037_combo_use_does_not_open_hit_counter_catch(self):
+        source = attack(
+            'nightmare-jete-combo', 'p1', code='UNC-AT-037', frame=12,
+            damage=500, hit='+5', counter='+7',
+        )
+        catch_card = attack(
+            'leg-doll-combo', 'p1', code='ST6-008', frame=12,
+            damage=500,
+        )
+        catch_card['text'] = (
+            '캐치 시 [[token:hidden_bond]] 카운터 1개를 소모하면 '
+            '9속도로 사용할 수 있다.'
+        )
+        opposing_card = attack(
+            'opposing-combo-card', 'p2', code='OPPOSING-COMBO-CARD',
+            frame=13,
+        )
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [source]
+        state['players']['p1']['zones']['list'] = [catch_card]
+        state['players']['p2']['zones']['battle'] = [opposing_card]
+        release = ruleset(source, catch_card, opposing_card)
+        release['cards']['UNC-AT-037']['effect_definition'] = (
+            build_effect_draft(
+                'UNC-AT-037',
+                '[[token:hidden_bond]] 카운터가 없으면 사용할 수 없다.\n'
+                '①히트 및 카운터 시, 리스트에서 [[token:hidden_bond]] '
+                '카운터를 소모하는 기술로 캐치할 수 있다.',
+            )
+        )
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='nightmare-jete-combo-timing',
+        )
+        engine.state['phase'] = 'battle'
+        engine.engine_state['combo'] = {
+            'owner': 'p1', 'source': 'combo-starter',
+            'used': [source['instance_id']], 'next_penalty': 200,
+        }
+        pipeline = {
+            'kind': 'combo_resolution', 'stage': 'combo', 'owner': 'p1',
+            'card_instance_id': source['instance_id'],
+            'card': copy.deepcopy(source), 'source_from_zone': 'hand',
+            'penalty': 100, 'damage': 400, 'remaining_ids': [],
+            'remaining_speeds': [], 'combo_speed': 12,
+            'remaining_ignore_damage_penalty': [],
+            'remaining_ignore_speed': [],
+            'combo_rules': [],
+        }
+        engine.engine_state['pipeline'] = pipeline
+
+        for expected_stage in ('combo_window', 'use', 'hit', 'damage'):
+            engine._advance_combo_pipeline(pipeline)
+            self.assertEqual(pipeline['stage'], expected_stage)
+
+        self.assertFalse(engine.engine_state.get('granted_catches'))
+        self.assertFalse(any(
+            event.get('type') == 'effect_resolved'
+            and (event.get('payload') or {}).get('ability_id')
+            == 'unc-at-037-n1'
+            for event in engine.events
+        ))
 
     def test_unc_at_038_reviews_combo_range_and_catch_bonus_break(self):
         text = (
@@ -31809,7 +31947,7 @@ class AutomaticEngineTests(SimpleTestCase):
             'schema_version': 1,
             'abilities': [{
                 'id': 'slow-self', 'kind': 'effect', 'mode': 'mandatory',
-                'trigger': {'event': 'hit'}, 'timing': 'hit_counter',
+                'trigger': {'event': 'combo'}, 'timing': 'combo',
                 'source_refs': {'rulebook_pages': [36]},
                 'effects': [{
                     'op': 'modify_stat', 'stat': 'frame', 'amount': 2,
@@ -31978,7 +32116,7 @@ class AutomaticEngineTests(SimpleTestCase):
             'schema_version': 1,
             'abilities': [{
                 'id': 'break-self', 'kind': 'effect', 'mode': 'mandatory',
-                'trigger': {'event': 'hit'}, 'timing': 'hit_counter',
+                'trigger': {'event': 'combo'}, 'timing': 'combo',
                 'source_refs': {'rulebook_pages': [36]},
                 'effects': [{'op': 'break_card'}],
             }],
