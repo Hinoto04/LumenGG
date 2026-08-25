@@ -2981,6 +2981,8 @@
         });
         attachDragAndDrop();
         updateQueuedCounters();
+        const scenarioModal = document.querySelector("[data-scenario-modal]");
+        if (scenarioModal && !scenarioModal.hidden) updateScenarioCheck();
         scheduleShuffleCooldownTick();
     }
 
@@ -3062,6 +3064,151 @@
         modal.hidden = !open;
     }
 
+    function scenarioBattleCardCount(side) {
+        const player = state.players && state.players[side];
+        const battle = player && player.zones && Array.isArray(player.zones.battle)
+            ? player.zones.battle
+            : [];
+        return battle.filter((card) => !card.attached_to && isTechniqueCard(card)).length;
+    }
+
+    function updateScenarioCheck() {
+        const modal = document.querySelector("[data-scenario-modal]");
+        const phaseInput = modal && modal.querySelector("[data-scenario-phase]");
+        const check = modal && modal.querySelector("[data-scenario-check]");
+        const createButton = modal && modal.querySelector("[data-scenario-create]");
+        if (!modal || !phaseInput || !check || !createButton) return;
+        if (phaseInput.value === "battle") {
+            const p1Count = scenarioBattleCardCount("p1");
+            const p2Count = scenarioBattleCardCount("p2");
+            const valid = p1Count === 1 && p2Count === 1;
+            check.textContent = t(`배틀 기술 확인: P1 ${p1Count}장 / P2 ${p2Count}장`);
+            check.classList.toggle("is-invalid", !valid);
+            check.classList.toggle("is-valid", valid);
+            createButton.disabled = !valid || createButton.dataset.busy === "true";
+            return;
+        }
+        check.textContent = t("현재 보드를 복사한 뒤 선택한 페이즈 시작 효과부터 자동 처리합니다.");
+        check.classList.remove("is-invalid");
+        check.classList.add("is-valid");
+        createButton.disabled = createButton.dataset.busy === "true";
+    }
+
+    function setScenarioModalOpen(open) {
+        const modal = document.querySelector("[data-scenario-modal]");
+        if (!modal) return;
+        if (open) {
+            const phaseInput = modal.querySelector("[data-scenario-phase]");
+            const priorityInput = modal.querySelector("[data-scenario-priority]");
+            if (phaseInput && phases.includes(state.phase)) phaseInput.value = state.phase;
+            if (priorityInput && ["p1", "p2"].includes(state.priority_player)) {
+                priorityInput.value = state.priority_player;
+            }
+            updateScenarioCheck();
+        }
+        modal.hidden = !open;
+    }
+
+    function cookieValue(name) {
+        const prefix = `${name}=`;
+        const cookie = String(document.cookie || "")
+            .split(";")
+            .map((part) => part.trim())
+            .filter((part) => part.startsWith(prefix))
+            .map((part) => decodeURIComponent(part.slice(prefix.length)))[0] || "";
+        if (cookie) return cookie;
+        const input = document.querySelector("input[name='csrfmiddlewaretoken']");
+        return input ? input.value : "";
+    }
+
+    function flushScenarioSetupActions(remaining) {
+        const attemptsLeft = remaining === undefined ? 12 : Number(remaining);
+        if (!queuedActionBatch.length) return Promise.resolve();
+        if (!canSendSocketAction()) {
+            return Promise.reject(new Error(t("현재 보드 변경사항을 저장한 뒤 다시 시도해주세요.")));
+        }
+        return flushActionBatch()
+            // A passive update can enqueue derived/latched status updates in
+            // its promise callback. Give those callbacks one microtask, then
+            // flush again before cloning the server-side document.
+            .then(() => Promise.resolve())
+            .then(() => {
+                if (!queuedActionBatch.length) return null;
+                if (attemptsLeft <= 1) {
+                    throw new Error(t("현재 보드 변경사항 저장이 끝나지 않았습니다."));
+                }
+                return flushScenarioSetupActions(attemptsLeft - 1);
+            });
+    }
+
+    function createAutomaticScenario() {
+        const modal = document.querySelector("[data-scenario-modal]");
+        const phaseInput = modal && modal.querySelector("[data-scenario-phase]");
+        const priorityInput = modal && modal.querySelector("[data-scenario-priority]");
+        const createButton = modal && modal.querySelector("[data-scenario-create]");
+        if (!modal || !phaseInput || !priorityInput || !createButton || !config.scenarioUrl) return;
+        updateScenarioCheck();
+        if (createButton.disabled) return;
+
+        const originalLabel = createButton.textContent;
+        const popup = window.open("about:blank", "_blank");
+        createButton.dataset.busy = "true";
+        createButton.disabled = true;
+        createButton.textContent = t("테스트 세션 생성 중...");
+        if (popup) {
+            popup.document.title = t("테스트 세션 생성 중");
+            popup.document.body.textContent = t("자동 처리 테스트 세션을 생성하고 있습니다.");
+        }
+
+        flushScenarioSetupActions()
+            .then(() => fetchState(true))
+            .then((savedState) => {
+                if (!savedState) {
+                    throw new Error(t("현재 보드 상태를 확인하지 못했습니다."));
+                }
+                return fetch(config.scenarioUrl, {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": cookieValue("csrftoken"),
+                    },
+                    body: JSON.stringify({
+                        seat: config.seat,
+                        seat_token: config.seatToken,
+                        phase: phaseInput.value,
+                        priority_player: priorityInput.value,
+                    }),
+                });
+            })
+            .then(async (response) => {
+                let data = {};
+                try {
+                    data = await response.json();
+                } catch (_error) {
+                    data = {};
+                }
+                if (!response.ok || !data.url) {
+                    const error = new Error(data.error || t("자동 테스트 세션을 만들지 못했습니다."));
+                    error.serverRejected = true;
+                    throw error;
+                }
+                if (popup) popup.location.href = data.url;
+                else window.location.href = data.url;
+                setScenarioModalOpen(false);
+                showRealtimeToast(t("자동 테스트 세션을 새 탭에 만들었습니다."));
+            })
+            .catch((error) => {
+                if (popup) popup.close();
+                showRealtimeToast(error && error.message ? error.message : t("자동 테스트 세션을 만들지 못했습니다."));
+            })
+            .finally(() => {
+                createButton.dataset.busy = "false";
+                createButton.textContent = originalLabel;
+                updateScenarioCheck();
+            });
+    }
+
     function isEditableTarget(target) {
         return !!(
             target &&
@@ -3114,10 +3261,13 @@
         if (event.defaultPrevented) return;
         if (event.key === "Escape") {
             setShortcutModalOpen(false);
+            setScenarioModalOpen(false);
             return;
         }
         const shortcutModal = document.querySelector("[data-shortcut-modal]");
         if (shortcutModal && !shortcutModal.hidden) return;
+        const scenarioModal = document.querySelector("[data-scenario-modal]");
+        if (scenarioModal && !scenarioModal.hidden) return;
         if (event.ctrlKey || event.altKey || event.metaKey) return;
         if (isEditableTarget(event.target)) return;
 
@@ -3187,6 +3337,10 @@
                 setShortcutModalOpen(false);
                 return;
             }
+            if (event.target.closest("[data-scenario-close]")) {
+                setScenarioModalOpen(false);
+                return;
+            }
             const logRow = event.target.closest("[data-log-card-instance], [data-log-card]");
             if (logRow) {
                 if (logRow.dataset.logCardInstance) {
@@ -3254,6 +3408,21 @@
 
         if (button.dataset.shortcutClose !== undefined) {
             setShortcutModalOpen(false);
+            return;
+        }
+
+        if (button.dataset.scenarioOpen !== undefined) {
+            setScenarioModalOpen(true);
+            return;
+        }
+
+        if (button.dataset.scenarioClose !== undefined) {
+            setScenarioModalOpen(false);
+            return;
+        }
+
+        if (button.dataset.scenarioCreate !== undefined) {
+            createAutomaticScenario();
             return;
         }
 
@@ -3468,6 +3637,10 @@
     document.addEventListener("fullscreenchange", () => {
         updateSimulatorFullscreenPresentation();
         scheduleFitCardGrids();
+    });
+
+    root.addEventListener("change", (event) => {
+        if (event.target.closest("[data-scenario-phase]")) updateScenarioCheck();
     });
     document.addEventListener("webkitfullscreenchange", updateSimulatorFullscreenPresentation);
     document.addEventListener("MSFullscreenChange", updateSimulatorFullscreenPresentation);

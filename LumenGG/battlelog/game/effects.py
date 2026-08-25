@@ -62,10 +62,10 @@ KNOWN_NON_SOURCE_TRIGGER_ABILITIES = {
 }
 
 # Compatibility for immutable releases created before ``requires_combo_use``
-# was introduced.  Endless Ballare's Combo-end text belongs only to a Combo
-# in which the card was actually played as a Combo Technique; merely remaining
-# in Battle, or being the Ready Technique that opened Combo Time, is not enough.
-KNOWN_COMBO_USE_REQUIRED_ABILITIES = {'dfr-at-020-n2'}
+# was introduced. Endless Ballare's Combo-end text belongs only to a Combo
+# containing that card. The 1-Combo starter and later Combo Techniques are
+# both members; merely remaining in Battle during another Combo is not enough.
+KNOWN_COMBO_MEMBERSHIP_REQUIRED_ABILITIES = {'dfr-at-020-n2'}
 
 
 class EffectResolutionError(ValueError):
@@ -653,23 +653,32 @@ class EffectResolver:
                     and zone in GLOBAL_REACTION_ZONES
                     and zone in active_zones
                 )
-                combo_use_required = bool(
+                combo_membership_required = bool(
                     ability.get('requires_combo_use') is True
-                    or ability.get('id') in KNOWN_COMBO_USE_REQUIRED_ABILITIES
+                    or ability.get('id')
+                    in KNOWN_COMBO_MEMBERSHIP_REQUIRED_ABILITIES
                 )
-                used_in_combo = bool(
-                    event_type == 'combo_end'
-                    and combo_use_required
-                    and card.get('instance_id') in set(
+                combo_card_instance_ids = set(
+                    event_context.get('combo_card_instance_ids') or []
+                )
+                if not combo_card_instance_ids:
+                    combo_card_instance_ids.update(
                         event_context.get('combo_used') or []
                     )
+                    source_combo_card = event_context.get(
+                        'source_card_instance_id'
+                    )
+                    if source_combo_card:
+                        combo_card_instance_ids.add(source_combo_card)
+                included_in_combo = bool(
+                    event_type == 'combo_end'
+                    and combo_membership_required
+                    and card.get('instance_id') in combo_card_instance_ids
                 )
                 if (
                     event_type == 'combo_end'
-                    and combo_use_required
-                    and card.get('instance_id') not in set(
-                        event_context.get('combo_used') or []
-                    )
+                    and combo_membership_required
+                    and card.get('instance_id') not in combo_card_instance_ids
                 ):
                     continue
                 if (
@@ -704,10 +713,13 @@ class EffectResolver:
                 default_active = zone in {'passive', 'lumen', 'ultimate'} or is_source or attached_active
                 if (
                     active_zones is not None and zone not in active_zones
-                    and not used_in_combo
+                    and not included_in_combo
                 ):
                     continue
-                if active_zones is None and not default_active and not used_in_combo:
+                if (
+                    active_zones is None and not default_active
+                    and not included_in_combo
+                ):
                     continue
                 context = {
                     **event_context,

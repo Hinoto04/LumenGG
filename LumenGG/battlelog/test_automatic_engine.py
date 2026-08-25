@@ -64,6 +64,7 @@ from .automatic_services import (
     ai_policy_payload,
     automatic_mode_release,
     initialize_automatic_document,
+    initialize_automatic_scenario_document,
     perform_automatic_command,
     reconcile_automatic_session,
     sanitize_automatic_state,
@@ -91,6 +92,7 @@ from .services import _passive_ui
 from .simulator_services import (
     _filtered_event,
     _localize_filtered_state,
+    create_automatic_scenario_session,
     serialize_simulator_session,
 )
 
@@ -221,8 +223,10 @@ class AutomaticEngineTests(SimpleTestCase):
     def test_automatic_engine_normalizes_legacy_calculator_passive_keys(self):
         state = base_state()
         state['players']['p1']['passive_state'] = {
+            'foresight': {'count': 0, 'label': '예지'},
             'foresight_counter': {'count': 2, 'label': '예지 카운터'},
             'ember_token': {'count': 3, 'label': '불씨 토큰'},
+            'charge': {'value': False, 'label': '차지 상태'},
             'root_charge': {'value': True, 'label': '차지'},
         }
 
@@ -239,6 +243,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(passive['foresight']['count'], 2)
         self.assertEqual(passive['ember']['count'], 3)
         self.assertTrue(passive['charge']['value'])
+        self.assertEqual(passive['charge']['label'], '차지')
         engine.change_counter('p1', 'foresight', 1)
         self.assertEqual(passive['foresight']['count'], 3)
 
@@ -661,6 +666,108 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(event['payload']['p2']['revealed_hand'], [p2['code']])
         self.assertEqual(event['payload']['p1']['list'], [p1_list['code']])
         self.assertEqual(event['payload']['p2']['list'], [p2_list['code']])
+
+    def test_scenario_initializer_preserves_board_and_skips_startup_effects(self):
+        passive = attack('scenario-passive', 'p1', code='SCENARIO-PS-001')
+        p1_card = attack('scenario-p1-ready', 'p1', code='SCENARIO-P1')
+        p2_card = attack('scenario-p2-ready', 'p2', code='SCENARIO-P2')
+        state = base_state([p1_card], [p2_card], p1_fp=3, p2_fp=1, hp=5000)
+        state['players']['p1']['hp'] = 2700
+        state['players']['p1']['passive_state'] = {
+            'scenario_marker': {'count': 4, 'label': '테스트 표식'},
+        }
+        state['players']['p1']['zones']['passive'] = [passive]
+        snapshot = ruleset(passive, p1_card, p2_card)
+        snapshot['cards'][passive['code']]['effect_definition'] = {
+            'schema_version': 1,
+            'abilities': [{
+                'id': 'scenario-game-start-must-not-repeat',
+                'kind': 'effect', 'mode': 'mandatory',
+                'active_zones': ['passive'],
+                'trigger': {'event': 'game_start'}, 'timing': 'game_start',
+                'effects': [{'op': 'change_fp', 'amount': 99}],
+            }, {
+                'id': 'scenario-ready-start-runs',
+                'kind': 'effect', 'mode': 'mandatory',
+                'active_zones': ['passive'],
+                'trigger': {'event': 'phase_start', 'phase': 'ready'},
+                'timing': 'function',
+                'effects': [{'op': 'change_fp', 'amount': 2}],
+            }],
+        }
+        release = SimpleNamespace(
+            version='scenario-v1', snapshot=snapshot, content_hash='s' * 64,
+        )
+
+        document = initialize_automatic_scenario_document(
+            state, release, seed='arranged-board',
+            phase='ready', priority_player='p2',
+        )
+        live = document['state']
+
+        self.assertEqual(live['phase'], 'ready')
+        self.assertEqual(live['priority_player'], 'p2')
+        self.assertEqual(live['players']['p1']['hp'], 2700)
+        self.assertEqual(live['players']['p1']['fp'], 5)
+        self.assertEqual(
+            live['players']['p1']['passive_state']['scenario_marker']['count'],
+            4,
+        )
+        self.assertNotIn('startup_stage', live['engine'])
+        self.assertIsNone(live['engine']['settings']['ready_timeout_seconds'])
+        self.assertIsNone(live['engine']['settings']['effect_timeout_seconds'])
+        self.assertTrue(live['engine']['settings']['rewind_enabled'])
+        self.assertTrue(live['engine']['settings']['scenario_mode'])
+        self.assertTrue(any(
+            item['type'] == 'automatic_scenario_started'
+            for item in document['events']
+        ))
+        self.assertFalse(any(
+            item['type'] in {'setup_completed', 'automatic_game_started'}
+            for item in document['events']
+        ))
+
+    def test_scenario_battle_requires_exactly_one_technique_on_each_side(self):
+        p1_card = attack('scenario-battle-p1', 'p1', code='SCENARIO-BATTLE-P1')
+        p2_card = attack('scenario-battle-p2', 'p2', code='SCENARIO-BATTLE-P2')
+        state = base_state([], [])
+        state['players']['p1']['zones']['battle'] = [p1_card]
+        release = SimpleNamespace(
+            version='scenario-battle-v1',
+            snapshot=ruleset(p1_card, p2_card), content_hash='b' * 64,
+        )
+
+        with self.assertRaisesRegex(ValueError, '정확히 1장'):
+            initialize_automatic_scenario_document(
+                state, release, phase='battle', priority_player='p1',
+            )
+
+    def test_scenario_battle_enters_normal_reveal_and_judgment_pipeline(self):
+        p1_card = attack(
+            'scenario-battle-live-p1', 'p1', code='SCENARIO-LIVE-P1',
+            frame=5, damage=500,
+        )
+        p2_card = attack(
+            'scenario-battle-live-p2', 'p2', code='SCENARIO-LIVE-P2',
+            frame=7, damage=300,
+        )
+        state = base_state([], [])
+        state['players']['p1']['zones']['battle'] = [p1_card]
+        state['players']['p2']['zones']['battle'] = [p2_card]
+        release = SimpleNamespace(
+            version='scenario-battle-live-v1',
+            snapshot=ruleset(p1_card, p2_card), content_hash='c' * 64,
+        )
+
+        document = initialize_automatic_scenario_document(
+            state, release, seed='scenario-live-battle',
+            phase='battle', priority_player='p1',
+        )
+        event_types = [item['type'] for item in document['events']]
+
+        self.assertIn('automatic_scenario_started', event_types)
+        self.assertIn('battle_revealed', event_types)
+        self.assertIn('battle_judged', event_types)
 
     def test_ps_code_is_relocated_to_passive_and_fires_from_that_zone(self):
         passive = attack('jam-day', 'p1', code='DFR-PS-001')
@@ -1344,6 +1451,34 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertNotIn('selected', filtered['payload'])
         self.assertNotIn('random_seed', state)
         self.assertEqual(state['engine'], {'status': 'running'})
+
+    def test_filtered_event_renders_known_and_unknown_keyword_markup(self):
+        event = {
+            'id': 'event-with-markup', 'type': 'decision_resolved',
+            'actor': 'p1', 'visibility': 'public',
+            'payload': {
+                'prompt': '[[mystery:legacy_state]] 효과를 처리합니다.',
+                'selected_options': [{
+                    'id': 'choice',
+                    'label': '[[mystery:chosen_effect]] 선택',
+                    'detail': {'text': '[[mystery:nested_value]]'},
+                }],
+            },
+        }
+
+        filtered = _filtered_event(event, base_state(), 'p1')
+        serialized = json.dumps(filtered, ensure_ascii=False)
+
+        self.assertNotIn('[[', serialized)
+        self.assertIn('legacy state', filtered['payload']['prompt'])
+        self.assertEqual(
+            filtered['payload']['selected_options'][0]['label'],
+            'chosen effect 선택',
+        )
+        self.assertEqual(
+            filtered['payload']['selected_options'][0]['detail']['text'],
+            'nested value',
+        )
 
     def test_hidden_card_instance_identifier_is_not_projected(self):
         state = sanitize_automatic_state(
@@ -2468,7 +2603,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(passive['included_combo_end']['count'], 1)
         self.assertNotIn('unrelated_combo_end', passive)
 
-    def test_endless_ballare_combo_end_requires_direct_combo_use(self):
+    def test_endless_ballare_combo_end_requires_combo_membership(self):
         endless = attack(
             'endless-ballare', 'p1', code='DFR-AT-020', frame=9,
         )
@@ -2492,7 +2627,18 @@ class AutomaticEngineTests(SimpleTestCase):
             }],
         }
 
-        def resolve(used, *, break_before_end=False):
+        normalized = AutomaticGameEngine(
+            base_state([], []), copy.deepcopy(release),
+            seed='endless-legacy-definition-normalization',
+        )._definition_for_card(endless)
+        normalized_combo_end = next(
+            ability for ability in normalized['abilities']
+            if ability.get('id') == 'dfr-at-020-n2'
+        )
+        self.assertEqual(normalized_combo_end['active_zones'], ['battle'])
+        self.assertTrue(normalized_combo_end['requires_combo_use'])
+
+        def resolve(used, *, source=None, break_before_end=False):
             state = base_state([], [])
             state['phase'] = 'battle'
             state['players']['p1']['zones']['battle'] = [
@@ -2505,7 +2651,8 @@ class AutomaticEngineTests(SimpleTestCase):
                 state, copy.deepcopy(release), seed=f'endless-{bool(used)}',
             )
             engine.engine_state['combo'] = {
-                'owner': 'p1', 'source': starter['instance_id'],
+                'owner': 'p1',
+                'source': source or starter['instance_id'],
                 'used': list(used), 'next_penalty': 200,
             }
             if break_before_end:
@@ -2523,6 +2670,10 @@ class AutomaticEngineTests(SimpleTestCase):
 
         self.assertEqual(resolve([]), 0)
         self.assertEqual(resolve([endless['instance_id']]), 1)
+        self.assertEqual(resolve(
+            [f'six-combo-{number}' for number in range(2, 7)],
+            source=endless['instance_id'],
+        ), 1)
         self.assertEqual(resolve(
             [endless['instance_id']], break_before_end=True,
         ), 1)
@@ -2579,8 +2730,10 @@ class AutomaticEngineTests(SimpleTestCase):
         engine.engine_state.update({
             'step': 'combo',
             'combo': {
-                'owner': 'p1', 'source': starter['instance_id'],
-                'used': [endless['instance_id']], 'next_penalty': 200,
+                # Endless Ballare is the 1-Combo starter. Its Combo-end effect
+                # must still resolve after the follow-up Techniques finish.
+                'owner': 'p1', 'source': endless['instance_id'],
+                'used': [starter['instance_id']], 'next_penalty': 200,
             },
         })
 
@@ -18591,6 +18744,13 @@ class AutomaticEngineTests(SimpleTestCase):
             item['name']: item for item in by_id['dfr-at-020-n2'].scenarios
         }
         self.assertTrue(definition['abilities'][2]['requires_combo_use'])
+        starter_combo = combo[
+            'starter-at-six-combo-decline-and-ready-restarts'
+        ]
+        self.assertTrue(starter_combo['starter_at_six_combo'])
+        self.assertEqual(starter_combo['combo_card_count'], 6)
+        self.assertTrue(starter_combo['resolved'])
+        self.assertTrue(starter_combo['restarted'])
         selected = combo['both-players-select-maximum-and-ready-restarts']
         self.assertEqual(
             [item['owner'] for item in selected['trace']], ['p1', 'p2'],
@@ -42195,6 +42355,132 @@ class AutomaticPersistenceTests(TestCase):
             ai_policy=policy,
             document=document,
         )
+
+    def make_manual_scenario_source(self):
+        state = base_state([self.p1_card], [self.p2_card], p1_fp=2, p2_fp=4)
+        state['players']['p1']['hp'] = 3200
+        state['players']['p1']['passive_state'] = {
+            'test_counter': {'count': 3, 'label': '테스트 카운터'},
+            'hidden_bond': {'count': 0, 'label': '은연'},
+            'silver_counter': {'count': 3, 'label': '은연 카운터'},
+            'charge': {'value': False, 'label': '차지 상태'},
+            'root_charge': {'value': True, 'label': '차지'},
+        }
+        return LumenSimulatorSession.objects.create(
+            view_token='manual-scenario-view',
+            player1_token='manual-scenario-p1',
+            player2_token='manual-scenario-p2',
+            mode=LumenSimulatorSession.MODE_MANUAL,
+            document={
+                'initial_state': copy.deepcopy(state),
+                'state': copy.deepcopy(state),
+                'events': [],
+            },
+        )
+
+    def test_manual_board_clones_to_isolated_automatic_scenario(self):
+        source = self.make_manual_scenario_source()
+        original_document = copy.deepcopy(source.document)
+
+        with patch(
+            'battlelog.automatic_services.automatic_mode_release',
+            return_value=self.release,
+        ):
+            scenario = create_automatic_scenario_session(
+                source, phase='ready', priority_player='p2',
+            )
+
+        source.refresh_from_db()
+        self.assertEqual(source.document, original_document)
+        self.assertEqual(scenario.mode, LumenSimulatorSession.MODE_AUTOMATIC)
+        self.assertEqual(scenario.ruleset_release, self.release)
+        self.assertTrue(scenario.document['scenario']['enabled'])
+        self.assertEqual(scenario.document['scenario']['source_session_id'], source.id)
+        self.assertEqual(scenario.document['state']['phase'], 'ready')
+        self.assertEqual(scenario.document['state']['priority_player'], 'p2')
+        self.assertEqual(scenario.document['state']['players']['p1']['hp'], 3200)
+        self.assertEqual(scenario.document['state']['players']['p1']['fp'], 2)
+        self.assertEqual(
+            scenario.document['state']['players']['p1']['passive_state'][
+                'test_counter'
+            ]['count'],
+            3,
+        )
+        copied_passive = scenario.document['state']['players']['p1'][
+            'passive_state'
+        ]
+        self.assertEqual(copied_passive['hidden_bond']['count'], 3)
+        self.assertTrue(copied_passive['charge']['value'])
+        self.assertNotIn('silver_counter', copied_passive)
+        self.assertNotIn('root_charge', copied_passive)
+        reopened = reconcile_automatic_session(scenario)
+        self.assertTrue(
+            reopened.document['state']['engine']['settings']['rewind_enabled'],
+        )
+        serialized = serialize_simulator_session(
+            reopened, 'p1', reopened.player1_token,
+        )
+        visible_passive = serialized['state']['players']['p1']['passive_state']
+        self.assertEqual(visible_passive['hidden_bond']['count'], 3)
+        self.assertTrue(visible_passive['charge']['value'])
+
+    def test_staff_can_create_scenario_through_http_endpoint(self):
+        source = self.make_manual_scenario_source()
+        user = User.objects.create_superuser(
+            username='scenario-admin', email='scenario@example.com',
+            password='test-password',
+        )
+        self.client.force_login(user)
+
+        with patch(
+            'battlelog.automatic_services.automatic_mode_release',
+            return_value=self.release,
+        ):
+            response = self.client.post(
+                reverse('battlelog:simulatorScenarioClone', kwargs={
+                    'view_token': source.view_token,
+                }),
+                data=json.dumps({
+                    'seat': 'p1', 'seat_token': source.player1_token,
+                    'phase': 'ready', 'priority_player': 'p1',
+                }),
+                content_type='application/json',
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['ok'])
+        self.assertIn('/simulator/', payload['url'])
+        created = LumenSimulatorSession.objects.exclude(pk=source.pk).get()
+        self.assertEqual(created.document['scenario']['entry_phase'], 'ready')
+        self.assertEqual(created.document['state']['phase'], 'ready')
+
+    def test_staff_manual_session_page_exposes_scenario_builder(self):
+        source = self.make_manual_scenario_source()
+        user = User.objects.create_superuser(
+            username='scenario-page-admin', email='scenario-page@example.com',
+            password='test-password',
+        )
+        self.client.force_login(user)
+
+        with patch(
+            'battlelog.views.automatic_mode_release', return_value=self.release,
+        ):
+            response = self.client.get(reverse(
+                'battlelog:simulatorSeat', kwargs={
+                    'view_token': source.view_token,
+                    'seat': 'p1', 'seat_token': source.player1_token,
+                },
+            ))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-scenario-open')
+        self.assertContains(response, 'data-scenario-phase')
+        self.assertContains(response, reverse(
+            'battlelog:simulatorScenarioClone', kwargs={
+                'view_token': source.view_token,
+            },
+        ))
 
     def test_ai_session_advances_only_ai_legal_actions(self):
         session = self.make_session()

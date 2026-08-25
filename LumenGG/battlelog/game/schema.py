@@ -2148,7 +2148,8 @@ def validate_effect_definition(definition, *, require_coverage=False, card_has_t
         ):
             _issue(
                 issues, f'{path}.requires_combo_use',
-                '콤보에서 직접 사용된 카드만 유발하는지 여부는 불리언이어야 합니다.',
+                '해당 카드가 시동 기술 또는 후속 기술로 포함된 콤보에서만 '
+                '유발하는지 여부는 불리언이어야 합니다.',
             )
         dedupe_trigger_key = ability.get('dedupe_trigger_key')
         if dedupe_trigger_key is not None and not re.fullmatch(

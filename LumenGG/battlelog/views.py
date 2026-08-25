@@ -40,6 +40,7 @@ from .services import (
 )
 from .simulator_services import (
     can_view_deck_for_simulator,
+    create_automatic_scenario_session,
     create_simulator_session,
     perform_simulator_action,
     role_for_token,
@@ -306,8 +307,50 @@ def _render_simulator(req, view_token, seat, seat_token, template_name='battlelo
         'mobile_url': _simulator_page_url(req, view_token, seat, seat_token, mobile=True),
         'current_url': req.build_absolute_uri(),
         'simulator_i18n': javascript_i18n(language),
+        'can_create_automatic_scenario': bool(
+            session.mode == LumenSimulatorSession.MODE_MANUAL
+            and state.get('role') in ('p1', 'p2')
+            and req.user.has_perm('card.change_card')
+            and automatic_mode_release()
+        ),
     }
     return render(req, template_name, context)
+
+
+@require_POST
+def simulatorScenarioClone(req, view_token):
+    if not req.user.has_perm('card.change_card'):
+        return JsonResponse({
+            'ok': False, 'error': '자동 테스트 세션을 만들 권한이 없습니다.',
+        }, status=403)
+    source = _get_simulator_session(view_token)
+    body = _json_body(req)
+    seat = str(body.get('seat') or '')
+    seat_token = str(body.get('seat_token') or '')
+    if role_for_token(source, seat, seat_token) not in ('p1', 'p2'):
+        return JsonResponse({'ok': False, 'error': '조작 권한이 없습니다.'}, status=403)
+    try:
+        scenario = create_automatic_scenario_session(
+            source, created_by=req.user,
+            phase=str(body.get('phase') or 'lumen'),
+            priority_player=str(body.get('priority_player') or 'p1'),
+        )
+    except (ValueError, EngineError) as exc:
+        return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
+    return JsonResponse({
+        'ok': True,
+        'ruleset_version': scenario.ruleset_release.version,
+        'url': reverse('battlelog:simulatorSeat', kwargs={
+            'view_token': scenario.view_token,
+            'seat': 'p1',
+            'seat_token': scenario.player1_token,
+        }),
+        'player2_url': reverse('battlelog:simulatorSeat', kwargs={
+            'view_token': scenario.view_token,
+            'seat': 'p2',
+            'seat_token': scenario.player2_token,
+        }),
+    })
 
 
 @require_GET

@@ -32,7 +32,7 @@ from .game.deck_rules import (
     merge_deck_rules,
 )
 from .game.effects import card_matches
-from .game.spec import EFFECT_SCHEMA_VERSION, RULEBOOK_SHA256
+from .game.spec import EFFECT_SCHEMA_VERSION, PHASES, RULEBOOK_SHA256
 from .game.engine import AutomaticGameEngine, EngineError, IllegalAction, StaleState
 from .models import (
     AutomaticIssueComment,
@@ -431,7 +431,7 @@ def ai_policy_payload(policy=None):
     }
 
 
-def _pin_release_card_data(state, snapshot):
+def _pin_release_card_data(state, snapshot, *, preserve_runtime_state=False):
     cards = snapshot.get('cards') or {}
     characters = snapshot.get('characters') or {}
     runtime_fields = (
@@ -448,10 +448,11 @@ def _pin_release_card_data(state, snapshot):
                 name=released_character.get('name') or '',
                 datas=copy.deepcopy(released_character.get('datas') or {}),
             )
-            initial_hp = initial_hp_for_character(character)
-            player['initial_hp'] = initial_hp
-            player['hp'] = initial_hp
-            player['passive_state'] = initial_passive_state_for_character(character)
+            if not preserve_runtime_state:
+                initial_hp = initial_hp_for_character(character)
+                player['initial_hp'] = initial_hp
+                player['hp'] = initial_hp
+                player['passive_state'] = initial_passive_state_for_character(character)
             character_payload.update({
                 'name': released_character.get('name'),
                 'img': released_character.get('body_img') or released_character.get('sd_img') or released_character.get('img'),
@@ -511,6 +512,138 @@ def initialize_automatic_document(base_state, release, *, seed='', settings=None
         state, ruleset, now=timezone.now(), seed=seed,
         settings=copy.deepcopy(settings or {}),
     )
+    return {
+        'initial_state': copy.deepcopy(engine.state),
+        'state': copy.deepcopy(engine.state),
+        'events': copy.deepcopy(engine.events),
+        'archived_event_count': 0,
+        'event_archive_hash': '',
+        'command_history': [],
+        'command_results': [],
+        'command_log': [],
+        'command_archive_hash': '',
+        'audit_log': [],
+    }
+
+
+def initialize_automatic_scenario_document(
+    base_state, release, *, seed='', phase='lumen', priority_player='p1',
+):
+    """Start the automatic engine from an intentionally arranged board.
+
+    Scenario sessions skip setup/game-start/turn-start because their source
+    board already contains the desired results of those timings. The selected
+    phase-start window is still executed so the remainder follows the same
+    engine path as an ordinary automatic match.
+    """
+    if phase not in PHASES:
+        raise ValueError('자동 테스트 시작 페이즈가 올바르지 않습니다.')
+    if priority_player not in ('p1', 'p2'):
+        raise ValueError('자동 테스트 우선권 플레이어가 올바르지 않습니다.')
+    ruleset = copy.deepcopy(release.snapshot or {})
+    ruleset['version'] = release.version
+    state = copy.deepcopy(base_state or {})
+    unknown_codes = sorted({
+        str(card.get('code') or '')
+        for player in (state.get('players') or {}).values()
+        for cards in (player.get('zones') or {}).values()
+        for card in cards
+        if card.get('kind') != 'character'
+        and str(card.get('code') or '')
+        and str(card.get('code') or '') not in (ruleset.get('cards') or {})
+    })
+    if unknown_codes:
+        preview = ', '.join(unknown_codes[:8])
+        suffix = ' 외' if len(unknown_codes) > 8 else ''
+        raise ValueError(
+            f'현재 규칙 릴리스에 없는 카드가 있습니다: {preview}{suffix}'
+        )
+    for key in (
+        'engine', 'random_seed', 'status', 'timer', 'turn_changes',
+        'counter_revisions', 'cmyk_ready_staged_cards',
+        'cmyk_ready_host_cards',
+    ):
+        state.pop(key, None)
+    state['priority_player'] = priority_player
+    state = _pin_release_card_data(
+        state, ruleset, preserve_runtime_state=True,
+    )
+    settings = automatic_session_settings(
+        ready_timeout_seconds=None, effect_timeout_seconds=None,
+    )
+    settings.update({
+        'auto_advance_empty_phases': False,
+        'rewind_enabled': True,
+        'scenario_mode': True,
+    })
+    engine = AutomaticGameEngine.initialize(
+        state, ruleset, now=timezone.now(), seed=seed, settings=settings,
+        run_startup=False,
+    )
+    engine.state['priority_player'] = priority_player
+    engine.state['phase'] = phase
+    automatic = engine.engine_state
+    automatic.update({
+        'phase_passes': [], 'phase_skipped_players': [],
+        'ready_cards': {}, 'pending_decision': None, 'clock': None,
+        'pipeline': None, 'battle': {}, 'combo': None, 'catch': None,
+        'granted_catches': [], 'current_actor': None,
+    })
+    automatic['step'] = {
+        'ready': 'ready_actions', 'get': 'get_actions',
+        'battle': 'battle_pipeline',
+    }.get(phase, 'phase_actions')
+
+    if phase == 'battle':
+        ready_cards = {}
+        for side in ('p1', 'p2'):
+            candidates = [
+                card
+                for card in engine._zone(side, 'battle')
+                if not card.get('attached_to')
+                and any(
+                    label in str(card.get('type') or '')
+                    for label in ('공격', '수비', '특수')
+                )
+            ]
+            if len(candidates) != 1:
+                raise ValueError(
+                    '배틀 판정 테스트는 각 플레이어의 배틀 존에 '
+                    '세트 카드가 아닌 기술이 정확히 1장씩 있어야 합니다.'
+                )
+            card = candidates[0]
+            card['face_up'] = False
+            ready_cards[side] = card.get('instance_id')
+            engine._mark_card_used(card, side, 'ready')
+        automatic['ready_cards'] = ready_cards
+        automatic['pipeline'] = {'kind': 'battle', 'stage': 'start'}
+    elif phase == 'get':
+        automatic['replaced_get'] = {}
+        automatic['get_skipped_players'] = []
+        automatic['get_order'] = [priority_player, 'p2' if priority_player == 'p1' else 'p1']
+        automatic['get_done'] = []
+        automatic['current_actor'] = priority_player
+    elif phase == 'recovery':
+        engine._recovery_core()
+
+    engine.emit('automatic_scenario_started', 'system', {
+        'phase': phase, 'turn': engine.state.get('turn'),
+        'priority_player': priority_player,
+        'ruleset_version': release.version,
+    })
+    engine.emit('phase_started', 'system', {
+        'phase': phase, 'turn': engine.state.get('turn'), 'scenario': True,
+    })
+    engine._refresh_continuous_rules()
+    phase_context = {
+        'phase': phase, 'turn': engine.state.get('turn'), 'scenario': True,
+    }
+    if phase == 'lumen' and int(engine.state.get('turn') or 1) == 1:
+        phase_context['first_turn'] = True
+    engine._fire('phase_start', phase_context)
+    if phase == 'get' and not engine.is_waiting:
+        engine._open_forced_get_decision()
+    engine._continue()
     return {
         'initial_state': copy.deepcopy(engine.state),
         'state': copy.deepcopy(engine.state),
@@ -633,27 +766,29 @@ def _stable_hash(value):
 
 
 def _upgrade_automatic_document(document):
-    """Apply lightweight runtime defaults and remove retired rewind data."""
+    """Apply runtime defaults and remove retired normal-session rewind data."""
     changed = False
     state = document.setdefault('state', {})
     engine = state.setdefault('engine', {})
     settings = engine.setdefault('settings', {})
+    scenario_mode = bool(settings.get('scenario_mode'))
     defaults = automatic_session_settings()
     for key, value in defaults.items():
         if key not in settings:
             settings[key] = copy.deepcopy(value)
             changed = True
-    if settings.get('rewind_enabled'):
+    if settings.get('rewind_enabled') and not scenario_mode:
         settings['rewind_enabled'] = False
         changed = True
-    if document.get('command_history'):
+    if document.get('command_history') and not scenario_mode:
         document['command_history'] = []
         changed = True
-    if engine.pop('last_rewindable_command_id', None) is not None:
-        changed = True
-    if engine.get('rewind_request') is not None:
-        engine['rewind_request'] = None
-        changed = True
+    if not scenario_mode:
+        if engine.pop('last_rewindable_command_id', None) is not None:
+            changed = True
+        if engine.get('rewind_request') is not None:
+            engine['rewind_request'] = None
+            changed = True
     return changed
 
 
@@ -661,15 +796,16 @@ def _automatic_document_needs_upgrade(document):
     state = (document or {}).get('state') or {}
     engine = state.get('engine') or {}
     settings = engine.get('settings') or {}
+    scenario_mode = bool(settings.get('scenario_mode'))
     return bool(
         any(
             key not in settings
             for key in automatic_session_settings()
         )
-        or settings.get('rewind_enabled')
-        or (document or {}).get('command_history')
-        or engine.get('last_rewindable_command_id')
-        or engine.get('rewind_request')
+        or (settings.get('rewind_enabled') and not scenario_mode)
+        or ((document or {}).get('command_history') and not scenario_mode)
+        or (engine.get('last_rewindable_command_id') and not scenario_mode)
+        or (engine.get('rewind_request') and not scenario_mode)
     )
 
 

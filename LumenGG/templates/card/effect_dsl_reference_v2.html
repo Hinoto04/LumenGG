@@ -1,0 +1,190 @@
+{% extends "base_v2.html" %}
+{% load static %}
+
+{% block title %}자동 효과 DSL v{{ dsl.schema_version }} 전체 레퍼런스 - LumenDB V2{% endblock title %}
+
+{% block style %}
+<link rel="stylesheet" href="{% static 'v2/effect-dsl-docs.css' %}">
+{% endblock style %}
+
+{% block content %}
+<section class="v2-page-head dsl-docs-head">
+    <div>
+        <div class="v2-kicker">검증기와 실행기 기준</div>
+        <h1 class="v2-title">자동 효과 DSL v{{ dsl.schema_version }} 전체 레퍼런스</h1>
+        <p class="v2-subtitle">정의 루트, 능력, 이벤트, 조건, 값, 선택기, 카드 필터와 모든 실행 명령의 현재 계약입니다.</p>
+    </div>
+    <div class="v2-chip-row">
+        <a class="v2-button v2-button-primary" href="{% url 'card:effectDslGuide' %}">초보자 작성 가이드</a>
+        <a class="v2-button" href="{% url 'card:index' %}">카드 목록</a>
+    </div>
+</section>
+
+{% if dsl.undocumented_effect_ops or dsl.unknown_documented_effect_ops or dsl.undocumented_triggers or dsl.undocumented_conditions or dsl.undocumented_values %}
+<section class="dsl-docs-callout dsl-docs-callout-danger" role="alert">
+    <h2>문서와 엔진 식별자가 일치하지 않습니다</h2>
+    {% if dsl.undocumented_effect_ops %}<p>설명 없는 명령: {{ dsl.undocumented_effect_ops|join:", " }}</p>{% endif %}
+    {% if dsl.unknown_documented_effect_ops %}<p>엔진에 없는 문서 명령: {{ dsl.unknown_documented_effect_ops|join:", " }}</p>{% endif %}
+    {% if dsl.undocumented_triggers %}<p>설명 없는 트리거: {{ dsl.undocumented_triggers|join:", " }}</p>{% endif %}
+    {% if dsl.undocumented_conditions %}<p>설명 없는 조건: {{ dsl.undocumented_conditions|join:", " }}</p>{% endif %}
+    {% if dsl.undocumented_values %}<p>설명 없는 값 연산: {{ dsl.undocumented_values|join:", " }}</p>{% endif %}
+</section>
+{% endif %}
+
+<div class="dsl-reference-tools v2-panel">
+    <label for="dsl-reference-search"><strong>레퍼런스에서 찾기</strong></label>
+    <input id="dsl-reference-search" type="search" placeholder="예: combo, 카드 이동, selection_key" autocomplete="off">
+    <span id="dsl-reference-search-status" aria-live="polite"></span>
+</div>
+
+<div class="dsl-docs-layout">
+    <nav class="v2-panel dsl-docs-toc" aria-label="레퍼런스 목차">
+        <strong>DSL v{{ dsl.schema_version }}</strong>
+        <a href="#contract">실행 계약</a>
+        <a href="#root">루트 정의</a>
+        <a href="#ability">능력 객체</a>
+        <a href="#events">트리거</a>
+        <a href="#timings">타이밍</a>
+        <a href="#conditions">조건 연산</a>
+        <a href="#values">값 표현식</a>
+        <a href="#selectors">선택기</a>
+        <a href="#filters">카드 필터</a>
+        <a href="#effects">실행 명령</a>
+        <a href="#handlers">Python 핸들러</a>
+        <a href="#publication">검증·게시 계약</a>
+    </nav>
+
+    <article class="dsl-docs-content" id="dsl-reference-content">
+        <section id="contract" class="dsl-docs-section dsl-reference-section" data-dsl-entry>
+            <h2>실행 계약</h2>
+            <ul>
+                <li>DSL은 JSON 객체이며 현재 <code>schema_version={{ dsl.schema_version }}</code>만 허용합니다.</li>
+                <li>명령은 위에서 아래로 결정적으로 실행됩니다. 무작위 선택은 세션 RNG를 사용하고 결과 ID가 이벤트에 기록됩니다.</li>
+                <li>효과 해결은 명령/이벤트 최대 500단계, 이벤트 깊이 64에서 중단됩니다.</li>
+                <li>명령 전체는 세션 트랜잭션 안에서 처리됩니다. 자동 실행 오류 시 상태 변경을 롤백하고 세션을 수동 모드로 전환합니다.</li>
+                <li>플레이어 식은 <code>"p1"</code>, <code>"p2"</code>, <code>{"controller":true}</code>, <code>{"opponent":true}</code>를 사용합니다.</li>
+                <li>존: {% for zone in dsl.zones %}<code>{{ zone }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</li>
+                <li>페이즈: {% for phase in dsl.phases %}<code>{{ phase }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</li>
+                <li>금지/무효/대체 kind: {% for kind in dsl.prevent_kinds %}<code>{{ kind }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</li>
+            </ul>
+        </section>
+
+        <section id="root" class="dsl-docs-section dsl-reference-section">
+            <h2>루트 정의</h2>
+            <p>카드 한 장의 <code>effect_definition</code> 최상위 필드입니다. 아래 고급 규칙은 유발 명령보다 카드 자체의 상시 합법성을 표현할 때 사용합니다.</p>
+            <div class="dsl-reference-list">
+                {% for item in dsl.root_fields %}
+                <article class="dsl-reference-entry" data-dsl-entry data-dsl-root-field="{{ item.name }}">
+                    <h3><code>{{ item.name }}</code></h3><p>{{ item.summary }}</p><dl><dt>형식/필드</dt><dd><code>{{ item.fields }}</code></dd>{% if item.note %}<dt>주의</dt><dd>{{ item.note }}</dd>{% endif %}</dl>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section id="ability" class="dsl-docs-section dsl-reference-section">
+            <h2>능력 객체</h2>
+            <p>종류는 {{ dsl.ability_kinds|join:", " }}, 방식은 {{ dsl.ability_modes|join:", " }}, 공개 범위는 {{ dsl.visibilities|join:", " }}입니다. 해결 순서는 조건 확인 → 선택형 발동 결정 → 비용 → targets → handler/effects → 사용 제한 기록입니다.</p>
+            <div class="dsl-reference-list">
+                {% for item in dsl.ability_fields %}
+                <article class="dsl-reference-entry" data-dsl-entry data-dsl-ability-field="{{ item.name }}">
+                    <h3><code>{{ item.name }}</code></h3><p>{{ item.summary }}</p><dl><dt>형식/값</dt><dd><code>{{ item.fields }}</code></dd>{% if item.note %}<dt>주의</dt><dd>{{ item.note }}</dd>{% endif %}</dl>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section id="events" class="dsl-docs-section dsl-reference-section">
+            <h2>트리거 이벤트 {{ dsl.trigger_details|length }}개</h2>
+            <p><code>trigger.event</code>에 하나를 쓰고, 동일 능력이 여러 사건에 반응하면 기본 event를 포함한 중복 없는 <code>trigger.events</code> 배열을 함께 씁니다.</p>
+            <div class="dsl-reference-list dsl-reference-list-compact">
+                {% for name, description in dsl.trigger_details %}<article class="dsl-reference-entry" data-dsl-entry data-dsl-trigger="{{ name }}"><h3><code>{{ name }}</code></h3><p>{{ description }}</p></article>{% endfor %}
+            </div>
+        </section>
+
+        <section id="timings" class="dsl-docs-section dsl-reference-section">
+            <h2>해결 타이밍</h2>
+            <p>숫자가 낮을수록 먼저 해결 큐에 들어갑니다. 같은 타이밍은 공개 유발을 먼저 두고 우선권 플레이어부터 교대로 처리합니다.</p>
+            <div class="dsl-reference-list dsl-reference-list-compact">
+                {% for name, description in dsl.timing_details %}<article class="dsl-reference-entry" data-dsl-entry data-dsl-timing="{{ name }}"><h3><code>{{ name }}</code></h3><p>{{ description }}</p></article>{% endfor %}
+            </div>
+        </section>
+
+        <section id="conditions" class="dsl-docs-section dsl-reference-section">
+            <h2>조건 연산 {{ dsl.condition_details|length }}개</h2>
+            <p><code>null</code>과 <code>true</code>는 항상 참, <code>false</code>는 항상 거짓입니다. 비교 left는 문자열 상태 경로 또는 값 표현식이고 right는 값 표현식입니다. 인쇄된 <code>+6</code> 같은 수치 문자열은 가능한 경우 숫자로 비교됩니다.</p>
+            <div class="dsl-reference-list dsl-reference-list-compact">
+                {% for name, description in dsl.condition_details %}<article class="dsl-reference-entry" data-dsl-entry data-dsl-condition-op="{{ name }}"><h3><code>{{ name }}</code></h3><p>{{ description }}</p></article>{% endfor %}
+            </div>
+        </section>
+
+        <section id="values" class="dsl-docs-section dsl-reference-section">
+            <h2>값 표현식 {{ dsl.value_details|length }}개</h2>
+            <p>숫자는 그대로 사용합니다. <code>{"value": 3}</code>은 리터럴, <code>{"path":"context.event_card.frame","default":0}</code>은 경로 참조입니다. <code>context.</code>가 없으면 전체 게임 상태에서 읽습니다.</p>
+            <div class="dsl-reference-list dsl-reference-list-compact">
+                {% for name, description in dsl.value_details %}<article class="dsl-reference-entry" data-dsl-entry data-dsl-value-op="{{ name }}"><h3><code>{{ name }}</code></h3><p>{{ description }}</p></article>{% endfor %}
+            </div>
+        </section>
+
+        <section id="selectors" class="dsl-docs-section dsl-reference-section">
+            <h2>대상 선택기</h2>
+            <p>선택기는 후보 계산 계약입니다. 능력의 <code>targets</code>와 <code>request_choice</code> 모두 같은 형식을 사용합니다. 후보는 역할별 투영 전에 서버에서 계산되며, 숨겨진 카드는 권한이 있는 선택자에게만 공개됩니다.</p>
+            <div class="dsl-reference-list">
+                {% for item in dsl.selector_fields %}<article class="dsl-reference-entry" data-dsl-entry data-dsl-selector-field="{{ item.name }}"><h3><code>{{ item.name }}</code></h3><p>{{ item.summary }}</p><dl><dt>값</dt><dd><code>{{ item.fields }}</code></dd></dl></article>{% endfor %}
+            </div>
+            <div class="dsl-docs-callout"><h3>선택 결과의 생명주기</h3><p><code>selection_key</code>는 현재 능력 해결 context에 ID 배열로 저장됩니다. 뒤의 명령과 값 표현식만 그 키를 읽습니다. 필수 선택은 <code>default</code>가 반드시 필요하고, 만료 시 기본 ID가 합법하지 않으면 안정 정렬된 첫 합법 후보를 사용합니다.</p></div>
+        </section>
+
+        <section id="filters" class="dsl-docs-section dsl-reference-section">
+            <h2>카드 필터 <code>where</code></h2>
+            <p>한 객체의 필드는 기본적으로 모두 만족해야 합니다. 동적 값이 필요한 필터 값에는 값 표현식 객체를 쓸 수 있습니다.</p>
+            <div class="dsl-reference-list dsl-reference-list-compact">
+                {% for name, description in dsl.card_filter_fields %}<article class="dsl-reference-entry" data-dsl-entry data-dsl-card-filter="{{ name }}"><h3><code>{{ name }}</code></h3><p>{{ description }}</p></article>{% endfor %}
+            </div>
+        </section>
+
+        <section id="effects" class="dsl-docs-section dsl-reference-section">
+            <h2>실행 명령</h2>
+            <p>모든 명령은 <code>{"op":"명령 이름", ...}</code> 객체입니다. 명시하지 않은 지속 시간은 명령별 기본값을 따르므로 장기 수정자는 <code>duration</code>을 명시하는 편이 안전합니다.</p>
+            {% for group_name, items in dsl.effect_groups %}
+            <section class="dsl-reference-operation-group">
+                <h3>{{ group_name }}</h3>
+                <div class="dsl-reference-list">
+                    {% for item in items %}
+                    <article class="dsl-reference-entry" data-dsl-entry data-dsl-effect-op="{{ item.name }}">
+                        <h4><code>{{ item.name }}</code></h4>
+                        <p>{{ item.summary }}</p>
+                        <dl><dt>필드</dt><dd><code>{{ item.fields }}</code></dd>{% if item.note %}<dt>주의</dt><dd>{{ item.note }}</dd>{% endif %}</dl>
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endfor %}
+        </section>
+
+        <section id="handlers" class="dsl-docs-section dsl-reference-section" data-dsl-entry>
+            <h2>등록 Python 핸들러</h2>
+            <p>능력에 <code>handler</code>를 쓰면 <code>effects</code> 대신 등록 함수를 호출합니다. 함수 시그니처는 <code>handler(state, context, ability) -&gt; list[effect command]</code>입니다.</p>
+            <ul>
+                <li><code>@effect_handler(name, deterministic_tests=(...))</code>로 등록하며 이름은 전역에서 유일해야 합니다.</li>
+                <li>전달받은 state/context와 DB를 직접 수정하지 않고 새 DSL 명령 배열만 반환합니다.</li>
+                <li>시간, 네트워크, 전역 난수에 의존하지 않아야 합니다. 무작위는 <code>random_select</code> 명령으로 반환합니다.</li>
+                <li>게시 검증은 등록 여부와 핸들러 소유 결정적 테스트 존재/통과를 검사합니다.</li>
+                <li>일반 조건·값·선택·예약·대체 조합으로 표현 가능하면 핸들러를 만들지 않습니다.</li>
+            </ul>
+        </section>
+
+        <section id="publication" class="dsl-docs-section dsl-reference-section" data-dsl-entry>
+            <h2>검증·게시 계약</h2>
+            <ol>
+                <li><code>validate_effect_definition</code>은 타입, 열거형, 필수 필드, 선택 기본값, 핸들러 등록을 검사합니다.</li>
+                <li>게시 검증에서는 <code>reviewed=true</code>, 루트/능력 <code>draft=false</code>, 효과 텍스트의 명시적 정의 또는 <code>no_effect</code> 재정이 필요합니다.</li>
+                <li>각 게시 능력에는 루트 또는 능력 수준의 룰북/Q&amp;A/카드 원문 출처가 필요합니다.</li>
+                <li><code>review_evidence</code>에는 각 능력별 최소 3개의 <code>passed=true</code>, <code>deterministic=true</code> 상황이 있어야 하며 scenario_count가 합계와 같아야 합니다.</li>
+                <li>검수 완료 저장 시 현재 원문과 Q&amp;A의 승인 해시가 생성됩니다. 이후 원문/재정이 바뀌면 재검수가 필요합니다.</li>
+                <li>릴리스 게시 전 <code>python manage.py validate_automatic_ruleset</code>, 이후 <code>python manage.py publish_automatic_ruleset VERSION</code> 순서로 실행합니다.</li>
+            </ol>
+        </section>
+    </article>
+</div>
+<script src="{% static 'v2/effect-dsl-docs.js' %}" defer></script>
+{% endblock content %}

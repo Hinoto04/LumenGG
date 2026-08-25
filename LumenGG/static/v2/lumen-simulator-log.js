@@ -85,12 +85,19 @@
         return typeof helper === "function" ? helper(...args) : fallback;
     }
 
+    function cleanKeywordText(value) {
+        return String(value ?? "").replace(
+            /\[\[(?:[^:\[\]]+:)?([^\[\]]+)\]\]/g,
+            (_match, label) => String(label || "").trim().replace(/_/g, " "),
+        );
+    }
+
     function create(summary, category, options) {
         const extra = options || {};
         return {
-            summary: summary || "게임 처리가 진행되었습니다.",
-            category: category || "시스템",
-            detail: extra.detail || "",
+            summary: cleanKeywordText(summary || "게임 처리가 진행되었습니다."),
+            category: cleanKeywordText(category || "시스템"),
+            detail: cleanKeywordText(extra.detail || ""),
             tone: extra.tone || "",
             major: !!extra.major,
             hidden: !!extra.hidden,

@@ -256,6 +256,48 @@ class CardEffectReviewTests(TestCase):
         response = self.client.get(reverse('card:effectReview', args=[self.card.pk]))
         self.assertEqual(response.status_code, 403)
 
+    def test_effect_dsl_help_pages_require_change_card_permission(self):
+        for name in ('effectDslGuide', 'effectDslReference'):
+            with self.subTest(name=name):
+                response = self.client.get(reverse(f'card:{name}'))
+                self.assertEqual(response.status_code, 403)
+
+    def test_effect_dsl_guide_is_beginner_oriented_and_linked_from_editor(self):
+        self.client.force_login(self.reviewer)
+
+        guide = self.client.get(reverse('card:effectDslGuide'))
+        review = self.client.get(reverse('card:effectReview', args=[self.card.pk]))
+
+        self.assertEqual(guide.status_code, 200)
+        self.assertContains(guide, '자동 효과 DSL 작성 가이드')
+        self.assertContains(guide, '효과 설정 화면에서 입력하는 순서')
+        self.assertContains(guide, '정상 상황')
+        self.assertContains(guide, '경계 상황')
+        self.assertContains(guide, '불발 상황')
+        self.assertContains(review, reverse('card:effectDslGuide'), count=3)
+        self.assertContains(review, reverse('card:effectDslReference'), count=3)
+
+    def test_effect_dsl_reference_covers_every_engine_identifier(self):
+        from battlelog.game.spec import CONDITION_OPS, EFFECT_OPS, TRIGGERS, VALUE_OPS
+
+        self.client.force_login(self.reviewer)
+        response = self.client.get(reverse('card:effectDslReference'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['dsl']['undocumented_effect_ops'])
+        self.assertFalse(response.context['dsl']['unknown_documented_effect_ops'])
+        self.assertFalse(response.context['dsl']['undocumented_triggers'])
+        self.assertFalse(response.context['dsl']['undocumented_conditions'])
+        self.assertFalse(response.context['dsl']['undocumented_values'])
+        for operation in EFFECT_OPS:
+            self.assertContains(response, f'data-dsl-effect-op="{operation}"')
+        for operation in CONDITION_OPS:
+            self.assertContains(response, f'data-dsl-condition-op="{operation}"')
+        for operation in VALUE_OPS:
+            self.assertContains(response, f'data-dsl-value-op="{operation}"')
+        for trigger in TRIGGERS:
+            self.assertContains(response, f'data-dsl-trigger="{trigger}"')
+
     def test_effect_review_shows_source_qna_interpretation_and_editor(self):
         self.client.force_login(self.reviewer)
         response = self.client.get(reverse('card:effectReview', args=[self.card.pk]))
@@ -987,6 +1029,8 @@ class CardEffectReviewTests(TestCase):
         self.assertContains(
             response, reverse('card:effectReview', args=[self.card.pk]),
         )
+        self.assertContains(response, reverse('card:effectDslGuide'))
+        self.assertContains(response, reverse('card:effectDslReference'))
 
 
 class CardSearchNormalizationTests(TestCase):

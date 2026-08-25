@@ -1,0 +1,249 @@
+{% extends "base_v2.html" %}
+{% load static %}
+
+{% block title %}자동 효과 DSL 작성 가이드 - LumenDB V2{% endblock title %}
+
+{% block style %}
+<link rel="stylesheet" href="{% static 'v2/effect-dsl-docs.css' %}">
+{% endblock style %}
+
+{% block content %}
+<section class="v2-page-head dsl-docs-head">
+    <div>
+        <div class="v2-kicker">처음 작성하는 사람을 위한 순서별 안내</div>
+        <h1 class="v2-title">자동 효과 DSL 작성 가이드</h1>
+        <p class="v2-subtitle">카드 문구를 언제, 어떤 조건에서, 무엇을 처리하는지 나누어 입력하는 방법을 설명합니다.</p>
+    </div>
+    <div class="v2-chip-row">
+        <a class="v2-button v2-button-primary" href="{% url 'card:effectDslReference' %}">전체 기능 레퍼런스</a>
+        <a class="v2-button" href="{% url 'card:index' %}">카드 목록</a>
+    </div>
+</section>
+
+<div class="dsl-docs-layout">
+    <nav class="v2-panel dsl-docs-toc" aria-label="가이드 목차">
+        <strong>이 페이지에서 익힐 것</strong>
+        <a href="#mental-model">1. DSL의 구조</a>
+        <a href="#before-writing">2. 작성 전에 나누기</a>
+        <a href="#editor-workflow">3. 편집기 사용 순서</a>
+        <a href="#first-example">4. 첫 효과 입력</a>
+        <a href="#choices">5. 카드 선택과 선택 효과</a>
+        <a href="#conditions">6. 조건과 복합 효과</a>
+        <a href="#advanced-boundary">7. 화면에서 어려운 효과</a>
+        <a href="#testing">8. 테스트와 검수 완료</a>
+        <a href="#mistakes">9. 자주 하는 실수</a>
+    </nav>
+
+    <article class="dsl-docs-content">
+        <section class="v2-panel dsl-docs-callout dsl-docs-callout-primary">
+            <h2>먼저 이것만 기억하세요</h2>
+            <p>한 카드의 문장을 <b>능력</b> 단위로 나누고, 각 능력에 <b>발동 시점 → 강제/선택 → 조건 → 처리 명령</b>을 차례로 지정하면 됩니다. JSON을 처음부터 직접 외울 필요는 없습니다.</p>
+        </section>
+
+        <section id="mental-model" class="dsl-docs-section">
+            <div class="v2-kicker">1</div>
+            <h2>DSL의 구조</h2>
+            <p>DSL은 카드 원문을 엔진이 오해하지 않도록 구조화한 데이터입니다. 가장 바깥에는 카드 전체 정의가 있고, 그 안에 하나 이상의 능력이 있습니다.</p>
+            <div class="dsl-docs-flow" aria-label="효과 해결 구조">
+                <span>카드 정의</span><b>→</b><span>능력</span><b>→</b><span>트리거</span><b>→</b><span>조건·비용·대상</span><b>→</b><span>명령</span>
+            </div>
+            <dl class="dsl-docs-plain-list">
+                <div><dt>카드 정의</dt><dd>카드 전체의 출처, 검수 상태, 상시 덱/콤보/캐치 규칙을 담습니다.</dd></div>
+                <div><dt>능력</dt><dd>원문의 번호 하나 또는 독립된 기능 문장 하나입니다.</dd></div>
+                <div><dt>트리거</dt><dd>언제 후보가 되는지 정합니다. 예: <code>use</code>, <code>hit</code>, <code>combo_end</code>.</dd></div>
+                <div><dt>조건</dt><dd>그 시점에도 실제로 발동 가능한지 확인합니다.</dd></div>
+                <div><dt>명령</dt><dd>HP/FP 변경, 카드 이동, 상태 부여처럼 상태를 실제로 바꿉니다.</dd></div>
+            </dl>
+        </section>
+
+        <section id="before-writing" class="dsl-docs-section">
+            <div class="v2-kicker">2</div>
+            <h2>작성 전에 카드 문구를 나누세요</h2>
+            <p>예를 들어 “① 사용 시, 1FP를 얻는다. ② 판정 후, 상대 기술에 그랩이 있다면 서로 브레이크한다.”는 두 능력입니다.</p>
+            <div class="dsl-docs-grid-2">
+                <article class="v2-panel dsl-docs-mini-card">
+                    <strong>① 사용 시, 1FP를 얻는다.</strong>
+                    <ul>
+                        <li>시점: <code>use</code></li>
+                        <li>방식: <code>mandatory</code></li>
+                        <li>조건: 없음</li>
+                        <li>명령: <code>change_fp +1</code></li>
+                    </ul>
+                </article>
+                <article class="v2-panel dsl-docs-mini-card">
+                    <strong>② 판정 후, 상대 기술에 그랩이 있다면 서로 브레이크한다.</strong>
+                    <ul>
+                        <li>시점: <code>after_judgment</code></li>
+                        <li>방식: <code>mandatory</code></li>
+                        <li>조건: 상대 배틀 기술에 그랩</li>
+                        <li>명령: 두 카드 <code>break_cards</code></li>
+                    </ul>
+                </article>
+            </div>
+            <p class="dsl-docs-note"><b>기능과 효과:</b> 번호 없는 문장은 <code>kind=function</code>, 번호 있는 문장은 <code>kind=effect</code>로 둡니다. “한다”는 <code>mandatory</code>, “할 수 있다”는 <code>optional</code>이 기본입니다.</p>
+        </section>
+
+        <section id="editor-workflow" class="dsl-docs-section">
+            <div class="v2-kicker">3</div>
+            <h2>효과 설정 화면에서 입력하는 순서</h2>
+            <ol class="dsl-docs-steps">
+                <li><strong>원문과 Q&amp;A를 먼저 읽습니다.</strong><span>카드 원문, 보충 설명, 카드별 Q&amp;A가 서로 다르면 최신 재정을 기준으로 합니다.</span></li>
+                <li><strong>효과 정의 편집기를 펼치고 능력 추가를 누릅니다.</strong><span>원문의 독립된 기능/번호 효과마다 능력을 하나씩 만듭니다.</span></li>
+                <li><strong>ID와 원문 단위를 적습니다.</strong><span>ID는 카드 코드와 번호를 조합한 안정적인 값(예: <code>abc-at-001-n1</code>)을 사용하고 나중에 바꾸지 않습니다.</span></li>
+                <li><strong>종류, 방식, 발동 시점, 처리 타이밍을 고릅니다.</strong><span>발동 시점은 사건, 처리 타이밍은 같은 사건 안의 순서입니다.</span></li>
+                <li><strong>활성 영역과 조건을 좁힙니다.</strong><span>기술 자체가 만든 히트/카운터라면 보통 배틀 존의 해당 카드에서만 발동하도록 둡니다.</span></li>
+                <li><strong>처리 명령을 원문 순서대로 추가합니다.</strong><span>비용은 비용 칸, 플레이어 선택은 선택 명령, 결과는 일반 명령에 둡니다.</span></li>
+                <li><strong>DSL JSON 미리보기를 펼쳐 결과를 확인합니다.</strong><span>미리보기는 검토용 읽기 전용입니다. 화면이 지원하지 않는 복잡한 노드는 보존 노드로 표시됩니다.</span></li>
+                <li><strong>격리형 효과 테스트 후 저장합니다.</strong><span>정상, 경계, 불발 상황을 확인한 뒤에만 검토 완료로 바꿉니다.</span></li>
+            </ol>
+        </section>
+
+        <section id="first-example" class="dsl-docs-section">
+            <div class="v2-kicker">4</div>
+            <h2>첫 예제: “사용 시, 1FP를 얻는다”</h2>
+            <p>편집기에서는 능력 하나를 추가해 <b>발동 시점 use</b>, <b>강제 mandatory</b>, <b>명령 change_fp</b>, <b>대상 자신</b>, <b>변경량 1</b>로 지정합니다. JSON 미리보기는 다음 형태가 됩니다.</p>
+            <pre class="dsl-code"><code>{
+  "schema_version": 1,
+  "reviewed": false,
+  "draft": true,
+  "source_refs": {"card_text": true, "rulebook_pages": [48]},
+  "abilities": [{
+    "id": "abc-at-001-n1",
+    "label": "사용 시 1FP 획득",
+    "kind": "effect",
+    "mode": "mandatory",
+    "trigger": {"event": "use"},
+    "timing": "use",
+    "active_zones": ["battle"],
+    "effects": [{
+      "op": "change_fp",
+      "player": {"controller": true},
+      "amount": 1
+    }]
+  }]
+}</code></pre>
+            <p class="dsl-docs-note"><code>{"controller": true}</code>는 이 능력을 소유하고 발동한 플레이어, <code>{"opponent": true}</code>는 그 상대를 뜻합니다.</p>
+        </section>
+
+        <section id="choices" class="dsl-docs-section">
+            <div class="v2-kicker">5</div>
+            <h2>카드를 고르게 하는 효과</h2>
+            <p>“리스트에서 기술 1장을 획득할 수 있다”처럼 플레이어가 카드를 골라야 하면 <code>request_choice</code>로 후보를 만들고, 선택 결과를 <code>selection_key</code>에 저장한 뒤 <code>move_card</code>가 같은 키를 사용합니다.</p>
+            <pre class="dsl-code"><code>{
+  "op": "request_choice",
+  "player": {"controller": true},
+  "prompt": "리스트에서 획득할 기술을 선택하세요.",
+  "optional": true,
+  "selector": {
+    "kind": "card",
+    "player": {"controller": true},
+    "zones": ["list"],
+    "where": {"is_technique": true},
+    "min": 0,
+    "max": 1,
+    "as_operation": "move_card",
+    "to_zone": "hand"
+  },
+  "selection_key": "get_card",
+  "default": [],
+  "then": [{
+    "op": "move_card",
+    "selection_key": "get_card",
+    "to_zone": "hand"
+  }]
+}</code></pre>
+            <div class="dsl-docs-callout">
+                <h3>선택형 효과의 핵심</h3>
+                <p><code>optional=true</code>이고 선택기의 <code>min=0</code>이면 카드를 고르지 않은 채 “0 확정”할 수 있습니다. 미선택을 표현하려고 가짜 비공개 카드 후보를 만들지 마세요.</p>
+            </div>
+            <p><b>선택한 효과를 또 물어보지 않으려면:</b> 능력 자체가 <code>mode=optional</code>이고 그 안에 다시 <code>choose_effect</code>를 둘 필요가 없는 경우가 많습니다. 반대로 한 번 발동한 뒤 “A 또는 B”를 골라야 할 때만 <code>choose_effect</code>를 사용합니다.</p>
+        </section>
+
+        <section id="conditions" class="dsl-docs-section">
+            <div class="v2-kicker">6</div>
+            <h2>조건과 복합 효과</h2>
+            <p>조건은 능력 전체의 <code>condition</code>에 두거나, 일부 명령만 갈라질 때 <code>conditional</code> 안에 둡니다.</p>
+            <div class="dsl-docs-grid-2">
+                <article>
+                    <h3>능력 전체가 조건부</h3>
+                    <pre class="dsl-code"><code>"condition": {
+  "op": "counter_at_least",
+  "player": {"controller": true},
+  "counter": "foresight",
+  "value": 2
+}</code></pre>
+                </article>
+                <article>
+                    <h3>처리 일부만 조건부</h3>
+                    <pre class="dsl-code"><code>{
+  "op": "conditional",
+  "condition": {"op": "phase_is", "phase": "recovery"},
+  "then": [{"op": "change_fp", "amount": 1,
+            "player": {"controller": true}}],
+  "else": []
+}</code></pre>
+                </article>
+            </div>
+            <p>여러 조건은 <code>all</code>, 하나만 맞으면 되는 조건은 <code>any</code>, 반대 조건은 <code>not</code>으로 묶습니다. 수치가 현재 상태나 앞선 선택에 따라 달라지면 고정 숫자 대신 값 표현식을 사용합니다.</p>
+            <pre class="dsl-code"><code>{
+  "op": "change_fp",
+  "player": {"controller": true},
+  "amount": {
+    "op": "selection_count",
+    "selection_key": "broken_cards"
+  }
+}</code></pre>
+        </section>
+
+        <section id="advanced-boundary" class="dsl-docs-section">
+            <div class="v2-kicker">7</div>
+            <h2>화면에서 작성하기 어려운 효과는 어떻게 하나요?</h2>
+            <p>현재 시각 편집기는 일반 수치 변경, 이동, 브레이크, 상태/카운터, 판정 변경, 금지, 콤보·캐치 같은 자주 쓰는 노드를 직접 편집합니다. 필드가 많은 고급 명령은 기존 데이터를 잃지 않도록 <b>보존된 읽기 전용 노드</b>로 보여 줍니다.</p>
+            <ol>
+                <li>먼저 시각 편집기로 능력의 ID·트리거·모드·기본 조건을 만듭니다.</li>
+                <li>고급 명령은 개발 변경으로 <code>battlelog/game/drafts.py</code>의 카드별 정의 또는 안전한 데이터 갱신 코드에 추가합니다.</li>
+                <li><code>validate_effect_definition</code>과 해당 카드의 결정적 엔진 테스트를 함께 작성합니다.</li>
+                <li>효과 검수 페이지에서 원문/Q&amp;A 대조와 격리 테스트를 마친 뒤 검토 완료합니다.</li>
+            </ol>
+            <div class="dsl-docs-callout dsl-docs-callout-warning">
+                <h3>Python 핸들러는 마지막 선택입니다</h3>
+                <p>조건·값 표현식·선택·예약·대체 명령의 조합으로 표현할 수 없을 때만 등록 핸들러를 사용합니다. 핸들러는 DB나 전달받은 상태를 직접 바꾸지 않고 DSL 명령 배열만 반환해야 하며, 결정적 자체 테스트가 반드시 있어야 합니다. 브라우저 JavaScript는 규칙의 진실이 될 수 없습니다.</p>
+            </div>
+            <p>고급 필드와 모든 명령의 정확한 형식은 <a href="{% url 'card:effectDslReference' %}">전체 기능 레퍼런스</a>에서 확인할 수 있습니다.</p>
+        </section>
+
+        <section id="testing" class="dsl-docs-section">
+            <div class="v2-kicker">8</div>
+            <h2>테스트하고 검수 완료하기</h2>
+            <p>효과 설정 페이지의 <b>격리형 효과 테스트</b>는 미저장 JSON으로도 실행됩니다. 최소 다음 세 가지 상황을 확인하세요.</p>
+            <div class="dsl-docs-grid-3">
+                <article class="v2-panel dsl-docs-mini-card"><strong>정상 상황</strong><p>조건과 후보가 충분할 때 원문 순서대로 처리되는가?</p></article>
+                <article class="v2-panel dsl-docs-mini-card"><strong>경계 상황</strong><p>최소/최대 수치, 후보 0장, 마지막 카운터처럼 경계에서도 안전한가?</p></article>
+                <article class="v2-panel dsl-docs-mini-card"><strong>불발 상황</strong><p>조건이 거짓이거나 다른 카드가 만든 타이밍일 때 발동하지 않는가?</p></article>
+            </div>
+            <p>선택 효과는 0장 확정, 필수 선택은 후보 부족 및 만료 기본값도 확인합니다. 무작위 효과는 같은 시드의 재실행 결과와 로그의 확정값을 확인합니다.</p>
+            <ol class="dsl-docs-checklist">
+                <li>원문·보충 설명·관련 Q&amp;A의 재정이 정의와 일치한다.</li>
+                <li>기술의 히트/카운터 효과가 그 카드 자체의 판정에서만 발동한다.</li>
+                <li>활성 존, 공개 범위, 강제/선택 여부가 맞다.</li>
+                <li>비용을 먼저 지불하고, 대상 선택 뒤 명령이 실행된다.</li>
+                <li>최소 3개의 결정적 상황 검토가 통과했다.</li>
+                <li>스키마 오류가 없고 초안 플래그를 해제했다.</li>
+            </ol>
+        </section>
+
+        <section id="mistakes" class="dsl-docs-section">
+            <div class="v2-kicker">9</div>
+            <h2>자주 하는 실수</h2>
+            <dl class="dsl-docs-plain-list">
+                <div><dt>트리거와 타이밍을 같은 뜻으로 생각함</dt><dd><code>trigger.event</code>는 무엇이 발생했는지, <code>timing</code>은 같은 사건 안에서 언제 해결할지입니다.</dd></div>
+                <div><dt>모든 존의 기술이 히트 시 효과를 발동함</dt><dd>기술 결과 유발은 기본적으로 그 기술이 직접 결과를 만들 때만 작동합니다. 전역 반응만 <code>allow_non_source_trigger=true</code>를 사용합니다.</dd></div>
+                <div><dt>콤보 종료 효과가 모든 콤보에 반응함</dt><dd>해당 카드가 시동기 또는 후속 기술로 포함된 콤보만 반응해야 하면 <code>requires_combo_use=true</code>가 필요합니다.</dd></div>
+                <div><dt>선택과 이동을 한 단계로 생각함</dt><dd><code>request_choice</code>는 ID를 저장할 뿐입니다. 뒤의 <code>move_card</code>/<code>break_card</code>가 같은 <code>selection_key</code>를 사용해야 합니다.</dd></div>
+                <div><dt>optional인데 0장 확정이 안 됨</dt><dd>능력/명령의 <code>optional</code>뿐 아니라 선택기의 <code>min=0</code>도 확인합니다.</dd></div>
+                <div><dt>검토 완료만 체크함</dt><dd>게시에는 출처와 능력별 최소 3개 결정적 검토 증거, 초안 해제가 모두 필요합니다.</dd></div>
+            </dl>
+        </section>
+    </article>
+</div>
+{% endblock content %}

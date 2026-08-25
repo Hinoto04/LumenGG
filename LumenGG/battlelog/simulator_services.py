@@ -1,4 +1,5 @@
 import copy
+import re
 import secrets
 import uuid
 from datetime import timedelta
@@ -78,6 +79,39 @@ YOHAN_DECLARATION_LABELS = {
     'attack': '공격',
     'defense': '수비',
 }
+
+
+UNRESOLVED_LOCALIZED_MARKUP_RE = re.compile(
+    r'\[\[(?:[^:\[\]]+:)?([^\[\]]+)\]\]'
+)
+
+
+def _localize_event_markup(value, language=DEFAULT_LANGUAGE):
+    """Render semantic markup in player-visible event text.
+
+    Card text and generated effect labels can contain localization tokens such
+    as ``[[token:hidden_bond]]``. ``render_localized_markup`` resolves known
+    tokens; the final substitution also gives unknown or legacy tokens a
+    readable fallback so raw DSL notation never reaches the game log.
+    """
+    if isinstance(value, dict):
+        return {
+            key: _localize_event_markup(item, language)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_localize_event_markup(item, language) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_localize_event_markup(item, language) for item in value)
+    if not isinstance(value, str) or '[[' not in value:
+        return value
+    rendered = render_localized_markup(value, language)
+    return UNRESOLVED_LOCALIZED_MARKUP_RE.sub(
+        lambda match: match.group(1).strip().replace('_', ' '),
+        rendered,
+    )
+
+
 SIMULATOR_SIGNAL_LABELS = {
     'effect': '효과 발동',
     'combo': '콤보 타임',
@@ -434,6 +468,65 @@ def _document_for_read(session):
         initial_state = {'turn': 1, 'phase': 'lumen', 'status': {}, 'timer': {}, 'players': {}}
         return {'initial_state': initial_state, 'state': copy.deepcopy(initial_state), 'events': []}
     return document
+
+
+def create_automatic_scenario_session(
+    source_session, *, created_by=None, phase='lumen',
+    priority_player='p1',
+):
+    """Clone a manual setup board into an isolated automatic test session."""
+    if source_session.mode != LumenSimulatorSession.MODE_MANUAL:
+        raise ValueError('수동 세션만 자동 테스트 세션으로 복제할 수 있습니다.')
+    from .automatic_services import (
+        automatic_mode_release,
+        initialize_automatic_scenario_document,
+    )
+
+    release = automatic_mode_release()
+    if not release:
+        raise ValueError('검증된 전체 카드 규칙 릴리스가 없어 자동 테스트를 시작할 수 없습니다.')
+    source_document = _document_for_read(source_session)
+    source_state = copy.deepcopy(source_document.get('state') or {})
+    view_token = _unique_token('view_token')
+    document = initialize_automatic_scenario_document(
+        source_state, release,
+        seed=f'scenario:{view_token}:{release.content_hash}',
+        phase=phase, priority_player=priority_player,
+    )
+    document['scenario'] = {
+        'enabled': True,
+        'entry_phase': phase,
+        'priority_player': priority_player,
+        'source_session_id': source_session.id,
+        'created_by_id': (
+            created_by.pk
+            if created_by is not None
+            and getattr(created_by, 'is_authenticated', False)
+            else None
+        ),
+        'ruleset_version': release.version,
+        'created_at': timezone.now().isoformat(),
+        'notes': (
+            '게임 시작·턴 시작 효과는 재실행하지 않고 선택한 페이즈의 '
+            '시작 효과부터 처리합니다. 수동 배치는 레디 합법성·비용을 우회합니다.'
+        ),
+    }
+    state = document.get('state') or {}
+    players = state.get('players') or {}
+    session = LumenSimulatorSession.objects.create(
+        view_token=view_token,
+        player1_token=_unique_token('player1_token'),
+        player2_token=_unique_token('player2_token'),
+        player1_name=(players.get('p1') or {}).get('name') or source_session.player1_name,
+        player2_name=(players.get('p2') or {}).get('name') or source_session.player2_name,
+        player1_controller=LumenSimulatorSession.CONTROLLER_HUMAN,
+        player2_controller=LumenSimulatorSession.CONTROLLER_HUMAN,
+        mode=LumenSimulatorSession.MODE_AUTOMATIC,
+        ruleset_release=release,
+        document=document,
+        expires_at=simulator_session_expires_at(),
+    )
+    return session
 
 
 def _archived_event_count(document):
@@ -2192,7 +2285,7 @@ def _filtered_event(event, state, viewer_side, language=DEFAULT_LANGUAGE):
         declaration = payload.get('declaration')
         if declaration in YOHAN_DECLARATION_LABELS:
             payload['declaration_label'] = ui_text(YOHAN_DECLARATION_LABELS[declaration], language)
-    filtered['payload'] = payload
+    filtered['payload'] = _localize_event_markup(payload, language)
     return filtered
 
 
@@ -2264,6 +2357,16 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
                 if (session.automation_failure or {}).get(key) is not None
             }
             if session.automation_failure else None
+        ),
+        'scenario': (
+            {
+                key: (document.get('scenario') or {}).get(key)
+                for key in (
+                    'enabled', 'entry_phase', 'priority_player',
+                    'ruleset_version', 'notes',
+                )
+            }
+            if (document.get('scenario') or {}).get('enabled') else None
         ),
         'ruleset_version': None,
         'presence': simulator_presence_counts(session.view_token),

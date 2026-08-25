@@ -16,6 +16,8 @@
         <p class="v2-subtitle">리비전 {{ card.effect_revision }} · {{ card.effect_updated_at|date:"Y-m-d H:i" }}</p>
     </div>
     <div class="v2-chip-row">
+        <a class="v2-button" href="{% url 'card:effectDslGuide' %}">DSL 작성 가이드</a>
+        <a class="v2-button" href="{% url 'card:effectDslReference' %}">전체 기능 레퍼런스</a>
         <a class="v2-button" href="{% url 'card:detail' card.pk %}">카드 상세</a>
         {% if user.is_staff %}
         <a class="v2-button" href="{% url 'admin:card_card_change' card.pk %}">Admin 열기</a>
@@ -364,7 +366,16 @@
             </span>
             <span>펼치기</span>
         </summary>
-        <div class="effect-review-editor-body">{{ form.effect_definition }}</div>
+        <div class="effect-review-editor-body">
+            <div class="effect-review-doc-links">
+                <span>처음 작성한다면 순서별 가이드를, 보존 노드나 고급 필드를 다룬다면 전체 레퍼런스를 확인하세요.</span>
+                <div>
+                    <a href="{% url 'card:effectDslGuide' %}">작성 가이드 열기</a>
+                    <a href="{% url 'card:effectDslReference' %}">기능 레퍼런스 열기</a>
+                </div>
+            </div>
+            {{ form.effect_definition }}
+        </div>
     </details>
     <div class="effect-review-save-bar">
         <span>저장하면 카드 효과 리비전이 증가하며, 검토 완료 선택 시 현재 원문과 Q&A가 승인 출처로 기록됩니다.</span>

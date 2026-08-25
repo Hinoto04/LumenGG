@@ -25,6 +25,9 @@
                 {% endif %}
             </div>
             <div class="v2-sim-session-tools">
+                {% if can_create_automatic_scenario %}
+                <button class="v2-button v2-scenario-launch" type="button" data-scenario-open>{% tr "자동 테스트 복제" %}</button>
+                {% endif %}
                 <div class="v2-sim-presence" data-sim-presence></div>
                 <div class="v2-sim-card-size-control" aria-label="{% tr "카드 크기" %}">
                     <button class="v2-button" type="button" data-card-size-step="-1" aria-label="{% tr "카드 축소" %}">-</button>
@@ -34,6 +37,12 @@
             </div>
         </div>
     </div>
+    {% if state.scenario.enabled %}
+    <div class="v2-scenario-banner" role="status">
+        <strong>AUTOMATIC TEST</strong>
+        <span>{% tr "격리된 자동 처리 테스트 세션" %} · {{ state.scenario.entry_phase }} · {{ state.scenario.ruleset_version }}</span>
+    </div>
+    {% endif %}
     <section class="v2-panel v2-automatic-panel" data-automatic-panel hidden></section>
 
     <div class="v2-panel v2-sim-controlbar">
@@ -127,6 +136,52 @@
             </div>
         </section>
     </div>
+
+    {% if can_create_automatic_scenario %}
+    <div class="v2-sim-shortcut-modal" data-scenario-modal hidden>
+        {% csrf_token %}
+        <div class="v2-sim-shortcut-backdrop" data-scenario-close></div>
+        <section class="v2-panel v2-scenario-dialog" role="dialog" aria-modal="true" aria-labelledby="scenario-dialog-title">
+            <div class="v2-sim-drawer-head">
+                <strong id="scenario-dialog-title">{% tr "자동 처리 테스트 세션 만들기" %}</strong>
+                <button class="v2-button" type="button" data-scenario-close>{% tr "닫기" %}</button>
+            </div>
+            <p class="v2-scenario-description">
+                {% tr "현재 수동 보드의 카드 위치, 공개 상태, HP, FP, 카운터와 상태를 복사해 별도의 자동 세션을 만듭니다. 원본 세션은 변경되지 않습니다." %}
+            </p>
+            <div class="v2-scenario-fields">
+                <label class="v2-admin-field">
+                    <span>{% tr "자동 처리를 시작할 페이즈" %}</span>
+                    <select data-scenario-phase>
+                        <option value="lumen">Lumen Phase</option>
+                        <option value="ready">Ready Phase</option>
+                        <option value="battle">Battle Phase · {% tr "현재 배틀 존 기술로 판정" %}</option>
+                        <option value="get">Get Phase</option>
+                        <option value="recovery">Recovery Phase</option>
+                    </select>
+                </label>
+                <label class="v2-admin-field">
+                    <span>{% tr "우선권 플레이어" %}</span>
+                    <select data-scenario-priority>
+                        <option value="p1">P1</option>
+                        <option value="p2">P2</option>
+                    </select>
+                </label>
+            </div>
+            <div class="v2-scenario-check" data-scenario-check></div>
+            <ul class="v2-scenario-notes">
+                <li>{% tr "게임 시작 및 턴 시작 효과는 다시 실행하지 않고, 선택한 페이즈 시작 효과부터 처리합니다." %}</li>
+                <li>{% tr "테스트 세션에서는 레디 및 효과 선택 타이머가 비활성화되고 되감기를 사용할 수 있습니다." %}</li>
+                <li>{% tr "배틀 페이즈는 양쪽 배틀 존에 세트 카드가 아닌 기술이 정확히 1장씩 있어야 합니다." %}</li>
+                <li>{% tr "수동으로 미리 배치한 배틀 기술은 레디 합법성 및 레디 비용 검사를 우회합니다." %}</li>
+            </ul>
+            <div class="v2-scenario-actions">
+                <button class="v2-button" type="button" data-scenario-close>{% tr "취소" %}</button>
+                <button class="v2-button v2-button-primary" type="button" data-scenario-create>{% tr "복제하고 새 탭에서 시작" %}</button>
+            </div>
+        </section>
+    </div>
+    {% endif %}
 </section>
 
 <div
@@ -146,6 +201,7 @@
         metadataUrl: "{% url "battlelog:simulatorCardMetadata" session.view_token %}",
         actionUrl: "{% url "battlelog:simulatorAction" session.view_token %}",
         commandUrl: "{% url "battlelog:simulatorCommand" session.view_token %}",
+        scenarioUrl: "{% if can_create_automatic_scenario %}{% url "battlelog:simulatorScenarioClone" session.view_token %}{% endif %}",
         reportUrl: "{% url "battlelog:simulatorReportIssue" session.view_token %}",
         wsPath: "/ws/battlelog/simulator/{{ session.view_token|escapejs }}/",
         seat: "{{ seat|escapejs }}",

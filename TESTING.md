@@ -138,6 +138,33 @@ decision, rather than silently completing the effect.
 Choosing a Special Technique in the common acquire scenario also exercises the
 core movement rule: it is sent to Break instead of Hand, and that actual
 destination is shown in both the zone view and event timeline.
+
+### Full-board automatic scenarios
+
+Use a manual simulator session as a setup board when an effect must be checked
+inside a complete turn rather than as one isolated ability. A user with the
+`card.change_card` permission can arrange both players' zones with the normal
+drag-and-drop controls, set HP/FP, counters, states, card visibility, and the
+turn, then press `자동 테스트 복제` in the session header. Select the phase and
+priority player and create the scenario. The new P1 control link opens in a
+separate tab; the source manual session and its log are not changed.
+
+The scenario uses the active immutable automatic ruleset and starts at the
+selected phase's `phase_start` timing. It intentionally does not replay setup,
+`game_start`, or `turn_start`, because the arranged board is treated as the
+result of those earlier windows. Ready and effect-decision timers are disabled,
+automatic empty-phase skipping is disabled, and rewind is enabled. This makes
+it possible to pause at every legal action while checking a difficult branch.
+
+To start directly at Battle, place exactly one unattached Technique in each
+player's Battle zone. Attached/set cards may remain beside their host and are
+not counted as the base Technique. The imported Battle cards bypass Ready
+legality and costs, then enter the normal reveal, judgment, effect, combo,
+catch, and cleanup pipeline. Other entry phases preserve the current zone
+layout and expose the same role-filtered legal actions as a normal automatic
+match. A card code absent from the active release blocks cloning so a scenario
+cannot silently execute against different card data.
+
 Selectors whose minimum is two or more render checkboxes and enforce the full
 minimum/maximum range for either player. The `p1 · 여러 후보 중 선택` and
 `p2 · 여러 후보 중 선택` presets make it possible to compare ownership and

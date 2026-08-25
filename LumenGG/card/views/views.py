@@ -33,6 +33,7 @@ from collection.models import CollectionCard, Pack
 from deck.models import Deck
 from ..forms import CardForm, TagCreateForm, CardTagEditForm, CardCreateForm, CardUpdateForm, CardTranslationUpdateForm, CardCommentForm
 from ..effect_review import CardEffectReviewForm, card_effect_review_context
+from ..dsl_docs import reference_context
 from ..search import card_matches_search, card_matches_search_exact
 from decorators import permission_required
 import re, random, os, json, uuid
@@ -564,6 +565,20 @@ def _next_effect_review_card(current_pk):
         effect_definition__reviewed=True,
     ).exclude(pk=current_pk).order_by('pk')
     return queryset.filter(pk__gt=current_pk).first() or queryset.first()
+
+
+@permission_required('card.change_card')
+def effectDslGuide(req):
+    return render(req, 'card/effect_dsl_guide_v2.html', {
+        'dsl': reference_context(),
+    })
+
+
+@permission_required('card.change_card')
+def effectDslReference(req):
+    return render(req, 'card/effect_dsl_reference_v2.html', {
+        'dsl': reference_context(),
+    })
 
 
 @permission_required('card.change_card')

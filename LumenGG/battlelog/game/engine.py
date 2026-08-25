@@ -161,7 +161,10 @@ class AutomaticGameEngine:
         self.resolver = EffectResolver(self)
 
     @classmethod
-    def initialize(cls, base_state, ruleset, *, now=None, seed='', settings=None):
+    def initialize(
+        cls, base_state, ruleset, *, now=None, seed='', settings=None,
+        run_startup=True,
+    ):
         """Turn the existing simulator zones/HP/FP payload into automatic state."""
         state = copy.deepcopy(base_state or {})
         state['turn'] = max(1, _number(state.get('turn'), 1))
@@ -223,24 +226,30 @@ class AutomaticGameEngine:
         }
         engine = cls(state, ruleset, version=1, now=now, seed=seed)
         engine._reconcile_trait_states()
-        engine.emit('setup_completed', 'system', {
-            side: {
-                'character': [card.get('character_id') for card in engine._zone(side, 'character')],
-                'passives': [card.get('code') for card in engine._zone(side, 'passive')],
-                'ultimate': [card.get('code') for card in engine._zone(side, 'ultimate')],
-                # The rulebook requires the final five-card hand to be shown
-                # after exchange; the live zone becomes private immediately.
-                'revealed_hand': [card.get('code') for card in engine._zone(side, 'hand')],
-                'list': [card.get('code') for card in engine._zone(side, 'list')],
-            }
-            for side in PLAYER_SIDES
-        })
-        engine.emit('automatic_game_started', 'system', {
-            'ruleset_version': ruleset.get('version') or ruleset.get('content_hash'),
-            'priority_player': first,
-        })
-        engine._fire('game_start', {'turn': 1})
-        engine._continue()
+        if run_startup:
+            engine.emit('setup_completed', 'system', {
+                side: {
+                    'character': [card.get('character_id') for card in engine._zone(side, 'character')],
+                    'passives': [card.get('code') for card in engine._zone(side, 'passive')],
+                    'ultimate': [card.get('code') for card in engine._zone(side, 'ultimate')],
+                    # The rulebook requires the final five-card hand to be shown
+                    # after exchange; the live zone becomes private immediately.
+                    'revealed_hand': [card.get('code') for card in engine._zone(side, 'hand')],
+                    'list': [card.get('code') for card in engine._zone(side, 'list')],
+                }
+                for side in PLAYER_SIDES
+            })
+            engine.emit('automatic_game_started', 'system', {
+                'ruleset_version': ruleset.get('version') or ruleset.get('content_hash'),
+                'priority_player': first,
+            })
+            engine._fire('game_start', {'turn': 1})
+            engine._continue()
+        else:
+            # Scenario sessions import a board which already represents the
+            # result of setup/game-start timings. Replaying those timings
+            # would mutate the deliberately arranged HP, counters and zones.
+            engine.engine_state.pop('startup_stage', None)
         return engine
 
     def _ensure_state(self):
@@ -348,8 +357,12 @@ class AutomaticGameEngine:
             if not isinstance(current, dict):
                 passive_state[canonical_key] = legacy
                 continue
-            if not current.get('label') and legacy.get('label'):
-                current['label'] = legacy['label']
+            # A manual setup can contain both representations: the character
+            # initializer owns the canonical entry while the calculator UI
+            # writes the legacy key. In that case the legacy entry is the
+            # latest user-arranged value, so merge all of its runtime fields
+            # (count/value/note as well as label) into the canonical state.
+            current.update(copy.deepcopy(legacy))
 
     @property
     def engine_state(self):
@@ -8164,6 +8177,18 @@ class AutomaticGameEngine:
             ((self.ruleset.get('cards') or {}).get(str(card.get('code') or '')) or {})
             .get('effect_definition') or {}
         )
+        # CB03 and earlier immutable releases were published before Combo-end
+        # membership metadata was added to Endless Ballare. Upgrade the
+        # runtime copy only: old releases stay immutable, while both replayed
+        # and newly created sessions apply effect ② exactly when this instance
+        # was the starter or a later Technique of the Combo that just ended.
+        if str(card.get('code') or '').upper() == 'DFR-AT-020':
+            definition = copy.deepcopy(definition)
+            for ability in definition.get('abilities') or []:
+                if ability.get('id') != 'dfr-at-020-n2':
+                    continue
+                ability.setdefault('active_zones', ['battle'])
+                ability.setdefault('requires_combo_use', True)
         if card.get('instance_id'):
             _side, zone, _index, _live = self._find_location(card.get('instance_id'))
             if zone == 'passive' and self._traits_negated():

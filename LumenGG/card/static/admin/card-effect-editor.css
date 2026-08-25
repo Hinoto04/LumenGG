@@ -26,6 +26,8 @@
 .effect-json-preview > summary { cursor: pointer; font-weight: 700; }
 .effect-json-preview pre { background: var(--darkened-bg, #f4f4f4); border-radius: 6px; max-height: 420px; overflow: auto; padding: 12px; white-space: pre-wrap; word-break: break-word; }
 .effect-review-overview { max-width: none; width: 100%; }
+.effect-editor-docs { align-items: center; background: var(--darkened-bg, #f4f4f4); border: 1px solid var(--border-color, #ccc); border-radius: 6px; display: flex; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 12px; padding: 9px 11px; }
+.effect-editor-docs a { font-weight: 600; }
 .effect-review-status, .effect-review-warning, .effect-review-empty { border-radius: 6px; padding: 10px 12px; }
 .effect-review-status.is-ok { background: #dff3e4; color: #185b2b; }
 .effect-review-status.is-pending { background: #fff4ce; color: #6b4d00; }

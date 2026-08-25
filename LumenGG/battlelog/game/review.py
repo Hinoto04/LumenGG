@@ -63486,6 +63486,7 @@ def _run_dfr_at_020_combo_end_scenario(
     definition, card_snapshot, owner, *, negated=False,
     event_type='combo_end', event_source='self', owner_select=(),
     opponent_select=(), protect_owner_after_choice=False,
+    starter_at_six_combo=False,
 ):
     other = 'p2' if owner == 'p1' else 'p1'
     owner_list = _card(
@@ -63539,12 +63540,20 @@ def _run_dfr_at_020_combo_end_scenario(
         source['instance_id'] if event_source == 'self'
         else owner_battle['instance_id']
     )
+    combo_used = [source_id]
+    combo_cards = [source_id]
+    if starter_at_six_combo:
+        combo_used = [
+            f'{owner}-ballare-followup-{number}'
+            for number in range(2, 7)
+        ]
+        combo_cards = [source['instance_id'], *combo_used]
     engine._fire(event_type, {
         'controller': owner, 'combo_owner': owner,
         'source_card_instance_id': source_id,
-        'combo_used': [source_id],
-        'combo_used_count': 1,
-        'combo_card_instance_ids': [source_id],
+        'combo_used': combo_used,
+        'combo_used_count': len(combo_used),
+        'combo_card_instance_ids': combo_cards,
     })
     trace = []
     owner_options = []
@@ -63597,6 +63606,8 @@ def _run_dfr_at_020_combo_end_scenario(
         },
         'phase': engine.state.get('phase'),
         'step': engine.engine_state.get('step'),
+        'starter_at_six_combo': starter_at_six_combo,
+        'combo_card_count': len(combo_cards),
         'restarted': any(
             event.get('type') == 'phase_restarted'
             and (event.get('payload') or {}).get('phase') == 'ready'
@@ -63821,7 +63832,9 @@ def _review_dfr_at_020_definition(definition, card_snapshot, extra_root):
             ),
             'opponent_select': ('p2-ballare-list',),
         }, True, True),
-        ('both-players-decline-and-ready-still-restarts', 'p2', {}, True, True),
+        ('starter-at-six-combo-decline-and-ready-restarts', 'p2', {
+            'starter_at_six_combo': True,
+        }, True, True),
         ('illegal-special-and-protected-cards-are-not-options', 'p1', {
             'owner_select': ('p1-ballare-owner-list',),
         }, True, True),
