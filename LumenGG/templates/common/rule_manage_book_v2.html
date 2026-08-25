@@ -1,0 +1,39 @@
+{% extends "base_v2.html" %}
+{% block title %}{{ book }} 관리 - LumenDB{% endblock title %}
+{% block content %}
+<section class="v2-page-head v2-rule-manager-head">
+    <div>
+        <nav class="v2-rule-manager-breadcrumb" aria-label="규칙 관리 경로">
+            <a href="{% url "rules:manage" %}">규칙 관리</a>
+            <span aria-hidden="true">/</span>
+            <strong>{{ book }}</strong>
+        </nav>
+        <div class="v2-kicker">{{ book.kicker }}</div>
+        <h1 class="v2-title">{{ book }}</h1>
+    </div>
+    <div class="v2-rulebook-page-actions">
+        <a class="v2-button" href="{% url "rules:manage" %}">룰북 목록</a>
+        <a class="v2-button" href="{% url "rules:detail" slug=book.slug %}">공개 페이지</a>
+        <a class="v2-button" href="{% url "rules:bookVisualAssets" book.pk %}">비주얼 CSS/JS</a>
+        {% if perms.common.add_rule %}
+        <a class="v2-button v2-button-primary" href="{% url "rules:ruleCreate" %}?rulebook={{ book.pk }}">최상위 규칙 추가</a>
+        {% endif %}
+    </div>
+</section>
+
+{% url "rules:bookVisualCreate" book.pk as visual_create_url %}
+{% with visual_section_title="룰북 상단 비주얼 가이드" %}
+{% include "common/_rule_visual_manage_v2.html" %}
+{% endwith %}
+
+<section class="v2-rule-manager-book">
+    <header class="v2-rule-manager-section-head">
+        <div>
+            <span class="v2-kicker">ROOT RULES</span>
+            <h2>최상위 규칙</h2>
+        </div>
+        <span class="v2-rule-manager-count">{{ rows|length }}</span>
+    </header>
+    {% include "common/_rule_manage_rows_v2.html" %}
+</section>
+{% endblock content %}

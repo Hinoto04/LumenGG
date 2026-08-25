@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rulebook-catalog.schema.json",
+  "title": "LumenDB rulebook catalog",
+  "type": "object",
+  "required": ["rulebooks", "translation_notices"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "rulebooks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["slug", "filename", "url_name", "order", "kicker", "summary"],
+        "properties": {
+          "slug": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "filename": { "type": "string", "pattern": "\\.md$" },
+          "url_name": { "type": "string" },
+          "order": { "type": "integer" },
+          "kicker": { "type": "string" },
+          "summary": { "type": "string" },
+          "visual_file": { "type": "string", "pattern": "\\.json$" },
+          "storage": { "type": "string", "enum": ["database", "html"] },
+          "searchable": { "type": "boolean" },
+          "anchor_prefix": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "translation_notices": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["title", "text"],
+        "properties": {
+          "title": { "type": "string" },
+          "text": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,7 +1,22 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
-from .models import SiteSettings, TermTranslation, TranslationSource, TranslationValue, UserData
+from django.db import models
+from django_summernote.widgets import SummernoteWidget
+
+from .models import (
+    Rule,
+    Rulebook,
+    RulebookTranslation,
+    RuleTranslation,
+    RuleVisualGuide,
+    RuleVisualGuideTranslation,
+    SiteSettings,
+    TermTranslation,
+    TranslationSource,
+    TranslationValue,
+    UserData,
+)
 
 # Register your models here.
 class UserDataInline(admin.StackedInline):
@@ -50,3 +65,75 @@ class TranslationValueAdmin(admin.ModelAdmin):
 
 admin.site.register(TranslationSource, TranslationSourceAdmin)
 admin.site.register(TranslationValue, TranslationValueAdmin)
+
+
+class RulebookTranslationInline(admin.StackedInline):
+    model = RulebookTranslation
+    extra = 0
+
+
+@admin.register(Rulebook)
+class RulebookAdmin(admin.ModelAdmin):
+    list_display = ('slug', 'kicker', 'sort_order', 'searchable', 'is_public', 'updated_on')
+    list_editable = ('sort_order', 'is_public')
+    search_fields = ('slug', 'translations__title', 'translations__summary')
+    inlines = (RulebookTranslationInline,)
+
+
+class RuleTranslationInline(admin.StackedInline):
+    model = RuleTranslation
+    extra = 0
+    formfield_overrides = {
+        models.TextField: {'widget': SummernoteWidget},
+    }
+
+
+@admin.register(Rule)
+class RuleAdmin(admin.ModelAdmin):
+    list_display = (
+        'reference_name',
+        'display_number',
+        'rulebook',
+        'parent',
+        'priority',
+        'show_in_toc',
+        'is_public',
+        'updated_at',
+    )
+    list_filter = ('rulebook', 'show_in_toc', 'is_public')
+    list_editable = ('priority', 'show_in_toc', 'is_public')
+    search_fields = (
+        'reference_name',
+        'translations__title',
+        'translations__content',
+    )
+    autocomplete_fields = ('rulebook', 'parent')
+    readonly_fields = ('reference_aliases',)
+    inlines = (RuleTranslationInline,)
+
+    @admin.display(description='규칙 번호')
+    def display_number(self, obj):
+        return obj.full_number
+
+
+class RuleVisualGuideTranslationInline(admin.StackedInline):
+    model = RuleVisualGuideTranslation
+    extra = 0
+    formfield_overrides = {
+        models.TextField: {'widget': SummernoteWidget},
+    }
+
+
+@admin.register(RuleVisualGuide)
+class RuleVisualGuideAdmin(admin.ModelAdmin):
+    list_display = ('display_title', 'rulebook', 'rule', 'style_key', 'priority', 'is_public', 'updated_at')
+    list_editable = ('priority', 'is_public')
+    list_filter = ('is_public', 'rulebook', 'style_key')
+    search_fields = ('translations__title', 'translations__content', 'rule__reference_name')
+    autocomplete_fields = ('rulebook', 'rule')
+    inlines = (RuleVisualGuideTranslationInline,)
+
+    @admin.display(description='비주얼 가이드')
+    def display_title(self, obj):
+        translation = obj.translations.filter(language='ko').first()
+        return translation.title if translation else f'비주얼 가이드 {obj.pk}'

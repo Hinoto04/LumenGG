@@ -1,0 +1,51 @@
+{
+  "$schema": "./rulebook-catalog.schema.json",
+  "rulebooks": [
+    {
+      "slug": "guide",
+      "filename": "lumen-beginner-guide.md",
+      "url_name": "rules:guide",
+      "order": 10,
+      "kicker": "LEARN TO PLAY",
+      "summary": "처음 플레이하는 유저가 게임 흐름을 순서대로 익힐 수 있는 가이드입니다.",
+      "visual_file": "visuals/guide.json",
+      "storage": "database",
+      "searchable": false,
+      "anchor_prefix": "rule-"
+    },
+    {
+      "slug": "comprehensive",
+      "filename": "lumen-comprehensive-rules.md",
+      "url_name": "rules:comprehensive",
+      "order": 20,
+      "kicker": "COMPREHENSIVE RULES",
+      "summary": "규칙 번호, 딥링크, 판정 확인을 위한 종합 규칙서입니다.",
+      "visual_file": "visuals/comprehensive.json",
+      "storage": "database",
+      "searchable": true,
+      "anchor_prefix": "rule-"
+    },
+    {
+      "slug": "tournament",
+      "filename": "lumen-tournament-floor-rules.md",
+      "url_name": "rules:tournament",
+      "order": 30,
+      "kicker": "TOURNAMENT FLOOR RULES",
+      "summary": "대회 참가자, 관전자, 저지와 운영자를 위한 플로어룰입니다.",
+      "visual_file": "visuals/tournament.json",
+      "storage": "database",
+      "searchable": true,
+      "anchor_prefix": "floor-"
+    }
+  ],
+  "translation_notices": {
+    "en": {
+      "title": "Translation draft",
+      "text": "This English translation is a machine-generated reference draft. If it differs from the Korean rules, the Korean source takes precedence."
+    },
+    "ja": {
+      "title": "翻訳ドラフト",
+      "text": "この日本語訳は機械翻訳による参照用ドラフトです。韓国語原文と内容が異なる場合は、韓国語原文を優先します。"
+    }
+  }
+}

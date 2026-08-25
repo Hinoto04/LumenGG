@@ -1,0 +1,64 @@
+{
+  "$schema": "./rulebook-visual.schema.json",
+  "visuals": [
+    {
+      "kind": "rules",
+      "title": "대회 운영 지도",
+      "summary": "대회 중 자주 확인하는 시간, 대응 없음, 결과 보고, 패널티 기준으로 바로 이동합니다.",
+      "href": {
+        "heading": "빠른 참조",
+        "fallback": "#floor-reference"
+      },
+      "items": [
+        {
+          "key": "floor-time",
+          "label": "시간",
+          "title": "기본 경기 시간",
+          "text": "스위스와 본선 기본 시간, 결승 시간, 시간 종료 후 처리를 확인합니다.",
+          "href": "#floor-competition-time-limit-and-timeout-processing",
+          "hint": "30분 기준"
+        },
+        {
+          "key": "floor-ready",
+          "label": "레디",
+          "title": "대응 없음",
+          "text": "상대가 레디한 뒤 10초 안에 레디하지 못한 경우의 처리와 누적 기준을 확인합니다.",
+          "href": "#floor-winloss-decision-and-failure-to-respond",
+          "hint": "10초"
+        },
+        {
+          "key": "floor-phase",
+          "label": "페이즈",
+          "title": "페이즈별 제한시간",
+          "text": "레디, 겟, 루멘, 리커버리 페이즈에서 적용되는 제한시간을 확인합니다.",
+          "href": "#floor-progress-and-time-limit-for-each-phase",
+          "hint": "30초 처리"
+        },
+        {
+          "key": "floor-report",
+          "label": "보고",
+          "title": "결과 보고와 참가 처리",
+          "text": "결과 보고, 항복, 기권, 지각, 로스타임 기준을 확인합니다.",
+          "href": "#floor-report-results-surrender-abstain-be-late",
+          "hint": "제출 · 기권"
+        },
+        {
+          "key": "floor-judge",
+          "label": "저지",
+          "title": "룰 판단과 정보 확인",
+          "text": "저지 호출, 공개 정보 확인, 휴대기기 사용 관련 주의사항을 확인합니다.",
+          "href": "#floor-rule-judgment-and-information-confirmation",
+          "hint": "판단 요청"
+        },
+        {
+          "key": "floor-penalty",
+          "label": "패널티",
+          "title": "패널티",
+          "text": "주의, 경고, 몰수패, 실격, 자격 정지의 의미와 누적 기준을 확인합니다.",
+          "href": "#floor-penalty",
+          "hint": "주의/경고"
+        }
+      ]
+    }
+  ]
+}

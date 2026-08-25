@@ -1,0 +1,33 @@
+<div class="v2-rule-tree" role="tree">
+    {% for row in rows %}
+    <article class="v2-rule-tree-row" id="rule-{{ row.rule.pk }}" role="treeitem" aria-level="1">
+        <a class="v2-rule-tree-main v2-rule-tree-link" href="{% url "rules:manageRule" row.rule.pk %}">
+            <span class="v2-rule-tree-number">{{ row.number }}</span>
+            <div>
+                <strong>{{ row.title }}</strong>
+                <code>[[{{ row.rule.reference_name }}]]</code>
+            </div>
+        </a>
+        <div class="v2-rule-tree-status">
+            {% if row.child_count %}<span class="is-neutral">하위 {{ row.child_count }}</span>{% endif %}
+            {% if not row.rule.is_public %}<span>비공개</span>{% endif %}
+        </div>
+        <div class="v2-rule-order-actions" aria-label="{{ row.number }} 순서 변경">
+            <form method="post" action="{% url "rules:ruleMove" row.rule.pk "up" %}">
+                {% csrf_token %}
+                <button type="submit" title="위로 이동" aria-label="{{ row.number }} 위로 이동" {% if not row.can_move_up %}disabled{% endif %}>↑</button>
+            </form>
+            <form method="post" action="{% url "rules:ruleMove" row.rule.pk "down" %}">
+                {% csrf_token %}
+                <button type="submit" title="아래로 이동" aria-label="{{ row.number }} 아래로 이동" {% if not row.can_move_down %}disabled{% endif %}>↓</button>
+            </form>
+        </div>
+        <div class="v2-rule-tree-actions">
+            <a class="v2-button" href="{% url "rules:manageRule" row.rule.pk %}">관리</a>
+            <a class="v2-button" href="{% url "rules:ruleEdit" row.rule.pk %}">편집</a>
+        </div>
+    </article>
+    {% empty %}
+    <p class="v2-empty">등록된 규칙이 없습니다.</p>
+    {% endfor %}
+</div>

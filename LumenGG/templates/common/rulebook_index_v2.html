@@ -1,0 +1,31 @@
+{% extends "base_v2.html" %}
+{% load language_tags %}
+{% block title %}{% tr "룰북" %} - LumenDB{% endblock title %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">LUMEN CONDENSOR RULEBOOK</div>
+        <h1 class="v2-title">{% tr "룰북" %}</h1>
+        <p class="v2-subtitle">{% tr "처음 플레이 가이드, 종합 규칙서, 대회 플로어룰을 제공합니다." %}</p>
+    </div>
+    {% if perms.common.change_rule %}
+    <div class="v2-rulebook-page-actions">
+        <a class="v2-button v2-button-primary" href="{% url "rules:manage" %}">{% tr "규칙 관리" %}</a>
+    </div>
+    {% endif %}
+</section>
+
+<section class="v2-rulebook-hub-grid">
+    {% for rulebook in rulebooks %}
+    <a class="v2-panel v2-rulebook-hub-card" href="{{ rulebook.href }}">
+        <span class="v2-kicker">{{ rulebook.kicker }}</span>
+        <strong>{% tr rulebook.short_title %}</strong>
+        <span>{% tr rulebook.summary %}</span>
+        <small>
+            {% if rulebook.version %}{{ rulebook.version }}{% endif %}
+            {% if rulebook.updated %} · {{ rulebook.updated }}{% endif %}
+        </small>
+    </a>
+    {% endfor %}
+</section>
+{% endblock content %}

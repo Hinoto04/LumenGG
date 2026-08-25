@@ -1,0 +1,20 @@
+{% extends "base_v2.html" %}
+{% block title %}규칙 삭제 - LumenDB{% endblock title %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">RULE EDITOR</div>
+        <h1 class="v2-title">규칙 삭제</h1>
+    </div>
+</section>
+
+<section class="v2-panel v2-rule-delete-panel">
+    <h2>{{ rule }}</h2>
+    <p>이 규칙을 삭제하면 모든 하위 규칙도 함께 삭제됩니다.</p>
+    <form method="post">
+        {% csrf_token %}
+        <a class="v2-button" href="{{ cancel_url }}">취소</a>
+        <button class="v2-button v2-danger-button" type="submit">삭제</button>
+    </form>
+</section>
+{% endblock content %}

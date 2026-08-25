@@ -1,0 +1,106 @@
+{% extends "base_v2.html" %}
+{% block title %}{{ page_title }} - LumenDB{% endblock title %}
+{% block content %}
+{{ editor_media }}
+<section class="v2-page-head v2-rule-manager-head">
+    <div>
+        <div class="v2-kicker">RULE VISUAL EDITOR</div>
+        <h1 class="v2-title">{{ page_title }}</h1>
+        <p class="v2-subtitle">{% if rule %}{{ rule }}{% else %}{{ book }} 상단{% endif %}</p>
+    </div>
+    <div class="v2-rulebook-page-actions">
+        <a class="v2-button" href="{{ manage_url }}">관리 화면</a>
+        {% if not rule %}
+        <a class="v2-button" href="{% url "rules:bookVisualAssets" book.pk %}">공통 CSS/JS</a>
+        {% endif %}
+        {% if guide %}
+        <a class="v2-button v2-danger-button" href="{% url "rules:visualDelete" guide.pk %}">삭제</a>
+        {% endif %}
+    </div>
+</section>
+
+<div class="v2-rule-script-warning" role="alert">
+    저장된 HTML, CSS, JavaScript는 공개 룰북 페이지에서 필터 없이 실행됩니다.
+    룰북 상단 가이드가 공유하는 기본 동작과 스타일은 공통 CSS/JS에서 관리합니다.
+</div>
+
+<form class="v2-rule-editor v2-rule-visual-editor" method="post" novalidate>
+    {% csrf_token %}
+    {{ guide_form.non_field_errors }}
+    <section class="v2-panel v2-rule-editor-settings">
+        <div class="v2-rule-editor-grid">
+            <label class="v2-field">
+                <span>{{ guide_form.priority.label }}</span>
+                {{ guide_form.priority }}
+                {% if guide_form.priority.help_text %}<small>{{ guide_form.priority.help_text }}</small>{% endif %}
+                {{ guide_form.priority.errors }}
+            </label>
+            <label class="v2-field">
+                <span>{{ guide_form.style_key.label }}</span>
+                {{ guide_form.style_key }}
+                {% if guide_form.style_key.help_text %}<small>{{ guide_form.style_key.help_text }}</small>{% endif %}
+                {{ guide_form.style_key.errors }}
+            </label>
+            <label class="v2-field is-compact">
+                <span>{{ guide_form.is_public.label }}</span>
+                {{ guide_form.is_public }}
+                {{ guide_form.is_public.errors }}
+            </label>
+        </div>
+    </section>
+
+    <section class="v2-rule-editor-translations" data-rule-language-editor>
+        <div class="v2-rule-editor-tabs" role="tablist">
+            {% for item in translation_forms %}
+            <button class="{% if forloop.first %}is-active{% endif %}" type="button" role="tab" data-rule-language-tab="{{ item.language }}">{{ item.label }}</button>
+            {% endfor %}
+        </div>
+        {% for item in translation_forms %}
+        <div class="v2-panel v2-rule-language-panel" data-rule-language-panel="{{ item.language }}" {% if not forloop.first %}hidden{% endif %}>
+            {{ item.form.non_field_errors }}
+            <label class="v2-field">
+                <span>{{ item.form.title.label }}</span>
+                {{ item.form.title }}
+                {{ item.form.title.errors }}
+            </label>
+            <label class="v2-field">
+                <span>{{ item.form.content.label }}</span>
+                {{ item.form.content }}
+                {{ item.form.content.errors }}
+            </label>
+        </div>
+        {% endfor %}
+    </section>
+
+    <section class="v2-rule-code-grid">
+        <label class="v2-panel v2-field">
+            <span>{{ guide_form.css.label }}</span>
+            {{ guide_form.css }}
+            {{ guide_form.css.errors }}
+        </label>
+        <label class="v2-panel v2-field">
+            <span>{{ guide_form.javascript.label }}</span>
+            {{ guide_form.javascript }}
+            {{ guide_form.javascript.errors }}
+        </label>
+    </section>
+
+    <div class="v2-rule-editor-submit">
+        <button class="v2-button v2-button-primary" type="submit">저장</button>
+    </div>
+</form>
+
+<script>
+document.querySelectorAll('[data-rule-language-tab]').forEach(function (button) {
+    button.addEventListener('click', function () {
+        var root = button.closest('[data-rule-language-editor]');
+        root.querySelectorAll('[data-rule-language-tab]').forEach(function (item) {
+            item.classList.toggle('is-active', item === button);
+        });
+        root.querySelectorAll('[data-rule-language-panel]').forEach(function (panel) {
+            panel.hidden = panel.dataset.ruleLanguagePanel !== button.dataset.ruleLanguageTab;
+        });
+    });
+});
+</script>
+{% endblock content %}

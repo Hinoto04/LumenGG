@@ -1,0 +1,37 @@
+{% extends "base_v2.html" %}
+{% block title %}규칙 관리 - LumenDB{% endblock title %}
+{% block content %}
+<section class="v2-page-head v2-rule-manager-head">
+    <div>
+        <div class="v2-kicker">RULE EDITOR</div>
+        <h1 class="v2-title">규칙 관리</h1>
+    </div>
+    <div class="v2-rulebook-page-actions">
+        <a class="v2-button" href="{% url "rules:index" %}">룰북 보기</a>
+        {% if perms.common.add_rule %}
+        <a class="v2-button v2-button-primary" href="{% url "rules:ruleCreate" %}">규칙 추가</a>
+        {% endif %}
+    </div>
+</section>
+
+<div class="v2-rule-manager v2-rule-manager-index">
+    {% for book in books %}
+    <section class="v2-rule-manager-book v2-rule-manager-book-choice">
+        <div>
+            <span class="v2-kicker">{{ book.kicker }}</span>
+            <h2>{{ book }}</h2>
+            <div class="v2-rule-manager-counts">
+                <span>최상위 {{ book.root_count }}</span>
+                <span>전체 {{ book.rule_count }}</span>
+            </div>
+        </div>
+        <div class="v2-rule-manager-book-actions">
+            <a class="v2-button" href="{% url "rules:detail" slug=book.slug %}">공개 페이지</a>
+            <a class="v2-button v2-button-primary" href="{% url "rules:manageBook" book.pk %}">관리</a>
+        </div>
+    </section>
+    {% empty %}
+    <p class="v2-empty">등록된 룰북이 없습니다.</p>
+    {% endfor %}
+</div>
+{% endblock content %}

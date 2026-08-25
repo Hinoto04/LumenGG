@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
+from django.db.models import Q
 
 from card.models import Character, Card
 
@@ -198,3 +200,262 @@ class TranslationValue(models.Model):
         from common.localization import clear_localization_cache
         clear_localization_cache()
         return result
+
+
+class Rulebook(models.Model):
+    slug = models.SlugField(max_length=40, unique=True)
+    url_name = models.CharField(max_length=80, blank=True)
+    kicker = models.CharField(max_length=80, blank=True)
+    version = models.CharField(max_length=80, blank=True)
+    updated_on = models.DateField(null=True, blank=True)
+    visual_file = models.CharField(max_length=160, blank=True)
+    visual_css = models.TextField(
+        blank=True,
+        help_text='룰북 상단 비주얼 가이드들이 공통으로 사용하는 CSS입니다.',
+    )
+    visual_javascript = models.TextField(
+        blank=True,
+        help_text='룰북 상단 비주얼 가이드들이 공통으로 사용하는 JavaScript입니다.',
+    )
+    searchable = models.BooleanField(default=False)
+    anchor_prefix = models.CharField(max_length=40, default='rule-')
+    sort_order = models.PositiveIntegerField(default=0)
+    is_public = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+        verbose_name = '룰북'
+        verbose_name_plural = '룰북'
+
+    def __str__(self):
+        translation = self.translations.filter(language='ko').first()
+        return translation.title if translation and translation.title else self.slug
+
+
+class RulebookTranslation(models.Model):
+    LANGUAGE_KOREAN = 'ko'
+    LANGUAGE_ENGLISH = 'en'
+    LANGUAGE_JAPANESE = 'ja'
+    LANGUAGE_CHOICES = [
+        (LANGUAGE_KOREAN, '한국어'),
+        (LANGUAGE_ENGLISH, 'English'),
+        (LANGUAGE_JAPANESE, '日本語'),
+    ]
+
+    rulebook = models.ForeignKey(Rulebook, on_delete=models.CASCADE, related_name='translations')
+    language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES)
+    title = models.CharField(max_length=200)
+    short_title = models.CharField(max_length=100, blank=True)
+    summary = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['rulebook', 'language'],
+                name='unique_rulebook_translation_language',
+            ),
+        ]
+        ordering = ['rulebook__sort_order', 'language']
+        verbose_name = '룰북 번역'
+        verbose_name_plural = '룰북 번역'
+
+    def __str__(self):
+        return f'{self.rulebook.slug} / {self.language}'
+
+
+class Rule(models.Model):
+    rulebook = models.ForeignKey(Rulebook, on_delete=models.CASCADE, related_name='rules')
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children',
+    )
+    reference_name = models.SlugField(
+        max_length=120,
+        unique=True,
+        allow_unicode=True,
+        help_text='다른 규칙에서 [[참조명]]으로 연결할 고유 이름입니다.',
+    )
+    reference_aliases = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='참조명 변경 전 딥링크를 유지하기 위한 이전 참조명입니다.',
+    )
+    priority = models.PositiveIntegerField(
+        default=0,
+        help_text='같은 상위 규칙 아래에서 숫자가 낮을수록 먼저 표시됩니다.',
+    )
+    show_in_toc = models.BooleanField(default=True)
+    is_public = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['rulebook__sort_order', 'priority', 'id']
+        indexes = [
+            models.Index(
+                fields=['rulebook', 'parent', 'priority'],
+                name='common_rule_parent_prio_idx',
+            ),
+            models.Index(fields=['rulebook', 'is_public']),
+        ]
+        verbose_name = '규칙'
+        verbose_name_plural = '규칙'
+
+    def __str__(self):
+        translation = self.translations.filter(language='ko').first()
+        title = translation.title if translation and translation.title else self.reference_name
+        number = self.full_number
+        return f'{number} {title}'.strip()
+
+    @property
+    def depth(self):
+        depth = 0
+        current = self.parent
+        seen = {self.pk} if self.pk else set()
+        while current is not None and current.pk not in seen:
+            seen.add(current.pk)
+            depth += 1
+            current = current.parent
+        return depth
+
+    @property
+    def full_number(self):
+        segments = []
+        current = self
+        seen = set()
+        while current is not None and current.pk not in seen:
+            if not current.pk:
+                break
+            seen.add(current.pk)
+            preceding_siblings = Rule.objects.filter(
+                rulebook_id=current.rulebook_id,
+                parent_id=current.parent_id,
+            ).filter(
+                Q(priority__lt=current.priority)
+                | Q(priority=current.priority, pk__lt=current.pk)
+            )
+            segments.append(str(preceding_siblings.count() + 1))
+            current = current.parent
+        return '.'.join(reversed(segments))
+
+    def clean(self):
+        super().clean()
+        self.reference_name = (self.reference_name or '').strip()
+
+        if self.parent_id:
+            if self.pk and self.parent_id == self.pk:
+                raise ValidationError({'parent': '규칙 자신을 상위 규칙으로 지정할 수 없습니다.'})
+            if self.parent.rulebook_id != self.rulebook_id:
+                raise ValidationError({'parent': '같은 룰북의 규칙만 상위 규칙으로 지정할 수 있습니다.'})
+
+            current = self.parent
+            seen = {self.pk} if self.pk else set()
+            while current is not None:
+                if current.pk in seen:
+                    raise ValidationError({'parent': '자신의 하위 규칙을 상위 규칙으로 지정할 수 없습니다.'})
+                seen.add(current.pk)
+                current = current.parent
+
+class RuleTranslation(models.Model):
+    LANGUAGE_CHOICES = RulebookTranslation.LANGUAGE_CHOICES
+
+    rule = models.ForeignKey(Rule, on_delete=models.CASCADE, related_name='translations')
+    language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES)
+    title = models.CharField(max_length=240)
+    content = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['rule', 'language'],
+                name='unique_rule_translation_language',
+            ),
+        ]
+        ordering = ['rule__priority', 'language']
+        verbose_name = '규칙 번역'
+        verbose_name_plural = '규칙 번역'
+
+    def __str__(self):
+        return f'{self.rule.reference_name} / {self.language}'
+
+
+class RuleVisualGuide(models.Model):
+    rulebook = models.ForeignKey(
+        Rulebook,
+        on_delete=models.CASCADE,
+        related_name='visual_guides',
+    )
+    rule = models.ForeignKey(
+        Rule,
+        on_delete=models.CASCADE,
+        related_name='visual_guides',
+        null=True,
+        blank=True,
+    )
+    style_key = models.SlugField(
+        max_length=40,
+        blank=True,
+        help_text='비주얼 가이드에 적용할 CSS 식별자입니다. 예: field, cards, phases',
+    )
+    priority = models.PositiveIntegerField(
+        default=0,
+        help_text='숫자가 낮을수록 비주얼 가이드 전환 버튼의 앞쪽에 표시됩니다.',
+    )
+    css = models.TextField(blank=True)
+    javascript = models.TextField(blank=True)
+    is_public = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['priority', 'id']
+        indexes = [
+            models.Index(
+                fields=['rulebook', 'rule', 'is_public', 'priority'],
+                name='common_visual_owner_public_idx',
+            ),
+        ]
+        verbose_name = '규칙 비주얼 가이드'
+        verbose_name_plural = '규칙 비주얼 가이드'
+
+    def __str__(self):
+        translation = self.translations.filter(language='ko').first()
+        title = translation.title if translation and translation.title else f'비주얼 가이드 {self.pk}'
+        owner = self.rule if self.rule_id else self.rulebook
+        return f'{owner} / {title}'
+
+    def clean(self):
+        super().clean()
+        if self.rule_id and self.rule.rulebook_id != self.rulebook_id:
+            raise ValidationError({'rule': '같은 룰북의 규칙만 지정할 수 있습니다.'})
+
+    def save(self, *args, **kwargs):
+        if self.rule_id:
+            self.rulebook_id = self.rule.rulebook_id
+        super().save(*args, **kwargs)
+
+
+class RuleVisualGuideTranslation(models.Model):
+    LANGUAGE_CHOICES = RulebookTranslation.LANGUAGE_CHOICES
+
+    guide = models.ForeignKey(RuleVisualGuide, on_delete=models.CASCADE, related_name='translations')
+    language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES)
+    title = models.CharField(max_length=160)
+    content = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['guide', 'language'],
+                name='unique_rule_visual_translation_language',
+            ),
+        ]
+        ordering = ['guide__priority', 'language']
+        verbose_name = '규칙 비주얼 가이드 번역'
+        verbose_name_plural = '규칙 비주얼 가이드 번역'
+
+    def __str__(self):
+        return f'{self.guide_id} / {self.language}'

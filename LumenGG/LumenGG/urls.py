@@ -52,6 +52,7 @@ urlpatterns = [
     path('stat/', include('statistic.urls'), name='stat'),
     path('battlelog/', include('battlelog.urls'), name='battlelog'),
     path('tournament/', include('tournament.urls'), name='tournament'),
+    path('rules/', include('common.rulebook_urls'), name='rules'),
     path('summernote/', include('django_summernote.urls')),
     
     path(

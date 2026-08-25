@@ -1,0 +1,1016 @@
+{
+  "$schema": "./rulebook-visual.schema.json",
+  "visuals": [
+    {
+      "kind": "field",
+      "title": "플레이어 보드",
+      "summary": "각 존을 눌러 어떤 카드가 놓이고 어디를 읽어야 하는지 빠르게 확인합니다.",
+      "href": {
+        "heading": "2. 배틀 필드",
+        "fallback": "#section-11"
+      },
+      "items": [
+        {
+          "key": "list",
+          "label": "리스트",
+          "title": "리스트",
+          "text": "최대 14장의 공개 기술 카드가 놓이는 기본 덱 영역입니다. 패에서 버린 카드는 리스트로 이동합니다.",
+          "href": {
+            "heading": "2. 배틀 필드",
+            "fallback": "#section-11"
+          },
+          "hint": "공개 14장"
+        },
+        {
+          "key": "side",
+          "label": "사이드 덱",
+          "title": "사이드 덱",
+          "text": "기본적으로 비공개이며, 브레이크 보충 등으로 리스트에 카드를 보낼 때 사용합니다.",
+          "href": {
+            "heading": "2. 배틀 필드",
+            "fallback": "#section-11"
+          },
+          "hint": "비공개"
+        },
+        {
+          "key": "break",
+          "label": "브레이크",
+          "title": "브레이크 존",
+          "text": "브레이크된 카드를 두는 영역입니다. 일반적으로 그 게임에서 다시 사용할 수 없습니다.",
+          "href": {
+            "heading": "2. 배틀 필드",
+            "fallback": "#section-11"
+          },
+          "hint": "재사용 불가"
+        },
+        {
+          "key": "hand",
+          "label": "손패",
+          "title": "손패",
+          "text": "플레이어가 들고 있는 비공개 카드입니다. 체력 구간에 따라 손패 상한이 달라집니다.",
+          "href": {
+            "heading": "2. 배틀 필드",
+            "fallback": "#section-11"
+          },
+          "hint": "비공개 패"
+        },
+        {
+          "key": "character",
+          "label": "캐릭터",
+          "title": "캐릭터 존",
+          "text": "플레이어를 나타내는 캐릭터 카드가 놓입니다. 현재 체력과 손패 상한의 기준이 됩니다.",
+          "href": {
+            "heading": "3.1 캐릭터 카드",
+            "fallback": "#section-13"
+          },
+          "hint": "체력 기준"
+        },
+        {
+          "key": "trait",
+          "label": "특성",
+          "title": "특성 존",
+          "text": "캐릭터 고유의 특성 카드가 놓이고, 게임 시작 직후부터 기능과 효과가 적용됩니다.",
+          "href": {
+            "heading": "3.2 특성 카드",
+            "fallback": "#section-14"
+          },
+          "hint": "고유 기능"
+        },
+        {
+          "key": "battle",
+          "label": "배틀",
+          "title": "배틀 존",
+          "text": "레디 페이즈에 선택한 기술 카드를 뒷면으로 두고, 배틀 페이즈에 공개해 판정합니다.",
+          "href": {
+            "heading": "5.3 배틀 페이즈",
+            "fallback": "#section-26"
+          },
+          "hint": "레디 카드"
+        },
+        {
+          "key": "lumen",
+          "label": "루멘",
+          "title": "루멘 존",
+          "text": "카드 효과로 루멘 존에 배치된 카드를 둡니다. 카드별 지시에 따라 사용합니다.",
+          "href": {
+            "heading": "2. 배틀 필드",
+            "fallback": "#section-11"
+          },
+          "hint": "효과용 존"
+        },
+        {
+          "key": "fp",
+          "label": "FP",
+          "title": "FP 표시",
+          "text": "공격 기술의 판정 속도에 영향을 주는 수치입니다. 양수는 빨라지고 음수는 느려집니다.",
+          "href": {
+            "heading": "7. FP",
+            "fallback": "#section-42"
+          },
+          "hint": "속도 보정"
+        },
+        {
+          "key": "ultimate",
+          "label": "얼티밋",
+          "title": "얼티밋 존",
+          "text": "얼티밋 기술 카드가 기본적으로 앞면으로 공개되는 영역입니다. 덱에는 0~1장 넣을 수 있습니다.",
+          "href": {
+            "heading": "3.4 얼티밋 기술 카드",
+            "fallback": "#section-16"
+          },
+          "hint": "0~1장"
+        }
+      ]
+    },
+    {
+      "kind": "cards",
+      "title": "카드 읽는 순서",
+      "summary": "처음에는 모든 항목을 외우기보다 카드 종류와 쓰이는 위치를 먼저 구분하면 됩니다.",
+      "href": {
+        "heading": "3. 카드의 종류와 읽는 법",
+        "fallback": "#section-12"
+      },
+      "example_image": "https://images.hinoto.kr/lumendb/webp/ST1-012.webp",
+      "items": [
+        {
+          "key": "character-card",
+          "label": "캐릭터",
+          "title": "캐릭터 카드",
+          "text": "체력과 손패 상한을 확인하는 카드입니다. 플레이어의 기준 정보가 됩니다.",
+          "href": {
+            "heading": "3.1 캐릭터 카드",
+            "fallback": "#section-13"
+          },
+          "example_image": "https://images.hinoto.kr/lumendb/webp/ST1-CH1.webp",
+          "markers": [
+            {
+              "key": "card-art",
+              "label": "일러스트",
+              "title": "캐릭터 일러스트",
+              "text": "캐릭터를 식별하는 가장 큰 이미지 영역입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "7%",
+              "left": "8%",
+              "right": "",
+              "bottom": "",
+              "width": "84%",
+              "height": "49%",
+              "hint": "시각 정보"
+            },
+            {
+              "key": "card-character-hp",
+              "label": "체력/손패",
+              "title": "체력과 손패 상한",
+              "text": "체력 구간마다 손패 상한이 어떻게 변하는지 표시합니다. 예를 들어 4000 이하가 되면 손패 상한이 7장으로 확장됩니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "58%",
+              "left": "7%",
+              "right": "",
+              "bottom": "",
+              "width": "84%",
+              "height": "24%",
+              "hint": "체력별 손패"
+            },
+            {
+              "key": "card-character-name",
+              "label": "캐릭터명",
+              "title": "캐릭터명",
+              "text": "사용 중인 캐릭터의 이름입니다. 캐릭터 덱과 특성의 기준이 됩니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "128px",
+              "top": "85%",
+              "left": "39%",
+              "right": "",
+              "bottom": "",
+              "width": "22%",
+              "height": "7%",
+              "hint": "캐릭터 식별"
+            },
+            {
+              "key": "card-code",
+              "label": "수록번호",
+              "title": "수록번호",
+              "text": "캐릭터 카드의 판본과 수록 번호를 확인합니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "",
+              "left": "",
+              "right": "6%",
+              "bottom": "6.5%",
+              "width": "25%",
+              "height": "4.5%",
+              "hint": "판본 식별"
+            }
+          ],
+          "hint": "체력 · 손패"
+        },
+        {
+          "key": "trait-card",
+          "label": "특성",
+          "title": "특성 카드",
+          "text": "캐릭터 고유의 기능과 효과를 가진 카드입니다. 게임 시작 직후부터 적용됩니다.",
+          "href": {
+            "heading": "3.2 특성 카드",
+            "fallback": "#section-14"
+          },
+          "example_image": "https://images.hinoto.kr/lumendb/webp/ST1-PS1.webp",
+          "markers": [
+            {
+              "key": "card-name",
+              "label": "카드명",
+              "title": "카드명",
+              "text": "카드를 식별하는 가장 기본 정보입니다. 같은 이름의 다른 판본도 같은 카드로 취급되는 경우가 많습니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "top",
+              "label_gap": "",
+              "top": "7%",
+              "left": "31.5%",
+              "right": "",
+              "bottom": "",
+              "width": "37%",
+              "height": "5.2%",
+              "hint": "식별 기준"
+            },
+            {
+              "key": "card-art",
+              "label": "일러스트",
+              "title": "카드 일러스트",
+              "text": "카드의 시각적 중심 영역입니다. 룰 처리에는 보통 직접 쓰이지 않지만 카드 식별에 도움이 됩니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "15%",
+              "left": "13%",
+              "right": "",
+              "bottom": "",
+              "width": "74%",
+              "height": "47%",
+              "hint": "시각 정보"
+            },
+            {
+              "key": "card-effect",
+              "label": "특성 효과",
+              "title": "특성 효과",
+              "text": "캐릭터 고유의 기능과 조건이 적힌 영역입니다. 게임 시작 직후부터 적용되는 효과가 많습니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "66%",
+              "left": "11%",
+              "right": "",
+              "bottom": "",
+              "width": "78%",
+              "height": "23%",
+              "hint": "처리 문장"
+            },
+            {
+              "key": "card-illustrator",
+              "label": "일러스트레이터",
+              "title": "일러스트레이터",
+              "text": "카드 그림 제작자 표기입니다. 게임 처리에는 사용하지 않는 제작 정보입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "left",
+              "label_gap": "",
+              "top": "",
+              "left": "7.8%",
+              "right": "",
+              "bottom": "6.7%",
+              "width": "23%",
+              "height": "4%",
+              "hint": "제작 정보"
+            },
+            {
+              "key": "card-code",
+              "label": "수록번호",
+              "title": "수록번호와 레어도",
+              "text": "카드의 판본을 식별하는 정보입니다. 같은 카드의 다른 수록이나 레어도를 구분할 때 사용합니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "",
+              "left": "",
+              "right": "7%",
+              "bottom": "5.6%",
+              "width": "25%",
+              "height": "5.4%",
+              "hint": "판본 식별"
+            }
+          ],
+          "hint": "상시 효과"
+        },
+        {
+          "key": "attack-card",
+          "label": "공격",
+          "title": "공격 기술 카드",
+          "text": "상대에게 데미지를 주는 기술 카드입니다. 속도, 위치, FP 결과, 데미지를 함께 봅니다.",
+          "href": {
+            "heading": "3.5 공격 기술 카드",
+            "fallback": "#section-19"
+          },
+          "example_image": "https://images.hinoto.kr/lumendb/webp/CB03-AT-008.webp",
+          "markers": [
+            {
+              "key": "card-speed",
+              "label": "속도",
+              "title": "속도",
+              "text": "공격 기술의 판정 순서에 관여하는 수치입니다. FP 보정과 함께 실제 빠르기를 판단합니다.",
+              "href": {
+                "heading": "7. FP",
+                "fallback": "#section-42"
+              },
+              "shape": "circle",
+              "label_side": "left",
+              "label_gap": "",
+              "top": "5%",
+              "left": "6%",
+              "right": "",
+              "bottom": "",
+              "width": "14%",
+              "height": "11%",
+              "hint": "판정 속도"
+            },
+            {
+              "key": "card-position",
+              "label": "부위 판정",
+              "title": "손/발 판정",
+              "text": "손을 이용한 공격인지 발을 이용한 공격인지 표시합니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "circle",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "6%",
+              "left": "",
+              "right": "7%",
+              "bottom": "",
+              "width": "14%",
+              "height": "9%",
+              "hint": "판정 위치"
+            },
+            {
+              "key": "card-name",
+              "label": "카드명",
+              "title": "카드명",
+              "text": "기술 카드의 이름입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "top",
+              "label_gap": "",
+              "top": "5.5%",
+              "left": "35%",
+              "right": "",
+              "bottom": "",
+              "width": "42%",
+              "height": "6%",
+              "hint": "식별 기준"
+            },
+            {
+              "key": "card-art",
+              "label": "일러스트",
+              "title": "카드 일러스트",
+              "text": "기술을 보여주는 이미지 영역입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "15%",
+              "left": "12%",
+              "right": "",
+              "bottom": "",
+              "width": "76%",
+              "height": "49%",
+              "hint": "시각 정보"
+            },
+            {
+              "key": "card-judgment",
+              "label": "판정 FP",
+              "title": "판정 결과 FP",
+              "text": "히트, 가드, 카운터 결과에 따라 얻거나 잃는 FP가 표시됩니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "left",
+              "label_gap": "",
+              "top": "53%",
+              "left": "6%",
+              "right": "",
+              "bottom": "",
+              "width": "27%",
+              "height": "19%",
+              "hint": "결과별 FP"
+            },
+            {
+              "key": "card-special",
+              "label": "특수 판정",
+              "title": "특수 판정",
+              "text": "이 예시에는 상단 회피와 그랩이 있습니다. 회피, 상쇄, 그랩처럼 기술이 가진 특별한 판정을 확인합니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "64.5%",
+              "left": "33%",
+              "right": "",
+              "bottom": "",
+              "width": "55%",
+              "height": "7%",
+              "hint": "특수 처리"
+            },
+            {
+              "key": "card-effect",
+              "label": "효과",
+              "title": "효과 텍스트",
+              "text": "공격 기술이 성공하거나 특정 조건을 만족했을 때 처리하는 효과입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "left",
+              "label_gap": "",
+              "top": "72%",
+              "left": "22%",
+              "right": "",
+              "bottom": "",
+              "width": "66%",
+              "height": "18%",
+              "hint": "처리 문장"
+            },
+            {
+              "key": "card-value",
+              "label": "데미지",
+              "title": "데미지",
+              "text": "공격이 적중했을 때 적용되는 기본 데미지입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "bottom",
+              "label_gap": "",
+              "top": "",
+              "left": "38%",
+              "right": "",
+              "bottom": "3%",
+              "width": "24%",
+              "height": "8%",
+              "hint": "기본 데미지"
+            },
+            {
+              "key": "card-illustrator",
+              "label": "일러스트레이터",
+              "title": "일러스트레이터",
+              "text": "카드 그림 제작자 표기입니다. 게임 처리에는 사용하지 않는 제작 정보입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "left",
+              "label_gap": "",
+              "top": "",
+              "left": "7.8%",
+              "right": "",
+              "bottom": "6.7%",
+              "width": "23%",
+              "height": "4%",
+              "hint": "제작 정보"
+            },
+            {
+              "key": "card-code",
+              "label": "수록번호",
+              "title": "수록번호와 레어도",
+              "text": "카드의 판본을 식별하는 정보입니다. 같은 카드의 다른 수록이나 레어도를 구분할 때 사용합니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "",
+              "left": "",
+              "right": "7%",
+              "bottom": "5.6%",
+              "width": "25%",
+              "height": "5.4%",
+              "hint": "판본 식별"
+            }
+          ],
+          "hint": "속도 · 데미지"
+        },
+        {
+          "key": "defense-card",
+          "label": "수비",
+          "title": "수비 기술 카드",
+          "text": "상대 공격을 막거나 피하는 카드입니다. 방어/회피 위치가 상대 공격 위치와 맞는지 확인합니다.",
+          "href": {
+            "heading": "3.6 수비 기술 카드",
+            "fallback": "#section-20"
+          },
+          "example_image": "https://images.hinoto.kr/lumendb/webp/ST1-012.webp",
+          "markers": [
+            {
+              "key": "card-name",
+              "label": "카드명",
+              "title": "카드명",
+              "text": "수비 기술 카드의 이름입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "top",
+              "label_gap": "",
+              "top": "7%",
+              "left": "31.5%",
+              "right": "",
+              "bottom": "",
+              "width": "37%",
+              "height": "5.2%",
+              "hint": "식별 기준"
+            },
+            {
+              "key": "card-art",
+              "label": "일러스트",
+              "title": "카드 일러스트",
+              "text": "카드의 시각적 중심 영역입니다. 룰 처리에는 보통 직접 쓰이지 않지만 카드 식별에 도움이 됩니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "15%",
+              "left": "13%",
+              "right": "",
+              "bottom": "",
+              "width": "74%",
+              "height": "47%",
+              "hint": "시각 정보"
+            },
+            {
+              "key": "card-position",
+              "label": "판정",
+              "title": "방어/회피 위치",
+              "text": "방어 또는 회피가 어느 위치를 막는지 표시합니다. 상대 공격 위치와 맞으면 수비 판정에 사용합니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "left",
+              "label_gap": "",
+              "top": "51.5%",
+              "left": "5.5%",
+              "right": "",
+              "bottom": "",
+              "width": "30%",
+              "height": "18%",
+              "hint": "판정 위치"
+            },
+            {
+              "key": "card-effect",
+              "label": "효과",
+              "title": "효과 텍스트",
+              "text": "수비 성공 시 처리하거나 추가 조건을 확인하는 영역입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "68.5%",
+              "left": "14%",
+              "right": "",
+              "bottom": "",
+              "width": "72%",
+              "height": "17%",
+              "hint": "처리 문장"
+            },
+            {
+              "key": "card-flavor",
+              "label": "플레이버",
+              "title": "플레이버 텍스트",
+              "text": "카드 하단의 짧은 대사나 분위기 문구입니다. 일반적으로 룰 처리는 효과 텍스트를 기준으로 확인합니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "pill",
+              "label_side": "bottom",
+              "label_gap": "",
+              "top": "85.5%",
+              "left": "39%",
+              "right": "",
+              "bottom": "",
+              "width": "30%",
+              "height": "5%",
+              "hint": "설정 문구"
+            },
+            {
+              "key": "card-illustrator",
+              "label": "일러스트레이터",
+              "title": "일러스트레이터",
+              "text": "카드 그림 제작자 표기입니다. 게임 처리에는 사용하지 않는 제작 정보입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "left",
+              "label_gap": "",
+              "top": "",
+              "left": "7.8%",
+              "right": "",
+              "bottom": "6.7%",
+              "width": "23%",
+              "height": "4%",
+              "hint": "제작 정보"
+            },
+            {
+              "key": "card-code",
+              "label": "수록번호",
+              "title": "수록번호와 레어도",
+              "text": "카드의 판본을 식별하는 정보입니다. 같은 카드의 다른 수록이나 레어도를 구분할 때 사용합니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "",
+              "left": "",
+              "right": "7%",
+              "bottom": "5.6%",
+              "width": "25%",
+              "height": "5.4%",
+              "hint": "판본 식별"
+            }
+          ],
+          "hint": "방어 · 회피"
+        },
+        {
+          "key": "ultimate-card",
+          "label": "얼티밋",
+          "title": "얼티밋 기술 카드",
+          "text": "게임 중 제한적으로 사용하는 강력한 카드입니다. 공격·수비형과 특수 기술형의 사용 경로가 다릅니다.",
+          "href": {
+            "heading": "3.4 얼티밋 기술 카드",
+            "fallback": "#section-16"
+          },
+          "example_image": "https://images.hinoto.kr/lumendb/webp/CB01-AT-006.webp",
+          "markers": [
+            {
+              "key": "card-name",
+              "label": "카드명",
+              "title": "얼티밋 카드명",
+              "text": "얼티밋 기술 카드의 이름입니다. 덱에 0~1장만 넣을 수 있습니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "top",
+              "label_gap": "",
+              "top": "6%",
+              "left": "20%",
+              "right": "",
+              "bottom": "",
+              "width": "60%",
+              "height": "5.5%",
+              "hint": "식별 기준"
+            },
+            {
+              "key": "card-flavor",
+              "label": "플레이버",
+              "title": "플레이버 텍스트",
+              "text": "카드명 아래에 배치된 짧은 문구입니다. 게임 처리는 효과 텍스트를 기준으로 확인합니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "pill",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "10.5%",
+              "left": "23%",
+              "right": "",
+              "bottom": "",
+              "width": "54%",
+              "height": "4%",
+              "hint": "설정 문구"
+            },
+            {
+              "key": "card-art",
+              "label": "일러스트",
+              "title": "얼티밋 일러스트",
+              "text": "얼티밋 카드의 큰 일러스트 영역입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "14%",
+              "left": "10%",
+              "right": "",
+              "bottom": "",
+              "width": "80%",
+              "height": "49%",
+              "hint": "시각 정보"
+            },
+            {
+              "key": "card-type",
+              "label": "ULTIMATE",
+              "title": "얼티밋 표시",
+              "text": "이 카드가 얼티밋 기술임을 나타내는 표시입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "pill",
+              "label_side": "right",
+              "label_gap": "126px",
+              "top": "68%",
+              "left": "39%",
+              "right": "",
+              "bottom": "",
+              "width": "22%",
+              "height": "4.5%",
+              "hint": "사용 방식"
+            },
+            {
+              "key": "card-effect",
+              "label": "효과",
+              "title": "얼티밋 효과",
+              "text": "얼티밋 기술의 사용 조건과 처리 내용을 확인하는 핵심 영역입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "72.5%",
+              "left": "11%",
+              "right": "",
+              "bottom": "",
+              "width": "78%",
+              "height": "16%",
+              "hint": "처리 문장"
+            },
+            {
+              "key": "card-illustrator",
+              "label": "일러스트레이터",
+              "title": "일러스트레이터",
+              "text": "카드 그림 제작자 표기입니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "pill",
+              "label_side": "left",
+              "label_gap": "",
+              "top": "",
+              "left": "7%",
+              "right": "",
+              "bottom": "5.2%",
+              "width": "20%",
+              "height": "4%",
+              "hint": "제작 정보"
+            },
+            {
+              "key": "card-code",
+              "label": "수록번호",
+              "title": "수록번호",
+              "text": "카드의 판본과 수록 번호를 확인합니다.",
+              "href": {
+                "heading": "3. 카드의 종류와 읽는 법",
+                "fallback": "#section-12"
+              },
+              "shape": "rect",
+              "label_side": "right",
+              "label_gap": "",
+              "top": "",
+              "left": "",
+              "right": "4%",
+              "bottom": "5%",
+              "width": "42%",
+              "height": "4.5%",
+              "hint": "판본 식별"
+            }
+          ],
+          "hint": "강력한 제한 카드"
+        }
+      ],
+      "markers": [
+        {
+          "key": "card-art",
+          "label": "일러스트",
+          "title": "캐릭터 일러스트",
+          "text": "캐릭터를 식별하는 가장 큰 이미지 영역입니다.",
+          "href": {
+            "heading": "3. 카드의 종류와 읽는 법",
+            "fallback": "#section-12"
+          },
+          "shape": "rect",
+          "label_side": "right",
+          "label_gap": "",
+          "top": "7%",
+          "left": "8%",
+          "right": "",
+          "bottom": "",
+          "width": "84%",
+          "height": "49%",
+          "hint": "시각 정보"
+        },
+        {
+          "key": "card-character-hp",
+          "label": "체력/손패",
+          "title": "체력과 손패 상한",
+          "text": "체력 구간마다 손패 상한이 어떻게 변하는지 표시합니다. 예를 들어 4000 이하가 되면 손패 상한이 7장으로 확장됩니다.",
+          "href": {
+            "heading": "3. 카드의 종류와 읽는 법",
+            "fallback": "#section-12"
+          },
+          "shape": "rect",
+          "label_side": "right",
+          "label_gap": "",
+          "top": "58%",
+          "left": "7%",
+          "right": "",
+          "bottom": "",
+          "width": "84%",
+          "height": "24%",
+          "hint": "체력별 손패"
+        },
+        {
+          "key": "card-character-name",
+          "label": "캐릭터명",
+          "title": "캐릭터명",
+          "text": "사용 중인 캐릭터의 이름입니다. 캐릭터 덱과 특성의 기준이 됩니다.",
+          "href": {
+            "heading": "3. 카드의 종류와 읽는 법",
+            "fallback": "#section-12"
+          },
+          "shape": "rect",
+          "label_side": "right",
+          "label_gap": "128px",
+          "top": "85%",
+          "left": "39%",
+          "right": "",
+          "bottom": "",
+          "width": "22%",
+          "height": "7%",
+          "hint": "캐릭터 식별"
+        },
+        {
+          "key": "card-code",
+          "label": "수록번호",
+          "title": "수록번호",
+          "text": "캐릭터 카드의 판본과 수록 번호를 확인합니다.",
+          "href": {
+            "heading": "3. 카드의 종류와 읽는 법",
+            "fallback": "#section-12"
+          },
+          "shape": "rect",
+          "label_side": "right",
+          "label_gap": "",
+          "top": "",
+          "left": "",
+          "right": "6%",
+          "bottom": "6.5%",
+          "width": "25%",
+          "height": "4.5%",
+          "hint": "판본 식별"
+        }
+      ]
+    },
+    {
+      "kind": "phases",
+      "title": "한 턴의 흐름",
+      "summary": "게임은 다섯 페이즈를 반복합니다. 각 버튼을 누르면 그 페이즈에서 하는 일을 볼 수 있습니다.",
+      "href": {
+        "heading": "5. 게임 진행",
+        "fallback": "#section-23"
+      },
+      "items": [
+        {
+          "key": "lumen-phase",
+          "label": "루멘",
+          "title": "루멘 페이즈",
+          "text": "“루멘 페이즈에” 처리한다고 적힌 카드 효과를 우선권 보유자부터 처리합니다.",
+          "href": {
+            "heading": "5.1 루멘 페이즈",
+            "fallback": "#section-24"
+          },
+          "hint": "효과 처리"
+        },
+        {
+          "key": "ready-phase",
+          "label": "레디",
+          "title": "레디 페이즈",
+          "text": "각 플레이어가 사용할 기술 카드 1장을 골라 배틀 존에 뒷면으로 놓습니다.",
+          "href": {
+            "heading": "5.2 레디 페이즈",
+            "fallback": "#section-25"
+          },
+          "hint": "기술 선택"
+        },
+        {
+          "key": "battle-phase",
+          "label": "배틀",
+          "title": "배틀 페이즈",
+          "text": "양쪽의 레디 카드를 공개하고 공격·수비 결과, FP, 데미지, 콤보와 캐치를 처리합니다.",
+          "href": {
+            "heading": "5.3 배틀 페이즈",
+            "fallback": "#section-26"
+          },
+          "hint": "공개와 판정"
+        },
+        {
+          "key": "get-phase",
+          "label": "겟",
+          "title": "겟 페이즈",
+          "text": "우선권 보유자부터 리스트 카드 1장을 보여주고 패에 넣습니다. 조건에 따라 얼티밋을 가져올 수도 있습니다.",
+          "href": {
+            "heading": "5.4 겟 페이즈",
+            "fallback": "#section-27"
+          },
+          "hint": "카드 회수"
+        },
+        {
+          "key": "recovery-phase",
+          "label": "리커버리",
+          "title": "리커버리 페이즈",
+          "text": "턴 종료 시 효과를 처리한 뒤 지속 효과를 종료하고 다음 턴으로 넘어갑니다.",
+          "href": {
+            "heading": "5.5 리커버리 페이즈",
+            "fallback": "#section-28"
+          },
+          "hint": "턴 정리"
+        }
+      ]
+    }
+  ]
+}

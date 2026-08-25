@@ -1,0 +1,146 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% load language_tags %}
+{% block title %}{% tr rulebook.title %} - LumenDB{% endblock title %}
+{% block content %}
+<section class="v2-page-head">
+    <div>
+        <div class="v2-kicker">{{ rulebook.kicker }}</div>
+        <h1 class="v2-title">{% tr rulebook.title %}</h1>
+        <p class="v2-subtitle">{% tr rulebook.summary %}</p>
+    </div>
+    <div class="v2-rulebook-page-actions">
+        <a class="v2-button" href="{% url "rules:index" %}">{% tr "룰북" %}</a>
+        {% for item in rulebooks %}
+        <a class="v2-button {% if item.slug == rulebook.slug %}v2-button-primary{% endif %}" href="{{ item.href }}">{% tr item.short_title %}</a>
+        {% endfor %}
+        {% if perms.common.change_rule %}
+        <a class="v2-button" href="{% url "rules:manage" %}">{% tr "규칙 관리" %}</a>
+        {% endif %}
+    </div>
+</section>
+
+{% if rulebook.updated %}
+<p class="v2-rulebook-updated">
+    <span>{% tr "갱신일" %}</span>
+    <time>{{ rulebook.updated }}</time>
+</p>
+{% endif %}
+
+{% if rulebook.translation_notice %}
+<aside class="v2-rulebook-translation-notice" role="note">
+    <strong>{{ rulebook.translation_notice.title }}</strong>
+    <span>{{ rulebook.translation_notice.text }}</span>
+</aside>
+{% endif %}
+
+{{ rulebook.page_visual_html }}
+
+{% if rulebook.visuals %}
+<section class="v2-panel v2-rulebook-visual" data-rulebook-visual>
+    <div class="v2-rulebook-visual-head">
+        <div>
+            <div class="v2-kicker">VISUAL GUIDE</div>
+            <h2>{% tr "핵심 구조" %}</h2>
+            <p>{% tr "그림에서 궁금한 영역을 누르면 설명을 확인하고 관련 본문으로 이동할 수 있습니다." %}</p>
+        </div>
+        <div class="v2-rulebook-visual-tabs" role="tablist">
+            {% for visual in rulebook.visuals %}
+            <button class="{% if forloop.first %}is-active{% endif %}" type="button" data-rulebook-visual-tab="{{ visual.kind }}">{{ visual.title }}</button>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% for visual in rulebook.visuals %}
+    <article class="v2-rulebook-visual-panel is-{{ visual.kind }}" data-rulebook-visual-panel="{{ visual.kind }}" {% if not forloop.first %}hidden{% endif %}>
+        <div class="v2-rulebook-visual-stage">
+            {% if visual.kind == "field" %}
+            <div class="v2-rulebook-board" aria-label="{{ visual.title }}">
+                {% for item in visual.items %}
+                <button class="v2-rulebook-zone is-{{ item.key }}" type="button" data-rulebook-hotspot data-title="{{ item.title }}" data-text="{{ item.text }}" data-hint="{{ item.hint }}" data-href="{{ item.href }}">
+                    <span>{{ item.label }}</span>
+                    {% if item.hint %}<small>{{ item.hint }}</small>{% endif %}
+                </button>
+                {% endfor %}
+            </div>
+            {% elif visual.kind == "cards" %}
+            <div class="v2-rulebook-card-anatomy" aria-label="{{ visual.title }}">
+                <div class="v2-rulebook-card-type-list" aria-label="{% tr "카드 종류" %}">
+                    {% for item in visual.items %}
+                    <button class="v2-rulebook-card-type-button is-{{ item.key }}" type="button" data-rulebook-hotspot data-rulebook-card-type="{{ item.key }}" data-example-image="{{ item.example_image }}" data-title="{{ item.title }}" data-text="{{ item.text }}" data-hint="{{ item.hint }}" data-href="{{ item.href }}">
+                        <span>{{ item.label }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+                <div class="v2-rulebook-anatomy-stage">
+                    <div class="v2-rulebook-example-card">
+                        {% if visual.example_image %}
+                        <img class="v2-rulebook-example-card-image" data-rulebook-card-example-image src="{{ visual.example_image }}" alt="{{ visual.title }}">
+                        {% endif %}
+                        {% for item in visual.items %}
+                        <div class="v2-rulebook-card-marker-set" data-rulebook-card-marker-set="{{ item.key }}" {% if not forloop.first %}hidden{% endif %}>
+                            {% for marker in item.markers %}
+                            <button class="v2-rulebook-card-marker is-{{ marker.key }} is-{{ marker.shape|default:"circle" }} is-label-{{ marker.label_side|default:"right" }}" type="button" style="{% if marker.label_gap %}--rulebook-label-gap: {{ marker.label_gap }};{% endif %}{% if marker.top %}top: {{ marker.top }};{% endif %}{% if marker.left %}left: {{ marker.left }};{% endif %}{% if marker.right %}right: {{ marker.right }};{% endif %}{% if marker.bottom %}bottom: {{ marker.bottom }};{% endif %}{% if marker.width %}width: {{ marker.width }};{% endif %}{% if marker.height %}height: {{ marker.height }};{% endif %}" data-rulebook-hotspot data-rulebook-card-marker data-title="{{ marker.title }}" data-text="{{ marker.text }}" data-hint="{{ marker.hint }}" data-href="{{ marker.href }}">
+                                <span></span>
+                                <strong>{{ marker.label }}</strong>
+                            </button>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="v2-rulebook-phase-track" aria-label="{{ visual.title }}">
+                {% for item in visual.items %}
+                <button class="v2-rulebook-phase" type="button" data-rulebook-hotspot data-title="{{ item.title }}" data-text="{{ item.text }}" data-hint="{{ item.hint }}" data-href="{{ item.href }}">
+                    <span>{{ forloop.counter }}</span>
+                    <strong>{{ item.label }}</strong>
+                    {% if item.hint %}<em>{{ item.hint }}</em>{% endif %}
+                </button>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        <aside class="v2-rulebook-visual-info">
+            <span>{{ visual.title }}</span>
+            <strong data-rulebook-visual-title>{{ visual.title }}</strong>
+            <small data-rulebook-visual-hint></small>
+            <p data-rulebook-visual-text>{{ visual.summary }}</p>
+            <a class="v2-button v2-button-primary" data-rulebook-visual-link href="{{ visual.href }}">{% tr "본문으로 이동" %}</a>
+        </aside>
+    </article>
+    {% endfor %}
+</section>
+{% endif %}
+
+<div class="v2-guide-layout v2-rulebook-layout">
+    <aside class="v2-panel v2-guide-toc v2-rulebook-toc">
+        <strong>{% tr "목차" %}</strong>
+        {% for item in rulebook.toc %}
+        <a class="is-level-{{ item.level }}" href="#{{ item.anchor }}">{{ item.title }}</a>
+        {% endfor %}
+    </aside>
+
+    <section class="v2-guide-content">
+        {% if rulebook.search_items %}
+        <div class="v2-panel v2-rulebook-search" data-rulebook-search-root data-empty-label="{% tr "검색 결과가 없습니다." %}">
+            <label for="rulebookSearch">{% tr "본문 검색" %}</label>
+            <input id="rulebookSearch" type="search" data-rulebook-search placeholder="{% tr "규칙 번호, 용어, 본문 검색" %}">
+            <div class="v2-rulebook-search-results" data-rulebook-search-results></div>
+        </div>
+        {% endif %}
+
+        <article class="v2-panel v2-rulebook-content">
+            {{ rulebook.html }}
+        </article>
+    </section>
+</div>
+
+{% if rulebook.search_items %}
+{{ rulebook.search_items|json_script:"rulebook-search-data" }}
+{% endif %}
+{% if rulebook.search_items or rulebook.visuals or rulebook.has_page_visuals or rulebook.has_inline_visuals %}
+<script defer src="{% static "v2/rulebook.js" %}"></script>
+{% endif %}
+{% endblock content %}

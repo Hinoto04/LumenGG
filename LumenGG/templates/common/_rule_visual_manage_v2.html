@@ -1,0 +1,34 @@
+<section class="v2-rule-manager-book v2-rule-visual-manager">
+    <header class="v2-rule-manager-section-head">
+        <div>
+            <span class="v2-kicker">VISUAL GUIDES</span>
+            <h2>{{ visual_section_title }}</h2>
+        </div>
+        <div class="v2-rule-manager-book-actions">
+            <span class="v2-rule-manager-count">{{ visual_guides|length }}</span>
+            <a class="v2-button v2-button-primary" href="{{ visual_create_url }}">비주얼 가이드 추가</a>
+        </div>
+    </header>
+    <div class="v2-rule-visual-list">
+        {% for guide in visual_guides %}
+        <article class="v2-rule-visual-row" id="visual-{{ guide.pk }}">
+            <div>
+                <strong>{{ guide.management_title }}</strong>
+                <small>우선순위 {{ guide.priority }}</small>
+            </div>
+            <div class="v2-rule-visual-badges">
+                {% if guide.style_key %}<span>{{ guide.style_key }}</span>{% endif %}
+                {% if guide.css %}<span>CSS</span>{% endif %}
+                {% if guide.javascript %}<span>JS</span>{% endif %}
+                {% if not guide.is_public %}<span class="is-private">비공개</span>{% endif %}
+            </div>
+            <div class="v2-rule-tree-actions">
+                <a class="v2-button" href="{% url "rules:visualEdit" guide.pk %}">편집</a>
+                <a class="v2-button v2-danger-button" href="{% url "rules:visualDelete" guide.pk %}">삭제</a>
+            </div>
+        </article>
+        {% empty %}
+        <p class="v2-empty">등록된 비주얼 가이드가 없습니다.</p>
+        {% endfor %}
+    </div>
+</section>

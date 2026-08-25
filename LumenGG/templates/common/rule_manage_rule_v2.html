@@ -1,0 +1,62 @@
+{% extends "base_v2.html" %}
+{% block title %}{{ selected_row.title }} 관리 - LumenDB{% endblock title %}
+{% block content %}
+<section class="v2-page-head v2-rule-manager-head">
+    <div>
+        <nav class="v2-rule-manager-breadcrumb" aria-label="규칙 관리 경로">
+            <a href="{% url "rules:manage" %}">규칙 관리</a>
+            <span aria-hidden="true">/</span>
+            <a href="{% url "rules:manageBook" book.pk %}">{{ book }}</a>
+            {% for crumb in breadcrumbs %}
+            <span aria-hidden="true">/</span>
+            {% if forloop.last %}
+            <strong>{{ crumb.number }}</strong>
+            {% else %}
+            <a href="{% url "rules:manageRule" crumb.rule.pk %}">{{ crumb.number }}</a>
+            {% endif %}
+            {% endfor %}
+        </nav>
+        <div class="v2-kicker">RULE {{ selected_row.number }}</div>
+        <h1 class="v2-title">{{ selected_row.title }}</h1>
+    </div>
+    <div class="v2-rulebook-page-actions">
+        {% if selected_row.rule.parent_id %}
+        <a class="v2-button" href="{% url "rules:manageRule" selected_row.rule.parent_id %}">상위 규칙</a>
+        {% else %}
+        <a class="v2-button" href="{% url "rules:manageBook" book.pk %}">최상위 목록</a>
+        {% endif %}
+        <a class="v2-button" href="{% url "rules:detail" slug=book.slug %}#{{ selected_row.rule.reference_name }}">공개 페이지</a>
+        <a class="v2-button" href="{% url "rules:ruleEdit" selected_row.rule.pk %}">편집</a>
+        {% if perms.common.add_rule %}
+        <a class="v2-button v2-button-primary" href="{% url "rules:ruleCreate" %}?rulebook={{ book.pk }}&amp;parent={{ selected_row.rule.pk }}">하위 규칙 추가</a>
+        {% endif %}
+    </div>
+</section>
+
+<section class="v2-rule-focus" id="rule-{{ selected_row.rule.pk }}">
+    <span class="v2-rule-tree-number">{{ selected_row.number }}</span>
+    <div>
+        <strong>{{ selected_row.title }}</strong>
+        <code>[[{{ selected_row.rule.reference_name }}]]</code>
+    </div>
+    <div class="v2-rule-tree-status">
+        {% if not selected_row.rule.is_public %}<span>비공개</span>{% endif %}
+    </div>
+</section>
+
+{% url "rules:visualCreate" selected_row.rule.pk as visual_create_url %}
+{% with visual_section_title="비주얼 가이드" %}
+{% include "common/_rule_visual_manage_v2.html" %}
+{% endwith %}
+
+<section class="v2-rule-manager-book v2-rule-manager-children">
+    <header class="v2-rule-manager-section-head">
+        <div>
+            <span class="v2-kicker">CHILD RULES</span>
+            <h2>하위 규칙</h2>
+        </div>
+        <span class="v2-rule-manager-count">{{ rows|length }}</span>
+    </header>
+    {% include "common/_rule_manage_rows_v2.html" %}
+</section>
+{% endblock content %}

@@ -1,0 +1,41 @@
+{% extends "base_v2.html" %}
+{% block title %}{{ book }} 비주얼 공통 코드 - LumenDB{% endblock title %}
+{% block content %}
+<section class="v2-page-head v2-rule-manager-head">
+    <div>
+        <div class="v2-kicker">VISUAL ASSETS</div>
+        <h1 class="v2-title">비주얼 공통 코드</h1>
+        <p class="v2-subtitle">{{ book }}</p>
+    </div>
+    <div class="v2-rulebook-page-actions">
+        <a class="v2-button" href="{% url "rules:manageBook" book.pk %}">룰북 관리</a>
+        <a class="v2-button" href="{% url "rules:detail" slug=book.slug %}">공개 페이지</a>
+    </div>
+</section>
+
+<div class="v2-rule-script-warning" role="alert">
+    저장된 CSS와 JavaScript는 공개 룰북 페이지에서 필터 없이 실행됩니다. 이 룰북의 모든 상단 비주얼 가이드에 적용됩니다.
+</div>
+
+<form class="v2-rule-editor v2-rule-visual-editor" method="post" novalidate>
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <section class="v2-rule-code-grid">
+        <label class="v2-panel v2-field">
+            <span>{{ form.visual_css.label }}</span>
+            {{ form.visual_css }}
+            {% if form.visual_css.help_text %}<small>{{ form.visual_css.help_text }}</small>{% endif %}
+            {{ form.visual_css.errors }}
+        </label>
+        <label class="v2-panel v2-field">
+            <span>{{ form.visual_javascript.label }}</span>
+            {{ form.visual_javascript }}
+            {% if form.visual_javascript.help_text %}<small>{{ form.visual_javascript.help_text }}</small>{% endif %}
+            {{ form.visual_javascript.errors }}
+        </label>
+    </section>
+    <div class="v2-rule-editor-submit">
+        <button class="v2-button v2-button-primary" type="submit">저장</button>
+    </div>
+</form>
+{% endblock content %}

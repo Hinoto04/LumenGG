@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rulebook-visual.schema.json",
+  "title": "LumenDB rulebook visual guide",
+  "type": "object",
+  "required": ["visuals"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "visuals": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/visual" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "href": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["heading"],
+          "properties": {
+            "heading": { "type": "string" },
+            "fallback": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "marker": {
+      "type": "object",
+      "required": ["key", "label", "title", "text", "href"],
+      "properties": {
+        "key": { "type": "string" },
+        "label": { "type": "string" },
+        "title": { "type": "string" },
+        "text": { "type": "string" },
+        "hint": { "type": "string" },
+        "href": { "$ref": "#/$defs/href" },
+        "shape": { "enum": ["rect", "circle", "pill"] },
+        "label_side": { "enum": ["left", "right", "top", "bottom"] },
+        "label_gap": { "type": "string" },
+        "top": { "type": "string" },
+        "left": { "type": "string" },
+        "right": { "type": "string" },
+        "bottom": { "type": "string" },
+        "width": { "type": "string" },
+        "height": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "item": {
+      "type": "object",
+      "required": ["key", "label", "title", "text", "href"],
+      "properties": {
+        "key": { "type": "string" },
+        "label": { "type": "string" },
+        "title": { "type": "string" },
+        "text": { "type": "string" },
+        "hint": { "type": "string" },
+        "href": { "$ref": "#/$defs/href" },
+        "example_image": { "type": "string" },
+        "markers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/marker" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "visual": {
+      "type": "object",
+      "required": ["kind", "title", "summary", "href", "items"],
+      "properties": {
+        "kind": { "enum": ["field", "cards", "phases", "rules"] },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "href": { "$ref": "#/$defs/href" },
+        "example_image": { "type": "string" },
+        "markers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/marker" }
+        },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/item" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

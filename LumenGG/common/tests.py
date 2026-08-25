@@ -1,5 +1,9 @@
+from io import StringIO
+
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from card.models import Card, CardTranslation, Character, CharacterTranslation
@@ -8,7 +12,20 @@ from common.language import LANGUAGE_COOKIE_NAME, game_term, javascript_translat
 from common.localization import card_translation_key, render_localized_markup
 from common.management.commands.convert_localized_references import Command as ConvertLocalizedReferencesCommand
 from common.localization_batches.batch_20260817 import SEMANTIC_REFERENCES, TRANSLATIONS
-from common.models import TermTranslation, TranslationSource, TranslationValue
+from common.models import (
+    Rule,
+    Rulebook,
+    RulebookTranslation,
+    RuleTranslation,
+    RuleVisualGuide,
+    RuleVisualGuideTranslation,
+    TermTranslation,
+    TranslationSource,
+    TranslationValue,
+)
+from common.rule_references import link_rule_references
+from common.rule_reference_semantics import semanticize_rulebooks
+from common.rulebooks import get_rulebook, ordered_rule_tree, public_rulebook_summaries
 
 
 class LanguageSettingTests(TestCase):
@@ -462,3 +479,444 @@ class ReviewedSemanticReferenceTests(TestCase):
             for language, text in translations.items():
                 with self.subTest(source_key=source_key, language=language):
                     self.assertNotRegex(text, r'[가-힣]')
+
+
+class RulebookLocalizationTests(TestCase):
+    def test_rulebook_loader_uses_static_locale_document(self):
+        english = get_rulebook('guide', 'en')
+        japanese = get_rulebook('guide', 'ja')
+
+        self.assertEqual(english['title'], 'Lumen Condenser Learn to Play')
+        self.assertEqual(japanese['title'], 'ルーメンコンデンサー はじめてのプレイガイド')
+        self.assertEqual(english['translation_status'], 'machine-draft')
+        self.assertIsNotNone(japanese['translation_notice'])
+
+    def test_rulebook_anchor_contract_is_shared_between_languages(self):
+        for slug in ('guide', 'comprehensive', 'tournament'):
+            korean_anchors = [item['anchor'] for item in get_rulebook(slug, 'ko')['toc']]
+            for language in ('en', 'ja'):
+                with self.subTest(slug=slug, language=language):
+                    localized_anchors = [item['anchor'] for item in get_rulebook(slug, language)['toc']]
+                    self.assertEqual(localized_anchors, korean_anchors)
+
+    def test_rulebook_index_summaries_follow_selected_language(self):
+        summaries = public_rulebook_summaries('ja')
+
+        self.assertEqual(summaries[0]['short_title'], 'はじめてのプレイガイド')
+        self.assertTrue(all(item['language'] == 'ja' for item in summaries))
+
+    def test_translation_notice_identifies_machine_generated_draft(self):
+        notice = get_rulebook('guide', 'en')['translation_notice']
+
+        self.assertIn('machine-generated reference draft', notice['text'])
+
+
+class RuleHierarchyTests(TestCase):
+    def setUp(self):
+        self.book = Rulebook.objects.create(
+            slug='test-rules',
+            url_name='rules:detail',
+            kicker='TEST RULES',
+            searchable=True,
+        )
+        RulebookTranslation.objects.create(
+            rulebook=self.book,
+            language='ko',
+            title='테스트 규칙서',
+            short_title='테스트 규칙',
+        )
+
+    def make_rule(self, reference, title, *, parent=None, content='', priority=0):
+        rule = Rule.objects.create(
+            rulebook=self.book,
+            parent=parent,
+            reference_name=reference,
+            priority=priority,
+        )
+        RuleTranslation.objects.create(
+            rule=rule,
+            language='ko',
+            title=title,
+            content=content,
+        )
+        return rule
+
+    def test_nested_rule_numbers_follow_priority_within_each_parent(self):
+        later_root = self.make_rule('later-root', '뒤쪽 상위 규칙', priority=20)
+        first_root = self.make_rule('first-root', '앞쪽 상위 규칙', priority=10)
+        later_child = self.make_rule(
+            'later-child',
+            '뒤쪽 하위 규칙',
+            parent=first_root,
+            priority=20,
+        )
+        first_child = self.make_rule(
+            'first-child',
+            '앞쪽 하위 규칙',
+            parent=first_root,
+            priority=10,
+        )
+        grandchild = self.make_rule('target-rule', '하위 규칙', parent=first_child)
+
+        rows = ordered_rule_tree(self.book.rules.all())
+
+        self.assertEqual(
+            [(row['rule'].reference_name, row['number']) for row in rows],
+            [
+                ('first-root', '1'),
+                ('first-child', '1.1'),
+                ('target-rule', '1.1.1'),
+                ('later-child', '1.2'),
+                ('later-root', '2'),
+            ],
+        )
+        self.assertEqual(grandchild.full_number, '1.1.1')
+
+    def test_database_rulebook_renders_hierarchy_and_reference_links(self):
+        root = self.make_rule(
+            'root-rule',
+            '상위 규칙',
+            content='<p>[[target-rule]]을 확인합니다.</p>',
+        )
+        child = self.make_rule('target-rule', '하위 규칙', parent=root)
+
+        rendered = get_rulebook(self.book.slug, 'ko')
+
+        self.assertEqual(rendered['source'], 'database')
+        self.assertEqual([item['title'] for item in rendered['toc']], ['1 상위 규칙', '1.1 하위 규칙'])
+        self.assertIn('href="#target-rule"', str(rendered['html']))
+        self.assertIn('1.1 하위 규칙', str(rendered['html']))
+
+    def test_hidden_rules_keep_public_numbers_consistent_with_management_order(self):
+        hidden = self.make_rule('hidden-rule', '비공개 규칙', priority=10)
+        hidden.is_public = False
+        hidden.save(update_fields=['is_public'])
+        self.make_rule('public-rule', '공개 규칙', priority=20)
+
+        rendered = get_rulebook(self.book.slug, 'ko')
+
+        self.assertEqual([item['title'] for item in rendered['toc']], ['2 공개 규칙'])
+        self.assertNotIn('비공개 규칙', str(rendered['html']))
+
+    def test_rule_cannot_use_its_descendant_as_parent(self):
+        root = self.make_rule('root-rule', '상위 규칙')
+        child = self.make_rule('child-rule', '하위 규칙', parent=root)
+        root.parent = child
+
+        with self.assertRaises(ValidationError):
+            root.full_clean()
+
+    def test_reference_linker_does_not_rewrite_existing_links_or_code(self):
+        targets = {'target-rule': {'label': '1 대상', 'number': '1', 'href': '#target-rule'}}
+        html = link_rule_references(
+            '<p>[[target-rule]] <a href="#">[[target-rule]]</a> <code>[[target-rule]]</code></p>',
+            targets,
+        )
+
+        self.assertEqual(html.count('class="v2-rule-reference"'), 1)
+        self.assertIn('<code>[[target-rule]]</code>', html)
+
+    def test_numeric_reference_label_uses_current_automatic_number(self):
+        html = link_rule_references(
+            '<p>[[target-rule|9.9]]</p>',
+            {'target-rule': {'label': '1.2 대상', 'number': '1.2', 'href': '#target-rule'}},
+        )
+
+        self.assertIn('>1.2</a>', html)
+        self.assertNotIn('9.9', html)
+
+    def test_rule_visual_guides_render_tabs_and_trusted_code(self):
+        rule = self.make_rule('visual-rule', '비주얼 규칙')
+        later = RuleVisualGuide.objects.create(
+            rule=rule,
+            priority=20,
+            css='#later-visual { color: red; }',
+            javascript='window.ruleVisualScript = true;',
+        )
+        first = RuleVisualGuide.objects.create(rule=rule, priority=10)
+        hidden = RuleVisualGuide.objects.create(rule=rule, priority=30, is_public=False)
+        RuleVisualGuideTranslation.objects.create(
+            guide=later,
+            language='ko',
+            title='두 번째 가이드',
+            content='<div id="later-visual">두 번째</div><script>window.inlineVisual = true;</script>',
+        )
+        RuleVisualGuideTranslation.objects.create(
+            guide=first,
+            language='ko',
+            title='첫 번째 가이드',
+            content='<button id="first-visual">첫 번째</button>',
+        )
+        RuleVisualGuideTranslation.objects.create(
+            guide=hidden,
+            language='ko',
+            title='숨긴 가이드',
+            content='<div>숨김</div>',
+        )
+
+        rendered = get_rulebook(self.book.slug, 'ko')
+        html = str(rendered['html'])
+
+        self.assertTrue(rendered['has_inline_visuals'])
+        self.assertLess(html.index('첫 번째 가이드'), html.index('두 번째 가이드'))
+        self.assertIn('data-rule-inline-visual-tab', html)
+        self.assertIn('<style data-rule-visual-style=', html)
+        self.assertIn('#later-visual { color: red; }', html)
+        self.assertIn('window.ruleVisualScript = true;', html)
+        self.assertIn('<script>window.inlineVisual = true;</script>', html)
+        self.assertNotIn('숨긴 가이드', html)
+
+    def test_semantic_reference_conversion_rewrites_number_and_named_references(self):
+        root = self.make_rule('old-root', '상위 규칙')
+        target = self.make_rule('old-target', '대상 규칙', parent=root)
+        RuleTranslation.objects.create(rule=target, language='en', title='Target Rule')
+        source = self.make_rule(
+            'old-source',
+            '참조 규칙',
+            content=(
+                '<p>1.1 및 [[old-target]]을 확인합니다. '
+                '<a href="#old-target">링크 대상</a> <code>1.1</code></p>'
+            ),
+        )
+        RuleTranslation.objects.create(rule=source, language='en', title='Reference Rule')
+
+        semanticize_rulebooks([self.book])
+
+        target.refresh_from_db()
+        source_content = source.translations.get(language='ko').content
+        self.assertEqual(target.reference_name, 'test-rules-target-rule')
+        self.assertIn('old-target', target.reference_aliases)
+        self.assertIn('[[test-rules-target-rule|1.1]]', source_content)
+        self.assertIn('[[test-rules-target-rule]]', source_content)
+        self.assertIn('[[test-rules-target-rule|링크 대상]]', source_content)
+        self.assertIn('<code>1.1</code>', source_content)
+
+
+class RulebookImportTests(TestCase):
+    def test_import_command_creates_editable_database_rules(self):
+        output = StringIO()
+
+        call_command('import_rulebooks', '--slug', 'tournament', stdout=output)
+
+        book = Rulebook.objects.get(slug='tournament')
+        self.assertGreater(book.rules.count(), 10)
+        self.assertTrue(book.rules.filter(translations__language='en').exists())
+        self.assertTrue(book.visual_guides.filter(rule__isnull=True).exists())
+        self.assertEqual(get_rulebook('tournament', 'ko')['source'], 'database')
+        self.assertIn('규칙', output.getvalue())
+
+    def test_import_command_preserves_numbered_rule_hierarchy(self):
+        call_command('import_rulebooks', '--slug', 'comprehensive', stdout=StringIO())
+
+        clause = next(
+            rule
+            for rule in Rule.objects.filter(rulebook__slug='comprehensive').select_related('parent')
+            if 'rule-0-3-1' in rule.reference_aliases
+        )
+
+        self.assertRegex(clause.full_number, r'^\d+(?:\.\d+)+$')
+        self.assertIsNotNone(clause.parent_id)
+        self.assertFalse(clause.show_in_toc)
+        self.assertTrue(clause.reference_name.startswith('rule-processing-unit'))
+        self.assertIn('rule-0-3-1', clause.reference_aliases)
+
+    def test_default_import_moves_every_rulebook_and_visual_guide_to_database(self):
+        call_command('import_rulebooks', stdout=StringIO())
+
+        for slug in ('guide', 'comprehensive', 'tournament'):
+            with self.subTest(slug=slug):
+                book = Rulebook.objects.get(slug=slug)
+                rendered = get_rulebook(slug, 'ko')
+                self.assertTrue(book.rules.exists())
+                self.assertTrue(book.visual_guides.filter(rule__isnull=True).exists())
+                self.assertIn('.v2-rulebook-visual', book.visual_css)
+                self.assertIn('activatePanel', book.visual_javascript)
+                self.assertEqual(rendered['source'], 'database')
+                self.assertTrue(rendered['has_page_visuals'])
+                self.assertIn('data-rulebook-visual', str(rendered['page_visual_html']))
+
+        guide = Rulebook.objects.get(slug='guide')
+        self.assertEqual(guide.visual_guides.filter(rule__isnull=True).count(), 3)
+        guide_html = str(get_rulebook('guide', 'ko')['page_visual_html'])
+        self.assertIn('v2-rulebook-board', guide_html)
+        self.assertIn('v2-rulebook-card-anatomy', guide_html)
+        self.assertIn('v2-rulebook-phase-track', guide_html)
+        self.assertIn('data-rulebook-visual-common-style', guide_html)
+        self.assertIn('data-rulebook-visual-common-script', guide_html)
+
+
+class RuleEditorViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser('rule-admin', 'rules@example.com', 'password')
+        self.client.force_login(self.user)
+        self.book = Rulebook.objects.get(slug='guide')
+
+    def test_editor_creates_rule_with_wysiwyg_translation(self):
+        response = self.client.post(reverse('rules:ruleCreate'), {
+            'rulebook': self.book.pk,
+            'parent': '',
+            'reference_name': 'new-rule',
+            'priority': 10,
+            'show_in_toc': 'on',
+            'is_public': 'on',
+            'translation-ko-title': '새 규칙',
+            'translation-ko-content': '<p><strong>편집 본문</strong></p>',
+            'translation-en-title': '',
+            'translation-en-content': '',
+            'translation-ja-title': '',
+            'translation-ja-content': '',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        rule = Rule.objects.get(reference_name='new-rule')
+        self.assertEqual(rule.full_number, '1')
+        self.assertIn('<strong>편집 본문</strong>', rule.translations.get(language='ko').content)
+
+    def test_manage_pages_drill_down_one_rule_level_at_a_time(self):
+        root = Rule.objects.create(
+            rulebook=self.book,
+            reference_name='root-rule',
+        )
+        child = Rule.objects.create(
+            rulebook=self.book,
+            parent=root,
+            reference_name='child-rule',
+        )
+        grandchild = Rule.objects.create(
+            rulebook=self.book,
+            parent=child,
+            reference_name='grandchild-rule',
+        )
+        RuleTranslation.objects.create(rule=root, language='ko', title='상위 규칙')
+        RuleTranslation.objects.create(rule=child, language='ko', title='하위 규칙')
+        RuleTranslation.objects.create(rule=grandchild, language='ko', title='손자 규칙')
+
+        overview = self.client.get(reverse('rules:manage'))
+        book_page = self.client.get(reverse('rules:manageBook', args=[self.book.pk]))
+        root_page = self.client.get(reverse('rules:manageRule', args=[root.pk]))
+        child_page = self.client.get(reverse('rules:manageRule', args=[child.pk]))
+
+        self.assertContains(overview, str(self.book))
+        self.assertNotContains(overview, '[[root-rule]]')
+        self.assertContains(book_page, '[[root-rule]]')
+        self.assertNotContains(book_page, '[[child-rule]]')
+        self.assertContains(root_page, '[[child-rule]]')
+        self.assertNotContains(root_page, '[[grandchild-rule]]')
+        self.assertContains(child_page, '[[grandchild-rule]]')
+        self.assertContains(child_page, '1.1.1')
+
+    def test_move_rule_reorders_only_its_siblings_and_renumbers_them(self):
+        root = Rule.objects.create(rulebook=self.book, reference_name='root-rule')
+        first = Rule.objects.create(
+            rulebook=self.book,
+            parent=root,
+            reference_name='first-rule',
+            priority=10,
+        )
+        second = Rule.objects.create(
+            rulebook=self.book,
+            parent=root,
+            reference_name='second-rule',
+            priority=20,
+        )
+        third = Rule.objects.create(
+            rulebook=self.book,
+            parent=root,
+            reference_name='third-rule',
+            priority=30,
+        )
+
+        response = self.client.post(reverse('rules:ruleMove', args=[third.pk, 'up']))
+
+        self.assertRedirects(
+            response,
+            f'{reverse("rules:manageRule", args=[root.pk])}#rule-{third.pk}',
+            fetch_redirect_response=False,
+        )
+        siblings = list(root.children.order_by('priority', 'id'))
+        self.assertEqual([rule.pk for rule in siblings], [first.pk, third.pk, second.pk])
+        self.assertEqual([rule.priority for rule in siblings], [10, 20, 30])
+        third.refresh_from_db()
+        self.assertEqual(third.full_number, '1.2')
+
+    def test_visual_guide_editor_saves_wysiwyg_css_and_javascript(self):
+        rule = Rule.objects.create(rulebook=self.book, reference_name='visual-rule')
+        RuleTranslation.objects.create(rule=rule, language='ko', title='비주얼 규칙')
+
+        response = self.client.post(reverse('rules:visualCreate', args=[rule.pk]), {
+            'priority': 10,
+            'style_key': 'custom-board',
+            'is_public': 'on',
+            'css': '.visual-test { color: red; }',
+            'javascript': 'window.visualEditorTest = true;',
+            'visual-ko-title': '보드 가이드',
+            'visual-ko-content': '<div class="visual-test"><strong>보드</strong></div>',
+            'visual-en-title': '',
+            'visual-en-content': '',
+            'visual-ja-title': '',
+            'visual-ja-content': '',
+        })
+
+        guide = RuleVisualGuide.objects.get(rule=rule)
+        self.assertRedirects(
+            response,
+            f'{reverse("rules:manageRule", args=[rule.pk])}#visual-{guide.pk}',
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(guide.css, '.visual-test { color: red; }')
+        self.assertEqual(guide.javascript, 'window.visualEditorTest = true;')
+        self.assertEqual(guide.rulebook, self.book)
+        self.assertEqual(guide.style_key, 'custom-board')
+        translation = guide.translations.get(language='ko')
+        self.assertIn('<strong>보드</strong>', translation.content)
+
+        manage_page = self.client.get(reverse('rules:manageRule', args=[rule.pk]))
+        self.assertContains(manage_page, '보드 가이드')
+        self.assertContains(manage_page, reverse('rules:visualEdit', args=[guide.pk]))
+
+    def test_rulebook_visual_guide_editor_saves_page_level_guide(self):
+        response = self.client.post(reverse('rules:bookVisualCreate', args=[self.book.pk]), {
+            'priority': 10,
+            'style_key': 'field',
+            'is_public': 'on',
+            'css': '',
+            'javascript': 'window.pageVisual = true;',
+            'visual-ko-title': '상단 가이드',
+            'visual-ko-content': '<div class="page-visual">가이드</div>',
+            'visual-en-title': '',
+            'visual-en-content': '',
+            'visual-ja-title': '',
+            'visual-ja-content': '',
+        })
+
+        guide = RuleVisualGuide.objects.get(rulebook=self.book, rule__isnull=True)
+        self.assertRedirects(
+            response,
+            f'{reverse("rules:manageBook", args=[self.book.pk])}#visual-{guide.pk}',
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(guide.style_key, 'field')
+        self.assertEqual(guide.translations.get(language='ko').title, '상단 가이드')
+        manage_page = self.client.get(reverse('rules:manageBook', args=[self.book.pk]))
+        self.assertContains(manage_page, '상단 가이드')
+
+    def test_rulebook_visual_assets_editor_updates_shared_css_and_javascript(self):
+        response = self.client.post(
+            reverse('rules:bookVisualAssets', args=[self.book.pk]),
+            {
+                'visual_css': '.shared-visual { color: red; }',
+                'visual_javascript': 'window.sharedVisual = true;',
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('rules:manageBook', args=[self.book.pk]),
+            fetch_redirect_response=False,
+        )
+        self.book.refresh_from_db()
+        self.assertEqual(self.book.visual_css, '.shared-visual { color: red; }')
+        self.assertEqual(self.book.visual_javascript, 'window.sharedVisual = true;')
+
+        edit_page = self.client.get(reverse('rules:bookVisualAssets', args=[self.book.pk]))
+        self.assertContains(edit_page, '.shared-visual { color: red; }')
