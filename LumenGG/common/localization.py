@@ -13,6 +13,22 @@ DEFAULT_LANGUAGE = 'ko'
 SUPPORTED_TRANSLATION_LANGUAGES = ('en', 'ja')
 SUPPORTED_LANGUAGE_CODES = (DEFAULT_LANGUAGE, *SUPPORTED_TRANSLATION_LANGUAGES)
 
+
+def _localization_database_unavailable(error):
+    """Return whether a translation lookup cannot legally reach the DB.
+
+    Player-facing rendering is also used by the pure-domain effect reviewer.
+    Django intentionally raises ``DatabaseOperationForbidden`` there because
+    its tests are ``SimpleTestCase`` instances.  Importing Django's test-only
+    exception into production code would be an unnecessary dependency, so
+    recognize that one explicit exception name while continuing to surface
+    every unrelated programming error.
+    """
+    return (
+        isinstance(error, (OperationalError, ProgrammingError))
+        or error.__class__.__name__ == 'DatabaseOperationForbidden'
+    )
+
 CARD_TRANSLATED_FIELDS = (
     'name',
     'ruby',
@@ -31,6 +47,9 @@ CHARACTER_TRANSLATED_FIELDS = (
 MARKUP_FIELDS = {'text', 'detail_text', 'description', 'group'}
 TOKEN_RE = re.compile(
     r'\[\[(card|state-card|token-card|counter-card|character|keyword|state|token|term):([^\]\r\n]+)\]\]'
+)
+UNRESOLVED_MARKUP_RE = re.compile(
+    r'\[\[(?:[^:\[\]]+:)?([^\[\]]+)\]\]'
 )
 MARK_PAIRS = {
     '[': ']',
@@ -130,8 +149,10 @@ def _translation_texts(language):
             .values_list('source__key', 'text')
         )
         return dict(rows)
-    except (OperationalError, ProgrammingError):
-        return {}
+    except Exception as error:
+        if _localization_database_unavailable(error):
+            return {}
+        raise
 
 
 @lru_cache(maxsize=16)
@@ -148,8 +169,10 @@ def _translation_data(language):
             .values_list('source__key', 'data')
         )
         return dict(rows)
-    except (OperationalError, ProgrammingError):
-        return {}
+    except Exception as error:
+        if _localization_database_unavailable(error):
+            return {}
+        raise
 
 
 @lru_cache(maxsize=1)
@@ -161,8 +184,10 @@ def _source_texts():
             .filter(is_active=True)
             .values_list('key', 'source_text')
         )
-    except (OperationalError, ProgrammingError):
-        return {}
+    except Exception as error:
+        if _localization_database_unavailable(error):
+            return {}
+        raise
 
 
 @lru_cache(maxsize=1)
@@ -175,8 +200,10 @@ def _source_data():
             .exclude(source_data={})
             .values_list('key', 'source_data')
         )
-    except (OperationalError, ProgrammingError):
-        return {}
+    except Exception as error:
+        if _localization_database_unavailable(error):
+            return {}
+        raise
 
 
 @lru_cache(maxsize=16)
@@ -193,8 +220,10 @@ def _source_translation_rows(language):
             .exclude(source__source_text='')
             .values_list('source__category', 'source__field_name', 'source__source_text', 'text')
         )
-    except (OperationalError, ProgrammingError):
-        return ()
+    except Exception as error:
+        if _localization_database_unavailable(error):
+            return ()
+        raise
 
 
 @lru_cache(maxsize=16)
@@ -336,6 +365,31 @@ def render_localized_markup(text, language):
     return TOKEN_RE.sub(replace, text)
 
 
+def render_visible_markup(value, language=DEFAULT_LANGUAGE):
+    """Render semantic markup recursively for player-facing payloads.
+
+    Known tokens use the localization catalog. Unknown legacy tokens still
+    receive a readable fallback so raw ``[[kind:slug]]`` notation cannot
+    leak into logs, decisions, or review tools.
+    """
+    if isinstance(value, dict):
+        return {
+            key: render_visible_markup(item, language)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [render_visible_markup(item, language) for item in value]
+    if isinstance(value, tuple):
+        return tuple(render_visible_markup(item, language) for item in value)
+    if not isinstance(value, str) or '[[' not in value:
+        return value
+    rendered = render_localized_markup(value, language)
+    return UNRESOLVED_MARKUP_RE.sub(
+        lambda match: match.group(1).strip().replace('_', ' '),
+        rendered,
+    )
+
+
 def strip_outer_marks(value):
     text = str(value or '').strip()
     changed = True
@@ -366,8 +420,10 @@ def _fallback_card_name(code, language, missing):
     try:
         Card = apps.get_model('card', 'Card')
         card = Card.objects.filter(code=code).first()
-    except (OperationalError, ProgrammingError, LookupError):
-        return missing
+    except Exception as error:
+        if isinstance(error, LookupError) or _localization_database_unavailable(error):
+            return missing
+        raise
     if not card:
         return missing
     return translate_card_field(card, language, 'name')
@@ -377,8 +433,10 @@ def _fallback_character_name(localization_key, language, missing):
     try:
         Character = apps.get_model('card', 'Character')
         character = Character.objects.filter(localization_key=localization_key).first()
-    except (OperationalError, ProgrammingError, LookupError):
-        return missing
+    except Exception as error:
+        if isinstance(error, LookupError) or _localization_database_unavailable(error):
+            return missing
+        raise
     if not character:
         return missing
     return translate_character_field(character, language, 'name')

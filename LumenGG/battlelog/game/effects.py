@@ -65,7 +65,10 @@ KNOWN_NON_SOURCE_TRIGGER_ABILITIES = {
 # was introduced. Endless Ballare's Combo-end text belongs only to a Combo
 # containing that card. The 1-Combo starter and later Combo Techniques are
 # both members; merely remaining in Battle during another Combo is not enough.
-KNOWN_COMBO_MEMBERSHIP_REQUIRED_ABILITIES = {'dfr-at-020-n2'}
+KNOWN_COMBO_MEMBERSHIP_REQUIRED_ABILITIES = {
+    'dfr-at-006-n2', 'dfr-at-020-n2',
+    'pmp-at-007-n2', 'pmp-at-009-n2', 'rfs-at-035-n2',
+}
 
 
 class EffectResolutionError(ValueError):
@@ -644,15 +647,55 @@ class EffectResolver:
                 trigger_events = trigger.get('events') or [trigger.get('event')]
                 if event_type not in trigger_events:
                     continue
-                active_zones = ability.get('active_zones')
+                # Drafts historically serialized an omitted/default zone as
+                # ``[]``. Treat it like no explicit restriction; interpreting
+                # it as an impossible zone silently disables the ability.
+                active_zones = ability.get('active_zones') or None
                 is_source = card.get('instance_id') == event_context.get('source_card_instance_id')
+                # Some domain events are emitted only after the source has
+                # completed their core movement.  Grab negation, for example,
+                # returns the Battle card to Hand before its printed
+                # ``grab_negated`` effect resolves.  When the event records
+                # the source's triggering zone, use that zone for ability
+                # activation instead of silently disabling Battle-only text.
+                event_source_zone = (
+                    event_context.get('source_zone') if is_source else None
+                )
+                activation_zones = {
+                    value for value in (zone, event_source_zone) if value
+                }
+                activation_zone = (
+                    event_source_zone
+                    if event_source_zone in (active_zones or [])
+                    else zone
+                )
                 is_attached_source = card.get('attached_to') == event_context.get('source_card_instance_id')
                 attached_active = is_attached_source and ability.get('active_when_attached') is True
                 explicit_global_reaction = bool(
                     active_zones is not None
-                    and zone in GLOBAL_REACTION_ZONES
-                    and zone in active_zones
+                    and any(
+                        value in GLOBAL_REACTION_ZONES
+                        and value in active_zones
+                        for value in activation_zones
+                    )
                 )
+                is_persistent_global_reaction = bool(
+                    not is_source
+                    and not attached_active
+                    and any(
+                        value in GLOBAL_REACTION_ZONES
+                        for value in activation_zones
+                    )
+                )
+                global_reaction_slot_owner = event_context.get(
+                    'global_reaction_slot_owner'
+                )
+                if (
+                    global_reaction_slot_owner in PLAYER_SIDES
+                    and is_persistent_global_reaction
+                    and controller != global_reaction_slot_owner
+                ):
+                    continue
                 combo_membership_required = bool(
                     ability.get('requires_combo_use') is True
                     or ability.get('id')
@@ -675,6 +718,10 @@ class EffectResolver:
                     and combo_membership_required
                     and card.get('instance_id') in combo_card_instance_ids
                 )
+                combo_departure_active = bool(
+                    included_in_combo
+                    and ability.get('id') == 'dfr-at-020-n2'
+                )
                 if (
                     event_type == 'combo_end'
                     and combo_membership_required
@@ -689,11 +736,16 @@ class EffectResolver:
                         or [event_context.get('source_card_instance_id')]
                     )
                     and not explicit_global_reaction
-                    and zone not in GLOBAL_REACTION_ZONES
+                    and not any(
+                        value in GLOBAL_REACTION_ZONES
+                        for value in activation_zones
+                    )
                     and ability.get('allow_non_source_trigger') is not True
                 ):
                     continue
-                if event_context.get('source_only_event') and not (is_source or attached_active):
+                if event_context.get('source_only_event') and not (
+                    is_source or attached_active or explicit_global_reaction
+                ):
                     continue
                 if (
                     (
@@ -710,10 +762,17 @@ class EffectResolver:
                     and ability.get('id') not in KNOWN_NON_SOURCE_TRIGGER_ABILITIES
                 ):
                     continue
-                default_active = zone in {'passive', 'lumen', 'ultimate'} or is_source or attached_active
+                default_active = (
+                    any(
+                        value in {'passive', 'lumen', 'ultimate'}
+                        for value in activation_zones
+                    )
+                    or is_source or attached_active
+                )
                 if (
-                    active_zones is not None and zone not in active_zones
-                    and not included_in_combo
+                    active_zones is not None
+                    and not activation_zones.intersection(active_zones)
+                    and not combo_departure_active
                 ):
                     continue
                 if (
@@ -764,7 +823,7 @@ class EffectResolver:
                           .get(_opponent(controller)) or {}).get('card'))
                         or event_context.get('opponent_card')
                     ),
-                    'source_zone': zone,
+                    'source_zone': activation_zone,
                     'ability_id': ability.get('id'),
                     'ability_visibility': ability.get('visibility', 'public'),
                     'depth': depth,
@@ -864,7 +923,7 @@ class EffectResolver:
                     continue
                 if ability.get('mode') != 'continuous':
                     continue
-                active_zones = ability.get('active_zones')
+                active_zones = ability.get('active_zones') or None
                 if active_zones is not None and zone not in active_zones:
                     continue
                 context = {
@@ -1327,7 +1386,21 @@ class EffectResolver:
         target = resolve_value(effect.get('player', {'controller': True}), self.state, context)
         multiplier = max(1, int(context.get('effect_value_multiplier') or 1))
         if op == 'sequence':
-            self.execute_effects(effect.get('effects'), context)
+            defer_triggers = bool(effect.get('defer_triggers'))
+            queue_key = '_deferred_domain_triggers'
+            owns_queue = defer_triggers and queue_key not in context
+            if owns_queue:
+                context[queue_key] = []
+            completed = False
+            try:
+                self.execute_effects(effect.get('effects'), context)
+                completed = True
+            finally:
+                if owns_queue:
+                    trigger_queue = context.pop(queue_key, [])
+                    if completed:
+                        for event_type, event_context in trigger_queue:
+                            self.engine._fire(event_type, event_context)
         elif op == 'conditional':
             branch = (
                 effect.get('then') if condition_matches(effect.get('condition'), self.state, context)
@@ -1475,6 +1548,12 @@ class EffectResolver:
                         key: resolve_value(flag_value, self.state, context)
                         for key, flag_value in (effect.get('set_flags') or {}).items()
                     },
+                    defer_triggers=(
+                        '_deferred_domain_triggers' in context
+                    ),
+                    trigger_queue=context.get(
+                        '_deferred_domain_triggers'
+                    ),
                 )
                 if moved is not None:
                     moved_ids.append(selected_id)
@@ -1561,6 +1640,12 @@ class EffectResolver:
                     card_id, effect_controller=controller,
                     effect_source=context.get('source_card_instance_id'),
                     block_hand_until=effect.get('block_hand_until'),
+                    defer_triggers=(
+                        '_deferred_domain_triggers' in context
+                    ),
+                    trigger_queue=context.get(
+                        '_deferred_domain_triggers'
+                    ),
                 )
                 if discarded is not None:
                     discarded_ids.append(card_id)

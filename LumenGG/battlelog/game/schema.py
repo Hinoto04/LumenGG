@@ -428,7 +428,11 @@ def _validate_deck_rules(value, path, issues):
             ):
                 _issue(issues, f'{imported_path}.allowed_types', '허용 기술 종류 목록이 올바르지 않습니다.')
             maximum = imported.get('max_per_character')
-            if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum < 1:
+            if maximum is not None and (
+                not isinstance(maximum, int)
+                or isinstance(maximum, bool)
+                or maximum < 1
+            ):
                 _issue(issues, f'{imported_path}.max_per_character', '캐릭터별 한도는 1 이상의 정수여야 합니다.')
             excluded = imported.get('exclude_character_ids', [])
             if not isinstance(excluded, list) or any(
@@ -552,6 +556,14 @@ def _validate_effect(value, path, issues):
         return
     if op == 'sequence':
         items = value.get('effects')
+        if (
+            'defer_triggers' in value
+            and not isinstance(value.get('defer_triggers'), bool)
+        ):
+            _issue(
+                issues, f'{path}.defer_triggers',
+                '트리거 지연 여부는 불리언이어야 합니다.',
+            )
         if not isinstance(items, list) or not items:
             _issue(issues, f'{path}.effects', '순차 실행할 명령 목록이 필요합니다.')
         else:
@@ -1332,6 +1344,24 @@ def _validate_effect(value, path, issues):
                 issues, f'{path}.usage_scope',
                 '콤보 추가 사용 제한 범위가 올바르지 않습니다.',
             )
+        projected_damage = value.get('project_damage_from_selector')
+        if projected_damage is not None:
+            if not isinstance(projected_damage, dict):
+                _issue(
+                    issues, f'{path}.project_damage_from_selector',
+                    '사용 시 데미지 예상 규칙은 객체여야 합니다.',
+                )
+            else:
+                _validate_selector(
+                    projected_damage.get('selector'),
+                    f'{path}.project_damage_from_selector.selector', issues,
+                )
+                field = projected_damage.get('field', 'damage')
+                if not isinstance(field, str) or not field.strip():
+                    _issue(
+                        issues, f'{path}.project_damage_from_selector.field',
+                        '합산할 카드 수치 필드는 비어 있지 않은 문자열이어야 합니다.',
+                    )
         for field_name in (
             'ignore_speed', 'ignore_damage_penalty',
             'optional_ignore_damage_penalty', 'optional_ignore_speed',

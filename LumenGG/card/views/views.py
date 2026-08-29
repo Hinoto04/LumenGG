@@ -36,7 +36,7 @@ from ..effect_review import CardEffectReviewForm, card_effect_review_context
 from ..dsl_docs import reference_context
 from ..search import card_matches_search, card_matches_search_exact
 from decorators import permission_required
-import re, random, os, json, uuid
+import copy, re, random, os, json, uuid
 from io import BytesIO
 from zipfile import BadZipFile
 import openpyxl
@@ -61,6 +61,109 @@ DETAIL_TEXT_IMPORT_REQUIRED_COLUMNS = ['첫 출전팩', '번호', '이름', '보
 EFFECT_SANDBOX_SIGNING_SALT = 'card.effect-sandbox.v1'
 EFFECT_SANDBOX_MAX_AGE_SECONDS = 60 * 60
 EFFECT_SANDBOX_MAX_REQUEST_BYTES = 512 * 1024
+
+
+def _effect_sandbox_card_snapshot(card):
+    """Add character identity used by character-key selectors in reviews."""
+    payload = _card_snapshot(card)
+    character = getattr(card, 'character', None)
+    if character is not None:
+        character_key = str(
+            getattr(character, 'localization_key', '') or ''
+        )
+        character_name = str(getattr(character, 'name', '') or '')
+        character_data = (
+            character.datas if isinstance(character.datas, dict) else {}
+        )
+        hand_table = character_data.get('hand')
+        payload['character_key'] = character_key
+        payload['character_name'] = character_name
+        payload['character'] = {
+            'id': character.pk,
+            'key': character_key,
+            'name': character_name,
+            'hand_table': (
+                dict(hand_table) if isinstance(hand_table, dict) else {}
+            ),
+        }
+    return payload
+
+
+def _effect_sandbox_suggested_phase(ability):
+    """Infer the one phase required by an ability condition, if any.
+
+    Without this hint the browser sandbox keeps its previous phase value.
+    Selecting a Lumen ``phase_start`` effect while the form still says
+    Battle then makes the real phase pipeline enter Battle without Ready
+    cards, which is unrelated to the effect under review. Optional branches
+    with different phases deliberately leave the form unchanged.
+    """
+
+    def required_phases(condition):
+        if not isinstance(condition, dict):
+            return set()
+        operation = str(condition.get('op') or '')
+        if operation == 'phase_is':
+            phase = str(condition.get('phase') or '')
+            return {phase} if phase in PHASES else set()
+        if operation == 'equals':
+            left = condition.get('left')
+            right = condition.get('right')
+            if left == 'context.phase' and isinstance(right, str):
+                return {right} if right in PHASES else set()
+            if right == 'context.phase' and isinstance(left, str):
+                return {left} if left in PHASES else set()
+            return set()
+        children = condition.get('conditions')
+        if operation == 'all' and isinstance(children, list):
+            phases = set()
+            for child in children:
+                phases.update(required_phases(child))
+            return phases
+        if operation == 'any' and isinstance(children, list) and children:
+            branch_phases = [required_phases(child) for child in children]
+            if branch_phases and all(
+                phases == branch_phases[0] for phases in branch_phases
+            ):
+                return branch_phases[0]
+        return set()
+
+    phases = required_phases((ability or {}).get('condition'))
+    return next(iter(phases)) if len(phases) == 1 else ''
+
+
+def _effect_sandbox_suggested_source_zone(ability):
+    """Infer an unambiguous source/from zone required by a condition."""
+
+    def required_zones(condition):
+        if not isinstance(condition, dict):
+            return set()
+        operation = str(condition.get('op') or '')
+        if operation == 'equals':
+            left = condition.get('left')
+            right = condition.get('right')
+            paths = {'context.source_from_zone', 'context.source_zone'}
+            if isinstance(left, str) and left in paths and isinstance(right, str):
+                return {right} if right in ALL_ZONES else set()
+            if isinstance(right, str) and right in paths and isinstance(left, str):
+                return {left} if left in ALL_ZONES else set()
+            return set()
+        children = condition.get('conditions')
+        if operation == 'all' and isinstance(children, list):
+            zones = set()
+            for child in children:
+                zones.update(required_zones(child))
+            return zones
+        if operation == 'any' and isinstance(children, list) and children:
+            branch_zones = [required_zones(child) for child in children]
+            if branch_zones and all(
+                zones == branch_zones[0] for zones in branch_zones
+            ):
+                return branch_zones[0]
+        return set()
+
+    zones = required_zones((ability or {}).get('condition'))
+    return next(iter(zones)) if len(zones) == 1 else ''
 
 
 def _detail_text_import_path(token):
@@ -505,6 +608,85 @@ def card_tag_edit_context(card, language):
         'is_translation': True,
     }
 
+
+def _card_printing_context(card, collection_cards):
+    release_groups = []
+    releases_by_code = {}
+    editions = []
+    seen_editions = set()
+
+    def is_released(collection_card):
+        released = getattr(collection_card.pack, 'released', None)
+        return bool(released and released <= timezone.now().date())
+
+    for collection_card in collection_cards:
+        group = releases_by_code.get(collection_card.code)
+        if group is None:
+            group = {
+                'code': collection_card.code,
+                'pack': collection_card.pack,
+                'is_released': is_released(collection_card),
+                'image': '',
+                'items': [],
+            }
+            releases_by_code[collection_card.code] = group
+            release_groups.append(group)
+        group['items'].append(collection_card)
+        if collection_card.image and not group['image']:
+            group['image'] = collection_card.image
+
+        if not collection_card.image:
+            continue
+        edition_key = (
+            collection_card.image,
+            collection_card.code,
+            collection_card.rare,
+        )
+        if edition_key in seen_editions:
+            continue
+        seen_editions.add(edition_key)
+        editions.append({
+            'image': collection_card.image,
+            'pack': collection_card.pack,
+            'code': collection_card.code,
+            'rare': collection_card.rare,
+            'is_released': is_released(collection_card),
+            'is_initial': collection_card.image == card.img,
+        })
+
+    matching_edition = next(
+        (edition for edition in editions if edition['image'] == card.img),
+        None,
+    )
+    if editions:
+        initial_edition = matching_edition or editions[0]
+        for edition in editions:
+            edition['is_initial'] = edition is initial_edition
+        initial_image = initial_edition['image']
+    else:
+        initial_image = card.img or ''
+
+    if initial_image and not editions:
+        editions.insert(0, {
+            'image': initial_image,
+            'pack': None,
+            'code': card.code or '',
+            'rare': '',
+            'is_released': not release_groups or release_groups[0]['is_released'],
+            'is_initial': True,
+        })
+
+    initial_edition = next(
+        (edition for edition in editions if edition['is_initial']),
+        editions[0] if editions else None,
+    )
+    return {
+        'card_editions': editions,
+        'initial_card_edition': initial_edition,
+        'initial_card_image': initial_image,
+        'release_groups': release_groups,
+    }
+
 def detail(req, id=0, template_name='card/detail.html'):
     language = get_language(req)
     try:
@@ -525,8 +707,8 @@ def detail(req, id=0, template_name='card/detail.html'):
         ).filter(keyword__contains=kw)
         relation[kw] = relation[kw].exclude(id = id)
     
-    cc = CollectionCard.objects.select_related('pack').prefetch_related('pack__translations').filter(card = card)
-    cc = cc.annotate(
+    cc_queryset = CollectionCard.objects.select_related('pack').prefetch_related('pack__translations').filter(card = card)
+    cc_queryset = cc_queryset.annotate(
         custom_order=Case(
         When(rare='N', then=0),
         When(rare='SR', then=1),
@@ -539,12 +721,10 @@ def detail(req, id=0, template_name='card/detail.html'):
         output_field=IntegerField(),
         )
     )
-    cc = cc.order_by('pack__released', 'code', 'custom_order')
+    cc = list(cc_queryset.order_by('pack__released', 'code', 'custom_order'))
     
-    if cc.exists() and cc[0].pack.released > timezone.now().date():
-        unReleased = True
-    else:
-        unReleased = False
+    first_release = getattr(cc[0].pack, 'released', None) if cc else None
+    unReleased = bool(first_release and first_release > timezone.now().date())
     
     context = {
         'card': card,
@@ -553,6 +733,7 @@ def detail(req, id=0, template_name='card/detail.html'):
         'unReleased': unReleased,
         'adoption_stats': get_card_adoption_stats(card, language),
         'tag_edit': card_tag_edit_context(card, language),
+        **_card_printing_context(card, cc),
     }
     return render(req, template_name, context=context)
 
@@ -623,6 +804,10 @@ def effectReview(req, id=0):
                 'mode': str(ability.get('mode') or ''),
                 'events': sandbox_event_options(ability),
                 'active_zones': list(ability.get('active_zones') or []),
+                'suggested_phase': _effect_sandbox_suggested_phase(ability),
+                'suggested_source_zone': (
+                    _effect_sandbox_suggested_source_zone(ability)
+                ),
                 'choice_steps': choice_description['steps'],
                 'automatic_steps': choice_description['automatic_steps'],
                 'choice_warnings': choice_description['warnings'],
@@ -667,7 +852,7 @@ def _effect_sandbox_json(req):
     return value
 
 
-def _effect_sandbox_response(payload):
+def _effect_sandbox_response(payload, *, language=DEFAULT_LANGUAGE):
     token_payload = {
         **payload,
     }
@@ -679,7 +864,7 @@ def _effect_sandbox_response(payload):
     return JsonResponse({
         'ok': True,
         'token': token,
-        'result': project_effect_sandbox(payload),
+        'result': project_effect_sandbox(payload, language=language),
     })
 
 
@@ -694,10 +879,27 @@ def effectSandboxStart(req, id=0):
     try:
         body = _effect_sandbox_json(req)
         ability_id = body.get('ability_id')
-        definition = (
-            sandbox_prototype_definition(ability_id)
-            or body.get('effect_definition', card.effect_definition)
+        config = body.get('config')
+        if not isinstance(config, dict):
+            raise EffectSandboxError('테스트 상황 설정이 필요합니다.')
+        card_definition = body.get(
+            'effect_definition', card.effect_definition,
         )
+        prototype_definition = sandbox_prototype_definition(ability_id)
+        if prototype_definition and config.get('include_source_effects'):
+            # A common movement/selection prototype is the action under test;
+            # the reviewed card's own continuous limits and replacements must
+            # stay active when the UI switch explicitly asks for them.
+            definition = copy.deepcopy(card_definition)
+            definition['reviewed'] = False
+            definition['draft'] = True
+            definition.pop('no_effect', None)
+            definition['abilities'] = [
+                *copy.deepcopy(prototype_definition.get('abilities') or []),
+                *copy.deepcopy((card_definition or {}).get('abilities') or []),
+            ]
+        else:
+            definition = prototype_definition or card_definition
         issues = validate_effect_definition(
             definition,
             card_has_text=bool((card.text or '').strip()),
@@ -707,9 +909,6 @@ def effectSandboxStart(req, id=0):
             raise EffectSandboxError(
                 f'효과 정의를 먼저 수정해 주세요: {first.path} {first.message}'
             )
-        config = body.get('config')
-        if not isinstance(config, dict):
-            raise EffectSandboxError('테스트 상황 설정이 필요합니다.')
         placements = config.get('cards') if isinstance(config.get('cards'), list) else []
         support_ids = {
             int(item.get('card_id'))
@@ -723,16 +922,35 @@ def effectSandboxStart(req, id=0):
         )
         if len(support_cards) != len(support_ids):
             raise EffectSandboxError('배치하려는 카드 중 현재 DB에 없는 카드가 있습니다.')
+        combo_previous_code = str(
+            config.get('combo_previous_card_code') or ''
+        ).strip().upper()
+        if combo_previous_code and combo_previous_code != str(card.code).upper():
+            combo_previous_card = (
+                Card.objects.select_related('character')
+                .filter(code=combo_previous_code)
+                .first()
+            )
+            if not combo_previous_card:
+                raise EffectSandboxError(
+                    f'직전 콤보 카드 코드 {combo_previous_code}를 '
+                    'DB에서 찾을 수 없습니다.'
+                )
+            if combo_previous_card.pk not in {
+                item.pk for item in support_cards
+            }:
+                support_cards.append(combo_previous_card)
         support_snapshots = {
-            str(item.pk): _card_snapshot(item) for item in support_cards
+            str(item.pk): _effect_sandbox_card_snapshot(item)
+            for item in support_cards
         }
         payload = start_effect_sandbox(
-            _card_snapshot(card), definition, ability_id,
+            _effect_sandbox_card_snapshot(card), definition, ability_id,
             support_snapshots, config,
         )
         payload['card_id'] = card.pk
         payload['reviewer_id'] = req.user.pk
-        return _effect_sandbox_response(payload)
+        return _effect_sandbox_response(payload, language=get_language(req))
     except (EffectSandboxError, EffectResolutionError, EngineError) as exc:
         return _effect_sandbox_error(exc)
 
@@ -756,10 +974,15 @@ def effectSandboxDecision(req, id=0):
         if payload.get('card_id') != id or payload.get('reviewer_id') != req.user.pk:
             raise EffectSandboxError('현재 카드와 사용자의 효과 테스트가 아닙니다.')
         selected = body.get('selected')
+        if selected is None:
+            selected = []
         if not isinstance(selected, list):
             raise EffectSandboxError('선택 결과는 배열이어야 합니다.')
-        payload = continue_effect_sandbox(payload, selected)
-        return _effect_sandbox_response(payload)
+        payload = continue_effect_sandbox(
+            payload, selected,
+            action_id=body.get('action_id'), owner=body.get('owner'),
+        )
+        return _effect_sandbox_response(payload, language=get_language(req))
     except (EffectSandboxError, EffectResolutionError, EngineError) as exc:
         return _effect_sandbox_error(exc)
 

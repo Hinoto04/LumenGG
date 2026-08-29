@@ -5965,11 +5965,14 @@ def _review_pmp_at_009_definition(definition, card_snapshot, extra_root):
         and heal_ability.get('mode') == 'mandatory'
         and heal_ability.get('trigger') == {'event': 'combo_end'}
         and heal_ability.get('active_zones') == ['battle']
+        and heal_ability.get('requires_combo_use') is True
         and heal_ability.get('effects') == [{
             'op': 'change_hp', 'player': {'controller': True},
             'amount': {
                 'op': 'multiply',
-                'values': [100, {'path': 'context.combo_used_count'}],
+                'values': [
+                    100, {'path': 'context.combo_total_used_count'},
+                ],
             },
         }]
     )
@@ -6052,9 +6055,9 @@ def _review_pmp_at_009_definition(definition, card_snapshot, extra_root):
     )
     heal_scenarios = []
     for name, owner, combo_owner, used_count, expected_heal in (
-        ('owner-p1-one-card', 'p1', 'p1', 1, 100),
-        ('owner-p2-three-cards', 'p2', 'p2', 3, 300),
-        ('opponent-combo-no-heal', 'p1', 'p2', 3, 0),
+        ('owner-p1-starter-plus-two-cards', 'p1', 'p1', 2, 300),
+        ('owner-p2-starter-plus-four-cards', 'p2', 'p2', 4, 500),
+        ('opponent-combo-no-heal', 'p1', 'p2', 2, 0),
     ):
         first = _run_pmp_at_009_combo_heal_scenario(
             definition, card_snapshot, owner,
@@ -8146,11 +8149,11 @@ def _review_crs_at_045_definition(definition, card_snapshot, extra_root):
                     },
                     {
                         'op': 'change_counter', 'player': {'controller': True},
-                        'counter': 'yin', 'amount': 2,
+                        'counter': 'yin', 'amount': 2, 'max': 4,
                     },
                     {
                         'op': 'change_counter', 'player': {'controller': True},
-                        'counter': 'yang', 'amount': 2,
+                        'counter': 'yang', 'amount': 2, 'max': 4,
                     },
                 ],
             },
@@ -22500,7 +22503,7 @@ def _run_unc_at_016_charge_damage_scenario(
         f'{other}-powerful-sweep-charge-opponent',
     )
     charge = _card(
-        'RFS-AT-001', owner, f'{owner}-all-in-charge',
+        'AWL-SP-001', owner, f'{owner}-all-in-charge',
     )
     charge.update({'name': '올인 차지', 'face_up': face_up})
     if not face_up:
@@ -22629,7 +22632,7 @@ def _review_unc_at_016_definition(definition, card_snapshot, extra_root):
         and damage.get('condition') == {
             'op': 'zone_count', 'player': {'controller': True},
             'zone': 'lumen',
-            'where': {'code': 'RFS-AT-001', 'face_up': True}, 'min': 1,
+            'where': {'code': 'AWL-SP-001', 'face_up': True}, 'min': 1,
         }
         and damage.get('effects') == [{
             'op': 'modify_stat', 'player': {'controller': True},
@@ -30319,6 +30322,112 @@ def _run_awl_at_038_combo_scenario(
     }
 
 
+def _run_awl_at_038_ready_combo_judgment_scenario(
+    definition, card_snapshot, owner,
+):
+    """A printed ready-card Combo is only 1-Combo, not after 3-Combo."""
+    other = 'p2' if owner == 'p1' else 'p1'
+    source = _awl_at_038_source(card_snapshot, owner, 'ready-combo')
+    opposing = _card(
+        'REVIEW-JET-RISING-READY-OPPONENT', other,
+        f'{other}-jet-rising-ready-opponent',
+    )
+    no_effect = _st1_001_no_effect_definition()
+    engine = AutomaticGameEngine(
+        _state(source, opposing, owner),
+        {
+            'version': AUTOMATIC_SCENARIO_VERSION,
+            'cards': {
+                source['code']: {
+                    **copy.deepcopy(source),
+                    'effect_definition': copy.deepcopy(definition),
+                },
+                opposing['code']: {
+                    **copy.deepcopy(opposing), 'effect_definition': no_effect,
+                },
+            },
+        },
+        seed=f'jet-rising-ready-combo:{owner}',
+        now=datetime(2026, 6, 1, tzinfo=timezone.utc),
+    )
+    live_source = engine._find_card(source['instance_id'])
+    live_opposing = engine._find_card(opposing['instance_id'])
+    engine._fire('combo', {
+        'controller': owner, 'event_controller': owner,
+        'source_card_instance_id': source['instance_id'],
+        'source_card': live_source, 'event_card': live_source,
+        'opponent_card': live_opposing,
+        'source_only_event': True,
+        'combo_judgment': True, 'combo_number': 1,
+        'use_context': 'ready',
+    })
+    engine._continue()
+    return {
+        'resolved': any(
+            event.get('type') == 'effect_resolved'
+            and (event.get('payload') or {}).get('ability_id')
+            == 'awl-at-038-n2'
+            for event in engine.events
+        ),
+        'pending': bool(engine.engine_state.get('pending_decision')),
+    }
+
+
+def _run_awl_at_038_ready_battle_pipeline_scenario(
+    definition, card_snapshot, owner,
+):
+    """Exercise the printed Combo judgment through the full Battle pipeline."""
+    other = 'p2' if owner == 'p1' else 'p1'
+    source = _awl_at_038_source(card_snapshot, owner, 'ready-pipeline')
+    opposing = _card(
+        'REVIEW-JET-RISING-READY-PIPELINE-OPPONENT', other,
+        f'{other}-jet-rising-ready-pipeline-opponent',
+    )
+    opposing.update({'frame': 8, 'damage': 400, 'pos': '중단'})
+    no_effect = _st1_001_no_effect_definition()
+    state = _state(source, opposing, owner)
+    state['players'][owner]['fp'] = 0
+    state['players'][other]['fp'] = 0
+    engine = AutomaticGameEngine(
+        state,
+        {
+            'version': AUTOMATIC_SCENARIO_VERSION,
+            'review_execution_mode': 'battle_pipeline',
+            'cards': {
+                source['code']: {
+                    **copy.deepcopy(source),
+                    'effect_definition': copy.deepcopy(definition),
+                },
+                opposing['code']: {
+                    **copy.deepcopy(opposing), 'effect_definition': no_effect,
+                },
+            },
+        },
+        seed=f'jet-rising-ready-pipeline:{owner}',
+        now=datetime(2026, 6, 1, tzinfo=timezone.utc),
+    )
+    engine.engine_state['step'] = 'battle_resolution'
+    engine.engine_state['ready_cards'] = {
+        owner: source['instance_id'], other: opposing['instance_id'],
+    }
+    engine.engine_state['battle'] = {}
+    engine.engine_state['pipeline'] = {'kind': 'battle', 'stage': 'start'}
+    engine._continue()
+    return {
+        'resolved': any(
+            event.get('type') == 'effect_resolved'
+            and (event.get('payload') or {}).get('ability_id')
+            == 'awl-at-038-n2'
+            for event in engine.events
+        ),
+        'ability_resolution_history': copy.deepcopy(
+            engine.engine_state.get('ability_resolution_history') or [],
+        ),
+        'event_types': [event.get('type') for event in engine.events],
+        'pending': bool(engine.engine_state.get('pending_decision')),
+    }
+
+
 def _review_awl_at_038_definition(definition, card_snapshot, extra_root):
     if str((card_snapshot or {}).get('code') or '') != 'AWL-AT-038':
         return None
@@ -30345,6 +30454,9 @@ def _review_awl_at_038_definition(definition, card_snapshot, extra_root):
             'stat': 'damage', 'amount': 200, 'duration': 'battle',
         }]
         and combo and combo.get('trigger') == {'event': 'combo'}
+        and combo.get('condition') == {
+            'op': 'gte', 'left': 'context.combo_number', 'right': 4,
+        }
         and combo.get('effects') == [{
             'op': 'static_rule', 'rules': ['combo_rules'],
         }]
@@ -30458,6 +30570,34 @@ def _review_awl_at_038_definition(definition, card_snapshot, extra_root):
             ),
             'deterministic': deterministic, **first,
         })
+    first = _run_awl_at_038_ready_combo_judgment_scenario(
+        definition, card_snapshot, 'p1',
+    )
+    second = _run_awl_at_038_ready_combo_judgment_scenario(
+        definition, card_snapshot, 'p1',
+    )
+    deterministic = _canonical(first) == _canonical(second)
+    combo_scenarios.append({
+        'name': 'ready-card-combo-judgment-is-not-four-combo',
+        'passed': bool(
+            deterministic and not first['resolved'] and not first['pending']
+        ),
+        'deterministic': deterministic, **first,
+    })
+    first = _run_awl_at_038_ready_battle_pipeline_scenario(
+        definition, card_snapshot, 'p1',
+    )
+    second = _run_awl_at_038_ready_battle_pipeline_scenario(
+        definition, card_snapshot, 'p1',
+    )
+    deterministic = _canonical(first) == _canonical(second)
+    combo_scenarios.append({
+        'name': 'ready-battle-pipeline-combo-judgment-is-not-four-combo',
+        'passed': bool(
+            deterministic and not first['resolved'] and not first['pending']
+        ),
+        'deterministic': deterministic, **first,
+    })
     reviews.append(AbilityReview(
         combo['id'], all(item['passed'] for item in combo_scenarios),
         combo_scenarios,
@@ -36052,6 +36192,157 @@ def _run_st6_005_after_use_scenario(
     }
 
 
+def _run_st6_005_live_battle_scenario(
+    definition, card_snapshot, owner, *, grace=2,
+):
+    """Reach the printed Combo window through the real battle pipeline.
+
+    The smaller ST6-005 scenarios intentionally isolate the DSL condition and
+    commands.  This scenario is the integration guard: it must reveal both
+    cards, calculate an actual Hit result, enqueue the printed Combo timing,
+    open the mandatory card choice, and resume the same battle pipeline after
+    the choice.  Calling ``_fire('combo', ...)`` directly would not catch a
+    missing or malformed timing hand-off in ``_result_trigger_sequence``.
+    """
+    other = 'p2' if owner == 'p1' else 'p1'
+    engine, source, opposing, odd_cards, _even, _defense = _st6_005_engine(
+        definition, card_snapshot, owner, grace=grace,
+    )
+    engine.state['players'][owner]['fp'] = 0
+    engine.state['players'][other]['fp'] = 0
+    live_opposing = engine._find_card(opposing['instance_id'])
+    live_opposing.update({
+        'type': '수비', 'frame': 11, 'damage': 0, 'pos': None,
+        'special': '', 'g_top': '', 'g_mid': '', 'g_bot': '',
+    })
+    engine.engine_state['ready_cards'] = {
+        owner: source['instance_id'], other: opposing['instance_id'],
+    }
+    pipeline = {'kind': 'battle', 'stage': 'start'}
+    engine.engine_state['pipeline'] = pipeline
+    stages = []
+    for _step in range(50):
+        stages.append(str(pipeline.get('stage') or ''))
+        if engine.engine_state.get('pending_decision'):
+            break
+        if not engine._advance_battle_pipeline(pipeline) and engine.is_waiting:
+            break
+    decision = copy.deepcopy(engine.engine_state.get('pending_decision'))
+    option_ids = [
+        str(option.get('id')) for option in (decision or {}).get('options') or []
+    ]
+    selected = option_ids[0] if option_ids else None
+    grace_at_choice = int(
+        engine.state['players'][owner]['passive_state']['hidden_bond']['count']
+    )
+    if decision and selected:
+        engine._submit_decision(owner, decision['id'], [selected])
+        engine._continue()
+    battle = engine.engine_state.get('battle') or {}
+    trigger_sequence = [
+        {
+            'event': event_type,
+            'controller': context.get('controller'),
+            'combo_judgment': context.get('combo_judgment'),
+        }
+        for event_type, context in battle.get('trigger_sequence') or []
+    ]
+    resolved_ids = [
+        (event.get('payload') or {}).get('ability_id')
+        for event in engine.events if event.get('type') == 'effect_resolved'
+    ]
+    return {
+        'execution_path': 'battle_pipeline',
+        'result': copy.deepcopy(battle.get('result')),
+        'trigger_sequence': trigger_sequence,
+        'stages': stages,
+        'decision_kind': (decision or {}).get('kind'),
+        'decision_owner': (decision or {}).get('owner'),
+        'option_ids': option_ids,
+        'odd_ids': [card['instance_id'] for card in odd_cards],
+        'selected': selected,
+        'selected_zone': (
+            engine._find_location(selected)[1] if selected else None
+        ),
+        'grace_at_choice': grace_at_choice,
+        'grace_after_pipeline': int(
+            engine.state['players'][owner]['passive_state']['hidden_bond']['count']
+        ),
+        'starter_resolution_count': resolved_ids.count('st6-005-n1'),
+        'after_use_resolution_count': resolved_ids.count('st6-005-n2'),
+        'pending': bool(engine.engine_state.get('pending_decision')),
+    }
+
+
+def _run_st6_005_live_catch_scenario(
+    definition, card_snapshot, owner, *, grace=3,
+):
+    """Reach Bad Catcher's printed Combo through the real Catch pipeline."""
+    engine, source, _opposing, odd_cards, even_attack, _defense = _st6_005_engine(
+        definition, card_snapshot, owner, grace=grace,
+    )
+    engine.ruleset['review_execution_mode'] = 'catch_pipeline'
+    engine.move_card(source['instance_id'], 'hand', reason='review')
+    # Keep a legal mandatory 2/3-Combo pair in Hand before the Catch. The
+    # remaining odd card stays in List for Bad Catcher's 1-Combo acquisition.
+    engine.move_card(odd_cards[1]['instance_id'], 'hand', reason='review')
+    engine.move_card(even_attack['instance_id'], 'hand', reason='review')
+    catch = {
+        'owner': owner, 'source': 'fp', 'allow_zones': ['hand'],
+        'max_speed': 9,
+    }
+    engine.engine_state.update({
+        'catch': copy.deepcopy(catch), 'catch_queue': [],
+        'granted_catches': [], 'catch_fp_history': [], 'step': 'catch',
+    })
+    engine._play_catch(owner, source['instance_id'])
+    engine._continue()
+    decision = copy.deepcopy(engine.engine_state.get('pending_decision'))
+    combo_at_choice = copy.deepcopy(engine.engine_state.get('combo') or {})
+    option_ids = [
+        str(option.get('id')) for option in (decision or {}).get('options') or []
+    ]
+    selected = option_ids[0] if option_ids else None
+    grace_at_choice = int(
+        engine.state['players'][owner]['passive_state']['hidden_bond']['count']
+    )
+    if decision and selected:
+        engine._submit_decision(owner, decision['id'], [selected])
+        engine._continue()
+    resolved_ids = [
+        (event.get('payload') or {}).get('ability_id')
+        for event in engine.events if event.get('type') == 'effect_resolved'
+    ]
+    return {
+        'execution_path': 'catch_pipeline',
+        'decision_kind': (decision or {}).get('kind'),
+        'decision_owner': (decision or {}).get('owner'),
+        'option_ids': option_ids,
+        'odd_ids': [card['instance_id'] for card in odd_cards],
+        'expected_option_ids': [odd_cards[0]['instance_id']],
+        'selected': selected,
+        'selected_zone': (
+            engine._find_location(selected)[1] if selected else None
+        ),
+        'grace_at_choice': grace_at_choice,
+        'grace_after_choice': int(
+            engine.state['players'][owner]['passive_state']['hidden_bond']['count']
+        ),
+        'combo_owner': combo_at_choice.get('owner'),
+        'combo_source': combo_at_choice.get('source'),
+        'combo_special': combo_at_choice.get('special'),
+        'combo_started': any(
+            event.get('type') == 'combo_started'
+            and (event.get('payload') or {}).get('source_card_instance_id')
+            == source['instance_id']
+            for event in engine.events
+        ),
+        'starter_resolution_count': resolved_ids.count('st6-005-n1'),
+        'after_use_resolution_count': resolved_ids.count('st6-005-n2'),
+        'pending': bool(engine.engine_state.get('pending_decision')),
+    }
+
+
 def _review_st6_005_definition(definition, card_snapshot, extra_root):
     if str((card_snapshot or {}).get('code') or '') != 'ST6-005':
         return None
@@ -36220,6 +36511,61 @@ def _review_st6_005_definition(definition, card_snapshot, extra_root):
             ),
             'deterministic': deterministic, **first,
         })
+    first = _run_st6_005_live_battle_scenario(
+        definition, card_snapshot, 'p1', grace=2,
+    )
+    second = _run_st6_005_live_battle_scenario(
+        definition, card_snapshot, 'p1', grace=2,
+    )
+    deterministic = _canonical(first) == _canonical(second)
+    starter_scenarios.append({
+        'name': 'live-battle-hit-reaches-printed-combo-choice',
+        'passed': bool(
+            deterministic
+            and first['result'] == {'p1': 'hit', 'p2': 'failed_defense'}
+            and {
+                'event': 'combo', 'controller': 'p1',
+                'combo_judgment': True,
+            } in first['trigger_sequence']
+            and first['decision_kind'] == 'effect_choice'
+            and first['decision_owner'] == 'p1'
+            and set(first['option_ids']) == set(first['odd_ids'])
+            and first['selected_zone'] == 'hand'
+            and first['grace_at_choice'] == 1
+            and first['grace_after_pipeline'] == 0
+            and first['starter_resolution_count'] == 1
+            and first['after_use_resolution_count'] == 1
+            and not first['pending']
+        ),
+        'deterministic': deterministic, **first,
+    })
+    first = _run_st6_005_live_catch_scenario(
+        definition, card_snapshot, 'p2', grace=3,
+    )
+    second = _run_st6_005_live_catch_scenario(
+        definition, card_snapshot, 'p2', grace=3,
+    )
+    deterministic = _canonical(first) == _canonical(second)
+    starter_scenarios.append({
+        'name': 'answered-ruling-catch-combo-starts-as-one-combo',
+        'passed': bool(
+            deterministic and first['execution_path'] == 'catch_pipeline'
+            and first['decision_kind'] == 'effect_choice'
+            and first['decision_owner'] == 'p2'
+            and set(first['option_ids']) == set(first['expected_option_ids'])
+            and first['selected_zone'] == 'hand'
+            and first['grace_at_choice'] == 1
+            and first['grace_after_choice'] == 1
+            and first['combo_owner'] == 'p2'
+            and first['combo_source'] == 'p2-bad-catcher'
+            and first['combo_special'] is False
+            and first['combo_started']
+            and first['starter_resolution_count'] == 1
+            and first['after_use_resolution_count'] == 1
+            and not first['pending']
+        ),
+        'deterministic': deterministic, **first,
+    })
     reviews.append(AbilityReview(
         starter['id'], all(item['passed'] for item in starter_scenarios),
         starter_scenarios,
@@ -53013,6 +53359,13 @@ def _review_lmi_at_036_definition(definition, card_snapshot, extra_root):
         'op': 'if', 'condition': copy.deepcopy(dark_condition),
         'then': 2, 'else': 1,
     }
+    damage_selector = {
+        'kind': 'card', 'player': {'controller': True},
+        'zones': ['hand'], 'min': required_count, 'max': required_count,
+        'where': {'is_technique': True},
+        'as_operation': 'break_card',
+        'include_operation_blocked': True,
+    }
     use_effects = (use or {}).get('effects') or []
     request = use_effects[0] if len(use_effects) == 1 else {}
     selector = request.get('selector') or {}
@@ -53034,20 +53387,22 @@ def _review_lmi_at_036_definition(definition, card_snapshot, extra_root):
             sorted((ability.get('source_refs') or {}).get('qna_ids') or [])
             == qna_ids for ability in abilities
         )
-        and definition.get('combo_rules') == [{
-            'ignore_damage_penalty': True,
-            'numbered_effect': True,
-            'condition': dark_low_hp,
-        }]
+        and definition.get('combo_rules') == [
+            {
+                'project_damage_from_selector': {
+                    'selector': damage_selector, 'field': 'damage',
+                },
+                'numbered_effect': True,
+            },
+            {
+                'ignore_damage_penalty': True,
+                'numbered_effect': True,
+                'condition': dark_low_hp,
+            },
+        ]
         and common(use, 'use') and not use.get('condition')
         and request.get('op') == 'request_choice'
-        and selector == {
-            'kind': 'card', 'player': {'controller': True},
-            'zones': ['hand'], 'min': required_count, 'max': required_count,
-            'where': {'is_technique': True},
-            'as_operation': 'break_card',
-            'include_operation_blocked': True,
-        }
+        and selector == damage_selector
         and [effect.get('op') for effect in then] == [
             'break_card', 'modify_stat', 'copy_clash_judgments',
         ]
@@ -55105,6 +55460,14 @@ def _review_lmi_at_044_definition(definition, card_snapshot, extra_root):
         and [
             option.get('id') for option in gain_effect.get('options') or []
         ] == ['yin_2', 'yang_2']
+        and (gain_effect.get('options') or [{}, {}])[0].get('effects') == [{
+            'op': 'change_counter', 'player': {'controller': True},
+            'counter': 'yin', 'amount': 2, 'min': 0, 'max': 4,
+        }]
+        and (gain_effect.get('options') or [{}, {}])[1].get('effects') == [{
+            'op': 'change_counter', 'player': {'controller': True},
+            'counter': 'yang', 'amount': 2, 'min': 0, 'max': 4,
+        }]
         and harmony_damage.get('mode') == 'continuous'
         and harmony_damage.get('condition') == harmony_condition
         and harmony_damage.get('effects') == [{
@@ -55153,15 +55516,16 @@ def _review_lmi_at_044_definition(definition, card_snapshot, extra_root):
         })
 
     gain_specs = (
-        ('owner-p1-chooses-two-yin', 'p1', 'hit', 'yin_2', (3, 1, True)),
-        ('owner-p2-chooses-two-yang', 'p2', 'hit', 'yang_2', (1, 3, True)),
-        ('qna-429-split-choice-is-not-offered', 'p1', 'hit', 'yin_2', (3, 1, True)),
-        ('counter-result-does-not-offer-hit-effect', 'p2', 'counter', None, (1, 1, False)),
+        ('owner-p1-chooses-two-yin', 'p1', 'hit', 'yin_2', 1, 1, (3, 1, True)),
+        ('owner-p2-chooses-two-yang', 'p2', 'hit', 'yang_2', 1, 1, (1, 3, True)),
+        ('qna-429-split-choice-is-not-offered', 'p1', 'hit', 'yin_2', 1, 1, (3, 1, True)),
+        ('counter-result-does-not-offer-hit-effect', 'p2', 'counter', None, 1, 1, (1, 1, False)),
+        ('counter-cap-four-is-enforced', 'p1', 'hit', 'yin_2', 3, 1, (4, 1, True)),
     )
     gain_scenarios = []
-    for name, owner, event_type, selected, expected in gain_specs:
+    for name, owner, event_type, selected, yin, yang, expected in gain_specs:
         kwargs = {
-            'event_type': event_type, 'yin': 1, 'yang': 1,
+            'event_type': event_type, 'yin': yin, 'yang': yang,
             'selected_option': selected,
         }
         first = _run_lmi_at_044_event_scenario(
@@ -56156,6 +56520,10 @@ def _review_wolf_pack_definition(definition, card_snapshot, extra_root):
         and (counter_effect.get('then') or [None, {}])[1].get('amount') == {
             'op': 'multiply', 'values': [100, selected_value],
         }
+        and (counter_effect.get('then') or [None, None, {}])[2] == {
+            'op': 'change_counter', 'player': {'controller': True},
+            'counter': 'yang', 'amount': 1, 'min': 0, 'max': 4,
+        }
         and combo_limit.get('kind') == 'function'
         and combo_limit.get('mode') == 'continuous'
         and combo_limit.get('trigger') is None
@@ -56213,6 +56581,10 @@ def _review_wolf_pack_definition(definition, card_snapshot, extra_root):
             'event_type': 'counter', 'yin': 1, 'yang': 1,
             'accept': True, 'amount': 1, 'with_bagua': True,
         }, (0, 2, 500, True)),
+        ('yang-counter-cap-four-is-enforced', 'p1', {
+            'event_type': 'hit', 'yin': 1, 'yang': 4,
+            'accept': True, 'amount': 1,
+        }, (0, 4, 400, True)),
     )
     for name, owner, kwargs, expected in counter_specs:
         first = _run_wolf_pack_counter_scenario(
@@ -58664,6 +59036,8 @@ def _review_dfr_at_006_definition(definition, card_snapshot, extra_root):
         and combo_end.get('mode') == 'optional'
         and combo_end.get('timing') == 'cleanup'
         and combo_end.get('trigger') == {'event': 'combo_end'}
+        and combo_end.get('active_zones') == ['battle']
+        and combo_end.get('requires_combo_use') is True
         and combo_end.get('condition') == zone_condition
         and combo_end.get('availability_selector') == token_selector
         and combo_end.get('effects') == combo_effects
@@ -62479,6 +62853,96 @@ def _run_dfr_at_018_replenish_scenario(
     }
 
 
+def _run_dfr_at_018_gaon_atomic_scenario(
+    definition, card_snapshot, owner,
+):
+    """Verify the answered Lucky Days/Gaon effect-unit timing ruling."""
+    (
+        engine, _source, _opposing, _lumen_tokens, side_tokens,
+        hand_cards, _wrong_token,
+    ) = _dfr_at_018_engine(
+        definition, card_snapshot, owner,
+        lumen_count=0, side_count=3, hand_count=6,
+    )
+    gaon = engine._find_card(side_tokens[0]['instance_id'])
+    gaon.update({
+        'code': 'ST4-SS3', 'name': '소원의 가온', 'kind': 'card',
+        'type': '특수', 'frame': None, 'damage': None, 'pos': None,
+        'body': '', 'special': None, 'hit': None, 'guard': None,
+        'counter': None, 'g_top': None, 'g_mid': None, 'g_bot': None,
+        'character_id': 5, 'character_key': 'kiss',
+        'token_key': 'calling_card', 'face_up': False,
+    })
+    gaon_text = (
+        '양쪽 공격 기술의 위치가 같으면 자신의 기술 속도가 3 증가한다.\n'
+        '자신의 패가 5장 이상이면 이 예고장을 사이드 덱으로 보낸다.'
+    )
+    from .drafts import build_effect_draft
+
+    engine.ruleset['cards']['ST4-SS3'] = {
+        **copy.deepcopy(gaon),
+        'effect_definition': build_effect_draft('ST4-SS3', gaon_text),
+    }
+
+    engine._fire('phase_start', {'controller': owner, 'phase': 'lumen'})
+    activation = copy.deepcopy(engine.engine_state.get('pending_decision'))
+    if activation:
+        engine._submit_decision(owner, activation['id'], ['accept'])
+        engine._continue()
+    selected_tokens = []
+    selected_discards = []
+    for _index in range(10):
+        decision = copy.deepcopy(engine.engine_state.get('pending_decision'))
+        if not decision:
+            break
+        option_ids = [
+            str(option.get('id'))
+            for option in decision.get('options') or []
+        ]
+        selected = option_ids[:int(decision.get('maximum') or 0)]
+        if 'Calling Card' in str(decision.get('prompt') or ''):
+            selected_tokens = selected
+        else:
+            selected_discards = selected
+        engine._submit_decision(owner, decision['id'], selected)
+        engine._continue()
+
+    relevant_ids = set(selected_tokens + selected_discards)
+    movement_order = [
+        str((event.get('payload') or {}).get('card_instance_id'))
+        for event in engine.events
+        if event.get('type') == 'card_moved'
+        and str((event.get('payload') or {}).get('card_instance_id'))
+        in relevant_ids
+    ]
+    return {
+        'activation_kind': (activation or {}).get('kind'),
+        'selected_token_count': len(selected_tokens),
+        'selected_discard_count': len(selected_discards),
+        'movement_order': movement_order,
+        'expected_movement_order': selected_tokens + selected_discards,
+        'gaon_zone': engine._find_location(gaon['instance_id'])[1],
+        'calling_lumen_count': sum(
+            card.get('token_key') == 'calling_card'
+            for card in engine._zone(owner, 'lumen')
+        ),
+        'hand_count': len(engine._zone(owner, 'hand')),
+        'gaon_return_resolution_count': sum(
+            event.get('type') == 'effect_resolved'
+            and (event.get('payload') or {}).get('ability_id')
+            == 'st4-ss3-hand-threshold-return'
+            for event in engine.events
+        ),
+        'lucky_resolution_count': sum(
+            event.get('type') == 'effect_resolved'
+            and (event.get('payload') or {}).get('ability_id')
+            == 'dfr-at-018-n1'
+            for event in engine.events
+        ),
+        'pending': bool(engine.engine_state.get('pending_decision')),
+    }
+
+
 def _run_dfr_at_018_limit_scenario(
     definition, card_snapshot, owner, *, source_zone='ultimate',
     negated=False, lumen_count=2, moves=2, non_calling=False,
@@ -62606,6 +63070,27 @@ def _review_dfr_at_018_definition(definition, card_snapshot, extra_root):
         'to_zone': 'lumen', 'max_zone_count': 3,
         'result_key': moved_key,
     }
+    move_and_discard = {
+        'op': 'sequence', 'defer_triggers': True,
+        'effects': [move_tokens, {
+            'op': 'conditional',
+            'condition': {
+                'op': 'equals',
+                'left': {
+                    'op': 'selection_count',
+                    'selection_key': moved_key,
+                },
+                'right': {
+                    'op': 'selection_count',
+                    'selection_key': token_key,
+                },
+            },
+            'then': [{
+                'op': 'discard', 'selection_key': discard_key,
+            }],
+            'else': [],
+        }],
+    }
     expected_replenish_effects = [{
         'op': 'request_choice', 'player': {'controller': True},
         'prompt': '루멘 존의 Calling Card가 3장이 되도록 선택하세요.',
@@ -62628,29 +63113,9 @@ def _review_dfr_at_018_definition(definition, card_snapshot, extra_root):
                     'as_operation': 'discard',
                 },
                 'selection_key': discard_key, 'default': [],
-                'then': [
-                    move_tokens,
-                    {
-                        'op': 'conditional',
-                        'condition': {
-                            'op': 'equals',
-                            'left': {
-                                'op': 'selection_count',
-                                'selection_key': moved_key,
-                            },
-                            'right': {
-                                'op': 'selection_count',
-                                'selection_key': token_key,
-                            },
-                        },
-                        'then': [{
-                            'op': 'discard', 'selection_key': discard_key,
-                        }],
-                        'else': [],
-                    },
-                ],
+                'then': [move_and_discard],
             }],
-            'else': [move_tokens],
+            'else': [move_and_discard],
         }],
     }]
     valid = bool(
@@ -62806,6 +63271,30 @@ def _review_dfr_at_018_definition(definition, card_snapshot, extra_root):
             ),
             'deterministic': deterministic, **first,
         })
+    first = _run_dfr_at_018_gaon_atomic_scenario(
+        definition, card_snapshot, 'p1',
+    )
+    second = _run_dfr_at_018_gaon_atomic_scenario(
+        definition, card_snapshot, 'p1',
+    )
+    deterministic = _canonical(first) == _canonical(second)
+    replenish_scenarios.append({
+        'name': 'answered-ruling-gaon-checks-after-lucky-days-completes',
+        'passed': bool(
+            deterministic
+            and first['activation_kind'] == 'optional_effect'
+            and first['selected_token_count'] == 3
+            and first['selected_discard_count'] == 2
+            and first['movement_order'] == first['expected_movement_order']
+            and first['gaon_zone'] == 'lumen'
+            and first['calling_lumen_count'] == 3
+            and first['hand_count'] == 4
+            and first['gaon_return_resolution_count'] == 0
+            and first['lucky_resolution_count'] == 1
+            and not first['pending']
+        ),
+        'deterministic': deterministic, **first,
+    })
     replenish_review = AbilityReview(
         replenish['id'], all(item['passed'] for item in replenish_scenarios),
         replenish_scenarios,
@@ -71601,7 +72090,7 @@ def _review_dfr_at_001_definition(definition, card_snapshot, extra_root):
         {
             'op': 'schedule',
             'when': {'event': 'combo_end', 'controller': 'self'},
-            'duration': 'battle',
+            'duration': 'battle', 'preserve_source': True,
             'effect': {
                 'op': 'break_card',
                 'card_instance_id': {
@@ -79046,6 +79535,14 @@ def _review_st3_ps1_definition(definition, card_snapshot, extra_root):
             },
         ],
     }
+    expected_own_event = {
+        'op': 'equals', 'left': 'context.event_controller',
+        'right': {'controller': True},
+    }
+    expected_owned_qualifier = {
+        'op': 'all',
+        'conditions': [expected_own_event, expected_qualifier],
+    }
     valid = bool(
         extra_root == {'trait_state_keys'}
         and definition.get('trait_state_keys') == ['down_stance']
@@ -79057,7 +79554,7 @@ def _review_st3_ps1_definition(definition, card_snapshot, extra_root):
             == qna_ids for ability in abilities
         )
         and gain and gain.get('trigger') == {'event': 'after_use'}
-        and gain.get('condition') == expected_qualifier
+        and gain.get('condition') == expected_owned_qualifier
         and gain.get('effects') == [{
             'op': 'gain_state', 'player': {'controller': True},
             'state': 'down_stance',
@@ -79080,6 +79577,7 @@ def _review_st3_ps1_definition(definition, card_snapshot, extra_root):
         and lose.get('condition') == {
             'op': 'all',
             'conditions': [
+                expected_own_event,
                 {
                     'op': 'card_matches',
                     'card': {'path': 'context.event_card'},
@@ -83991,7 +84489,7 @@ def _review_lmi_ps_001_definition(definition, card_snapshot, extra_root):
         and saintess.get('active_zones') == ['passive']
         and saintess.get('effects') == [{
             'op': 'gain_state', 'player': {'controller': True},
-            'state': 'saintess',
+            'state': 'saintess', 'label': '성녀',
         }]
         and bless and bless.get('trigger') == {'event': 'phase_start'}
         and bless.get('condition') == {'op': 'phase_is', 'phase': 'lumen'}
@@ -109539,6 +110037,7 @@ def _review_rfs_at_001_definition(definition, card_snapshot, extra_root):
         and cleanup.get('kind') == 'effect'
         and cleanup.get('mode') == 'mandatory'
         and cleanup.get('trigger') == {'event': 'battle_end'}
+        and cleanup.get('active_zones') == ['battle']
         and not cleanup.get('condition')
         and cleanup.get('effects') == cleanup_effects
     )
@@ -109819,8 +110318,19 @@ def _run_rfs_at_002_function_scenario(
     other = 'p2' if owner == 'p1' else 'p1'
     opponent_live = engine.state['players'][other]['zones']['battle'].pop(0)
     engine.state['players'][other]['zones']['hand'] = [opponent_live]
+    same_owner_other = copy.deepcopy(opponent_live)
+    same_owner_other.update({
+        'instance_id': f'{owner}-other-ready-technique',
+        'owner': owner,
+    })
+    engine.state['players'][owner]['zones']['hand'].append(
+        same_owner_other,
+    )
     live_source = engine._find_card(source['instance_id'])
     live_opposing = engine._find_card(opposing['instance_id'])
+    live_same_owner_other = engine._find_card(
+        same_owner_other['instance_id'],
+    )
     engine._refresh_continuous_rules()
     limit = int(definition.get('deck_limit') or 0)
     return {
@@ -109830,6 +110340,9 @@ def _run_rfs_at_002_function_scenario(
         'ready_allowed': engine._legal_ready_card(live_source),
         'combo_allowed': engine._card_use_allowed(
             live_source, owner, 'combo',
+        ),
+        'same_owner_other_ready_allowed': engine._legal_ready_card(
+            live_same_owner_other,
         ),
         'opponent_ready_allowed': engine._legal_ready_card(live_opposing),
         'pending': bool(engine.engine_state.get('pending_decision')),
@@ -109941,13 +110454,16 @@ def _review_rfs_at_002_definition(definition, card_snapshot, extra_root):
             {
                 'op': 'prevent', 'kind': 'ready',
                 'player': {'controller': True},
+                'where': {'code': 'RFS-AT-002'},
                 'duration': 'continuous',
             },
         ]
-        and lumen_catch.get('kind') == 'effect'
-        and lumen_catch.get('mode') == 'mandatory'
-        and lumen_catch.get('trigger') == {'event': 'catch'}
-        and lumen_catch.get('active_zones') == ['lumen']
+        and lumen_catch.get('kind') == 'function'
+        and lumen_catch.get('mode') == 'continuous'
+        and lumen_catch.get('timing') == 'function'
+        and not lumen_catch.get('trigger')
+        and not lumen_catch.get('condition')
+        and not lumen_catch.get('active_zones')
         and lumen_catch.get('effects') == [{
             'op': 'static_rule', 'rules': ['catch_rules'],
         }]
@@ -109986,6 +110502,7 @@ def _review_rfs_at_002_definition(definition, card_snapshot, extra_root):
                 and first['deck_count_allowed'] is expected_deck
                 and first['ready_allowed'] is False
                 and first['combo_allowed'] is True
+                and first['same_owner_other_ready_allowed'] is True
                 and first['opponent_ready_allowed'] is True
                 and not first['pending']
             ),
@@ -116065,6 +116582,7 @@ def _review_rfs_at_035_definition(definition, card_snapshot, extra_root):
         and get_lock.get('mode') == 'mandatory'
         and get_lock.get('active_zones') == ['battle']
         and get_lock.get('trigger') == {'event': 'combo_end'}
+        and get_lock.get('requires_combo_use') is True
         and get_lock.get('effects') == lock_effects
     )
     if not valid:
@@ -116234,7 +116752,7 @@ def _rfs_at_038_source(card_snapshot, owner, *, negated=False):
 
 def _run_rfs_at_038_scenario(
     definition, card_snapshot, owner, *, ability_id,
-    source_zone, event_type='clash', negated=False,
+    source_zone, event_type='clash', negated=False, event_controller=None,
 ):
     other = 'p2' if owner == 'p1' else 'p1'
     source = _rfs_at_038_source(card_snapshot, owner, negated=negated)
@@ -116275,12 +116793,12 @@ def _run_rfs_at_038_scenario(
         },
         seed=(
             f'memorized-etiquette:{ability_id}:{owner}:{source_zone}:'
-            f'{event_type}:{negated}'
+            f'{event_type}:{negated}:{event_controller or owner}'
         ),
         now=datetime(2026, 8, 20, tzinfo=timezone.utc),
     )
     engine._fire(event_type, {
-        'controller': owner,
+        'controller': event_controller or owner,
         'source_card_instance_id': event_card['instance_id'],
         'source_card': engine._find_card(event_card['instance_id']),
         'opponent_card': engine._find_card(opposing['instance_id']),
@@ -116305,6 +116823,11 @@ def _review_rfs_at_038_definition(definition, card_snapshot, extra_root):
     by_id = {ability.get('id'): ability for ability in abilities}
     deploy = by_id.get('rfs-at-038-n1')
     punish = by_id.get('rfs-at-038-n2')
+    own_clash = {
+        'op': 'equals',
+        'left': 'context.event_controller',
+        'right': {'controller': True},
+    }
     valid = bool(
         extra_root == set() and len(abilities) == 2 and deploy and punish
         and not (definition.get('source_refs') or {}).get('qna_ids')
@@ -116312,6 +116835,7 @@ def _review_rfs_at_038_definition(definition, card_snapshot, extra_root):
         and deploy.get('mode') == 'mandatory'
         and deploy.get('active_zones') == ['list']
         and deploy.get('trigger') == {'event': 'clash'}
+        and deploy.get('condition') == own_clash
         and deploy.get('effects') == [{
             'op': 'move_card', 'to_zone': 'lumen',
         }]
@@ -116319,6 +116843,7 @@ def _review_rfs_at_038_definition(definition, card_snapshot, extra_root):
         and punish.get('mode') == 'mandatory'
         and punish.get('active_zones') == ['lumen']
         and punish.get('trigger') == {'event': 'clash'}
+        and punish.get('condition') == own_clash
         and punish.get('effects') == [
             {
                 'op': 'deal_damage',
@@ -116340,34 +116865,39 @@ def _review_rfs_at_038_definition(definition, card_snapshot, extra_root):
     reviews = []
     for ability_id, specs in (
         ('rfs-at-038-n1', (
-            ('owner-p1-list-clash-moves-to-lumen', 'p1', 'list', 'clash', False, 'lumen', 0, True),
-            ('owner-p2-list-clash-moves-to-lumen', 'p2', 'list', 'clash', False, 'lumen', 0, True),
-            ('source-in-hand-does-not-trigger', 'p1', 'hand', 'clash', False, 'hand', 0, False),
-            ('wrong-event-does-not-trigger', 'p2', 'list', 'guard', False, 'list', 0, False),
-            ('numbered-negation-does-not-trigger', 'p1', 'list', 'clash', True, 'list', 0, False),
+            ('owner-p1-list-clash-moves-to-lumen', 'p1', 'list', 'clash', False, 'lumen', 0, True, 'p1'),
+            ('owner-p2-list-clash-moves-to-lumen', 'p2', 'list', 'clash', False, 'lumen', 0, True, 'p2'),
+            ('opponent-clash-does-not-deploy', 'p1', 'list', 'clash', False, 'list', 0, False, 'p2'),
+            ('source-in-hand-does-not-trigger', 'p1', 'hand', 'clash', False, 'hand', 0, False, 'p1'),
+            ('wrong-event-does-not-trigger', 'p2', 'list', 'guard', False, 'list', 0, False, 'p2'),
+            ('numbered-negation-does-not-trigger', 'p1', 'list', 'clash', True, 'list', 0, False, 'p1'),
         )),
         ('rfs-at-038-n2', (
-            ('owner-p1-lumen-clash-damages-and-returns', 'p1', 'lumen', 'clash', False, 'list', 400, True),
-            ('owner-p2-lumen-clash-damages-and-returns', 'p2', 'lumen', 'clash', False, 'list', 400, True),
-            ('source-in-list-does-not-trigger-second-effect', 'p1', 'list', 'clash', False, 'list', 0, False),
-            ('wrong-event-does-not-trigger', 'p2', 'lumen', 'hit', False, 'lumen', 0, False),
-            ('numbered-negation-does-not-trigger', 'p1', 'lumen', 'clash', True, 'lumen', 0, False),
+            ('owner-p1-lumen-clash-damages-and-returns', 'p1', 'lumen', 'clash', False, 'list', 400, True, 'p1'),
+            ('owner-p2-lumen-clash-damages-and-returns', 'p2', 'lumen', 'clash', False, 'list', 400, True, 'p2'),
+            ('opponent-clash-does-not-punish', 'p1', 'lumen', 'clash', False, 'lumen', 0, False, 'p2'),
+            ('source-in-list-does-not-trigger-second-effect', 'p1', 'list', 'clash', False, 'list', 0, False, 'p1'),
+            ('wrong-event-does-not-trigger', 'p2', 'lumen', 'hit', False, 'lumen', 0, False, 'p2'),
+            ('numbered-negation-does-not-trigger', 'p1', 'lumen', 'clash', True, 'lumen', 0, False, 'p1'),
         )),
     ):
         scenarios = []
         for (
             name, owner, source_zone, event_type, negated,
             expected_zone, expected_damage, expected_resolved,
+            event_controller,
         ) in specs:
             first = _run_rfs_at_038_scenario(
                 definition, card_snapshot, owner,
                 ability_id=ability_id, source_zone=source_zone,
                 event_type=event_type, negated=negated,
+                event_controller=event_controller,
             )
             second = _run_rfs_at_038_scenario(
                 definition, card_snapshot, owner,
                 ability_id=ability_id, source_zone=source_zone,
                 event_type=event_type, negated=negated,
+                event_controller=event_controller,
             )
             deterministic = _canonical(first) == _canonical(second)
             scenarios.append({
@@ -120937,6 +121467,7 @@ def _review_cb03_at_002_definition(definition, card_snapshot, extra_root):
                 },
                 'to_zone': 'lumen', 'to_player': {'opponent': True},
                 'result_key': moved_key,
+                'continue_resolution': True,
             },
             {
                 'op': 'conditional',
@@ -130439,7 +130970,7 @@ def _run_cb03_at_012_unavoidable_scenario(
 def _run_cb03_at_012_recovery_scenario(
     definition, card_snapshot, owner, *, event_type='hit',
     source_zone='battle', negated=False, high_tension=True,
-    initial_fp=0,
+    initial_fp=0, followup_event_type=None,
 ):
     engine, source, opposing = _st2_battle_engine(
         definition, card_snapshot, owner, source_zone=source_zone,
@@ -130454,6 +130985,14 @@ def _run_cb03_at_012_recovery_scenario(
         'opponent_card': copy.deepcopy(opposing),
         'source_battle_card_only': True,
     })
+    if followup_event_type:
+        engine._fire(followup_event_type, {
+            'controller': owner,
+            'source_card_instance_id': source['instance_id'],
+            'source_card': copy.deepcopy(source),
+            'opponent_card': copy.deepcopy(opposing),
+            'source_battle_card_only': True,
+        })
     scheduled_before = len(engine.engine_state.get('scheduled') or [])
     engine.state['phase'] = 'recovery'
     engine._fire('phase_start', {'phase': 'recovery'})
@@ -130496,6 +131035,10 @@ def _review_cb03_at_012_definition(definition, card_snapshot, extra_root):
         and recovery.get('active_zones') == ['battle']
         and recovery.get('trigger') == {
             'event': 'hit', 'events': ['hit', 'counter', 'combo'],
+        }
+        and recovery.get('limit') == {
+            'scope': 'turn', 'max': 1,
+            'key': 'cb03-at-012-n1:usage',
         }
         and recovery.get('condition') == high_tension
         and recovery.get('effects') == [{
@@ -130556,6 +131099,10 @@ def _review_cb03_at_012_definition(definition, card_snapshot, extra_root):
                 'event_type': 'combo',
             }, {'fp': 5, 'scheduled_before_recovery': 1,
                 'resolved': 1}),
+            ('hit-then-combo-schedules-only-once', 'p2', {
+                'event_type': 'hit', 'followup_event_type': 'combo',
+            }, {'fp': 5, 'scheduled_before_recovery': 1,
+                'scheduled_after_recovery': 0, 'resolved': 1}),
             ('without-high-tension-does-not-schedule', 'p2', {
                 'high_tension': False,
             }, {'fp': 0, 'scheduled_before_recovery': 0,
@@ -134895,7 +135442,7 @@ def _crs_at_037_engine(
         'name': '디베르티스망 이전 콤보 기술',
         'type': '공격', 'frame': 5, 'damage': 500,
         'body': used_judgment if used_judgment in {'손', '발'} else None,
-        'hit': used_judgment, 'face_up': True,
+        'hit': '콤보', 'face_up': True,
     })
     opposing = _card(
         'REVIEW-CRS-AT-037-OPPONENT', other,
@@ -135084,7 +135631,7 @@ def _review_crs_at_037_definition(definition, card_snapshot, extra_root):
                 'op': 'modify_combo', 'player': {'controller': True},
                 'allow_zones': ['battle'], 'ignore_speed': True,
                 'after_source': True, 'exclude_source': True,
-                'where': {'judgment_contains_any': ['발', '손']},
+                'where': {'body': ['발', '손']},
                 'end_after_use': True,
                 'return_to_hand_after_use': True,
                 'duration': 'battle',
@@ -138828,7 +139375,7 @@ def _pmp_ps_001_expected_parts():
             {
                 'op': 'card_matches',
                 'card': {'path': 'context.event_card'},
-                'where': {'special_contains': '잔향'},
+                'where': {'body': '잔향'},
             },
             {'op': 'gt', 'left': 'context.amount', 'right': 0},
         ],
@@ -138897,7 +139444,7 @@ def _pmp_ps_001_engine(
     event_card = _card(event_code, event_owner, f'{event_owner}-event-card')
     event_card.update({
         'name': '잔향 검토 기술', 'type': '공격', 'frame': 6,
-        'damage': 300, 'body': '잔향', 'special': event_special,
+        'damage': 300, 'body': event_special, 'special': None,
         'face_up': True,
     })
     opposing = _card('REVIEW-PMP-PS-001-OPPONENT', other, f'{other}-opponent')
@@ -141530,7 +142077,10 @@ def _review_cb01_at_010_definition(definition, card_snapshot, extra_root):
         ('charge-third-combo-still-applies-200', 'p1', {'combo_number': 3}, True, False, 200, False),
         ('fourth-combo-without-charge-applies-300', 'p2', {'charge': False}, True, False, 100, False),
         ('numbered-negation-applies-fourth-combo-penalty', 'p1', {'numbered_effects_negated': True}, True, False, 100, False),
-        ('card-does-not-itself-extend-to-fourth-combo', 'p2', {'extension': False}, False, True, None, False),
+        # Combo Time has no core maximum.  The card does not need a separate
+        # extension in order to be the fourth card; only the normal speed and
+        # positive-damage legality checks apply.
+        ('unlimited-core-allows-fourth-without-extension', 'p2', {'extension': False}, True, True, 400, True),
     )
     for name, owner, kwargs, legal, ignored, damage, resolved in combo_specs:
         first = _run_cb01_at_010_combo_scenario(
@@ -144787,6 +145337,7 @@ def _review_pmp_at_007_definition(definition, card_snapshot, extra_root):
         and cleanup.get('timing') == 'cleanup'
         and cleanup.get('active_zones') == ['battle']
         and cleanup.get('trigger') == {'event': 'combo_end'}
+        and cleanup.get('requires_combo_use') is True
         and cleanup.get('condition') == {
             'op': 'all', 'conditions': [
                 copy.deepcopy(own_event),
@@ -146696,7 +147247,6 @@ def _review_cb01_at_001_definition(definition, card_snapshot, extra_root):
         and definition.get('defense_rules') == [{
             'position': '중단', 'judgment': 'dodge', 'max_speed': 12,
             'numbered_effect': True,
-            'condition': fp_disadvantage,
         }]
         and play and play.get('kind') == 'function'
         and play.get('mode') == 'continuous'
@@ -147898,7 +148448,7 @@ def _review_cb01_at_027_definition(definition, card_snapshot, extra_root):
         'prompt': '제거할 카운터를 선택하세요.', 'default': 'yin',
         'options': [
             {
-                'id': 'yin', 'label': 'Yin 카운터',
+                'id': 'yin', 'label': '음 카운터',
                 'condition': {
                     'op': 'counter_at_least',
                     'player': {'controller': True},
@@ -147924,7 +148474,7 @@ def _review_cb01_at_027_definition(definition, card_snapshot, extra_root):
                 ],
             },
             {
-                'id': 'yang', 'label': 'Yang 카운터',
+                'id': 'yang', 'label': '양 카운터',
                 'condition': {
                     'op': 'counter_at_least',
                     'player': {'controller': True},
@@ -149388,6 +149938,8 @@ def _review_crs_at_006_definition(definition, card_snapshot, extra_root):
         == ['break_card', 'conditional']
         and (combo.get('effects') or [{}])[0].get('result_key')
         == 'crs_at_006_self_broken'
+        and (combo.get('effects') or [{}])[0].get('continue_resolution')
+        is True
         and (((combo.get('effects') or [{}, {}])[1].get('then') or [{}])[0])
         == {
             'op': 'change_counter', 'player': {'controller': True},
@@ -151402,7 +151954,9 @@ def _run_pmp_at_046_reduction_scenario(
     )
     hp_before = engine.state['players'][owner]['hp']
     engine._fire(event_type, {
-        'controller': other, 'event_controller': other,
+        # Match ``AutomaticGameEngine._result_trigger_sequence``: an
+        # opponent-result event carries the affected side as controller.
+        'controller': owner, 'event_controller': owner,
         'source_card_instance_id': opposing['instance_id'],
         'source_card': copy.deepcopy(opposing),
         'opponent_card': copy.deepcopy(source),
@@ -151457,6 +152011,10 @@ def _review_pmp_at_046_definition(definition, card_snapshot, extra_root):
         and by_id['pmp-at-046-n2'].get('mode') == 'optional'
         and (by_id['pmp-at-046-n2'].get('effects') or [{}])[0].get('to_zone') == 'lumen'
         and by_id['pmp-at-046-n3'].get('active_zones') == ['lumen']
+        and by_id['pmp-at-046-n3'].get('condition') == {
+            'op': 'equals', 'left': 'context.event_controller',
+            'right': {'controller': True},
+        }
         and any(node.get('op') == 'schedule' and (node.get('when') or {}).get('event') == 'damage_before' for node in reduction_nodes)
         and any(node.get('op') == 'break_card' for node in reduction_nodes)
         and any(node.get('op') == 'replace' and node.get('kind') == 'damage' and node.get('amount') == 400 for node in reduction_nodes)
@@ -151919,7 +152477,7 @@ def _review_cb01_ps_001_definition(definition, card_snapshot, extra_root):
         and recovery_get.get('availability_selector') == selector
         and recovery_get.get('condition') == {
             'op': 'all', 'conditions': [
-                own_event, {'op': 'phase_is', 'phase': 'recovery'},
+                {'op': 'phase_is', 'phase': 'recovery'},
                 {
                     'op': 'zone_count',
                     'player': {'controller': True},
@@ -152086,9 +152644,9 @@ def _review_cb01_ps_001_definition(definition, card_snapshot, extra_root):
         ('wrong-phase-is-ineligible', 'p1', {
             'phase': 'ready',
         }, False, False, 0, False),
-        ('opponent-recovery-event-does-not-trigger', 'p1', {
+        ('global-recovery-event-is-not-controller-scoped', 'p1', {
             'event_controller': 'p2',
-        }, False, False, 0, False),
+        }, True, True, 1, True),
         ('no-list-technique-skips-the-option', 'p2', {
             'list_count': 0,
         }, False, False, 0, False),
@@ -152787,6 +153345,109 @@ def _run_cb01_at_020_scenario(
     }
 
 
+def _run_cb01_at_020_charm_order_scenario(
+    definition, card_snapshot, owner, *, first_ability_id,
+):
+    """Resolve Femme Fatale and Temptation in the player's chosen order."""
+    from .drafts import build_effect_draft
+
+    other = 'p2' if owner == 'p1' else 'p1'
+    source = _sandbox_source_snapshot(card_snapshot)
+    source.update({
+        'instance_id': f'{owner}-cb01-at-020-order', 'owner': owner,
+        'type': '특수', 'ultimate': True, 'face_up': True,
+    })
+    charm = _card('AWL-SP-003', owner, f'{owner}-awl-sp-003-order')
+    charm.update({
+        'name': '매혹', 'type': '특수', 'frame': None, 'damage': None,
+        'face_up': True,
+    })
+    opposing = _card(
+        'REVIEW-CB01-AT-020-ORDER-OPPONENT', other,
+        f'{other}-cb01-at-020-order-opponent',
+    )
+    state = _state(source, opposing, owner, source_zone='lumen')
+    state['phase'] = 'recovery'
+    state['players'][owner]['zones']['lumen'].append(copy.deepcopy(charm))
+    state['players'][owner]['passive_state']['hidden_bond'] = {
+        'count': 2, 'label': '은연',
+    }
+    charm_text = (
+        '①루멘 페이즈 시, [[token:hidden_bond]]카운터가 3개일 경우, '
+        '사이드 덱에서 루멘 존에 배치할 수 있다.\n'
+        '②이 특수기가 존재하는 동안 서로의 특성을 무효로 한다.\n'
+        '③리커버리 페이즈 시, [[token:hidden_bond]]카운터 1개를 소모한다. '
+        '[[token:hidden_bond]]카운터가 없다면 이 기술을 브레이크한다.'
+    )
+    charm_definition = build_effect_draft(
+        'AWL-SP-003', charm_text,
+        qna_ids=[139, 140, 143, 220, 225, 376, 383, 439, 564],
+    )
+    no_effect = _st1_001_no_effect_definition()
+    engine = AutomaticGameEngine(
+        state, {
+            'version': AUTOMATIC_SCENARIO_VERSION,
+            'cards': {
+                source['code']: {
+                    **copy.deepcopy(source),
+                    'effect_definition': copy.deepcopy(definition),
+                },
+                charm['code']: {
+                    **copy.deepcopy(charm),
+                    'effect_definition': charm_definition,
+                },
+                opposing['code']: {
+                    **copy.deepcopy(opposing),
+                    'effect_definition': no_effect,
+                },
+            },
+        },
+        seed=f'cb01-at-020-charm-order:{owner}:{first_ability_id}',
+        now=datetime(2026, 8, 27, tzinfo=timezone.utc),
+    )
+    engine._fire('phase_start', {'phase': 'recovery'})
+    decision_kinds = []
+    chosen_order = []
+    for _index in range(8):
+        decision = copy.deepcopy(engine.engine_state.get('pending_decision'))
+        if not decision:
+            break
+        decision_kinds.append(decision.get('kind'))
+        if decision.get('kind') != 'effect_order':
+            break
+        option = next((
+            candidate for candidate in decision.get('options') or []
+            if candidate.get('ability_id') == first_ability_id
+            and not chosen_order
+        ), (decision.get('options') or [{}])[0])
+        chosen_order.append(option.get('ability_id'))
+        engine._submit_decision(
+            owner, decision.get('id'), [option.get('id')],
+        )
+        engine._continue()
+    resolved_order = [
+        (event.get('payload') or {}).get('ability_id')
+        for event in engine.events
+        if event.get('type') == 'effect_resolved'
+        and (event.get('payload') or {}).get('ability_id') in {
+            'cb01-at-020-n2-recovery',
+            'awl-sp-003-recovery-upkeep',
+        }
+    ]
+    return {
+        'decision_kinds': decision_kinds,
+        'chosen_order': chosen_order,
+        'resolved_order': resolved_order,
+        'hidden_bond': int(
+            engine.state['players'][owner]['passive_state']
+            ['hidden_bond']['count']
+        ),
+        'femme_zone': engine._find_location(source['instance_id'])[1],
+        'charm_zone': engine._find_location(charm['instance_id'])[1],
+        'pending': bool(engine.engine_state.get('pending_decision')),
+    }
+
+
 def _review_cb01_at_020_definition(definition, card_snapshot, extra_root):
     if str((card_snapshot or {}).get('code') or '') != 'CB01-AT-020':
         return None
@@ -152985,6 +153646,41 @@ def _review_cb01_at_020_definition(definition, card_snapshot, extra_root):
             'passed': bool(
                 deterministic and first['hidden_bond'] == counter
                 and first['resolved'] is resolved and not first['pending']
+            ),
+            'deterministic': deterministic, **first,
+        })
+    for name, first_ability_id, expected_charm_zone in (
+        (
+            'answered-ruling-charm-first-keeps-charm',
+            'awl-sp-003-recovery-upkeep', 'lumen',
+        ),
+        (
+            'answered-ruling-femme-first-breaks-charm',
+            'cb01-at-020-n2-recovery', 'break',
+        ),
+    ):
+        first = _run_cb01_at_020_charm_order_scenario(
+            definition, snapshot, 'p1',
+            first_ability_id=first_ability_id,
+        )
+        second = _run_cb01_at_020_charm_order_scenario(
+            definition, snapshot, 'p1',
+            first_ability_id=first_ability_id,
+        )
+        deterministic = _canonical(first) == _canonical(second)
+        recovery_scenarios.append({
+            'name': name,
+            'passed': bool(
+                deterministic and 'effect_order' in first['decision_kinds']
+                and first['resolved_order'][0] == first_ability_id
+                and set(first['resolved_order']) == {
+                    'awl-sp-003-recovery-upkeep',
+                    'cb01-at-020-n2-recovery',
+                }
+                and first['hidden_bond'] == 0
+                and first['femme_zone'] == 'lumen'
+                and first['charm_zone'] == expected_charm_zone
+                and not first['pending']
             ),
             'deterministic': deterministic, **first,
         })

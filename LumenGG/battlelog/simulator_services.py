@@ -1,5 +1,4 @@
 import copy
-import re
 import secrets
 import uuid
 from datetime import timedelta
@@ -23,6 +22,7 @@ from common.language import (
 )
 from common.localization import (
     render_localized_markup,
+    render_visible_markup,
     term_translation_key,
     translate_key,
     translation_source_exists,
@@ -81,35 +81,13 @@ YOHAN_DECLARATION_LABELS = {
 }
 
 
-UNRESOLVED_LOCALIZED_MARKUP_RE = re.compile(
-    r'\[\[(?:[^:\[\]]+:)?([^\[\]]+)\]\]'
-)
-
-
 def _localize_event_markup(value, language=DEFAULT_LANGUAGE):
     """Render semantic markup in player-visible event text.
 
-    Card text and generated effect labels can contain localization tokens such
-    as ``[[token:hidden_bond]]``. ``render_localized_markup`` resolves known
-    tokens; the final substitution also gives unknown or legacy tokens a
+    Shared rendering resolves known tokens and gives unknown legacy tokens a
     readable fallback so raw DSL notation never reaches the game log.
     """
-    if isinstance(value, dict):
-        return {
-            key: _localize_event_markup(item, language)
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [_localize_event_markup(item, language) for item in value]
-    if isinstance(value, tuple):
-        return tuple(_localize_event_markup(item, language) for item in value)
-    if not isinstance(value, str) or '[[' not in value:
-        return value
-    rendered = render_localized_markup(value, language)
-    return UNRESOLVED_LOCALIZED_MARKUP_RE.sub(
-        lambda match: match.group(1).strip().replace('_', ' '),
-        rendered,
-    )
+    return render_visible_markup(value, language)
 
 
 SIMULATOR_SIGNAL_LABELS = {

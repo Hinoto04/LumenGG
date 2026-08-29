@@ -593,7 +593,9 @@ def _marker_condition(text):
             },
             {
                 'op': 'card_matches', 'card': {'path': 'context.event_card'},
-                'where': {'special_contains': '잔향'},
+                # <잔향> is the technique's body/judgment mark in Card.body,
+                # not a special judgment such as dodge or grab.
+                'where': {'body': '잔향'},
             },
             {'op': 'gt', 'left': 'context.amount', 'right': 0},
         ])
@@ -6825,13 +6827,15 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 })
             elif ability.get('id') == 'pmp-at-009-n2':
                 ability.update({
-                    'active_zones': ['battle'], 'draft_compiled': True,
+                    'active_zones': ['battle'],
+                    'requires_combo_use': True, 'draft_compiled': True,
                     'effects': [{
                         'op': 'change_hp', 'player': {'controller': True},
                         'amount': {
                             'op': 'multiply',
                             'values': [
-                                100, {'path': 'context.combo_used_count'},
+                                100,
+                                {'path': 'context.combo_total_used_count'},
                             ],
                         },
                     }],
@@ -6995,7 +6999,8 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     }],
                 }
             ability.update({
-                'mode': 'optional', 'draft_compiled': True,
+                'mode': 'optional', 'active_zones': ['battle'],
+                'draft_compiled': True,
                 'effects': [{
                     'op': 'conditional',
                     'condition': {
@@ -7783,11 +7788,13 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'kind': 'effect', 'mode': 'mandatory',
                 'timing': 'combo', 'draft_compiled': True,
                 'trigger': {'event': 'combo'},
+                'condition': {
+                    'op': 'gte', 'left': 'context.combo_number', 'right': 4,
+                },
                 'effects': [{
                     'op': 'static_rule', 'rules': ['combo_rules'],
                 }],
             })
-            fourth_combo.pop('condition', None)
             fourth_combo.pop('active_zones', None)
     if normalized_code == 'AWL-AT-039':
         by_id = {ability.get('id'): ability for ability in abilities}
@@ -10078,7 +10085,6 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         definition['defense_rules'] = [{
             'position': '중단', 'judgment': 'dodge', 'max_speed': 12,
             'numbered_effect': True,
-            'condition': copy.deepcopy(fp_disadvantage),
         }]
         if cleanup:
             cleanup.update({
@@ -10396,12 +10402,12 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     {
                         'op': 'change_counter',
                         'player': {'controller': True},
-                        'counter': 'yin', 'amount': 2,
+                        'counter': 'yin', 'amount': 2, 'max': 4,
                     },
                     {
                         'op': 'change_counter',
                         'player': {'controller': True},
-                        'counter': 'yang', 'amount': 2,
+                        'counter': 'yang', 'amount': 2, 'max': 4,
                     },
                 ],
             })
@@ -11111,6 +11117,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'kind': 'effect', 'mode': 'mandatory',
                 'timing': 'cleanup', 'draft_compiled': True,
                 'trigger': {'event': 'battle_end'},
+                'active_zones': ['battle'],
                 'effects': [
                     {'op': 'break_card', 'result_key': broken_key},
                     {
@@ -11148,7 +11155,6 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 ],
             })
             battle_end.pop('condition', None)
-            battle_end.pop('active_zones', None)
     if normalized_code == 'RFS-AT-002':
         by_id = {ability.get('id'): ability for ability in abilities}
         function = by_id.get('rfs-at-002-function')
@@ -11167,6 +11173,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     {
                         'op': 'prevent', 'kind': 'ready',
                         'player': {'controller': True},
+                        'where': {'code': 'RFS-AT-002'},
                         'duration': 'continuous',
                     },
                 ],
@@ -11176,15 +11183,15 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             function.pop('active_zones', None)
         if lumen_catch:
             lumen_catch.update({
-                'kind': 'effect', 'mode': 'mandatory',
-                'timing': 'catch', 'draft_compiled': True,
-                'trigger': {'event': 'catch'},
-                'active_zones': ['lumen'],
+                'kind': 'function', 'mode': 'continuous',
+                'timing': 'function', 'draft_compiled': True,
                 'effects': [{
                     'op': 'static_rule', 'rules': ['catch_rules'],
                 }],
             })
+            lumen_catch.pop('trigger', None)
             lumen_catch.pop('condition', None)
+            lumen_catch.pop('active_zones', None)
         if after_use:
             moved_key = 'rfs_at_002_moved_to_side'
             after_use.update({
@@ -12138,6 +12145,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             get_lock.update({
                 'kind': 'effect', 'mode': 'mandatory',
                 'timing': 'cleanup', 'active_zones': ['battle'],
+                'requires_combo_use': True,
                 'draft_compiled': True,
                 'trigger': {'event': 'combo_end'},
                 'effects': [{
@@ -12150,6 +12158,11 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         by_id = {ability.get('id'): ability for ability in abilities}
         deploy = by_id.get('rfs-at-038-n1')
         punish = by_id.get('rfs-at-038-n2')
+        own_clash = {
+            'op': 'equals',
+            'left': 'context.event_controller',
+            'right': {'controller': True},
+        }
         if deploy:
             deploy.update({
                 'kind': 'effect', 'mode': 'mandatory',
@@ -12157,6 +12170,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'allow_non_source_trigger': True,
                 'draft_compiled': True,
                 'trigger': {'event': 'clash'},
+                'condition': copy.deepcopy(own_clash),
                 'effects': [{'op': 'move_card', 'to_zone': 'lumen'}],
             })
         if punish:
@@ -12165,6 +12179,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'timing': 'clash', 'active_zones': ['lumen'],
                 'draft_compiled': True,
                 'trigger': {'event': 'clash'},
+                'condition': copy.deepcopy(own_clash),
                 'effects': [
                     {
                         'op': 'deal_damage',
@@ -13063,6 +13078,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             combo_cleanup.update({
                 'kind': 'effect', 'mode': 'mandatory', 'timing': 'cleanup',
                 'active_zones': ['battle'],
+                'requires_combo_use': True,
                 'trigger': {'event': 'combo_end'},
                 'condition': {
                     'op': 'all', 'conditions': [
@@ -13228,6 +13244,10 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                         'to_zone': 'lumen',
                         'to_player': {'opponent': True},
                         'result_key': moved_key,
+                        # The card moves during the Catch hit window. Catch
+                        # damage and its later timing windows still resolve
+                        # from the captured card snapshot.
+                        'continue_resolution': True,
                     },
                     {
                         'op': 'conditional',
@@ -13864,6 +13884,10 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'mode': 'mandatory', 'active_zones': ['battle'],
                 'trigger': {
                     'event': 'hit', 'events': ['hit', 'counter', 'combo'],
+                },
+                'limit': {
+                    'scope': 'turn', 'max': 1,
+                    'key': 'cb03-at-012-n1:usage',
                 },
                 'draft_compiled': True,
             })
@@ -14719,8 +14743,9 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             'max': copy.deepcopy(missing_count),
             'as_operation': 'move_card', 'to_zone': 'lumen',
         }
-        move_selected_tokens = [
-            {
+        move_selected_tokens = [{
+            'op': 'sequence', 'defer_triggers': True,
+            'effects': [{
                 'op': 'move_card', 'selection_key': token_key,
                 'to_zone': 'lumen', 'max_zone_count': 3,
                 'result_key': moved_key,
@@ -14743,7 +14768,8 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 }],
                 'else': [],
             },
-        ]
+            ],
+        }]
         if replenish:
             replenish.update({
                 'kind': 'effect', 'mode': 'optional', 'timing': 'function',
@@ -15764,7 +15790,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     'default': 'yin',
                     'options': [
                         {
-                            'id': 'yin', 'label': 'Yin 카운터',
+                            'id': 'yin', 'label': '음 카운터',
                             'condition': {
                                 'op': 'counter_at_least', 'player': {'controller': True},
                                 'counter': 'yin', 'value': 1,
@@ -15786,7 +15812,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                             ],
                         },
                         {
-                            'id': 'yang', 'label': 'Yang 카운터',
+                            'id': 'yang', 'label': '양 카운터',
                             'condition': {
                                 'op': 'counter_at_least', 'player': {'controller': True},
                                 'counter': 'yang', 'value': 1,
@@ -15993,7 +16019,9 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             }
             combo_end.update({
                 'mode': 'optional', 'timing': 'cleanup',
-                'trigger': {'event': 'combo_end'}, 'draft_compiled': True,
+                'trigger': {'event': 'combo_end'},
+                'active_zones': ['battle'], 'requires_combo_use': True,
+                'draft_compiled': True,
                 'availability_selector': copy.deepcopy(token_selector),
                 'condition': _combine_conditions(
                     combo_end.get('condition'),
@@ -17144,6 +17172,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                             'op': 'change_counter',
                             'player': {'controller': True},
                             'counter': 'yang', 'amount': 1, 'min': 0,
+                            'max': 4,
                         },
                     ],
                 }],
@@ -19369,11 +19398,29 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         }
         selected_key = 'lmi_at_036_selected'
         broken_key = 'lmi_at_036_broken'
-        definition['combo_rules'] = [{
-            'ignore_damage_penalty': True,
-            'numbered_effect': True,
-            'condition': copy.deepcopy(dark_low_hp_condition),
-        }]
+        damage_selector = {
+            'kind': 'card', 'player': {'controller': True},
+            'zones': ['hand'],
+            'min': copy.deepcopy(required_count),
+            'max': copy.deepcopy(required_count),
+            'where': {'is_technique': True},
+            'as_operation': 'break_card',
+            'include_operation_blocked': True,
+        }
+        definition['combo_rules'] = [
+            {
+                'project_damage_from_selector': {
+                    'selector': copy.deepcopy(damage_selector),
+                    'field': 'damage',
+                },
+                'numbered_effect': True,
+            },
+            {
+                'ignore_damage_penalty': True,
+                'numbered_effect': True,
+                'condition': copy.deepcopy(dark_low_hp_condition),
+            },
+        ]
         abilities[:] = [
             {
                 'id': 'lmi-at-036-n1',
@@ -19397,15 +19444,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     'op': 'request_choice',
                     'player': {'controller': True},
                     'prompt': '브레이크할 패의 기술을 선택하세요.',
-                    'selector': {
-                        'kind': 'card', 'player': {'controller': True},
-                        'zones': ['hand'],
-                        'min': copy.deepcopy(required_count),
-                        'max': copy.deepcopy(required_count),
-                        'where': {'is_technique': True},
-                        'as_operation': 'break_card',
-                        'include_operation_blocked': True,
-                    },
+                    'selector': copy.deepcopy(damage_selector),
                     'selection_key': selected_key, 'default': [],
                     'then': [
                         {
@@ -19843,6 +19882,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                                 'op': 'change_counter',
                                 'player': {'controller': True},
                                 'counter': 'yin', 'amount': 2, 'min': 0,
+                                'max': 4,
                             }],
                         },
                         {
@@ -19851,6 +19891,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                                 'op': 'change_counter',
                                 'player': {'controller': True},
                                 'counter': 'yang', 'amount': 2, 'min': 0,
+                                'max': 4,
                             }],
                         },
                     ],
@@ -20458,7 +20499,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     {
                         'op': 'schedule',
                         'when': {'event': 'combo_end', 'controller': 'self'},
-                        'duration': 'battle',
+                        'duration': 'battle', 'preserve_source': True,
                         'effect': {
                             'op': 'break_card',
                             'card_instance_id': {
@@ -20487,7 +20528,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                             'op': 'modify_combo', 'player': {'controller': True},
                             'allow_zones': ['battle'], 'ignore_speed': True,
                             'after_source': True, 'exclude_source': True,
-                            'where': {'judgment_contains_any': ['발', '손']},
+                            'where': {'body': ['발', '손']},
                             'end_after_use': True,
                             'return_to_hand_after_use': True,
                             'duration': 'battle',
@@ -23508,7 +23549,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'condition': {
                     'op': 'zone_count',
                     'player': {'controller': True}, 'zone': 'lumen',
-                    'where': {'code': 'RFS-AT-001', 'face_up': True},
+                    'where': {'code': 'AWL-SP-001', 'face_up': True},
                     'min': 1,
                 },
                 'effects': [{
@@ -24477,10 +24518,17 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
 
         def legion_option(state_key, label):
             cooldown = f'legion_{state_key}_cooldown'
+            blessing_label = f'{label} 축복'
+            cooldown_label = f'{label} 재축복 제한'
             clear_blessings = [
                 {
                     'op': 'lose_state', 'player': {'controller': True},
                     'state': key,
+                    'label': {
+                        'guardian': '가디언 축복',
+                        'assassin': '어쌔신 축복',
+                        'paladin': '팔라딘 축복',
+                    }[key],
                 }
                 for key in ('guardian', 'assassin', 'paladin')
             ]
@@ -24498,11 +24546,12 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     *clear_blessings,
                     {
                         'op': 'gain_state', 'player': {'controller': True},
-                        'state': state_key,
+                        'state': state_key, 'label': blessing_label,
                     },
                     {
                         'op': 'set_counter', 'player': {'controller': True},
                         'counter': cooldown, 'value': 1, 'min': 0, 'max': 1,
+                        'label': cooldown_label,
                     },
                     {
                         'op': 'schedule', 'when': {'event': 'turn_end'},
@@ -24510,7 +24559,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                         'effect': {
                             'op': 'lose_state',
                             'player': {'controller': True},
-                            'state': state_key,
+                            'state': state_key, 'label': blessing_label,
                         },
                     },
                     {
@@ -24529,6 +24578,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                                 'player': {'controller': True},
                                 'counter': cooldown, 'value': 0,
                                 'min': 0, 'max': 1,
+                                'label': cooldown_label,
                             },
                         },
                     },
@@ -24564,7 +24614,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'trigger': {'event': 'game_start'},
                 'effects': [{
                     'op': 'gain_state', 'player': {'controller': True},
-                    'state': 'saintess',
+                    'state': 'saintess', 'label': '성녀',
                 }],
             },
             {
@@ -24728,6 +24778,10 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             or definition.get('source_refs') or {},
         )
         definition['trait_state_keys'] = ['down_stance']
+        own_technique_event = {
+            'op': 'equals', 'left': 'context.event_controller',
+            'right': {'controller': True},
+        }
         # Q&A 156: Down Stance observes the Technique's judgment after
         # Before-Judgment changes.  Deldmil therefore does not qualify after
         # its printed upper Dodge is replaced with middle Dodge.  The printed
@@ -24785,7 +24839,13 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'draft': True, 'draft_compiled': True,
                 'active_zones': ['passive'],
                 'trigger': {'event': 'after_use'},
-                'condition': copy.deepcopy(down_stance_technique),
+                'condition': {
+                    'op': 'all',
+                    'conditions': [
+                        copy.deepcopy(own_technique_event),
+                        copy.deepcopy(down_stance_technique),
+                    ],
+                },
                 'effects': [{
                     'op': 'gain_state', 'player': {'controller': True},
                     'state': 'down_stance',
@@ -24823,6 +24883,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'condition': {
                     'op': 'all',
                     'conditions': [
+                        copy.deepcopy(own_technique_event),
                         {
                             'op': 'card_matches',
                             'card': {'path': 'context.event_card'},
@@ -26480,11 +26541,13 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                                     'op': 'change_counter',
                                     'player': {'controller': True},
                                     'counter': 'yin', 'amount': 2,
+                                    'max': 4,
                                 },
                                 {
                                     'op': 'change_counter',
                                     'player': {'controller': True},
                                     'counter': 'yang', 'amount': 2,
+                                    'max': 4,
                                 },
                             ],
                         },
@@ -26648,7 +26711,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                         {
                             'op': 'card_matches',
                             'card': {'path': 'context.event_card'},
-                            'where': {'special_contains': '잔향'},
+                            'where': {'body': '잔향'},
                         },
                         {
                             'op': 'gt', 'left': 'context.amount', 'right': 0,
@@ -27800,7 +27863,6 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'trigger': {'event': 'phase_start'},
                 'condition': {
                     'op': 'all', 'conditions': [
-                        copy.deepcopy(own_event),
                         {'op': 'phase_is', 'phase': 'recovery'},
                         {
                             'op': 'zone_count',
@@ -29040,7 +29102,12 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     'event': 'opponent_hit',
                     'events': ['opponent_hit', 'opponent_counter'],
                 },
-                'condition': copy.deepcopy(opponent_event),
+                # The real result pipeline emits ``opponent_hit`` and
+                # ``opponent_counter`` from the affected side's result
+                # context.  For Ariadne that affected side is its owner;
+                # using ``opponent_event`` only worked in the old synthetic
+                # direct-event review and silently missed real battles.
+                'condition': copy.deepcopy(own_event),
                 'recheck_condition': True, 'draft_compiled': True,
                 'effects': [{
                     'op': 'schedule',
@@ -29358,6 +29425,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'effects': [
                     {
                         'op': 'break_card',
+                        'continue_resolution': True,
                         'result_key': broken_key,
                     },
                     {
@@ -30052,6 +30120,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                                 'op': 'gain_state',
                                 'player': {'controller': True},
                                 'state': 'mujin_active',
+                                'label': '무진 적용',
                             }],
                         },
                         {
@@ -30060,6 +30129,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                                 'op': 'gain_state',
                                 'player': {'controller': True},
                                 'state': 'mujin_declined',
+                                'label': '무진 미적용',
                             }],
                         },
                     ],

@@ -85,6 +85,9 @@ from .game.simulation import run_policy_game
 from .game.spec import RULEBOOK_SHA256
 from .game.training import TrainingResult, _evaluate_candidate
 from .management.commands.train_simulator_ai import Command as TrainSimulatorAICommand
+from .management.commands.audit_automatic_characters import (
+    _browser_evidence_for_codes,
+)
 from .management.console import console_safe_json
 from .models import AutomaticIssueReport, LumenSimulatorSession, RulesetRelease, SimulatorAIPolicy
 from .routing import websocket_urlpatterns
@@ -170,6 +173,34 @@ def damage_limited_choice_definition(code='DAMAGE-LIMITED-CHOICE-REVIEW'):
 
 
 class AutomaticEngineTests(SimpleTestCase):
+    def test_character_audit_requires_current_card_level_browser_evidence(self):
+        markdown = '''
+## 비올라
+
+- `ST6-PS1`은 실제 콤보에서 브라우저로 확인했다.
+
+| 카드 | 경로 | 상태 |
+|---|---|---|
+| ST6-001 | 실제 배틀 | 브라우저 확인 |
+| ST6-005 | 캐치 수정 | 기존 브라우저 확인; 수정 후 재확인 대기 |
+| ST6-006 | 실제 콤보 | 완료; 결함 수정 |
+
+## 타오
+
+| UNC-AT-001 | 실제 배틀 | 완료 |
+'''
+        result = _browser_evidence_for_codes(
+            markdown, '비올라',
+            {'ST6-PS1', 'ST6-001', 'ST6-005', 'ST6-006', 'ST6-999'},
+        )
+
+        self.assertTrue(result['section_found'])
+        self.assertEqual(
+            result['verified'], {'ST6-PS1', 'ST6-001', 'ST6-006'},
+        )
+        self.assertEqual(result['recheck'], {'ST6-005'})
+        self.assertEqual(result['missing'], {'ST6-999'})
+
     def test_console_json_escapes_only_glyphs_unsupported_by_windows_console(self):
         stream = SimpleNamespace(_out=SimpleNamespace(encoding='cp949'))
 
@@ -177,6 +208,108 @@ class AutomaticEngineTests(SimpleTestCase):
 
         self.assertIn('\\u2022', rendered)
         self.assertIn('한글', rendered)
+
+    def test_character_audit_supplements_respect_lumen_zone_limit(self):
+        from .management.commands.audit_automatic_characters import (
+            _apply_supplement_synergy_fixture,
+        )
+
+        trait_definition = {
+            'deck_rules': {'supplements': [{
+                'where': {'token_key': 'calling_card'}, 'max_count': 3,
+            }]},
+            'zone_limits': [{
+                'zone': 'lumen', 'max': 1,
+                'where': {'token_key': 'calling_card'},
+            }],
+        }
+        rows = [{
+            'code': 'ST4-PS1', 'character_id': 5, 'type': '특성',
+        }] + [{
+            'code': f'ST4-SS{index}', 'character_id': 5, 'type': '특수',
+        } for index in range(1, 4)]
+        cards = {
+            'ST4-PS1': {'effect_definition': trait_definition},
+            **{
+                f'ST4-SS{index}': {
+                    'code': f'ST4-SS{index}', 'type': '특수',
+                    'effect_definition': {'token_key': 'calling_card'},
+                }
+                for index in range(1, 4)
+            },
+        }
+        state = {'players': {
+            side: {'zones': {
+                'hand': [], 'list': [], 'side': [], 'lumen': [],
+            }}
+            for side in ('p1', 'p2')
+        }}
+
+        fixtures = _apply_supplement_synergy_fixture(
+            state, 5, rows, {'cards': cards},
+        )
+
+        self.assertEqual(len(state['players']['p1']['zones']['lumen']), 1)
+        self.assertEqual(len(state['players']['p2']['zones']['lumen']), 1)
+        self.assertTrue(all(len(item['placed_codes']) == 1 for item in fixtures))
+
+    def test_lucky_days_extends_calling_card_zone_limit_from_one_to_three(self):
+        trait = attack('kiss-trait', 'p1', code='ST4-PS1')
+        trait.update({'type': '특성', 'face_up': True})
+        ultimate = attack('lucky-days', 'p1', code='DFR-AT-018')
+        ultimate.update({'type': '특수', 'face_up': True})
+        calling_cards = [
+            attack(f'calling-{index}', 'p1', code=f'ST4-SS{index}')
+            for index in range(1, 5)
+        ]
+        for card in calling_cards:
+            card.update({'type': '특수', 'token_key': 'calling_card'})
+        state = base_state(calling_cards)
+        state['players']['p1']['zones']['passive'] = [trait]
+        state['players']['p1']['zones']['ultimate'] = [ultimate]
+        release = ruleset(trait, ultimate, *calling_cards)
+        trait_limit = {
+            'zone': 'lumen', 'max': 1,
+            'where': {'token_key': 'calling_card'},
+        }
+        ultimate_limit = {**copy.deepcopy(trait_limit), 'max': 3}
+        release['cards']['ST4-PS1']['effect_definition'] = {
+            'schema_version': 1, 'zone_limits': [trait_limit],
+            'abilities': [{
+                'id': 'kiss-calling-limit', 'kind': 'effect',
+                'mode': 'continuous', 'timing': 'function',
+                'active_zones': ['passive'],
+                'effects': [{'op': 'static_rule', 'rules': ['zone_limits']}],
+            }],
+        }
+        release['cards']['DFR-AT-018']['effect_definition'] = {
+            'schema_version': 1, 'zone_limits': [ultimate_limit],
+            'abilities': [{
+                'id': 'lucky-days-calling-limit', 'kind': 'effect',
+                'mode': 'continuous', 'timing': 'function',
+                'active_zones': ['ultimate'],
+                'effects': [{'op': 'static_rule', 'rules': ['zone_limits']}],
+            }],
+        }
+        for card in calling_cards:
+            release['cards'][card['code']].update({
+                'token_key': 'calling_card',
+                'effect_definition': {
+                    'schema_version': 1, 'token_key': 'calling_card',
+                    'abilities': [],
+                },
+            })
+        engine = AutomaticGameEngine.initialize(
+            state, release,
+            now=datetime(2026, 8, 17, tzinfo=timezone.utc), seed='lucky-days',
+        )
+
+        for card in calling_cards[:3]:
+            self.assertIsNotNone(engine.move_card(card['instance_id'], 'lumen'))
+        self.assertIsNone(engine.move_card(calling_cards[3]['instance_id'], 'lumen'))
+        self.assertEqual(
+            len(engine.state['players']['p1']['zones']['lumen']), 3,
+        )
 
     def test_effect_schema_accepts_general_qna_and_rejects_invalid_ids(self):
         definition = {
@@ -251,6 +384,7 @@ class AutomaticEngineTests(SimpleTestCase):
         static_root = Path(__file__).resolve().parents[1] / 'static' / 'v2'
         desktop = (static_root / 'lumen-simulator.js').read_text(encoding='utf-8')
         mobile = (static_root / 'lumen-simulator-mobile.js').read_text(encoding='utf-8')
+        sandbox = (static_root / 'card-effect-sandbox.js').read_text(encoding='utf-8')
         mobile_css = (static_root / 'lumen-simulator-mobile.css').read_text(encoding='utf-8')
 
         for script in (desktop, mobile):
@@ -261,6 +395,9 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertNotIn(
             '.v2-mobile-passive-native.is-counter > span {\n    display: none;',
             mobile_css,
+        )
+        self.assertIn(
+            '? `${label}: ${value.count}`', sandbox,
         )
 
     def act(self, engine, role, action_type, selections=None):
@@ -472,6 +609,243 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(engine.state['phase'], 'get')
         self.assertIn('p1-a', [card['instance_id'] for card in engine.state['players']['p1']['zones']['hand']])
         self.assertIn('p2-a', [card['instance_id'] for card in engine.state['players']['p2']['zones']['hand']])
+
+    def test_real_guard_event_exposes_opponent_damage_to_effect_conditions(self):
+        switch = defense(
+            'switch', 'p1', top='방어', mid='방어', bottom=None,
+        )
+        switch.update({'code': 'UNC-AT-028', 'name': '스위치!'})
+        attacker = attack(
+            'six-hundred-attack', 'p2', frame=8, damage=600,
+            position='상단',
+        )
+        release = ruleset(switch, attacker)
+        release['cards']['UNC-AT-028']['effect_definition'] = {
+            'schema_version': 1,
+            'abilities': [{
+                'id': 'unc-at-028-n2',
+                'kind': 'effect', 'mode': 'mandatory',
+                'timing': 'guard', 'visibility': 'public',
+                'trigger': {'event': 'guard'},
+                'condition': {
+                    'op': 'gte', 'left': 'context.opponent_damage',
+                    'right': 600,
+                },
+                'effects': [{'op': 'break_card'}],
+            }],
+        }
+        engine = AutomaticGameEngine.initialize(
+            base_state([switch], [attacker]), release,
+            now=datetime(2026, 8, 17, tzinfo=timezone.utc),
+            seed='guard-opponent-damage-context',
+        )
+
+        self.ready_both(engine)
+
+        self.assertIn(
+            'switch', {
+                card['instance_id']
+                for card in engine.state['players']['p1']['zones']['break']
+            },
+        )
+        resolved = [
+            event for event in engine.events
+            if event['type'] == 'effect_resolved'
+            and event['payload'].get('ability_id') == 'unc-at-028-n2'
+        ]
+        self.assertEqual(len(resolved), 1)
+
+    def test_real_guard_advance_notice_replaces_break_and_resets_both_fp(self):
+        switch = defense(
+            'notice-switch', 'p1', top='방어', mid='방어', bottom=None,
+        )
+        switch.update({'code': 'UNC-AT-028', 'name': '스위치!'})
+        attacker = attack(
+            'notice-six-hundred-attack', 'p2', frame=8, damage=600,
+            position='상단',
+        )
+        attacker['guard'] = '-3'
+        release = ruleset(switch, attacker)
+        release['cards']['UNC-AT-028']['effect_definition'] = {
+            'schema_version': 1,
+            'abilities': [
+                {
+                    'id': 'unc-at-028-n2',
+                    'kind': 'effect', 'mode': 'mandatory',
+                    'timing': 'guard', 'visibility': 'public',
+                    'trigger': {'event': 'guard'},
+                    'condition': {
+                        'op': 'all',
+                        'conditions': [
+                            {
+                                'op': 'gte',
+                                'left': 'context.opponent_damage',
+                                'right': 600,
+                            },
+                            {
+                                'op': 'not',
+                                'condition': {
+                                    'op': 'has_state',
+                                    'player': {'controller': True},
+                                    'state': 'advance_notice',
+                                },
+                            },
+                        ],
+                    },
+                    'effects': [{'op': 'break_card'}],
+                },
+                {
+                    'id': 'unc-at-028-n3',
+                    'kind': 'effect', 'mode': 'mandatory',
+                    'timing': 'guard', 'visibility': 'public',
+                    'trigger': {'event': 'guard'},
+                    'condition': {
+                        'op': 'has_state',
+                        'player': {'controller': True},
+                        'state': 'advance_notice',
+                    },
+                    'effects': [
+                        {
+                            'op': 'conditional',
+                            'condition': {
+                                'op': 'gte',
+                                'left': 'context.opponent_damage',
+                                'right': 600,
+                            },
+                            'then': [
+                                {
+                                    'op': 'break_card',
+                                    'result_key': 'notice_self_broken',
+                                },
+                                {
+                                    'op': 'conditional',
+                                    'condition': {
+                                        'op': 'gte',
+                                        'left': {
+                                            'op': 'selection_count',
+                                            'selection_key': 'notice_self_broken',
+                                        },
+                                        'right': 1,
+                                    },
+                                    'then': [{
+                                        'op': 'deal_damage',
+                                        'player': {'opponent': True},
+                                        'amount': 500,
+                                    }],
+                                    'else': [],
+                                },
+                            ],
+                            'else': [],
+                        },
+                        {
+                            'op': 'schedule',
+                            'when': {
+                                'event': 'after_use',
+                                'controller': 'self',
+                            },
+                            'duration': 'battle',
+                            'effect': {
+                                'op': 'sequence',
+                                'effects': [
+                                    {
+                                        'op': 'reset_fp',
+                                        'player': {'controller': True},
+                                    },
+                                    {
+                                        'op': 'reset_fp',
+                                        'player': {'opponent': True},
+                                    },
+                                ],
+                            },
+                        },
+                    ],
+                },
+            ],
+        }
+        state = base_state([switch], [attacker], p1_fp=2, p2_fp=0)
+        state['players']['p1']['passive_state']['advance_notice'] = {
+            'value': True,
+        }
+        engine = AutomaticGameEngine.initialize(
+            state, release,
+            now=datetime(2026, 8, 17, tzinfo=timezone.utc),
+            seed='guard-advance-notice-replacement',
+        )
+
+        self.ready_both(engine)
+
+        self.assertIn(
+            'notice-switch', {
+                card['instance_id']
+                for card in engine.state['players']['p1']['zones']['break']
+            },
+        )
+        self.assertEqual(engine.state['players']['p2']['hp'], 4500)
+        self.assertEqual(engine.state['players']['p1']['fp'], 0)
+        self.assertEqual(engine.state['players']['p2']['fp'], 0)
+        resolved_ids = [
+            event['payload'].get('ability_id')
+            for event in engine.events
+            if event['type'] == 'effect_resolved'
+        ]
+        self.assertIn('unc-at-028-n3', resolved_ids)
+        self.assertNotIn('unc-at-028-n2', resolved_ids)
+
+    def test_real_clash_event_exposes_opponent_damage_to_effect_conditions(self):
+        guard_palm = attack(
+            'guard-palm', 'p1', code='UNC-AT-004', frame=8,
+            damage=200, position='중단', special='중단 상쇄', hit='1',
+        )
+        opposing = attack(
+            'guard-palm-opponent', 'p2', frame=7, damage=400,
+            position='중단', hit='1',
+        )
+        release = ruleset(guard_palm, opposing)
+        release['cards']['UNC-AT-004']['effect_definition'] = {
+            'schema_version': 1,
+            'abilities': [{
+                'id': 'unc-at-004-n1',
+                'kind': 'effect', 'mode': 'mandatory',
+                'timing': 'clash', 'visibility': 'public',
+                'trigger': {'event': 'clash'},
+                'active_zones': ['battle'],
+                'condition': {
+                    'op': 'lte', 'left': 'context.opponent_damage',
+                    'right': 400,
+                },
+                'effects': [{
+                    'op': 'modify_judgment',
+                    'player': {'controller': True},
+                    'field': 'hit', 'value': '콤보',
+                }],
+            }],
+        }
+        engine = AutomaticGameEngine.initialize(
+            base_state([guard_palm], [opposing]), release,
+            now=datetime(2026, 8, 17, tzinfo=timezone.utc),
+            seed='clash-opponent-damage-context',
+        )
+
+        self.ready_both(engine)
+
+        judged = next(
+            event for event in engine.events
+            if event['type'] == 'battle_judged'
+        )
+        self.assertEqual(judged['payload']['result'], {
+            'p1': 'clash', 'p2': 'clash',
+        })
+        self.assertTrue(any(
+            event['type'] == 'effect_resolved'
+            and event['payload'].get('ability_id') == 'unc-at-004-n1'
+            for event in engine.events
+        ))
+        self.assertTrue(any(
+            event['type'] == 'combo_skipped'
+            and event['payload'].get('reason')
+            == 'normal_combo_requires_two_cards'
+            for event in engine.events
+        ))
 
     def test_actionless_lumen_and_recovery_phases_advance_automatically(self):
         p1 = attack('p1-auto', 'p1')
@@ -1583,6 +1957,11 @@ class AutomaticEngineTests(SimpleTestCase):
 
         self.assertTrue(result.completed, result.error)
         self.assertIn(result.winner, ('p1', 'p2'))
+        self.assertTrue(result.coverage)
+        self.assertGreater(
+            result.coverage['event_counts'].get('battle_revealed', 0), 0,
+        )
+        self.assertTrue(result.coverage['used_card_codes'])
 
     def test_policy_self_play_quarantines_effect_resolution_error(self):
         card = attack('broken-effect', 'p1')
@@ -2145,6 +2524,2070 @@ class AutomaticEngineTests(SimpleTestCase):
             for event in engine.events
             if event.get('type') == 'combo_card_used'
         ], [equal['instance_id'], rising['instance_id']])
+
+    def test_normal_combo_start_exposes_one_combo_to_lumen_effects(self):
+        starter = attack(
+            'combo-context-starter', 'p1', frame=5, hit='콤보',
+        )
+        opposing = attack('combo-context-opposing', 'p2', frame=8)
+        support = attack(
+            'combo-context-support', 'p1', code='COMBO-CONTEXT-SUPPORT',
+        )
+        support.update({'type': '특수', 'face_up': True})
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [starter]
+        state['players']['p1']['zones']['lumen'] = [support]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        release = ruleset(starter, opposing, support)
+        release['cards'][support['code']]['effect_definition'] = {
+            'schema_version': 1,
+            'abilities': [{
+                'id': 'one-combo-lumen-reaction',
+                'kind': 'effect', 'mode': 'mandatory', 'timing': 'combo',
+                'active_zones': ['lumen'],
+                'trigger': {'event': 'combo'},
+                'condition': {
+                    'op': 'all', 'conditions': [{
+                        'op': 'equals',
+                        'left': 'context.event_controller',
+                        'right': {'controller': True},
+                    }, {
+                        'op': 'equals', 'left': 'context.combo_number',
+                        'right': 1,
+                    }],
+                },
+                'effects': [{
+                    'op': 'change_fp', 'player': {'controller': True},
+                    'amount': 2,
+                }],
+            }],
+        }
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='normal-one-combo-context',
+        )
+        engine.engine_state['battle'] = {
+            'p1': {
+                'instance_id': starter['instance_id'], 'card': starter,
+            },
+            'p2': {
+                'instance_id': opposing['instance_id'], 'card': opposing,
+            },
+            'reference_speed': {'p1': 5, 'p2': 8},
+        }
+
+        sequence = engine._result_trigger_sequence({
+            'p1': 'hit', 'p2': 'countered',
+        })
+        combo_context = next(
+            context for event, context in sequence if event == 'combo'
+        )
+        self.assertEqual(combo_context['combo_number'], 1)
+        engine._fire('combo', combo_context)
+
+        self.assertEqual(engine.state['players']['p1']['fp'], 2)
+        self.assertIn(
+            'one-combo-lumen-reaction',
+            [
+                event['payload'].get('ability_id')
+                for event in engine.events
+                if event.get('type') == 'effect_resolved'
+            ],
+        )
+
+        special_state = base_state([], [])
+        special_state['phase'] = 'battle'
+        special_state['players']['p1']['zones']['lumen'] = [
+            copy.deepcopy(support),
+        ]
+        special_engine = AutomaticGameEngine.initialize(
+            special_state, release, seed='special-combo-context',
+        )
+        special_engine.grant_combo('p1', source=None, special=True)
+        self.assertEqual(special_engine.state['players']['p1']['fp'], 0)
+
+    def test_battle_review_pipeline_uses_real_initial_combo_speed_rule(self):
+        starter = attack('review-combo-starter', 'p1', frame=9, hit='콤보')
+        first = attack('review-combo-first', 'p1', frame=6)
+        second = attack('review-combo-second', 'p1', frame=7)
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [starter]
+        state['players']['p1']['zones']['list'] = [first, second]
+        release = ruleset(starter, first, second)
+        release.update({
+            'version': 'automatic-effect-v2',
+            'review_execution_mode': 'battle_pipeline',
+        })
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='faithful-battle-review-combo',
+        )
+        # ``initialize`` always starts a fresh session in Lumen.  This
+        # fixture intentionally jumps to the battle Combo window so its
+        # legal-action assertion exercises the review pipeline contract.
+        engine.state['phase'] = 'battle'
+        engine.engine_state['modifiers'] = [{
+            'op': 'modify_combo', 'player': 'p1',
+            'allow_zones': ['list'], 'max_combo': 4,
+            'duration': 'battle',
+        }]
+        engine.grant_combo('p1', source=starter['instance_id'])
+
+        actions = engine.legal_actions('p1')
+
+        self.assertIn(
+            first['instance_id'],
+            {
+                (action.get('payload') or {}).get('card_instance_id')
+                for action in actions
+                if action.get('type') == 'select_combo_first'
+            },
+        )
+        self.assertNotIn('end_combo', {action.get('type') for action in actions})
+
+    def test_sandbox_shapes_unconditional_defense_speed_boundaries(self):
+        from .game.sandbox import _sandbox_defense_reference_speed
+
+        minimum = {
+            'effect_definition': {'defense_rules': [{'min_speed': 9}]},
+        }
+        maximum = {
+            'effect_definition': {'defense_rules': [{'max_speed': 7}]},
+        }
+        conditional = {
+            'effect_definition': {'defense_rules': [{
+                'min_speed': 9,
+                'condition': {'op': 'has_state', 'state': 'notice'},
+            }]},
+        }
+
+        self.assertEqual(_sandbox_defense_reference_speed(minimum, 7), 9)
+        self.assertEqual(_sandbox_defense_reference_speed(maximum, 12), 7)
+        self.assertEqual(_sandbox_defense_reference_speed(conditional, 7), 7)
+
+    def test_battle_sandbox_accepts_opponent_attack_special_dodge(self):
+        from .game.sandbox import start_effect_sandbox
+
+        refs = {
+            'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+        }
+        ability = {
+            'id': 'sandbox-opponent-special-dodge',
+            'label': '상대 회피 시, 이 기술을 리스트로 보낸다.',
+            'kind': 'effect', 'mode': 'mandatory',
+            'timing': 'opponent_dodge', 'visibility': 'public',
+            'active_zones': ['battle'],
+            'trigger': {'event': 'opponent_dodge'},
+            'source_refs': refs,
+            'effects': [{
+                'op': 'move_card', 'to_zone': 'list', 'face_up': True,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': refs, 'abilities': [ability],
+        }
+        no_effect = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': True,
+            'source_refs': {
+                'rulebook_pages': [], 'qna_ids': [], 'card_text': False,
+            },
+            'abilities': [],
+            'defense_rules': [{
+                'judgment': 'dodge', 'position': '중단',
+            }],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-OPPONENT-DODGE-SOURCE',
+            'name': '상대 회피 반응 검증', 'type': '공격',
+            'frame': 7, 'damage': 400, 'pos': '중단', 'body': '손',
+            'special': '', 'hit': '2', 'guard': '-4', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+        opponent = {
+            'id': 2, 'code': 'SANDBOX-SPECIAL-DODGE-ATTACK',
+            'name': '특수 회피 공격', 'type': '공격',
+            'frame': 10, 'damage': 500, 'pos': '상단', 'body': '발',
+            'special': '중단 회피',
+            'hit': '2', 'guard': '-4', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 2,
+            'effect_definition': no_effect,
+        }
+
+        payload = start_effect_sandbox(
+            source, definition, ability['id'], {'2': opponent}, {
+                'controller': 'p1', 'event': 'opponent_dodge',
+                'execution_mode': 'battle_pipeline',
+                'source_zone': 'battle', 'phase': 'battle',
+                'fixture_mode': 'none', 'include_source_effects': True,
+                'cards': [
+                    {'card_id': '2', 'owner': 'p2', 'zone': 'battle'},
+                ],
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        judged = next(
+            event for event in payload['events']
+            if event.get('type') == 'battle_judged'
+        )
+        self.assertEqual(
+            judged['payload']['result'],
+            {'p1': 'countered', 'p2': 'counter'},
+        )
+        self.assertIn(
+            ability['id'],
+            [
+                event['payload'].get('ability_id')
+                for event in payload['events']
+                if event.get('type') == 'effect_resolved'
+            ],
+        )
+        self.assertEqual(
+            payload['state']['players']['p1']['zones']['list'][0]['code'],
+            source['code'],
+        )
+
+    def test_rfs_at_001_breaks_from_battle_in_real_cleanup_pipeline(self):
+        text = (
+            '이 기술은 [[state:blue_flame]]상태일 경우에만 사용할 수 있다.\n'
+            '이 기술로는 캐치할 수 없다.\n'
+            '①히트 및 카운터 시, 사이드 덱에서 [[card:RFS-AT-002]]을 '
+            '5장까지 루멘 존에 배치할 수 있다.\n'
+            '그 후, 이번 턴 캐치하는 [[card:RFS-AT-002]]의 데미지+100\n'
+            '②배틀 페이즈 종료 시, 이 기술을 브레이크한다.\n'
+            '그 후, 사이드 덱의 [[card:RFS-AT-002]]을 3장까지 '
+            '루멘 존에 배치할 수 있다.'
+        )
+        definition = build_effect_draft('RFS-AT-001', text)
+        source = attack(
+            'rfs-ultimate-cleanup', 'p1', code='RFS-AT-001',
+            frame=5, damage=200, position='상단',
+        )
+        source['ultimate'] = True
+        opposing = attack(
+            'rfs-cleanup-opponent', 'p2', code='RFS-CLEANUP-OPPONENT',
+            frame=7, damage=300, position='중단',
+        )
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [source]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        release = ruleset(source, opposing)
+        release['cards']['RFS-AT-001']['effect_definition'] = definition
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='rfs-ultimate-real-cleanup',
+        )
+        engine.state['phase'] = 'battle'
+        live_source = engine._find_card(source['instance_id'])
+        live_opposing = engine._find_card(opposing['instance_id'])
+        engine.engine_state['battle'] = {
+            'p1': {'instance_id': source['instance_id'], 'card': live_source},
+            'p2': {
+                'instance_id': opposing['instance_id'],
+                'card': live_opposing,
+            },
+        }
+
+        engine._cleanup_battle()
+
+        self.assertEqual(
+            engine._find_location(source['instance_id'])[1], 'break',
+        )
+        self.assertTrue(any(
+            event.get('type') == 'effect_resolved'
+            and event.get('payload', {}).get('ability_id') == 'rfs-at-001-n2'
+            for event in engine.events
+        ))
+
+    def test_rfs_at_002_lumen_catch_permission_is_not_a_catch_trigger(self):
+        text = (
+            '이 기술은 덱에 5장까지 넣을 수 있다.\n'
+            '이 기술은 레디할 수 없다.\n'
+            '①캐치 시, 루멘 존의 이 기술로 캐치할 수 있다.\n'
+            '②사용 후, 이 기술을 사이드 덱으로 보낸다.\n'
+            '그 후, 1FP를 얻는다.'
+        )
+        definition = build_effect_draft('RFS-AT-002', text)
+        guisum = [
+            attack(
+                f'rfs-guisum-{index}', 'p1', code='RFS-AT-002',
+                frame=1, damage=100, position='상단',
+            )
+            for index in range(1, 4)
+        ]
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [guisum[0]]
+        state['players']['p1']['zones']['lumen'] = guisum[1:]
+        release = ruleset(*guisum)
+        release['cards']['RFS-AT-002']['effect_definition'] = definition
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='rfs-guisum-catch-function',
+        )
+        engine.state['phase'] = 'battle'
+        source = engine._find_card(guisum[0]['instance_id'])
+
+        engine._fire('catch', {
+            'controller': 'p1',
+            'source_card_instance_id': source['instance_id'],
+            'source_card': copy.deepcopy(source),
+            'source_technique_event': True,
+            'catch': True,
+        })
+
+        self.assertIsNone(engine.engine_state.get('pending_decision'))
+        self.assertFalse(any(
+            event.get('type') == 'effect_resolved'
+            and event.get('payload', {}).get('ability_id') == 'rfs-at-002-n1'
+            for event in engine.events
+        ))
+        self.assertTrue(any(
+            'lumen' in (rule.get('allow_zones') or [])
+            for rule in engine._catch_rules(
+                'p1', engine._find_card(guisum[1]['instance_id']),
+            )
+        ))
+
+    def test_battle_sandbox_keeps_review_source_face_down_in_hand(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-hidden-hand-guard-reaction',
+            'label': '뒷면 손패에서 방어 시 반응한다',
+            'kind': 'effect', 'mode': 'optional', 'timing': 'guard',
+            'visibility': 'public', 'active_zones': ['hand'],
+            'allow_non_source_trigger': True,
+            'trigger': {'event': 'guard'},
+            'condition': {
+                'op': 'equals', 'left': 'context.source_card.face_up',
+                'right': False,
+            },
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [],
+                'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp',
+                'player': {'controller': True}, 'amount': 1,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [],
+                'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-HIDDEN-HAND-REACTION',
+            'name': '손패 반응 검증', 'type': '공격',
+            'frame': 8, 'damage': 200, 'pos': '상단', 'body': '손',
+            'special': '', 'hit': '2', 'guard': '-4', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        payload = start_effect_sandbox(
+            source, definition, ability['id'], {}, {
+                'controller': 'p1', 'event': 'guard',
+                'execution_mode': 'battle_pipeline',
+                'source_zone': 'hand', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        source_in_hand = next(
+            card for card in payload['state']['players']['p1']['zones']['hand']
+            if card.get('instance_id') == 'sandbox-source'
+        )
+        self.assertFalse(source_in_hand['face_up'])
+        self.assertEqual(
+            payload['state']['engine']['pending_decision']['kind'],
+            'optional_effect',
+        )
+
+    def test_battle_sandbox_records_ready_uses_for_history_conditions(self):
+        from .game.sandbox import continue_effect_sandbox, start_effect_sandbox
+
+        refs = {
+            'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+        }
+        ability = {
+            'id': 'sandbox-used-ezebel-technique',
+            'label': '이번 턴 이자벨 기술 사용 확인',
+            'kind': 'effect', 'mode': 'optional', 'timing': 'cleanup',
+            'visibility': 'public', 'active_zones': ['lumen'],
+            'trigger': {'event': 'battle_end'}, 'source_refs': refs,
+            'effects': [{
+                'op': 'conditional',
+                'condition': {
+                    'op': 'used_card', 'player': {'controller': True},
+                    'where': {'character_key': 'ezebel'}, 'min': 1,
+                },
+                'then': [{
+                    'op': 'change_fp',
+                    'player': {'controller': True}, 'amount': 1,
+                }],
+                'else': [],
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': refs, 'abilities': [ability],
+        }
+        no_effect = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': True,
+            'source_refs': {
+                'rulebook_pages': [], 'qna_ids': [], 'card_text': False,
+            },
+            'abilities': [],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-USED-CARD-WATCHER',
+            'name': '사용 이력 감시 카드', 'type': '특수',
+            'frame': None, 'damage': None, 'pos': None, 'body': '',
+            'special': '', 'hit': '0', 'guard': '0', 'counter': '0',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 13,
+            'effect_definition': definition,
+        }
+        used = {
+            'id': 2, 'code': 'SANDBOX-EZEBEL-READY',
+            'name': '이자벨 레디 기술', 'type': '공격',
+            'frame': 5, 'damage': 0, 'pos': '중단', 'body': '손',
+            'special': '', 'hit': '0', 'guard': '0', 'counter': '0',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 13,
+            'character_key': 'ezebel', 'effect_definition': no_effect,
+        }
+        opponent = {
+            'id': 3, 'code': 'SANDBOX-OPPONENT-READY',
+            'name': '상대 레디 기술', 'type': '수비',
+            'frame': 6, 'damage': 0, 'pos': None, 'body': '',
+            'special': '', 'hit': '0', 'guard': '0', 'counter': '0',
+            'g_top': '', 'g_mid': '방어', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': no_effect,
+        }
+
+        payload = start_effect_sandbox(
+            source, definition, ability['id'], {'2': used, '3': opponent}, {
+                'controller': 'p1', 'event': 'battle_end',
+                'execution_mode': 'battle_pipeline',
+                'source_zone': 'lumen', 'phase': 'battle',
+                'fixture_mode': 'none', 'include_source_effects': True,
+                'cards': [
+                    {'card_id': '2', 'owner': 'p1', 'zone': 'battle'},
+                    {'card_id': '3', 'owner': 'p2', 'zone': 'battle'},
+                ],
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+        self.assertEqual(
+            payload['state']['engine']['pending_decision']['kind'],
+            'optional_effect',
+        )
+        fp_before = payload['state']['players']['p1']['fp']
+
+        completed = continue_effect_sandbox(payload, ['accept'])
+
+        self.assertEqual(completed['state']['players']['p1']['fp'], fp_before + 1)
+        ready_history = [
+            item for item in completed['state']['engine']['card_use_history']
+            if item.get('use_context') == 'ready'
+        ]
+        self.assertEqual(
+            {item.get('instance_id') for item in ready_history},
+            {'sandbox-card-1-2', 'sandbox-card-2-3'},
+        )
+
+    def test_sandbox_prototype_keeps_source_effects_when_requested(self):
+        from .game.sandbox import continue_effect_sandbox, start_effect_sandbox
+
+        def fp_ability(ability_id, amount):
+            return {
+                'id': ability_id, 'label': ability_id,
+                'kind': 'effect', 'mode': 'mandatory', 'timing': 'use',
+                'visibility': 'public', 'active_zones': ['battle'],
+                'trigger': {'event': 'use'},
+                'source_refs': {
+                    'rulebook_pages': [48], 'qna_ids': [],
+                    'card_text': True,
+                },
+                'effects': [{
+                    'op': 'change_fp',
+                    'player': {'controller': True}, 'amount': amount,
+                }],
+            }
+
+        prototype = fp_ability('sandbox-prototype:fp-one', 1)
+        source_ability = fp_ability('sandbox-source-fp-two', 2)
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            # The view merges reviewer-only prototypes into the unsaved card
+            # definition before calling the stateless sandbox.
+            'abilities': [prototype, source_ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-PROTOTYPE-SOURCE',
+            'name': '공통 테스트 연계', 'type': '공격',
+            'frame': 6, 'damage': 500, 'pos': '중단',
+            'body': '손', 'special': '',
+            'hit': '2', 'guard': '-6', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, prototype['id'], {}, {
+                'controller': 'p1', 'event': 'use',
+                'execution_mode': 'direct_event',
+                'source_zone': 'battle', 'phase': 'battle',
+                'fixture_mode': 'none', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+        ordering = result['state']['engine']['pending_decision']
+        prototype_first = next(
+            option['id'] for option in ordering['options']
+            if option.get('ability_id') == prototype['id']
+        )
+        result = continue_effect_sandbox(result, [prototype_first])
+
+        self.assertEqual(result['state']['players']['p1']['fp'], 3)
+        resolved = {
+            event['payload'].get('ability_id')
+            for event in result['events']
+            if event.get('type') == 'effect_resolved'
+        }
+        self.assertEqual(
+            resolved,
+            {'sandbox-prototype:fp-one', 'sandbox-source-fp-two'},
+        )
+
+    def test_sandbox_support_card_can_start_attached_to_review_source(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-attached-source', 'label': '세트 상태 검증',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'use',
+            'visibility': 'public', 'active_zones': ['battle'],
+            'trigger': {'event': 'use'},
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-ATTACHED-HOST', 'name': '세트 본체',
+            'type': '공격', 'frame': 8, 'damage': 500, 'pos': '중단',
+            'body': '손', 'special': '', 'hit': '2', 'guard': '-6',
+            'counter': '3', 'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+        support = {
+            'id': 2, 'code': 'SANDBOX-ATTACHED-CARD', 'name': '세트 카드',
+            'type': '공격', 'frame': 6, 'damage': 300, 'pos': '하단',
+            'body': '발', 'special': '', 'hit': '1', 'guard': '-4',
+            'counter': '2', 'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': {
+                'schema_version': 1, 'reviewed': True,
+                'no_effect': True, 'abilities': [],
+            },
+        }
+
+        result = start_effect_sandbox(
+            source, definition, ability['id'], {'2': support}, {
+                'controller': 'p1', 'event': 'use',
+                'execution_mode': 'direct_event',
+                'source_zone': 'battle', 'phase': 'battle',
+                'fixture_mode': 'none',
+                'cards': [{
+                    'card_id': 2, 'owner': 'p1', 'zone': 'battle',
+                    'face_up': True, 'attached_to_source': True,
+                }],
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        cards = result['state']['players']['p1']['zones']['battle']
+        attached = next(card for card in cards if card['code'] == support['code'])
+        self.assertEqual(attached['attached_to'], 'sandbox-source')
+        self.assertEqual(attached['attachment_expires'], 'battle')
+
+    def test_combo_end_technique_reacts_only_when_included_in_combo(self):
+        ability = {
+            'id': 'test-combo-membership', 'label': '콤보 참여 시 회복',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'cleanup',
+            'visibility': 'public', 'active_zones': ['battle'],
+            'requires_combo_use': True, 'trigger': {'event': 'combo_end'},
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_hp', 'player': {'controller': True},
+                'amount': 100,
+            }],
+        }
+        source = attack('combo-member', 'p1', code='COMBO-MEMBER')
+        starter = attack('combo-starter', 'p1', code='COMBO-STARTER')
+        opposing = attack('combo-opposing', 'p2', code='COMBO-OPPOSING')
+        release = ruleset(source, starter, opposing)
+        release['cards'][source['code']]['effect_definition'] = {
+            'schema_version': 1, 'reviewed': True,
+            'no_effect': False, 'abilities': [ability],
+        }
+
+        def resolve(included):
+            state = base_state(hp=3000)
+            for card in (source, starter):
+                live = copy.deepcopy(card)
+                live['face_up'] = True
+                state['players']['p1']['zones']['battle'].append(live)
+            live_opposing = copy.deepcopy(opposing)
+            live_opposing['face_up'] = True
+            state['players']['p2']['zones']['battle'].append(live_opposing)
+            state['phase'] = 'battle'
+            engine = AutomaticGameEngine(copy.deepcopy(state), release)
+            engine.engine_state['battle'] = {
+                'p1': {
+                    'card': copy.deepcopy(starter),
+                    'instance_id': starter['instance_id'],
+                },
+                'p2': {
+                    'card': copy.deepcopy(opposing),
+                    'instance_id': opposing['instance_id'],
+                },
+            }
+            engine.engine_state['combo'] = {
+                'owner': 'p1', 'source': starter['instance_id'],
+                'used': [source['instance_id']] if included else [],
+            }
+            engine.end_combo()
+            engine._advance_combo_end_pipeline(engine.engine_state['pipeline'])
+            return engine.state['players']['p1']['hp']
+
+        self.assertEqual(resolve(True), 3100)
+        self.assertEqual(resolve(False), 3000)
+
+    def test_common_sandbox_prototype_runs_while_source_stays_in_ultimate(self):
+        from .game.sandbox import (
+            sandbox_prototype_definition,
+            start_effect_sandbox,
+        )
+
+        ability_id = 'sandbox-prototype:move-side-lumen-one'
+        definition = sandbox_prototype_definition(ability_id)
+        source = {
+            'id': 1, 'code': 'SANDBOX-ULTIMATE-CONTINUOUS-SOURCE',
+            'name': '얼티밋 지속 효과 검증', 'type': '특수',
+            'frame': None, 'damage': None, 'pos': None,
+            'body': '', 'special': '',
+            'hit': '', 'guard': '', 'counter': '',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': True, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, ability_id, {}, {
+                'controller': 'p1', 'event': 'use',
+                'execution_mode': 'direct_event',
+                'source_zone': 'ultimate', 'phase': 'lumen',
+                'fixture_mode': 'choices',
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        decision = result['state']['engine']['pending_decision']
+        self.assertEqual(decision['kind'], 'effect_choice')
+        self.assertTrue(decision['options'])
+        self.assertEqual(
+            result['state']['players']['p1']['zones']['ultimate'][0]['code'],
+            source['code'],
+        )
+
+    def test_battle_sandbox_reaches_dodge_inside_minimum_speed_rule(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-minimum-dodge-trigger',
+            'label': '회피 시 1FP를 얻는다.',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'dodge',
+            'visibility': 'public', 'active_zones': ['battle'],
+            'trigger': {'event': 'dodge'},
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp', 'player': {'controller': True},
+                'amount': 1,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'defense_rules': [{'min_speed': 9}],
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-MINIMUM-DODGE',
+            'name': '최소 속도 회피 검증', 'type': '공격',
+            'frame': 6, 'damage': 500, 'pos': '하단',
+            'body': '발', 'special': '상단 회피',
+            'hit': '2', 'guard': '-6', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, ability['id'], {}, {
+                'controller': 'p1', 'event': 'dodge',
+                'execution_mode': 'battle_pipeline',
+                'source_zone': 'battle', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+        judged = next(
+            event for event in result['events']
+            if event.get('type') == 'battle_judged'
+        )
+
+        self.assertEqual(judged['payload']['reference_speed']['p2'], 9)
+        # Attack-vs-attack Dodge is recorded as the dodging side's Counter
+        # result, while the preceding trigger sequence still fires ``dodge``.
+        self.assertEqual(judged['payload']['result']['p1'], 'counter')
+        self.assertIn(
+            ability['id'],
+            [
+                event['payload'].get('ability_id')
+                for event in result['events']
+                if event.get('type') == 'effect_resolved'
+            ],
+        )
+
+    def test_battle_sandbox_reaches_clash_inside_speed_range(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-ranged-clash-trigger',
+            'label': '상쇄 시 1FP를 얻는다.',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'clash',
+            'visibility': 'public', 'active_zones': ['battle'],
+            'trigger': {'event': 'clash'},
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp', 'player': {'controller': True},
+                'amount': 1,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'defense_rules': [{
+                'judgment': 'clash', 'min_speed': 9, 'max_speed': 10,
+                'where': {'body': '발'},
+            }],
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-RANGED-CLASH',
+            'name': '속도 범위 상쇄 검증', 'type': '공격',
+            'frame': 12, 'damage': 600, 'pos': '중단',
+            'body': '손', 'special': '중단 상쇄',
+            'hit': '3', 'guard': '-7', 'counter': '7',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, ability['id'], {}, {
+                'controller': 'p1', 'event': 'clash',
+                'execution_mode': 'battle_pipeline',
+                'source_zone': 'battle', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+        judged = next(
+            event for event in result['events']
+            if event.get('type') == 'battle_judged'
+        )
+
+        self.assertEqual(judged['payload']['reference_speed']['p2'], 10)
+        self.assertEqual(judged['payload']['result']['p1'], 'clash')
+        opponent_card = next(
+            card
+            for card in result['state']['players']['p2']['zones']['hand']
+            if card.get('instance_id') == 'sandbox-fixture-p2-battle-attack'
+        )
+        self.assertEqual(opponent_card['body'], '발')
+        self.assertIn(
+            ability['id'],
+            [
+                event['payload'].get('ability_id')
+                for event in result['events']
+                if event.get('type') == 'effect_resolved'
+            ],
+        )
+
+    def test_battle_sandbox_accepts_later_position_on_multi_guard(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-opponent-middle-guard-trigger',
+            'label': '상대 방어 시 1FP를 얻는다.',
+            'kind': 'effect', 'mode': 'mandatory',
+            'timing': 'opponent_guard', 'visibility': 'public',
+            'active_zones': ['battle'],
+            'trigger': {'event': 'opponent_guard'},
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp', 'player': {'controller': True},
+                'amount': 1,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-MIDDLE-GUARDED-ATTACK',
+            'name': '중단 공격', 'type': '공격', 'frame': 7,
+            'damage': 400, 'pos': '중단', 'body': '손', 'special': '',
+            'hit': '2', 'guard': '-6', 'counter': '4',
+            'g_top': '', 'g_mid': '', 'g_bot': '', 'ultimate': False,
+            'character_id': 1, 'effect_definition': definition,
+        }
+        multi_guard = {
+            'id': 2, 'code': 'SANDBOX-MULTI-GUARD',
+            'name': '상·중단 방어', 'type': '수비', 'frame': None,
+            'damage': None, 'pos': None, 'body': '', 'special': '',
+            'hit': '0', 'guard': '0', 'counter': '0',
+            'g_top': '방어', 'g_mid': '방어', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': EMPTY_DEFINITION,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, ability['id'], {'2': multi_guard}, {
+                'controller': 'p1', 'event': 'opponent_guard',
+                'execution_mode': 'battle_pipeline',
+                'source_zone': 'battle', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'cards': [{
+                    'card_id': '2', 'owner': 'p2', 'zone': 'battle',
+                    'face_up': True,
+                }],
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        judged = next(
+            event for event in result['events']
+            if event.get('type') == 'battle_judged'
+        )
+        self.assertEqual(judged['payload']['result']['p2'], 'guard')
+        self.assertIn(
+            ability['id'],
+            [
+                event['payload'].get('ability_id')
+                for event in result['events']
+                if event.get('type') == 'effect_resolved'
+            ],
+        )
+
+    def test_battle_sandbox_reaches_damage_after_in_actual_pipeline(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-damage-after-trigger',
+            'label': '데미지 처리 후 1FP를 얻는다.',
+            'kind': 'effect', 'mode': 'mandatory',
+            'timing': 'damage_after',
+            'visibility': 'public', 'active_zones': ['battle'],
+            'trigger': {'event': 'damage_after'},
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp', 'player': {'controller': True},
+                'amount': 1,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-DAMAGE-AFTER',
+            'name': '데미지 후 검증', 'type': '공격',
+            'frame': 6, 'damage': 500, 'pos': '중단',
+            'body': '손', 'special': '',
+            'hit': '2', 'guard': '-6', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, ability['id'], {}, {
+                'controller': 'p1', 'event': 'damage_after',
+                'execution_mode': 'battle_pipeline',
+                'source_zone': 'battle', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        self.assertIn(
+            ability['id'],
+            [
+                event['payload'].get('ability_id')
+                for event in result['events']
+                if event.get('type') == 'effect_resolved'
+            ],
+        )
+
+    def test_pmp_at_046_reduction_reaches_real_opponent_hit_pipeline(self):
+        from .game.drafts import build_effect_draft
+        from .game.sandbox import continue_effect_sandbox, start_effect_sandbox
+
+        text = (
+            '상대는 이 기술을 방어할 수 없다.\n'
+            '①이 기술이 그랩 무효 되었을 경우, 자신은 4FP를 잃는다.\n'
+            '②[[state:disaster_one]]: 히트 시, 이 기술을 루멘 존에 '
+            '배치할 수 있다.\n'
+            '③상대의 히트 및 카운터 시, 600데미지 이상 받을 경우 '
+            '루멘 존의 이 기술을 브레이크할 수 있다. 그 경우, 그 '
+            '데미지를 400으로 변경한다.'
+        )
+        definition = build_effect_draft(
+            'PMP-AT-046', text,
+            qna_ids=[613, 614, 615, 616],
+        )
+        source = {
+            'id': 341, 'code': 'PMP-AT-046',
+            'name': '오더 : 아리아드네', 'type': '공격',
+            'frame': 11, 'damage': 500, 'pos': '상단', 'body': '손',
+            'special': '그랩', 'hit': '4', 'guard': 'X', 'counter': '5',
+            'g_top': None, 'g_mid': None, 'g_bot': None,
+            'ultimate': False, 'character_id': 12,
+            'effect_definition': definition,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, 'pmp-at-046-n3', {}, {
+                'controller': 'p1', 'event': 'opponent_hit',
+                'execution_mode': 'battle_pipeline',
+                'source_zone': 'lumen', 'phase': 'battle',
+                'fixture_mode': 'minimal',
+                'battle_overrides': {
+                    'controller': {
+                        'type': '수비', 'frame': None, 'damage': None,
+                        'pos': None, 'special': '',
+                        'g_top': None, 'g_mid': None, 'g_bot': None,
+                    },
+                    'opponent': {
+                        'type': '공격', 'frame': 9, 'damage': 600,
+                        'pos': '상단', 'special': '',
+                    },
+                },
+                'preserve_battle_overrides': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+        decision = result['state']['engine']['pending_decision']
+        self.assertEqual(decision['kind'], 'optional_effect')
+        result = continue_effect_sandbox(result, ['accept'])
+
+        self.assertEqual(result['state']['players']['p1']['hp'], 3600)
+        self.assertTrue(any(
+            card.get('code') == 'PMP-AT-046'
+            for card in result['state']['players']['p1']['zones']['break']
+        ))
+        self.assertIn(
+            'pmp-at-046-n3',
+            {
+                event['payload'].get('ability_id')
+                for event in result['events']
+                if event.get('type') == 'effect_resolved'
+            },
+        )
+
+    def test_battle_sandbox_checks_ready_play_condition_from_hand(self):
+        from .game.sandbox import EffectSandboxError, start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-ready-hp-condition',
+            'label': '체력 2500 이하에서만 사용할 수 있다.',
+            'kind': 'function', 'mode': 'mandatory', 'timing': 'use',
+            'visibility': 'public', 'active_zones': ['battle'],
+            'trigger': {'event': 'use'},
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'play_condition': {
+                'op': 'lte', 'left': 'context.controller_hp', 'right': 2500,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-READY-CONDITION',
+            'name': '레디 조건 검증', 'type': '공격',
+            'frame': 6, 'damage': 500, 'pos': '중단',
+            'body': '손', 'special': '',
+            'hit': '2', 'guard': '-6', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        def run(hp):
+            return start_effect_sandbox(
+                source, definition, ability['id'], {}, {
+                    'controller': 'p1', 'event': 'use',
+                    'execution_mode': 'battle_pipeline',
+                    'source_zone': 'battle', 'phase': 'battle',
+                    'fixture_mode': 'minimal',
+                    'include_source_effects': True,
+                    'players': {
+                        'p1': {'hp': hp, 'fp': 0, 'passive_state': {}},
+                        'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    },
+                },
+            )
+
+        allowed = run(2500)
+        self.assertTrue(any(
+            event.get('type') == 'battle_revealed'
+            for event in allowed['events']
+        ))
+        with self.assertRaisesMessage(
+            EffectSandboxError, '현재 상태에서는 이 기술을 레디할 수 없습니다.',
+        ):
+            run(2501)
+
+    def test_combo_sandbox_honors_requested_combo_number_and_penalty(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-four-combo-reaction',
+            'label': '4콤보 시 1FP를 얻는다.',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'combo',
+            'visibility': 'public', 'active_zones': ['battle'],
+            'trigger': {'event': 'combo'},
+            'condition': {
+                'op': 'equals',
+                'left': 'context.combo_number', 'right': 4,
+            },
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp', 'player': {'controller': True},
+                'amount': 1,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-COMBO-NUMBER',
+            'name': '콤보 번호 검증', 'type': '공격',
+            'frame': 9, 'damage': 500, 'pos': '중단',
+            'body': '손', 'special': '',
+            'hit': '2', 'guard': '-6', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        def run(combo_number):
+            return start_effect_sandbox(
+                source, definition, ability['id'], {}, {
+                    'controller': 'p1', 'event': 'combo',
+                    'execution_mode': 'combo_pipeline',
+                    'source_zone': 'hand', 'phase': 'battle',
+                    'fixture_mode': 'minimal',
+                    'include_source_effects': True,
+                    'combo_number': combo_number,
+                    'combo_previous_speed': 8, 'combo_speed': 9,
+                    'players': {
+                        'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                        'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    },
+                },
+            )
+
+        third = run(3)
+        fourth = run(4)
+
+        def combo_damage(result):
+            return next(
+                event['payload']['damage']
+                for event in result['events']
+                if event.get('type') == 'combo_card_used'
+                and event['payload'].get('card_instance_id')
+                == result['source_instance_id']
+            )
+
+        self.assertEqual(combo_damage(third), 300)
+        self.assertEqual(combo_damage(fourth), 200)
+        third_resolved = {
+            event['payload'].get('ability_id')
+            for event in third['events']
+            if event.get('type') == 'effect_resolved'
+        }
+        fourth_resolved = {
+            event['payload'].get('ability_id')
+            for event in fourth['events']
+            if event.get('type') == 'effect_resolved'
+        }
+        self.assertNotIn(ability['id'], third_resolved)
+        self.assertIn(ability['id'], fourth_resolved)
+
+    def test_combo_sandbox_applies_four_combo_speed_exception_only_at_four(self):
+        from .game.sandbox import EffectSandboxError, start_effect_sandbox
+
+        condition = {
+            'op': 'gte', 'left': 'context.combo_number', 'right': 4,
+        }
+        ability = {
+            'id': 'sandbox-four-combo-any-speed',
+            'label': '4콤보 이상에서 속도를 무시한다.',
+            'kind': 'effect', 'mode': 'continuous', 'timing': 'combo',
+            'visibility': 'public',
+            'condition': condition,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{'op': 'static_rule', 'rules': ['combo_rules']}],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'combo_rules': [{
+                'min_combo': 4, 'ignore_speed': True,
+                'numbered_effect': True, 'condition': condition,
+            }],
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-FOUR-COMBO-SPEED',
+            'name': '4콤보 속도 검증', 'type': '공격',
+            'frame': 5, 'damage': 500, 'pos': '중단',
+            'body': '손', 'special': '',
+            'hit': '2', 'guard': '-6', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        def run(combo_number):
+            return start_effect_sandbox(
+                source, definition, ability['id'], {}, {
+                    'controller': 'p1', 'event': 'combo',
+                    'execution_mode': 'combo_pipeline',
+                    'source_zone': 'hand', 'phase': 'battle',
+                    'fixture_mode': 'minimal',
+                    'include_source_effects': True,
+                    'combo_number': combo_number,
+                    'combo_previous_speed': 8, 'combo_speed': 5,
+                    'players': {
+                        'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                        'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    },
+                },
+            )
+
+        with self.assertRaisesMessage(
+            EffectSandboxError, '사용할 수 없는 콤보 카드입니다.',
+        ):
+            run(3)
+        fourth = run(4)
+        used = next(
+            event for event in fourth['events']
+            if event.get('type') == 'combo_card_used'
+            and event['payload'].get('card_instance_id')
+            == fourth['source_instance_id']
+        )
+        self.assertEqual(used['payload']['damage'], 200)
+
+    def test_combo_sandbox_keeps_lumen_reaction_source_in_lumen(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-lumen-combo-end-reaction',
+            'label': '콤보 타임 종료 시 1FP를 얻는다.',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'combo_end',
+            'visibility': 'public', 'active_zones': ['lumen'],
+            'trigger': {'event': 'combo_end'},
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp', 'player': {'controller': True},
+                'amount': 1,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-LUMEN-COMBO-REACTION',
+            'name': '루멘 콤보 반응 검증', 'type': '특수',
+            'frame': 0, 'damage': 0, 'pos': '', 'body': '', 'special': '',
+            'hit': '', 'guard': '', 'counter': '',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, ability['id'], {}, {
+                'controller': 'p1', 'event': 'combo_end',
+                'execution_mode': 'combo_pipeline',
+                'source_zone': 'lumen', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        source_location = next(
+            (owner, zone)
+            for owner, player in result['state']['players'].items()
+            for zone, cards in player['zones'].items()
+            if any(
+                card.get('instance_id') == result['source_instance_id']
+                for card in cards
+            )
+        )
+        self.assertEqual(source_location, ('p1', 'lumen'))
+        self.assertIn(
+            ability['id'],
+            [
+                event['payload'].get('ability_id')
+                for event in result['events']
+                if event.get('type') == 'effect_resolved'
+            ],
+        )
+
+    def test_combo_sandbox_runs_opponent_combo_for_opponent_end_reaction(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-opponent-combo-end-reaction',
+            'label': '상대 콤보 타임 종료 시 1FP를 얻는다.',
+            'kind': 'effect', 'mode': 'mandatory',
+            'timing': 'opponent_combo_end',
+            'visibility': 'public', 'active_zones': ['lumen'],
+            'trigger': {'event': 'opponent_combo_end'},
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp', 'player': {'controller': True},
+                'amount': 1,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-OPPONENT-COMBO-REACTION',
+            'name': '상대 콤보 반응 검증', 'type': '특수',
+            'frame': 0, 'damage': 0, 'pos': '', 'body': '', 'special': '',
+            'hit': '', 'guard': '', 'counter': '',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, ability['id'], {}, {
+                'controller': 'p1', 'event': 'opponent_combo_end',
+                'execution_mode': 'combo_pipeline',
+                'source_zone': 'lumen', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        self.assertIn(
+            ability['id'],
+            [
+                event['payload'].get('ability_id')
+                for event in result['events']
+                if event.get('type') == 'effect_resolved'
+            ],
+        )
+
+    def test_catch_sandbox_keeps_persistent_special_and_uses_fixture_attack(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-persistent-catch-reaction',
+            'label': '같은 캐릭터 기술로 캐치 시 1FP를 얻는다.',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'catch',
+            'visibility': 'public', 'active_zones': ['lumen'],
+            'trigger': {'event': 'catch'},
+            'condition': {
+                'op': 'card_matches',
+                'card': {'path': 'context.event_card'},
+                'where': {'character_key': 'pinp'},
+            },
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp', 'player': {'controller': True},
+                'amount': 1,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-PERSISTENT-CATCH-REACTION',
+            'name': 'OPTION: 테스트 제트팩', 'type': '특수',
+            'frame': None, 'damage': None, 'pos': '', 'body': '',
+            'special': '', 'hit': '0', 'guard': '0', 'counter': '0',
+            'g_top': '', 'g_mid': '', 'g_bot': '', 'ultimate': False,
+            'character_id': 5, 'character_key': 'pinp',
+            'effect_definition': definition,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, ability['id'], {}, {
+                'controller': 'p1', 'event': 'catch',
+                'execution_mode': 'catch_pipeline',
+                'source_zone': 'lumen', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'catch_speed': 8,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        self.assertEqual(result['state']['players']['p1']['fp'], 1)
+        self.assertTrue(any(
+            card.get('instance_id') == result['source_instance_id']
+            for card in result['state']['players']['p1']['zones']['lumen']
+        ))
+        catch_used = next(
+            event for event in result['events']
+            if event.get('type') == 'card_moved'
+            and (event.get('payload') or {}).get('to_zone') == 'battle'
+            and (event.get('payload') or {}).get('card_code')
+            == 'SANDBOX-P1-CATCH-ATTACK'
+        )
+        self.assertEqual(
+            (catch_used.get('payload') or {}).get('card_code'),
+            'SANDBOX-P1-CATCH-ATTACK',
+        )
+        self.assertIn(
+            ability['id'],
+            [
+                event['payload'].get('ability_id')
+                for event in result['events']
+                if event.get('type') == 'effect_resolved'
+            ],
+        )
+
+    def test_combo_sandbox_fires_one_combo_opening_for_lumen_reaction(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-lumen-one-combo-reaction',
+            'label': '1콤보 시 1FP를 얻는다.',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'combo',
+            'visibility': 'public', 'active_zones': ['lumen'],
+            'trigger': {'event': 'combo'},
+            'condition': {
+                'op': 'equals',
+                'left': 'context.combo_number', 'right': 1,
+            },
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp', 'player': {'controller': True},
+                'amount': 1,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-LUMEN-ONE-COMBO',
+            'name': '1콤보 루멘 반응 검증', 'type': '특수',
+            'frame': 0, 'damage': 0, 'pos': '', 'body': '', 'special': '',
+            'hit': '', 'guard': '', 'counter': '',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, ability['id'], {}, {
+                'controller': 'p1', 'event': 'combo',
+                'execution_mode': 'combo_pipeline',
+                'source_zone': 'lumen', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        self.assertEqual(result['state']['players']['p1']['fp'], 0)
+        matching = [
+            event for event in result['events']
+            if event.get('type') == 'effect_resolved'
+            and (event.get('payload') or {}).get('ability_id') == ability['id']
+        ]
+        self.assertEqual(len(matching), 1)
+
+    def test_combo_card_timing_allows_explicit_lumen_reaction(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-pinp-combo-card-lumen-reaction',
+            'label': '핀프 기술의 콤보 시 해당 기술 데미지+300',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'combo',
+            'visibility': 'public', 'active_zones': ['lumen'],
+            'trigger': {'event': 'combo'},
+            'condition': {
+                'op': 'card_matches',
+                'card': {'path': 'context.event_card'},
+                'where': {'character_key': 'pinp'},
+            },
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'modify_stat', 'player': {'controller': True},
+                'target_card': 'event_card', 'stat': 'damage',
+                'amount': 300, 'duration': 'battle',
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-PINP-COMBO-LUMEN',
+            'name': 'R ARM: 테스트 멧서', 'type': '특수',
+            'frame': None, 'damage': None, 'pos': '', 'body': '',
+            'special': '', 'hit': '0', 'guard': '0', 'counter': '0',
+            'g_top': '', 'g_mid': '', 'g_bot': '', 'ultimate': False,
+            'character_id': 17, 'character_key': 'pinp',
+            'effect_definition': definition,
+        }
+
+        result = start_effect_sandbox(
+            source, definition, ability['id'], {}, {
+                'controller': 'p1', 'event': 'combo',
+                'execution_mode': 'combo_pipeline',
+                'source_zone': 'lumen', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        matching = [
+            event for event in result['events']
+            if event.get('type') == 'effect_resolved'
+            and (event.get('payload') or {}).get('ability_id') == ability['id']
+        ]
+        combo_damage = [
+            event for event in result['events']
+            if event.get('type') == 'damage_dealt'
+            and (event.get('payload') or {}).get('source') == 'combo'
+        ]
+        self.assertEqual(len(matching), 1)
+        self.assertEqual(
+            (combo_damage[-1].get('payload') or {}).get('amount'), 600,
+        )
+
+    def test_combo_sandbox_exposes_effect_required_followup_action(self):
+        from .game.sandbox import (
+            continue_effect_sandbox,
+            project_effect_sandbox,
+            start_effect_sandbox,
+        )
+
+        ability = {
+            'id': 'sandbox-required-borrowed-followup',
+            'label': '콤보 시 상대 리스트 기술을 다음에 잇는다.',
+            'kind': 'effect', 'mode': 'optional', 'timing': 'combo',
+            'visibility': 'public', 'active_zones': ['battle'],
+            'trigger': {'event': 'combo'},
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'modify_combo',
+                'player': {'controller': True},
+                'allow_zones': ['list'],
+                'where': {
+                    'is_technique': True, 'type': '공격', 'frame_lte': 10,
+                },
+                'after_source': True, 'ignore_speed': True,
+                'borrow_from': 'opponent', 'negate_effects': True,
+                'requires_followup': True,
+                'return_to_owner_zone_on_combo_end': 'list',
+                'duration': 'battle',
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-BORROW-SOURCE',
+            'name': '빌린 기술 연결 검증', 'type': '공격',
+            'frame': 12, 'damage': 400, 'pos': '상단', 'body': '손',
+            'special': '', 'hit': '3', 'guard': '-6', 'counter': '4',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+        borrowed = {
+            'id': 2, 'code': 'SANDBOX-BORROWED-FOLLOWUP',
+            'name': '상대 리스트 후속 기술', 'type': '공격',
+            'frame': 5, 'damage': 400, 'pos': '중단', 'body': '발',
+            'special': '', 'hit': '2', 'guard': '-5', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 2,
+            'effect_definition': {
+                'schema_version': 1, 'reviewed': True, 'no_effect': True,
+                'source_refs': {
+                    'rulebook_pages': [], 'qna_ids': [], 'card_text': False,
+                },
+                'abilities': [],
+            },
+        }
+
+        payload = start_effect_sandbox(
+            source, definition, ability['id'], {'2': borrowed}, {
+                'controller': 'p1', 'event': 'combo',
+                'execution_mode': 'combo_pipeline',
+                'source_zone': 'hand', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'cards': [{
+                    'card_id': '2', 'owner': 'p2',
+                    'zone': 'list', 'face_up': True,
+                }],
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+        self.assertEqual(
+            payload['state']['engine']['pending_decision']['kind'],
+            'optional_effect',
+        )
+
+        accepted = continue_effect_sandbox(payload, ['accept'])
+        projected = project_effect_sandbox(accepted)
+        followup = next(
+            action for action in projected['available_actions']
+            if action['type'] in {
+                'play_combo_sequence', 'play_combo_pair', 'play_combo_card',
+            }
+        )
+        self.assertEqual(
+            followup['card']['code'], 'SANDBOX-BORROWED-FOLLOWUP',
+        )
+
+        continued = continue_effect_sandbox(
+            accepted, [], action_id=followup['action_id'],
+            owner=followup['owner'],
+        )
+        self.assertTrue(any(
+            event.get('type') == 'combo_card_used'
+            and (event.get('payload') or {}).get('card_instance_id')
+            == 'sandbox-card-1-2'
+            for event in continued['events']
+        ))
+
+    def test_combo_sandbox_can_submit_source_and_support_as_initial_pair(self):
+        from .game.sandbox import continue_effect_sandbox, start_effect_sandbox
+
+        text = (
+            '①콤보 시, [[token:hidden_bond]]카운터 3개가 있을 경우 '
+            '리스트에서 사용할 수 있다.\n'
+            '②콤보 시, [[token:hidden_bond]]카운터 1개를 소모하고 이 기술 외 '
+            '콤보에 사용한 〈발〉 혹은 〈손〉판정 기술 1장을 속도를 무시하고 '
+            '이 기술 뒤에 이을 수 있다.\n'
+            '그 기술의 사용 후, 콤보 타임을 종료하고 해당 기술을 패로 가져온다.'
+        )
+        definition = build_effect_draft(
+            'CRS-AT-037', text, qna_ids=[511, 643, 685],
+        )
+        source = {
+            'id': 1, 'code': 'CRS-AT-037', 'name': '디베르티스망',
+            'type': '공격', 'frame': 13, 'damage': 400,
+            'pos': '상단', 'body': '발', 'special': '',
+            'hit': '4', 'guard': '-4', 'counter': '8',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 7,
+            'effect_definition': definition,
+        }
+        no_effect = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': True,
+            'source_refs': {
+                'rulebook_pages': [], 'qna_ids': [], 'card_text': False,
+            },
+            'abilities': [],
+        }
+        starter = {
+            'id': 2, 'code': 'SANDBOX-VIOLA-FOOT-STARTER',
+            'name': '선행 발 기술', 'type': '공격',
+            'frame': 12, 'damage': 500, 'pos': '상단', 'body': '발',
+            'special': '', 'hit': '콤보', 'guard': '-5', 'counter': '4',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 7,
+            'effect_definition': no_effect,
+        }
+        opposing = {
+            'id': 3, 'code': 'SANDBOX-PAIR-OPPONENT',
+            'name': '상대 기술', 'type': '공격',
+            'frame': 7, 'damage': 400, 'pos': '중단', 'body': '손',
+            'special': '', 'hit': '2', 'guard': '-5', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': no_effect,
+        }
+
+        payload = start_effect_sandbox(
+            source, definition, 'crs-at-037-n2',
+            {'2': starter, '3': opposing}, {
+                'controller': 'p1', 'event': 'combo',
+                'execution_mode': 'combo_pipeline',
+                'source_zone': 'hand', 'phase': 'battle',
+                'fixture_mode': 'none', 'include_source_effects': True,
+                # The first 2-Combo card is allowed to be slower than the
+                # Technique that opened Combo Time.  Exact-pair sandbox
+                # enumeration must therefore use production staging rather
+                # than review-isolation Speed chaining.
+                'combo_number': 2, 'combo_previous_speed': 15,
+                'combo_speed': 13,
+                'combo_followup_code': starter['code'],
+                'combo_followup_speed': 12,
+                'cards': [
+                    {'card_id': '2', 'owner': 'p1', 'zone': 'battle'},
+                    {'card_id': '3', 'owner': 'p2', 'zone': 'battle'},
+                ],
+                'players': {
+                    'p1': {
+                        'hp': 4000, 'fp': 0,
+                        'passive_state': {'hidden_bond': {'count': 1}},
+                    },
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+        self.assertEqual(
+            payload['state']['engine']['pending_decision']['kind'],
+            'optional_effect',
+        )
+
+        completed = continue_effect_sandbox(payload, ['accept'])
+        used_ids = [
+            (event.get('payload') or {}).get('card_instance_id')
+            for event in completed['events']
+            if event.get('type') == 'combo_card_used'
+        ]
+        self.assertEqual(
+            used_ids[:2], ['sandbox-source', 'sandbox-card-1-2'],
+        )
+        self.assertTrue(any(
+            card.get('instance_id') == 'sandbox-card-1-2'
+            for card in completed['state']['players']['p1']['zones']['hand']
+        ))
+        self.assertEqual(
+            completed['state']['players']['p1']['passive_state']
+            ['hidden_bond']['count'],
+            0,
+        )
+
+    def test_combo_sandbox_can_use_exact_previous_card_for_after_where(self):
+        from .game.sandbox import start_effect_sandbox
+
+        ability = {
+            'id': 'sandbox-after-lower-combo',
+            'label': '타오 하단 기술 뒤에 속도를 무시하고 잇는다.',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'combo',
+            'trigger': {'event': 'combo'}, 'visibility': 'public',
+            'active_zones': ['battle'],
+            'effects': [{'op': 'static_rule', 'rules': ['combo_rules']}],
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'combo_rules': [{
+                'ignore_speed': True,
+                'after_where': {'character_key': 'tao', 'pos': '하단'},
+                'numbered_effect': True,
+            }],
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-AFTER-LOWER', 'name': '후속 기술',
+            'type': '공격', 'frame': 8, 'damage': 300,
+            'pos': '상단', 'body': '손', 'special': '',
+            'hit': '2', 'guard': '-4', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 8,
+            'character_key': 'tao', 'effect_definition': definition,
+        }
+        previous = {
+            'id': 2, 'code': 'SANDBOX-TAO-LOWER', 'name': '타오 하단 기술',
+            'type': '공격', 'frame': 12, 'damage': 400,
+            'pos': '하단', 'body': '발', 'special': '',
+            'hit': '3', 'guard': '-5', 'counter': '4',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 8,
+            'character_key': 'tao',
+            'effect_definition': {
+                'schema_version': 1, 'reviewed': True, 'no_effect': True,
+                'source_refs': {
+                    'rulebook_pages': [], 'qna_ids': [], 'card_text': False,
+                },
+                'abilities': [],
+            },
+        }
+
+        payload = start_effect_sandbox(
+            source, definition, ability['id'], {'2': previous}, {
+                'controller': 'p1', 'event': 'combo',
+                'execution_mode': 'combo_pipeline',
+                'source_zone': 'hand', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'combo_number': 3, 'combo_previous_speed': 12,
+                'combo_previous_card_code': previous['code'],
+                'combo_speed': 8,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        self.assertTrue(any(
+            event.get('type') == 'combo_card_used'
+            and (event.get('payload') or {}).get('card_instance_id')
+            == 'sandbox-source'
+            for event in payload['events']
+        ))
+        previous_card = next(
+            card
+            for cards in payload['state']['players']['p1']['zones'].values()
+            for card in cards
+            if card.get('instance_id')
+            == 'sandbox-previous-p1-combo-history-2'
+        )
+        self.assertEqual(previous_card['code'], previous['code'])
+        self.assertEqual(payload['state']['players']['p2']['hp'], 3900)
+
+    def test_effect_sandbox_projection_renders_decision_markup(self):
+        from .game.sandbox import (
+            project_effect_sandbox,
+            start_effect_sandbox,
+        )
+
+        ability = {
+            'id': 'sandbox-visible-markup',
+            'label': '[[mystery:sandbox_choice]]를 사용한다.',
+            'kind': 'effect', 'mode': 'optional', 'timing': 'use',
+            'visibility': 'public', 'active_zones': ['battle'],
+            'trigger': {'event': 'use'},
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp', 'player': {'controller': True},
+                'amount': 1,
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-VISIBLE-MARKUP',
+            'name': '표시 문구 검증', 'type': '공격',
+            'frame': 6, 'damage': 500, 'pos': '중단', 'body': '손',
+            'special': '', 'hit': '2', 'guard': '-6', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+        payload = start_effect_sandbox(
+            source, definition, ability['id'], {}, {
+                'controller': 'p1', 'event': 'use',
+                'execution_mode': 'direct_event',
+                'source_zone': 'battle', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        projected = project_effect_sandbox(payload)
+        serialized = json.dumps(projected, ensure_ascii=False)
+
+        self.assertNotIn('[[', serialized)
+        self.assertIn('sandbox choice', projected['pending_decision']['prompt'])
+
+    def test_effect_sandbox_projection_exposes_effective_stats_and_state(self):
+        from .game.sandbox import (
+            project_effect_sandbox,
+            start_effect_sandbox,
+        )
+
+        ability = {
+            'id': 'sandbox-visible-continuous-stat',
+            'label': '이 기술의 데미지+200',
+            'kind': 'effect', 'mode': 'continuous', 'timing': 'function',
+            'visibility': 'public', 'active_zones': ['battle'],
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'modify_stat', 'player': {'controller': True},
+                'stat': 'damage', 'amount': 200,
+                'duration': 'continuous',
+            }],
+        }
+        definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'abilities': [ability],
+        }
+        source = {
+            'id': 1, 'code': 'SANDBOX-VISIBLE-STAT',
+            'name': '표시 수치 검증', 'type': '공격',
+            'frame': 6, 'damage': 500, 'pos': '중단', 'body': '손',
+            'special': '', 'hit': '2', 'guard': '-6', 'counter': '3',
+            'g_top': '', 'g_mid': '', 'g_bot': '',
+            'ultimate': False, 'character_id': 1,
+            'effect_definition': definition,
+        }
+        payload = start_effect_sandbox(
+            source, definition, ability['id'], {}, {
+                'controller': 'p1', 'event': 'continuous',
+                'execution_mode': 'direct_event',
+                'source_zone': 'battle', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {
+                        'hp': 4000, 'fp': 0,
+                        'passive_state': {
+                            'review_state': {'active': True},
+                            'yin': {'count': 1},
+                            'harmony_damage': {'value': True},
+                        },
+                    },
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        projected = project_effect_sandbox(payload)
+        source_card = next(
+            card for card in projected['players']['p1']['zones']['battle']
+            if card['code'] == source['code']
+        )
+
+        self.assertEqual(source_card['damage'], 500)
+        self.assertEqual(source_card['effective_damage'], 700)
+        self.assertTrue(
+            projected['players']['p1']['passive_state']['review_state'][
+                'active'
+            ],
+        )
+        self.assertEqual(
+            projected['players']['p1']['passive_state']['yin'][
+                'display_label'
+            ],
+            '음',
+        )
+        self.assertEqual(
+            projected['players']['p1']['passive_state']['harmony_damage'][
+                'display_label'
+            ],
+            '조화: 타오 기술 데미지 +100',
+        )
+
+    def test_effect_sandbox_normalizes_reviewer_friendly_passive_state(self):
+        from .game.sandbox import _sandbox_passive_state
+
+        self.assertEqual(
+            _sandbox_passive_state({
+                'advance_notice': True,
+                'restraint': 3,
+                'legacy': {'active': True, 'label': '기존 입력'},
+            }),
+            {
+                'advance_notice': {'value': True},
+                'restraint': {'count': 3},
+                'legacy': {
+                    'active': True,
+                    'label': '기존 입력',
+                    'value': True,
+                },
+            },
+        )
+        self.assertEqual(_sandbox_passive_state({}), {})
+
+    def test_effect_sandbox_rejects_invalid_passive_state_without_server_error(self):
+        from .game.sandbox import EffectSandboxError, _sandbox_passive_state
+
+        with self.assertRaisesMessage(
+            EffectSandboxError,
+            'advance_notice 상태 값은 객체, 불리언 또는 숫자여야 합니다.',
+        ):
+            _sandbox_passive_state({'advance_notice': 'yes'})
+
+        with self.assertRaisesMessage(
+            EffectSandboxError,
+            '패시브 상태 JSON은 객체여야 합니다.',
+        ):
+            _sandbox_passive_state(['advance_notice'])
 
     def test_prelude_combo_filters_speed_eleven_and_accepts_plie_shade(self):
         prelude = attack(
@@ -2842,7 +5285,7 @@ class AutomaticEngineTests(SimpleTestCase):
             viola['instance_id'], owner='p1', zone='hand',
         ))
 
-    def test_normal_combo_is_skipped_when_only_one_initial_card_is_legal(self):
+    def test_normal_combo_without_initial_pair_still_reaches_combo_end(self):
         starter = attack(
             'single-combo-starter', 'p1', frame=5, hit='콤보',
         )
@@ -2866,8 +5309,13 @@ class AutomaticEngineTests(SimpleTestCase):
             'result': {'p1': 'hit', 'p2': 'countered'},
         }
 
-        self.assertFalse(engine._open_combo_from_battle())
+        self.assertTrue(engine._open_combo_from_battle())
         self.assertIsNone(engine.engine_state.get('combo'))
+        self.assertEqual(
+            (engine.engine_state.get('pipeline') or {}).get('kind'),
+            'combo_end',
+        )
+        engine._continue()
         skipped = [
             event for event in engine.events
             if event.get('type') == 'combo_skipped'
@@ -2877,6 +5325,10 @@ class AutomaticEngineTests(SimpleTestCase):
             skipped[0]['payload']['reason'],
             'normal_combo_requires_two_cards',
         )
+        self.assertTrue(any(
+            event.get('type') == 'combo_ended'
+            for event in engine.events
+        ))
 
     def test_combo_offers_initial_pair_then_fourth_after_both_after_use_steps(self):
         starter = attack('staged-starter', 'p1', frame=2, hit='콤보')
@@ -3158,6 +5610,54 @@ class AutomaticEngineTests(SimpleTestCase):
                 self.assertEqual(p2_passive['opponent_counter']['count'], 1)
                 self.assertNotIn('invalid_list_trigger', p2_passive)
                 self.assertEqual(p2_passive['explicit_list_trigger']['count'], 1)
+
+    def test_empty_active_zones_uses_default_source_zone_without_global_reaction(self):
+        source = attack(
+            'empty-zone-source', 'p1', code='EMPTY-ZONE-TECHNIQUE',
+            frame=4,
+        )
+        list_copy = attack(
+            'empty-zone-list-copy', 'p1', code='EMPTY-ZONE-TECHNIQUE',
+            frame=4,
+        )
+        opposing = attack('empty-zone-opposing', 'p2', frame=7)
+        state = base_state([source], [opposing])
+        state['players']['p1']['zones']['list'] = [list_copy]
+        release = ruleset(source, opposing)
+        release['cards'][source['code']]['effect_definition'] = {
+            'schema_version': 1,
+            'abilities': [{
+                'id': 'empty-zone-use', 'kind': 'effect',
+                'mode': 'mandatory', 'timing': 'use',
+                'visibility': 'public', 'active_zones': [],
+                'trigger': {'event': 'use'},
+                'effects': [{
+                    'op': 'change_counter',
+                    'player': {'controller': True},
+                    'counter': 'empty_zone_resolved', 'amount': 1,
+                }],
+            }],
+        }
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='empty-active-zones-real-battle',
+        )
+
+        self.ready_both(engine)
+        self.resolve_effect_orders(engine)
+
+        resolved = [
+            (event.get('payload') or {}).get('card_instance_id')
+            for event in engine.events
+            if event.get('type') == 'effect_resolved'
+            and (event.get('payload') or {}).get('ability_id')
+            == 'empty-zone-use'
+        ]
+        self.assertEqual(resolved, [source['instance_id']])
+        self.assertEqual(
+            engine.state['players']['p1']['passive_state']
+            ['empty_zone_resolved']['count'],
+            1,
+        )
 
     def test_late_combo_card_extends_proposal_depth_from_its_static_rule(self):
         starter = attack('late-starter', 'p1', frame=4, damage=500, hit='콤보')
@@ -3701,6 +6201,48 @@ class AutomaticEngineTests(SimpleTestCase):
         engine._play_catch('p1', 'fixed-catch')
         self.assertEqual(engine.card_stat(catch_card, 'frame', 'p1'), 4)
         self.assertEqual(validate_effect_definition(definition, card_has_text=True), [])
+
+    def test_printed_catch_combo_without_pair_resolves_delayed_combo_end(self):
+        catch_card = attack(
+            'catch-combo-cleanup', 'p1', code='CB02-AT-006', frame=8,
+            damage=400, position='중단', hit='4',
+        )
+        release = ruleset(catch_card)
+        release['cards']['CB02-AT-006']['effect_definition'] = build_effect_draft(
+            'CB02-AT-006',
+            '①캐치 시, 이 기술의 히트 판정을 <콤보>로 변경한다. '
+            '그 후, 콤보 타임 종료 시 이 기술을 사이드 덱으로 보낸다.',
+        )
+        engine = AutomaticGameEngine.initialize(
+            base_state([catch_card], []), release,
+            seed='catch-combo-empty-pair-cleanup',
+        )
+        engine.state['phase'] = 'battle'
+        engine.engine_state.update({
+            'step': 'catch',
+            'catch': {
+                'owner': 'p1', 'source': 'test-catch-window',
+                'allow_zones': ['hand'], 'max_speed': 8,
+            },
+        })
+
+        engine._play_catch('p1', catch_card['instance_id'])
+        engine._continue()
+
+        self.assertIsNotNone(engine._find_card(
+            catch_card['instance_id'], owner='p1', zone='side',
+        ))
+        self.assertTrue(any(
+            event.get('type') == 'combo_skipped'
+            and event.get('payload', {}).get('reason')
+            == 'normal_combo_requires_two_cards'
+            for event in engine.events
+        ))
+        self.assertTrue(any(
+            event.get('type') == 'effect_resolved'
+            and event.get('payload', {}).get('ability_id') == 'cb02-at-006-n1'
+            for event in engine.events
+        ))
 
     def test_position_and_special_judgments_can_be_replaced_or_appended(self):
         commands = infer_effect_commands(
@@ -4655,6 +7197,41 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(engine.engine_state['replacements'][0]['where'], {
             'instance_id': 'blocked-get',
         })
+
+    def test_card_hand_move_lock_filters_normal_and_forced_get_actions(self):
+        blocked = attack('blocked-through-next-turn', 'p1')
+        blocked['move_to_hand_blocked_through_turn'] = 2
+        allowed = attack('allowed-during-lock', 'p1')
+        state = base_state([], [])
+        state['turn'] = 1
+        state['phase'] = 'get'
+        state['players']['p1']['zones']['list'] = [blocked, allowed]
+        engine = AutomaticGameEngine.initialize(
+            state, ruleset(blocked, allowed), seed='get-hand-move-lock',
+        )
+        engine.state['phase'] = 'get'
+        engine.engine_state.update({
+            'step': 'get_actions', 'current_actor': 'p1',
+            'get_order': ['p1'], 'get_done': [],
+        })
+
+        get_ids = {
+            action['payload']['card_instance_id']
+            for action in engine.legal_actions('p1')
+            if action['type'] == 'select_get_card'
+        }
+        self.assertEqual(get_ids, {allowed['instance_id']})
+        with self.assertRaises(IllegalAction):
+            engine._get_card('p1', blocked['instance_id'])
+
+        engine.engine_state['forced_get_designators'] = {'p1': 'p2'}
+        self.assertTrue(engine._open_forced_get_decision())
+        self.assertEqual(
+            [option['id'] for option in engine.engine_state[
+                'pending_decision'
+            ]['options']],
+            [allowed['instance_id']],
+        )
 
     def test_choose_effect_resolves_fp_branch_through_server_decision(self):
         definition = build_effect_draft(
@@ -9692,7 +12269,7 @@ class AutomaticEngineTests(SimpleTestCase):
     def test_unc_at_016_reviews_delayed_break_charge_and_after_use_rules(self):
         text = (
             '①회피 시, 이 기술을 브레이크한다.\n'
-            '②사용 시, [[card:RFS-AT-001]]가 자신의 루멘 존에 있다면 '
+            '②사용 시, [[card:AWL-SP-001]]가 자신의 루멘 존에 있다면 '
             '이 기술의 데미지+100\n'
             '③사용 후, 이번 턴 자신은 캐치할 수 없다.\n'
             '④사용 후, 이번 턴 자신의 겟 페이즈를 스킵한다.'
@@ -10649,6 +13226,9 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertFalse(combo['two-combo-is-before-minimum']['legal'])
         self.assertFalse(combo['three-combo-is-before-minimum']['legal'])
         self.assertEqual(combo['four-combo-meets-minimum']['damage'], 400)
+        self.assertFalse(
+            combo['ready-card-combo-judgment-is-not-four-combo']['resolved'],
+        )
         invalid = copy.deepcopy(definition)
         invalid['combo_rules'][0]['min_combo'] = 3
         self.assertFalse(review_automatic_definition(
@@ -11358,6 +13938,31 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertTrue(selected['combo_action_available'])
         self.assertNotIn(selected['even_id'], selected['option_ids'])
         self.assertNotIn(selected['defense_id'], selected['option_ids'])
+        live = starter[
+            'live-battle-hit-reaches-printed-combo-choice'
+        ]
+        self.assertEqual(
+            live['result'], {'p1': 'hit', 'p2': 'failed_defense'},
+        )
+        self.assertIn(
+            {
+                'event': 'combo', 'controller': 'p1',
+                'combo_judgment': True,
+            },
+            live['trigger_sequence'],
+        )
+        self.assertEqual(live['decision_kind'], 'effect_choice')
+        self.assertEqual(live['selected_zone'], 'hand')
+        self.assertEqual(live['starter_resolution_count'], 1)
+        catch = starter[
+            'answered-ruling-catch-combo-starts-as-one-combo'
+        ]
+        self.assertEqual(catch['execution_path'], 'catch_pipeline')
+        self.assertTrue(catch['combo_started'])
+        self.assertEqual(catch['combo_source'], 'p2-bad-catcher')
+        self.assertEqual(catch['decision_kind'], 'effect_choice')
+        self.assertEqual(catch['starter_resolution_count'], 1)
+        self.assertEqual(catch['after_use_resolution_count'], 1)
         after_use = {
             item['name']: item for item in by_id['st6-005-n2'].scenarios
         }
@@ -15205,6 +17810,115 @@ class AutomaticEngineTests(SimpleTestCase):
             validate_effect_definition(definition, card_has_text=True), [],
         )
 
+    def test_lmi_at_036_live_combo_projects_mandatory_use_damage(self):
+        text = (
+            '①사용 시, 자신의 패에서 1장을 브레이크한다.\n'
+            '[[state:dark_night]]: 대신 2장을 브레이크한다.\n'
+            '그 후, 이 기술의 데미지는 브레이크한 기술 데미지의 합이 '
+            '되며 <상쇄>특수 판정이 있었다면 그 판정을 얻는다.\n'
+            '②[[state:dark_night]]: 콤보 시, 상대 체력이 1000 이하일 '
+            '경우, 이 기술은 데미지 보정이 적용되지 않는다.\n'
+            '③사용 후, 이 기술을 브레이크한다.\n'
+            '[[state:dark_night]]: 대신 이 기술을 사이드 덱으로 보낸다.'
+        )
+        starter = attack(
+            'noir-combo-starter', 'p1', code='NOIR-STARTER',
+            frame=12, damage=500,
+        )
+        noir = attack(
+            'noir-live-combo', 'p1', code='LMI-AT-036',
+            frame=13, damage=None,
+        )
+        first_cost = attack(
+            'noir-first-cost', 'p1', code='NOIR-COST-ONE', damage=500,
+        )
+        second_cost = attack(
+            'noir-second-cost', 'p1', code='NOIR-COST-TWO', damage=400,
+        )
+        state = base_state([noir, first_cost, second_cost], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [starter]
+        state['players']['p1']['passive_state']['dark_night'] = {'value': True}
+        state['players']['p2']['hp'] = 1000
+        release = ruleset(starter, noir, first_cost, second_cost)
+        definition = build_effect_draft(
+            'LMI-AT-036', text,
+            qna_ids=[59, 197, 407, 448, 449, 450, 461],
+        )
+        release['cards']['LMI-AT-036']['effect_definition'] = definition
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='noir-live-combo-projection',
+        )
+        engine.engine_state['battle'] = {
+            'p1': {
+                'instance_id': starter['instance_id'],
+                'card': copy.deepcopy(starter),
+            },
+        }
+        engine.engine_state['combo'] = {
+            'owner': 'p1', 'source': starter['instance_id'],
+            'used': [starter['instance_id']], 'last_speed': 12,
+            'next_penalty': 200, 'max_combo': 3,
+        }
+        engine.engine_state['step'] = 'combo'
+
+        actions = [
+            action for action in engine._combo_actions(
+                'p1', engine.engine_state['combo'],
+            )
+            if action['type'] == 'play_combo_card'
+            and action['payload']['card_instance_id'] == noir['instance_id']
+        ]
+        self.assertEqual(
+            [action['payload']['combo_speed'] for action in actions], [13],
+        )
+
+        engine._play_combo('p1', [noir['instance_id']], [13])
+        engine._continue()
+        decision = engine.engine_state['pending_decision']
+        self.assertEqual(decision['kind'], 'effect_choice')
+        self.assertEqual((decision['minimum'], decision['maximum']), (2, 2))
+        self.act(engine, 'p1', 'submit_decision', {
+            'selected': [first_cost['instance_id'], second_cost['instance_id']],
+        })
+
+        self.assertEqual(engine.state['players']['p2']['hp'], 100)
+        self.assertIsNotNone(engine._find_card(
+            noir['instance_id'], owner='p1', zone='side',
+        ))
+        self.assertIsNotNone(engine._find_card(
+            first_cost['instance_id'], owner='p1', zone='break',
+        ))
+        self.assertIsNotNone(engine._find_card(
+            second_cost['instance_id'], owner='p1', zone='break',
+        ))
+
+        negated = copy.deepcopy(noir)
+        negated['instance_id'] = 'noir-negated-combo'
+        negated['numbered_effects_negated'] = True
+        insufficient_state = base_state([negated, first_cost], [])
+        insufficient_state['phase'] = 'battle'
+        insufficient_state['players']['p1']['zones']['battle'] = [starter]
+        insufficient_state['players']['p1']['passive_state']['dark_night'] = {
+            'value': True,
+        }
+        insufficient_state['players']['p2']['hp'] = 1000
+        insufficient = AutomaticGameEngine.initialize(
+            insufficient_state, release, seed='noir-negated-combo-projection',
+        )
+        insufficient.engine_state['combo'] = {
+            'owner': 'p1', 'source': starter['instance_id'],
+            'used': [starter['instance_id']], 'last_speed': 12,
+            'next_penalty': 200, 'max_combo': 3,
+        }
+        self.assertFalse(insufficient._combo_card_legal(
+            'p1', insufficient._find_card('noir-negated-combo'),
+            insufficient.engine_state['combo'], selected_speed=13,
+        ))
+        self.assertEqual(
+            validate_effect_definition(definition, card_has_text=True), [],
+        )
+
     def test_lmi_at_039_reviews_missing_special_and_dark_night_qna(self):
         text = (
             '①판정 전, 상대 공격 기술에 특수 판정이 없을 경우 '
@@ -16294,6 +19008,55 @@ class AutomaticEngineTests(SimpleTestCase):
             validate_effect_definition(definition, card_has_text=True), [],
         )
 
+    def test_cb03_at_002_catch_mark_continues_after_opponent_lumen_move(self):
+        from .game.sandbox import continue_effect_sandbox, start_effect_sandbox
+
+        text = (
+            '①히트 및 카운터 시, 이 기술을 상대 루멘 존에 보낼 수 있다. '
+            '그 경우, 자신은 5FP를 얻고 이번 턴 캐치할 수 없다.\n'
+            '②이 기술이 루멘 존에 있는 동안 자신이 데미지를 받았을 경우, '
+            '200데미지를 받고 이 기술을 원래 주인의 리스트로 보낸다.'
+        )
+        definition = build_effect_draft('CB03-AT-002', text)
+        source = {
+            'id': 507, 'code': 'CB03-AT-002', 'name': '너 내가 찍었어',
+            'type': '공격', 'text': text, 'detail_text': '',
+            'frame': 5, 'damage': 200, 'pos': '상단', 'body': '',
+            'special': None, 'hit': '0', 'guard': '-5', 'counter': '0',
+            'g_top': None, 'g_mid': None, 'g_bot': None,
+            'character_id': 20, 'ultimate': False,
+            'effect_definition': definition,
+        }
+        payload = start_effect_sandbox(
+            source, definition, 'cb03-at-002-n1', {}, {
+                'controller': 'p1', 'event': 'hit',
+                'execution_mode': 'catch_pipeline',
+                'source_zone': 'hand', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+        self.assertEqual(
+            payload['state']['engine']['pending_decision']['kind'],
+            'optional_effect',
+        )
+
+        result = continue_effect_sandbox(payload, ['accept'])
+
+        self.assertEqual(result['state']['players']['p2']['hp'], 3800)
+        marked = next(
+            card for card in result['state']['players']['p2']['zones']['lumen']
+            if card.get('code') == 'CB03-AT-002'
+        )
+        self.assertEqual(marked['owner'], 'p1')
+        self.assertFalse(any(
+            event.get('type') == 'catch_interrupted'
+            for event in result['events']
+        ))
+
     def test_cb03_at_006_reviews_real_list_choice_and_optional_catch_speed(self):
         text = (
             '①[[state:high_tension]]: 히트/카운터/콤보 시, 리스트에서 '
@@ -16908,7 +19671,11 @@ class AutomaticEngineTests(SimpleTestCase):
 
         self.assertTrue(result.passed, result.as_dict())
         self.assertEqual(len(result.abilities), 2)
-        self.assertEqual(result.as_dict()['scenario_count'], 11)
+        self.assertEqual(result.as_dict()['scenario_count'], 12)
+        self.assertEqual(definition['abilities'][1]['limit'], {
+            'scope': 'turn', 'max': 1,
+            'key': 'cb03-at-012-n1:usage',
+        })
         by_id = {ability.ability_id: ability for ability in result.abilities}
         unavoidable = {
             item['name']: item
@@ -16924,6 +19691,12 @@ class AutomaticEngineTests(SimpleTestCase):
         }
         self.assertEqual(
             recovery['owner-p2-counter-adds-five-at-recovery']['fp'], 7,
+        )
+        self.assertEqual(
+            recovery['hit-then-combo-schedules-only-once'][
+                'scheduled_before_recovery'
+            ],
+            1,
         )
         mutated = copy.deepcopy(definition)
         mutated['abilities'][0]['active_zones'] = ['hand']
@@ -18473,7 +21246,7 @@ class AutomaticEngineTests(SimpleTestCase):
             for ability in result.abilities
         ))
         self.assertEqual(
-            sum(len(ability.scenarios) for ability in result.abilities), 25,
+            sum(len(ability.scenarios) for ability in result.abilities), 26,
         )
         by_id = {ability.ability_id: ability for ability in result.abilities}
         replenish = {
@@ -18520,6 +21293,16 @@ class AutomaticEngineTests(SimpleTestCase):
             replenish['game-limit-blocks-second-activation'][
                 'second_activation_kind'
             ],
+        )
+        gaon = replenish[
+            'answered-ruling-gaon-checks-after-lucky-days-completes'
+        ]
+        self.assertEqual(gaon['gaon_zone'], 'lumen')
+        self.assertEqual(gaon['calling_lumen_count'], 3)
+        self.assertEqual(gaon['hand_count'], 4)
+        self.assertEqual(gaon['gaon_return_resolution_count'], 0)
+        self.assertEqual(
+            gaon['movement_order'], gaon['expected_movement_order'],
         )
 
         limit = {
@@ -20081,6 +22864,11 @@ class AutomaticEngineTests(SimpleTestCase):
                 'opponent_ready_allowed'
             ],
         )
+        self.assertTrue(
+            function['ready-lock-only-affects-guisum-owner'][
+                'same_owner_other_ready_allowed'
+            ],
+        )
 
         catch = {
             item['name']: item for item in by_id['rfs-at-002-n1'].scenarios
@@ -20114,6 +22902,10 @@ class AutomaticEngineTests(SimpleTestCase):
         }])
         self.assertEqual(
             definition['abilities'][0]['effects'][1]['kind'], 'ready',
+        )
+        self.assertEqual(
+            definition['abilities'][0]['effects'][1]['where'],
+            {'code': 'RFS-AT-002'},
         )
         move = definition['abilities'][2]['effects'][0]
         self.assertEqual(move['result_key'], 'rfs_at_002_moved_to_side')
@@ -20453,6 +23245,66 @@ class AutomaticEngineTests(SimpleTestCase):
         )
         self.assertEqual(
             validate_effect_definition(definition, card_has_text=True), [],
+        )
+
+    def test_battle_pipeline_resolves_persistent_zone_timing_once(self):
+        power = {
+            'instance_id': 'power-gauntlet', 'kind': 'card', 'owner': 'p1',
+            'code': 'RFS-AT-014', 'name': 'R ARM: 파워 건틀릿',
+            'type': '특수', 'frame': None, 'damage': None,
+            'hit': '0', 'guard': '0', 'counter': '0', 'face_up': True,
+        }
+        own_attack = attack(
+            'pinp-hand-technique', 'p1', code='PINP-HAND-TECHNIQUE',
+            frame=6, damage=500,
+        )
+        own_attack.update({'character_key': 'pinp', 'body': '손'})
+        opposing_attack = attack(
+            'opposing-technique', 'p2', code='OPPOSING-TECHNIQUE',
+            frame=7, damage=500,
+        )
+        state = base_state([], [], hp=4000)
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['lumen'] = [power]
+        state['players']['p1']['zones']['battle'] = [own_attack]
+        state['players']['p2']['zones']['battle'] = [opposing_attack]
+        release = ruleset(power, own_attack, opposing_attack)
+        release['cards']['RFS-AT-014']['effect_definition'] = (
+            build_effect_draft(
+                'RFS-AT-014',
+                '"R ARM"명을 포함하는 기술은 루멘 존에 1장만 배치할 수 있다.\n'
+                '①판정 전, <[[character:pinp]] 손>판정 기술 데미지+100',
+            )
+        )
+        engine = AutomaticGameEngine(
+            state, release, seed='persistent-zone-timing-once',
+        )
+        engine.engine_state['ready_cards'] = {
+            'p1': own_attack['instance_id'],
+            'p2': opposing_attack['instance_id'],
+        }
+        engine.engine_state['step'] = 'battle_pipeline'
+        engine.engine_state['pipeline'] = {
+            'kind': 'battle', 'stage': 'start',
+        }
+
+        engine._continue()
+
+        resolutions = [
+            event for event in engine.events
+            if event.get('type') == 'effect_resolved'
+            and (event.get('payload') or {}).get('ability_id')
+            == 'rfs-at-014-n1'
+        ]
+        battle_damage = [
+            event for event in engine.events
+            if event.get('type') == 'damage_dealt'
+            and (event.get('payload') or {}).get('source') == 'battle'
+            and event.get('actor') == 'p1'
+        ]
+        self.assertEqual(len(resolutions), 1)
+        self.assertEqual(
+            (battle_damage[-1].get('payload') or {}).get('amount'), 600,
         )
 
     def test_rfs_at_015_reviews_l_arm_limit_and_one_list_combo(self):
@@ -21131,7 +23983,7 @@ class AutomaticEngineTests(SimpleTestCase):
             for ability in result.abilities
         ))
         self.assertEqual(
-            sum(len(ability.scenarios) for ability in result.abilities), 10,
+            sum(len(ability.scenarios) for ability in result.abilities), 12,
         )
         by_id = {ability.ability_id: ability for ability in result.abilities}
         deploy = {
@@ -21147,6 +23999,9 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertFalse(
             deploy['source-in-hand-does-not-trigger']['resolved'],
         )
+        self.assertFalse(
+            deploy['opponent-clash-does-not-deploy']['resolved'],
+        )
 
         punish = {
             item['name']: item for item in by_id['rfs-at-038-n2'].scenarios
@@ -21160,6 +24015,17 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertFalse(
             punish['source-in-list-does-not-trigger-second-effect']['resolved'],
         )
+        self.assertFalse(
+            punish['opponent-clash-does-not-punish']['resolved'],
+        )
+
+        own_clash = {
+            'op': 'equals',
+            'left': 'context.event_controller',
+            'right': {'controller': True},
+        }
+        self.assertEqual(definition['abilities'][0]['condition'], own_clash)
+        self.assertEqual(definition['abilities'][1]['condition'], own_clash)
 
         self.assertEqual(definition['abilities'][0]['active_zones'], ['list'])
         self.assertEqual(definition['abilities'][0]['effects'], [{
@@ -26277,8 +29143,10 @@ class AutomaticEngineTests(SimpleTestCase):
             '그 기술의 사용 후, 콤보 타임을 종료하고 해당 기술을 패로 가져온다.',
         )
         one_combo = attack(
-            'divertissement-one-combo', 'p1', frame=3, damage=500, hit='손',
+            'divertissement-one-combo', 'p1', frame=3, damage=500,
+            hit='콤보',
         )
+        one_combo['body'] = '손'
         source = attack(
             'divertissement-source', 'p1', code='CRS-AT-037', frame=8, damage=500,
         )
@@ -28944,7 +31812,10 @@ class AutomaticEngineTests(SimpleTestCase):
             'instance_id': 'spider-passive', 'kind': 'card', 'owner': 'p1',
             'code': 'PMP-PS-001', 'name': '거미 특성', 'type': '특성', 'face_up': True,
         }
-        resonance = attack('resonance', 'p1', special='잔향')
+        resonance = attack('resonance', 'p1')
+        # Real Ezebel cards store the <잔향> mark in Card.body.  It is not a
+        # special judgment, so a special-field fixture would hide a live bug.
+        resonance['body'] = '잔향'
         spider = {
             'instance_id': 'spider-token', 'kind': 'card', 'owner': 'p1',
             'code': 'PMP-AT-053', 'name': '거미', 'type': '토큰',
@@ -30231,7 +33102,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(definition['abilities'][2]['active_zones'], ['battle'])
         self.assertEqual(definition['abilities'][2]['effects'][0]['amount'], {
             'op': 'multiply',
-            'values': [100, {'path': 'context.combo_used_count'}],
+            'values': [100, {'path': 'context.combo_total_used_count'}],
         })
 
         source = attack('pmp-nine', 'p1', code='PMP-AT-009', frame=13, damage=700)
@@ -30324,8 +33195,9 @@ class AutomaticEngineTests(SimpleTestCase):
             heal_state, heal_release, seed='pmp-at-009-heal',
         )
         heal_engine.engine_state['combo'] = {
-            'owner': 'p1', 'source': heal_source['instance_id'],
-            'used': ['combo-2', 'combo-3', 'combo-4'], 'next_penalty': 400,
+            'owner': 'p1', 'source': 'combo-starter',
+            'used': [heal_source['instance_id'], 'combo-3'],
+            'next_penalty': 300,
         }
         heal_engine.end_combo()
         heal_engine._continue()
@@ -30354,7 +33226,10 @@ class AutomaticEngineTests(SimpleTestCase):
         heal_scenarios = {
             item['name']: item for item in review.abilities[2].scenarios
         }
-        self.assertEqual(heal_scenarios['owner-p2-three-cards']['after'], 3300)
+        self.assertEqual(
+            heal_scenarios['owner-p2-starter-plus-four-cards']['after'],
+            3500,
+        )
         self.assertEqual(heal_scenarios['opponent-combo-no-heal']['after'], 3000)
 
     def test_pmp_at_009_review_rejects_hp_affordability_gate(self):
@@ -32031,6 +34906,63 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(engine.state['phase'], 'ready')
         self.assertIn('p2-grab', [card['instance_id'] for card in engine.state['players']['p2']['zones']['break']])
         self.assertIn('p1-grab', [card['instance_id'] for card in engine.state['players']['p1']['zones']['hand']])
+
+    def test_grab_negated_uses_battle_as_triggering_zone_after_hand_return(self):
+        battle_grab = attack(
+            'zone-p1-grab', 'p1', code='ZONE-GRAB', special='그랩',
+        )
+        defender = defense('zone-p2-defense', 'p2')
+        hand_grab = attack('zone-p2-grab', 'p2', special='그랩')
+        state = base_state(
+            [battle_grab], [defender, hand_grab], p1_fp=5,
+        )
+        release = ruleset(battle_grab, defender, hand_grab)
+        release['cards']['ZONE-GRAB']['effect_definition'] = {
+            'schema_version': 1, 'reviewed': True,
+            'source_refs': {'rulebook_pages': [48], 'qna_ids': []},
+            'abilities': [{
+                'id': 'zone-grab-negated',
+                'label': '그랩 무효 시 4FP를 잃는다.',
+                'kind': 'function', 'mode': 'mandatory',
+                'timing': 'result', 'visibility': 'public',
+                'active_zones': ['battle'],
+                'trigger': {'event': 'grab_negated'},
+                'effects': [{
+                    'op': 'change_fp',
+                    'player': {'controller': True}, 'amount': -4,
+                }],
+            }],
+        }
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='grab-triggering-zone',
+        )
+        self.enter_ready(engine)
+        self.act(engine, 'p1', 'ready_card')
+        ready_defense = next(
+            action for action in engine.legal_actions('p2')
+            if action['type'] == 'ready_card'
+            and action['payload']['card_instance_id']
+            == defender['instance_id']
+        )
+        engine.submit_action(
+            'p2', ready_defense['action_id'], {},
+            command_id='grab-triggering-zone-defense',
+        )
+
+        self.act(
+            engine, 'p2', 'submit_decision',
+            {'selected': [hand_grab['instance_id']]},
+        )
+
+        self.assertEqual(engine.state['players']['p1']['fp'], -4)
+        self.assertIsNotNone(engine._find_card(
+            battle_grab['instance_id'], owner='p1', zone='hand',
+        ))
+        self.assertTrue(any(
+            event['type'] == 'effect_resolved'
+            and event['payload'].get('ability_id') == 'zone-grab-negated'
+            for event in engine.events
+        ))
 
     def test_grab_negation_uses_visible_hand_card_choice_and_allows_empty_confirmation(self):
         battle_grab = attack('decline-p1-grab', 'p1', special='그랩')
@@ -36357,12 +39289,15 @@ class AutomaticEngineTests(SimpleTestCase):
         )
         virtual = attack('down-virtual', 'p1', position='중단')
         virtual['kind'] = 'virtual'
+        opponent_lower = attack(
+            'down-opponent-lower', 'p2', position='하단',
+        )
         cards = [
             trait, upper_dodge, lower_attack, upper_defense,
             lower_clash_defense, neutral, marked, externally_changed,
-            changed_away, virtual,
+            changed_away, virtual, opponent_lower,
         ]
-        state = base_state(cards[1:], [])
+        state = base_state(cards[1:-1], [opponent_lower])
         state['players']['p1']['zones']['passive'] = [trait]
         release = ruleset(*cards)
         release['cards']['ST3-PS1']['effect_definition'] = definition
@@ -36410,6 +39345,17 @@ class AutomaticEngineTests(SimpleTestCase):
         engine.set_passive('p1', 'down_stance', value=True)
         fire_after_use(virtual)
         self.assertTrue(state_value())
+
+        live_opponent = engine._find_card(opponent_lower['instance_id'])
+        engine._fire('after_use', {
+            'controller': 'p2',
+            'source_card_instance_id': live_opponent['instance_id'],
+            'source_card': live_opponent,
+        })
+        self.assertTrue(
+            state_value(),
+            '상대의 하단 기술 사용 후에는 내 다운 스탠스를 변경하지 않는다.',
+        )
         self.assertEqual(definition['trait_state_keys'], ['down_stance'])
         self.assertEqual(
             definition['abilities'][0]['source_refs']['qna_ids'],
@@ -36834,10 +39780,12 @@ class AutomaticEngineTests(SimpleTestCase):
             '루멘 존에 배치할 수 있다. 이번 턴 데미지를 받았다면 '
             '[[token:parts]]를 1장까지 배치할 수 있다.',
         )
-        branch = next(
-            ability['effects'][0] for ability in definition['abilities']
+        battle_end = next(
+            ability for ability in definition['abilities']
             if ability['id'] == 'rfs-at-028-n2'
         )
+        self.assertEqual(battle_end['active_zones'], ['battle'])
+        branch = battle_end['effects'][0]
         self.assertEqual(branch['op'], 'conditional')
         for amount, expected_max in ((0, 4), (1, 1), (900, 1)):
             context = {
@@ -39955,6 +42903,148 @@ class AutomaticEngineTests(SimpleTestCase):
             bad_star, card_has_text=True, card_snapshot=cards[1][3],
         ).passed)
 
+    def test_cb01_at_001_runtime_dodge_keeps_pre_fp_activation(self):
+        from .game.sandbox import start_effect_sandbox
+
+        text = (
+            '이 기술은 자신의 체력이 2500 이하일 경우에만 사용할 수 있다.\n'
+            '① 사용 시, 이번 턴 리커버리 페이즈에 4FP를 얻는다.\n'
+            '②판정 전, 자신의 FP가 불리할 경우 이 기술에 '
+            '<12속도 이하 중단 회피>특수 판정을 추가한다.\n'
+            '③ 사용 후, 이 기술을 브레이크한다.'
+        )
+        definition = build_effect_draft(
+            'CB01-AT-001', text, qna_ids=[659, 660, 661, 666],
+        )
+        snapshot = {
+            'id': 379, 'code': 'CB01-AT-001',
+            'name': '진•오몽!! 킥!!', 'type': '공격',
+            'frame': 9, 'damage': 800, 'pos': '중단', 'body': '발',
+            'special': None, 'hit': '콤보', 'guard': '-5',
+            'counter': '콤보', 'g_top': None, 'g_mid': None,
+            'g_bot': None, 'character_id': 14, 'ultimate': True,
+        }
+
+        payload = start_effect_sandbox(
+            snapshot, definition, 'cb01-at-001-n2', {}, {
+                'controller': 'p1', 'event': 'before_judgment',
+                'execution_mode': 'battle_pipeline',
+                'source_zone': 'battle', 'phase': 'battle',
+                'fixture_mode': 'minimal', 'include_source_effects': True,
+                'players': {
+                    'p1': {'hp': 2500, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 5, 'passive_state': {}},
+                },
+            },
+        )
+
+        self.assertEqual(payload['state']['players']['p1']['hp'], 2500)
+        self.assertTrue(any(
+            event.get('type') == 'judgment_modified'
+            for event in payload['events']
+        ))
+        self.assertTrue(any(
+            card.get('code') == 'CB01-AT-001'
+            for card in payload['state']['players']['p1']['zones']['break']
+        ))
+        self.assertEqual(len(payload['state']['engine']['scheduled']), 1)
+
+    def test_battle_sandbox_applies_chimera_import_rules_before_use(self):
+        from .game.sandbox import start_effect_sandbox
+
+        refs = {'rulebook_pages': [48], 'qna_ids': [], 'card_text': True}
+        trait_ability = {
+            'id': 'sandbox-chimera-trait', 'kind': 'function',
+            'mode': 'continuous', 'timing': 'function',
+            'visibility': 'public', 'active_zones': ['passive'],
+            'source_refs': refs,
+            'effects': [{'op': 'static_rule', 'rules': ['deck_rules']}],
+        }
+        trait_definition = {
+            'schema_version': 1, 'reviewed': True,
+            'source_refs': refs, 'abilities': [trait_ability],
+            'deck_rules': {
+                'other_character_cards': {
+                    'allowed_types': ['공격'], 'exclude_ultimate': True,
+                    'exclude_character_ids': [1],
+                    'treat_as_own_character': True,
+                    'negate_effects': True, 'break_after_use': True,
+                },
+            },
+        }
+        trait = {
+            'id': 1, 'code': 'SANDBOX-CHIMERA-TRAIT',
+            'name': '키메라 특성', 'type': '특성',
+            'character_id': 15, 'character_key': 'chimera',
+            'character': {'id': 15, 'key': 'chimera', 'name': '키메라'},
+            'effect_definition': trait_definition,
+        }
+        imported = attack(
+            'sandbox-chimera-imported', 'p1', code='SANDBOX-FOREIGN',
+            frame=6, damage=200, position='하단',
+        )
+        imported.update({
+            'id': 2, 'character_id': 9, 'character_key': 'foreign-9',
+            'ultimate': False,
+            'effect_definition': {
+                'schema_version': 1, 'reviewed': True,
+                'source_refs': refs,
+                'abilities': [{
+                    'id': 'sandbox-foreign-hp-cost', 'kind': 'effect',
+                    'mode': 'mandatory', 'timing': 'use',
+                    'visibility': 'public', 'active_zones': ['battle'],
+                    'trigger': {'event': 'use'}, 'source_refs': refs,
+                    'effects': [{
+                        'op': 'pay_hp', 'player': {'controller': True},
+                        'amount': 200,
+                    }],
+                }],
+            },
+        })
+        opposing = attack(
+            'sandbox-chimera-opposing', 'p2', code='SANDBOX-OPPOSING',
+            frame=12, damage=300, position='상단',
+        )
+        opposing.update({
+            'id': 3, 'character_id': 11, 'character_key': 'foreign-11',
+            'effect_definition': EMPTY_DEFINITION,
+        })
+
+        payload = start_effect_sandbox(
+            trait, trait_definition, trait_ability['id'], {
+                '2': imported, '3': opposing,
+            }, {
+                'controller': 'p1', 'event': 'after_use',
+                'execution_mode': 'battle_pipeline',
+                'source_zone': 'passive', 'phase': 'battle',
+                'fixture_mode': 'none', 'include_source_effects': True,
+                'include_support_effects': True,
+                'cards': [{
+                    'card_id': 2, 'owner': 'p1', 'zone': 'battle',
+                    'face_up': True,
+                }, {
+                    'card_id': 3, 'owner': 'p2', 'zone': 'battle',
+                    'face_up': True,
+                }],
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+
+        self.assertEqual(payload['state']['players']['p1']['hp'], 4000)
+        self.assertIsNotNone(next((
+            card for card in payload['state']['players']['p1']['zones']['break']
+            if card.get('code') == 'SANDBOX-FOREIGN'
+        ), None))
+        self.assertFalse(any(
+            event.get('type') == 'effect_resolved'
+            and event.get('payload', {}).get('ability_id')
+            == 'sandbox-foreign-hp-cost'
+            for event in payload['events']
+        ))
+
     def test_cb01_falling_blossom_storm_kick_and_shadow_attack_reviews(self):
         cards = (
             (
@@ -40473,6 +43563,118 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertFalse(review_automatic_definition(
             bad_primal, card_has_text=True, card_snapshot=cards[1][3],
         ).passed)
+
+    def test_crs_at_006_answered_combo_timing_keeps_damage_after_self_break(self):
+        whirlwind_text = (
+            '①사용 시, 패 1장을 브레이크한다.\n'
+            '②콤보 시, 이 기술을 브레이크할 수 있다.\n'
+            '그 경우, [[token:ember]]카운터 1개를 얻는다.'
+        )
+        trait_text = (
+            '자신의 <[[character:rin]]> 기술이 브레이크될 때마다 '
+            '[[token:ember]]카운터 1개를 얻는다.'
+        )
+        starter = attack(
+            'crs-006-starter', 'p1', code='CRS-006-STARTER',
+            frame=8, damage=500, hit='콤보',
+        )
+        whirlwind = attack(
+            'crs-006-whirlwind', 'p1', code='CRS-AT-006',
+            frame=9, damage=600, hit='콤보', counter='콤보',
+        )
+        followup = attack(
+            'crs-006-followup', 'p1', code='CRS-006-FOLLOWUP',
+            frame=10, damage=600,
+        )
+        hand_cost = attack(
+            'crs-006-hand-cost', 'p1', code='CRS-006-HAND-COST',
+            frame=6, damage=300,
+        )
+        trait = attack(
+            'crs-006-trait', 'p1', code='CRS-PS-001',
+            frame=None, damage=None,
+        )
+        trait.update({'type': '특성', 'face_up': True})
+        whirlwind['character_key'] = 'rin'
+        hand_cost['character_key'] = 'other'
+
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [starter]
+        state['players']['p1']['zones']['hand'] = [
+            whirlwind, followup, hand_cost,
+        ]
+        state['players']['p1']['zones']['passive'] = [trait]
+        release = ruleset(
+            starter, whirlwind, followup, hand_cost, trait,
+        )
+        release['cards']['CRS-AT-006']['effect_definition'] = (
+            build_effect_draft('CRS-AT-006', whirlwind_text, qna_ids=[523])
+        )
+        release['cards']['CRS-PS-001']['effect_definition'] = (
+            build_effect_draft(
+                'CRS-PS-001', trait_text,
+                qna_ids=[121, 139, 224, 225],
+            )
+        )
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='crs-at-006-answered-combo-order',
+        )
+        engine.state['phase'] = 'battle'
+        engine.grant_combo('p1', source=starter['instance_id'])
+
+        first = next(
+            action for action in engine.legal_actions('p1')
+            if action.get('type') == 'select_combo_first'
+            and action['payload']['card_instance_id']
+            == whirlwind['instance_id']
+        )
+        engine.submit_action(
+            'p1', first['action_id'], {}, command_id='crs-006-first',
+        )
+        second = next(
+            action for action in engine.legal_actions('p1')
+            if action.get('type') == 'select_combo_followup'
+            and action['payload']['card_instance_id']
+            == followup['instance_id']
+        )
+        engine.submit_action(
+            'p1', second['action_id'], {}, command_id='crs-006-second',
+        )
+
+        use_choice = engine.engine_state.get('pending_decision') or {}
+        self.assertEqual(use_choice.get('kind'), 'effect_choice')
+        self.assertIn('패 1장', use_choice.get('prompt') or '')
+        self.act(engine, 'p1', 'submit_decision', {
+            'selected': [hand_cost['instance_id']],
+        })
+
+        combo_choice = engine.engine_state.get('pending_decision') or {}
+        self.assertEqual(combo_choice.get('kind'), 'optional_effect')
+        self.act(engine, 'p1', 'submit_decision', {'selected': ['accept']})
+
+        self.assertIsNotNone(engine._find_card(
+            whirlwind['instance_id'], owner='p1', zone='break',
+        ))
+        self.assertIsNotNone(engine._find_card(
+            hand_cost['instance_id'], owner='p1', zone='break',
+        ))
+        self.assertEqual(engine.state['players']['p2']['hp'], 4100)
+        self.assertEqual(
+            engine.state['players']['p1']['passive_state']['ember']['count'],
+            2,
+        )
+        self.assertEqual([
+            event['payload']['card_instance_id']
+            for event in engine.events
+            if event.get('type') == 'combo_card_used'
+        ], [whirlwind['instance_id'], followup['instance_id']])
+        self.assertFalse(any(
+            event.get('type') == 'combo_interrupted'
+            and (event.get('payload') or {}).get('card_instance_id')
+            == whirlwind['instance_id']
+            for event in engine.events
+        ))
 
     def test_crs_at_008_and_026_reviews_cover_dynamic_lock_and_catch_end(self):
         cards = (
@@ -41116,11 +44318,12 @@ class IntegratedAutomaticEffectReviewTests(TestCase):
         negated = combo['numbered-negation-applies-fourth-combo-penalty']
         self.assertFalse(negated['ignore_damage_penalty'])
         self.assertEqual(negated['damage'], 100)
-        self.assertFalse(
-            combo['card-does-not-itself-extend-to-fourth-combo'][
-                'source_legal'
-            ],
-        )
+        unlimited = combo[
+            'unlimited-core-allows-fourth-without-extension'
+        ]
+        self.assertTrue(unlimited['source_legal'])
+        self.assertTrue(unlimited['ignore_damage_penalty'])
+        self.assertEqual(unlimited['damage'], 400)
 
         wrong_boundary = copy.deepcopy(definition)
         wrong_boundary['combo_rules'][0]['condition']['conditions'][1][
@@ -41218,6 +44421,12 @@ class IntegratedAutomaticEffectReviewTests(TestCase):
         self.assertEqual(chosen['choice_range'], (1, 1))
         self.assertIn(chosen['selected_id'], chosen['technique_ids'])
         self.assertNotIn(chosen['distractor_id'], chosen['option_ids'])
+        self.assertEqual(
+            recovery['global-recovery-event-is-not-controller-scoped'][
+                'moved_count'
+            ],
+            1,
+        )
         protected = recovery[
             'protection-after-choice-prevents-the-acquisition'
         ]
@@ -41236,6 +44445,73 @@ class IntegratedAutomaticEffectReviewTests(TestCase):
         self.assertEqual(
             validate_effect_definition(definition, card_has_text=True), [],
         )
+
+    def test_cb01_ps_001_recovery_uses_global_phase_start_pipeline(self):
+        from .game.sandbox import continue_effect_sandbox, start_effect_sandbox
+
+        text = (
+            '이 캐릭터는 캐릭터 기술 10장 편성 제한을 받지 않는다.\n'
+            '①캐치 시, 해당 기술 데미지+100\n'
+            '②콤보 시, 3콤보까지의 기술은 데미지 보정을 적용하지 않는다.\n'
+            '③리커버리 페이즈 시, 자신의 패가 4장 이하일 경우 '
+            '리스트에서 기술 1장을 획득할 수 있다.'
+        )
+        definition = build_effect_draft('CB01-PS-001', text)
+        source = {
+            'id': 364, 'code': 'CB01-PS-001',
+            'name': '오목눈이 영물', 'type': '특성',
+            'frame': None, 'damage': None, 'pos': None, 'body': None,
+            'special': None, 'hit': '0', 'guard': '0', 'counter': '0',
+            'g_top': None, 'g_mid': None, 'g_bot': None,
+            'character_id': 14, 'ultimate': False,
+        }
+        no_effect = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': True,
+            'source_refs': {
+                'rulebook_pages': [], 'qna_ids': [], 'card_text': False,
+            },
+            'abilities': [],
+        }
+        technique = {
+            'id': 397, 'code': 'CB02-AT-003', 'name': '손날치기',
+            'type': '공격', 'frame': 5, 'damage': 400, 'pos': '상단',
+            'body': '손', 'special': None, 'hit': '2', 'guard': '-2',
+            'counter': '2', 'g_top': None, 'g_mid': None, 'g_bot': None,
+            'character_id': 14, 'ultimate': False,
+            'effect_definition': no_effect,
+        }
+
+        payload = start_effect_sandbox(
+            source, definition, 'cb01-ps-001-n3', {'397': technique}, {
+                'controller': 'p1', 'event': 'phase_start',
+                'execution_mode': 'phase_pipeline',
+                'source_zone': 'passive', 'phase': 'recovery',
+                'fixture_mode': 'none',
+                'cards': [{
+                    'card_id': '397', 'owner': 'p1',
+                    'zone': 'list', 'face_up': True,
+                }],
+                'players': {
+                    'p1': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                },
+            },
+        )
+        self.assertEqual(
+            payload['state']['engine']['pending_decision']['kind'],
+            'optional_effect',
+        )
+        payload = continue_effect_sandbox(payload, ['accept'])
+        decision = payload['state']['engine']['pending_decision']
+        self.assertEqual(decision['kind'], 'effect_choice')
+        selected_id = decision['options'][0]['id']
+
+        payload = continue_effect_sandbox(payload, [selected_id])
+
+        self.assertTrue(any(
+            card.get('code') == 'CB02-AT-003'
+            for card in payload['state']['players']['p1']['zones']['hand']
+        ))
 
 
     def test_cb01_at_020_reviews_lumen_choice_and_recurring_hidden_bond(self):
@@ -41267,7 +44543,7 @@ class IntegratedAutomaticEffectReviewTests(TestCase):
 
         self.assertTrue(result.passed, result.as_dict())
         self.assertEqual(len(result.abilities), 3)
-        self.assertEqual(result.as_dict()['scenario_count'], 17)
+        self.assertEqual(result.as_dict()['scenario_count'], 19)
         self.assertTrue(all(
             ability.passed and len(ability.scenarios) >= 3
             for ability in result.abilities
@@ -41294,6 +44570,18 @@ class IntegratedAutomaticEffectReviewTests(TestCase):
         self.assertEqual(recovery['owner-p1-spends-one-of-two'][
             'hidden_bond'
         ], 1)
+        self.assertEqual(
+            recovery['answered-ruling-charm-first-keeps-charm'][
+                'charm_zone'
+            ],
+            'lumen',
+        )
+        self.assertEqual(
+            recovery['answered-ruling-femme-first-breaks-charm'][
+                'charm_zone'
+            ],
+            'break',
+        )
         malformed = copy.deepcopy(definition)
         malformed['abilities'][1]['effects'][1]['selector']['where'][
             'code'

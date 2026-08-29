@@ -528,7 +528,11 @@ class AutomaticGameEngine:
                 if role in (engine.get('forced_get_designators') or {}):
                     return actions
                 for card in self._zone(role, 'list'):
-                    if not _is_special(card) and not self._rule_blocked('get_card', role, card):
+                    if (
+                        not _is_special(card)
+                        and not self._hand_move_blocked(card)
+                        and not self._rule_blocked('get_card', role, card)
+                    ):
                         actions.append(self._action(
                             'select_get_card', label=card.get('name') or '카드 획득',
                             payload={'card_instance_id': card.get('instance_id')},
@@ -548,7 +552,13 @@ class AutomaticGameEngine:
             if combo.get('owner') == role and not combo.get('proposal_submitted'):
                 combo_actions = self._combo_actions(role, combo, staged=True)
                 actions.extend(combo_actions)
-                initial_pair_pending = not (combo.get('used') or [])
+                review_isolation = (
+                    self._combo_review_isolation()
+                    and not combo.get('special')
+                )
+                initial_pair_pending = (
+                    not (combo.get('used') or []) and not review_isolation
+                )
                 if not initial_pair_pending and not (
                     combo_actions
                     and self._required_combo_followup_rules(role, combo)
@@ -1396,6 +1406,11 @@ class AutomaticGameEngine:
                 # Only this side's Battle Technique owns this timing slot.
                 # Passive/Lumen/Ultimate reactions remain globally active.
                 'source_battle_card_only': True,
+                # ``_battle_trigger`` dispatches one source-Technique slot for
+                # each player. Persistent-zone reactions must join only their
+                # controller's slot; otherwise the same Lumen/Passive effect
+                # is collected once for each revealed Technique.
+                'global_reaction_slot_owner': side,
             })
             if self.state.get('phase') != 'battle':
                 break
@@ -1799,6 +1814,8 @@ class AutomaticGameEngine:
             sequence.append(('combo', {
                 'controller': side, 'result': 'combo',
                 'combo_judgment': True,
+                'combo_number': 1,
+                'use_context': 'ready',
                 'source_card_instance_id': entry.get('instance_id'),
                 'source_card': card,
                 'opponent_card': (battle.get(opponent(side)) or {}).get('card'),
@@ -1823,6 +1840,27 @@ class AutomaticGameEngine:
                 # before FP, the same reference captured for judgment.
                 'controller_speed': reference_speed.get(side),
                 'opponent_speed': reference_speed.get(opponent(side)),
+                # Result-timing card text commonly compares the printed/effect-
+                # modified damage of either Battle Technique (for example
+                # UNC-AT-028 "Switch!").  The before/after-judgment windows
+                # already expose these values; keep Guard/Dodge/Hit/Counter/
+                # Clash contexts equally complete so a definition behaves the
+                # same in the real battle pipeline as in direct-event review.
+                'controller_damage': self.card_stat(
+                    entry['card'], 'damage', side, include_fp=False,
+                ),
+                'opponent_damage': self.card_stat(
+                    other_entry['card'], 'damage', opponent(side),
+                    include_fp=False,
+                ),
+                'controller_damage_received': _number(
+                    (battle.get('actual_damage_received') or {}).get(side),
+                ),
+                'opponent_damage_received': _number(
+                    (battle.get('actual_damage_received') or {}).get(
+                        opponent(side),
+                    ),
+                ),
                 'source_battle_card_only': True,
                 **extra,
             }
@@ -1885,6 +1923,7 @@ class AutomaticGameEngine:
             ):
                 sequence.append(('combo', result_context(
                     side, result='combo', combo_judgment=True,
+                    combo_number=1, use_context='ready',
                 )))
         return sequence
 
@@ -1998,16 +2037,35 @@ class AutomaticGameEngine:
             item.get('owner') for item in candidates
         } >= set(PLAYER_SIDES)
         available_candidates = []
+        unavailable_printed_combos = []
         for item in candidates:
             if (
                 not mutual_combo
                 and not self._combo_grant_can_open(item)
             ):
                 self._emit_unavailable_combo(item)
+                # A printed Combo judgment has already created Combo Time,
+                # even when the player cannot present the mandatory initial
+                # pair.  Finish that empty Combo through the normal
+                # ``combo_end`` pipeline so delayed "when Combo Time ends"
+                # effects still resolve.  Effect-granted special Combos, on
+                # the other hand, never open unless their pair exists.
+                if item.get('combo_triggered'):
+                    unavailable_printed_combos.append(item)
                 continue
             available_candidates.append(item)
         candidates = available_candidates
         if not candidates:
+            if unavailable_printed_combos:
+                first = unavailable_printed_combos[0]
+                self.engine_state['combo_queue'] = []
+                self.grant_combo(
+                    first['owner'], source=first.get('source'),
+                    special=False, trigger_event=False,
+                    announce_start=False,
+                )
+                self.end_combo()
+                return True
             return False
         missed_catches = list(self.engine_state.get('granted_catches') or [])
         self.engine_state['granted_catches'] = []
@@ -2092,6 +2150,7 @@ class AutomaticGameEngine:
 
     def grant_combo(
         self, owner_side, *, source=None, special=False, trigger_event=True,
+        use_context='ready', announce_start=True,
     ):
         # A normal Hit/Counter Combo source is the already-used 1-combo and
         # therefore goes to the List.  An effect-created special Combo uses
@@ -2115,12 +2174,31 @@ class AutomaticGameEngine:
             **({'last_speed': source_speed} if source_speed is not None else {}),
         }
         self.engine_state['step'] = 'combo'
-        self.emit('combo_started', owner_side, {'source_card_instance_id': source, 'special': bool(special)})
+        if announce_start:
+            self.emit('combo_started', owner_side, {
+                'source_card_instance_id': source,
+                'special': bool(special),
+            })
         if trigger_event:
-            self._fire('combo', {
+            combo_context = {
                 'controller': owner_side,
                 'source_card_instance_id': source,
-            })
+                'special_combo': bool(special),
+            }
+            if source_card:
+                combo_context['source_card'] = copy.deepcopy(source_card)
+            if not special:
+                # A printed Hit/Counter Combo begins with its ready Technique
+                # already used as the first Combo card.  Lumen/passive effects
+                # that react specifically to 1-Combo must see the same context
+                # as source-card Combo effects.  Effect-created special Combos
+                # have not used a first card yet and intentionally omit it.
+                combo_context.update({
+                    'combo_judgment': True,
+                    'combo_number': 1,
+                    'use_context': str(use_context or 'ready'),
+                })
+            self._fire('combo', combo_context)
 
     def _combo_grant_can_open(self, item):
         """Return whether a newly opened Combo has its mandatory first pair.
@@ -2136,12 +2214,19 @@ class AutomaticGameEngine:
         special = bool(item.get('special'))
         if (
             not special
-            and str(self.ruleset.get('version') or '')
-            == 'automatic-effect-v2'
+            and self._combo_review_isolation()
         ):
             return True
         return self._combo_has_legal_initial_pair(
             item.get('owner'), source=item.get('source'), special=special,
+        )
+
+    def _combo_review_isolation(self):
+        """Whether a review intentionally models one arbitrary Combo slot."""
+        return bool(
+            str(self.ruleset.get('version') or '') == 'automatic-effect-v2'
+            and str(self.ruleset.get('review_execution_mode') or '')
+            not in {'battle_pipeline', 'catch_pipeline'}
         )
 
     def _emit_unavailable_combo(self, item):
@@ -2189,15 +2274,26 @@ class AutomaticGameEngine:
     def _advance_combo_end_pipeline(self, pipeline):
         combo = pipeline.get('combo') or {}
         owner = combo.get('owner')
+        combo_used = copy.deepcopy(combo.get('used') or [])
+        combo_card_instance_ids = [
+            *([combo.get('source')] if combo.get('source') else []),
+            *combo_used,
+        ]
+        combo_total_used_count = len(dict.fromkeys(
+            instance_id for instance_id in combo_card_instance_ids
+            if instance_id
+        ))
         context = {
             'controller': owner, 'combo_owner': owner,
-            'combo_used': copy.deepcopy(combo.get('used') or []),
-            'combo_used_count': len(combo.get('used') or []),
+            'combo_used': combo_used,
+            # ``combo_used_count`` is kept as the number of cards added after
+            # the starter for saved rulesets.  Printed text that counts every
+            # Technique used in the Combo, including its 1-Combo starter,
+            # uses the explicit total below.
+            'combo_used_count': len(combo_used),
+            'combo_total_used_count': combo_total_used_count,
             'source_card_instance_id': combo.get('source'),
-            'combo_card_instance_ids': [
-                *([combo.get('source')] if combo.get('source') else []),
-                *(combo.get('used') or []),
-            ],
+            'combo_card_instance_ids': combo_card_instance_ids,
         }
         if pipeline.get('stage') == 'owner_effects':
             pipeline['stage'] = 'opponent_effects'
@@ -2257,6 +2353,7 @@ class AutomaticGameEngine:
             context = {
                 'controller': owner, 'combo_owner': owner,
                 'combo_used': [], 'combo_used_count': 0,
+                'combo_total_used_count': 1 if combo.get('source') else 0,
                 'source_card_instance_id': combo.get('source'),
                 'combo_card_instance_ids': [
                     combo.get('source'),
@@ -2288,7 +2385,7 @@ class AutomaticGameEngine:
         # slot. They use a synthetic ruleset version and retain the wider
         # enumerator so a card's own rule can be tested without inventing
         # unrelated filler cards. Real sessions always use the staged sizes.
-        review_isolation = str(self.ruleset.get('version') or '') == 'automatic-effect-v2'
+        review_isolation = self._combo_review_isolation()
         proposal_size = (
             None if review_isolation and not combo.get('special')
             else (2 if not (combo.get('used') or []) else 1)
@@ -3073,7 +3170,8 @@ class AutomaticGameEngine:
         combo['next_penalty'] = penalty + 100
         self.engine_state['step'] = 'combo_resolution'
         self.engine_state['pipeline'] = {
-            'kind': 'combo_resolution', 'stage': 'combo', 'owner': role,
+            'kind': 'combo_resolution', 'stage': 'use', 'owner': role,
+            'timing_order': 'use_before_combo',
             'card_instance_id': instance_id, 'card': copy.deepcopy(card),
             'source_from_zone': found_zone,
             'penalty': penalty, 'damage': 0, 'remaining_ids': card_ids[1:],
@@ -3146,17 +3244,24 @@ class AutomaticGameEngine:
             ),
         }
         stage = pipeline['stage']
+        use_before_combo = (
+            pipeline.get('timing_order') == 'use_before_combo'
+        )
+        if stage == 'use':
+            # Current rules resolve a Technique's ordinary ``사용 시`` window
+            # before its ``콤보 시`` window.  Pipelines saved before this
+            # ordering was introduced have no marker and retain their old
+            # resume path instead of replaying an already-resolved timing.
+            pipeline['stage'] = 'combo' if use_before_combo else 'hit'
+            self._fire('use', context)
+            return not self.is_waiting
         if stage == 'combo':
             pipeline['stage'] = 'combo_window'
             self._fire('combo', {**context, 'source_only_event': True})
             return not self.is_waiting
         if stage == 'combo_window':
-            pipeline['stage'] = 'use'
+            pipeline['stage'] = 'hit' if use_before_combo else 'use'
             self._fire('combo_window', context)
-            return not self.is_waiting
-        if stage == 'use':
-            pipeline['stage'] = 'hit'
-            self._fire('use', context)
             return not self.is_waiting
         if stage == 'hit':
             if (
@@ -3362,7 +3467,7 @@ class AutomaticGameEngine:
         # Card review sandboxes isolate an effect's own speed choices and do
         # not model a character's ordinary link rule. Real rulesets always
         # start at +1; explicit grants can widen it (Matude: +2).
-        if str(self.ruleset.get('version') or '') != 'automatic-effect-v2':
+        if not self._combo_review_isolation():
             maximum_deltas.append(1)
         maximum_delta = max(maximum_deltas) if maximum_deltas else None
         bypass_maximum_delta = any(rule.get('any_speed') for rule in rules)
@@ -3733,24 +3838,105 @@ class AutomaticGameEngine:
             role, card, combo, rules=rules,
             use_optional_speed_ignore=use_optional_speed_ignore,
         )
+        projected_damage = self._combo_projected_use_damage(
+            role, card, combo, rules,
+        )
         if selected_speed is not None:
             speed = _number(selected_speed)
             return bool(
                 speed in speed_options
-                and self.card_stat(card, 'damage', role) - penalty
+                and projected_damage - penalty
                 + self._combo_damage_bonus(
                     rules, speed,
                     use_optional_speed_ignore=use_optional_speed_ignore,
                 ) > 0
             )
         return any(
-            self.card_stat(card, 'damage', role) - penalty
+            projected_damage - penalty
             + self._combo_damage_bonus(
                 rules, speed,
                 use_optional_speed_ignore=use_optional_speed_ignore,
             ) > 0
             for speed in speed_options
         )
+
+    def _combo_projected_use_damage(self, role, card, combo, rules):
+        """Return the greatest damage a mandatory Use choice can establish.
+
+        Combo candidates are listed before their Use timing resolves. A card
+        whose printed damage is empty can therefore still be legal when its
+        mandatory Use effect fixes damage from cards selected as a cost. The
+        definition opts into that preview with ``project_damage_from_selector``;
+        actual damage is still recalculated from the resolved effect in the
+        combo pipeline.
+        """
+        printed_damage = self.card_stat(card, 'damage', role)
+        projections = []
+        last_card = self._combo_last_card(combo)
+        context = {
+            'controller': role, 'player': role, 'opponent': opponent(role),
+            'source_card': card,
+            'source_card_instance_id': (card or {}).get('instance_id'),
+            'opponent_card': last_card,
+            'combo': True, 'use_context': 'combo',
+            'combo_number': self._next_combo_number(combo),
+            'combo_previous_speed': combo.get('last_speed'),
+            'combo_proposed_card_ids': list(
+                combo.get('proposed_card_ids') or combo.get('used') or []
+            ),
+            'controller_hp': self.state['players'][role].get('hp'),
+            'controller_fp': self.state['players'][role].get('fp'),
+            'opponent_hp': self.state['players'][opponent(role)].get('hp'),
+            'opponent_fp': self.state['players'][opponent(role)].get('fp'),
+        }
+        for rule in rules:
+            projection = rule.get('project_damage_from_selector')
+            if not isinstance(projection, dict):
+                continue
+            selector = copy.deepcopy(projection.get('selector') or {})
+            if not selector:
+                continue
+            # During the real Use timing the candidate has already left Hand.
+            # Exclude it explicitly while projecting the pre-use state.
+            selector['exclude_source'] = True
+            minimum = max(0, _number(resolve_value(
+                selector.get('min', 1), self.state, context,
+            ), 1))
+            all_options = self.selector_options(selector, context)
+            maximum_value = selector.get('max')
+            maximum = (
+                len(all_options)
+                if maximum_value is None
+                else max(0, _number(resolve_value(
+                    maximum_value, self.state, context,
+                )))
+            )
+            if len(all_options) < minimum or maximum < minimum:
+                continue
+
+            # A choice may display operation-protected cards so the player can
+            # satisfy its required count, but only cards the operation can
+            # actually move contribute to the established damage (Q&A 197).
+            contributing_selector = copy.deepcopy(selector)
+            contributing_selector['include_operation_blocked'] = False
+            contributing_ids = {
+                option.get('id')
+                for option in self.selector_options(
+                    contributing_selector, context,
+                )
+            }
+            field = str(projection.get('field') or 'damage')
+            values = []
+            for option in all_options:
+                instance_id = option.get('id')
+                if instance_id not in contributing_ids:
+                    continue
+                selected_card = self._find_card(instance_id)
+                if selected_card:
+                    values.append(max(0, _number(selected_card.get(field))))
+            values.sort(reverse=True)
+            projections.append(sum(values[:maximum]))
+        return max([printed_damage, *projections])
 
     def _combo_last_card(self, combo):
         used = combo.get('used') or []
@@ -4816,9 +5002,24 @@ class AutomaticGameEngine:
                 # Catch has no separate judgment-trigger sequence. Its
                 # printed Combo judgment is announced when Combo Time opens,
                 # so opponent Combo reactions fire here exactly once.
-                self.grant_combo(role, source=pipeline['card_instance_id'])
+                self.grant_combo(
+                    role, source=pipeline['card_instance_id'],
+                    use_context='catch',
+                )
                 return True
             self._emit_unavailable_combo(printed_combo)
+            # The Catch card itself produced a printed Combo judgment.  With
+            # no legal initial pair, no Combo card can be played, but Combo
+            # Time still ends and must expose its cleanup timing.  This is
+            # observable for delayed effects such as CB02-AT-006.
+            self.engine_state['catch'] = None
+            self.engine_state['resume_catch_after_combo'] = True
+            self.grant_combo(
+                role, source=pipeline['card_instance_id'],
+                use_context='catch', announce_start=False,
+            )
+            self.end_combo()
+            return True
         self.end_catch()
         return True
 
@@ -5133,11 +5334,20 @@ class AutomaticGameEngine:
             raise IllegalAction('상대가 지정한 기술을 획득해야 합니다.')
         source_zone = 'ultimate' if self._find_card(instance_id, owner=role, zone='ultimate') else 'list'
         card = self._find_card(instance_id, owner=role, zone=source_zone)
+        hand_move_blocked = self._hand_move_blocked(card)
         if (
             not card or _is_special(card)
+            or (
+                hand_move_blocked
+                and card.get('move_to_hand_blocked_until') != 'turn'
+            )
             or self._rule_blocked('get_card', role, card)
         ):
             raise IllegalAction('획득할 수 없는 카드입니다.')
+        # Q&A 652: Wicked Shadow's current-turn lock still lets its owner
+        # declare that card for Get.  The move is prevented, but the Get is
+        # consumed.  Longer locks remain illegal commands and are never
+        # offered as legal actions.
         self.move_card(instance_id, 'hand', reason='get')
         self._finish_get_action(role, instance_id)
 
@@ -5189,7 +5399,11 @@ class AutomaticGameEngine:
                 'owner': beneficiary, 'zone': 'list',
             }
             for card in self._zone(beneficiary, 'list')
-            if not _is_special(card) and not self._rule_blocked('get_card', beneficiary, card)
+            if (
+                not _is_special(card)
+                and not self._hand_move_blocked(card)
+                and not self._rule_blocked('get_card', beneficiary, card)
+            )
         ]
         options.sort(key=lambda item: str(item.get('id')))
         if not options:
@@ -5219,7 +5433,11 @@ class AutomaticGameEngine:
         ):
             raise IllegalAction('현재 강제 Get 선택이 아닙니다.')
         card = self._find_card(instance_id, owner=beneficiary, zone='list')
-        if not card or _is_special(card) or self._rule_blocked('get_card', beneficiary, card):
+        if (
+            not card or _is_special(card)
+            or self._hand_move_blocked(card)
+            or self._rule_blocked('get_card', beneficiary, card)
+        ):
             raise IllegalAction('지정하여 획득할 수 없는 카드입니다.')
         self.engine_state.setdefault('forced_get_designators', {}).pop(beneficiary, None)
         self.engine_state.setdefault('forced_get_turns', {}).pop(
@@ -5875,6 +6093,10 @@ class AutomaticGameEngine:
                 'controller': attacker,
                 'source_card_instance_id': attacker_entry.get('instance_id'),
                 'source_card': attacker_entry.get('card'),
+                # Both Battle cards have already returned to Hand, but the
+                # printed event belongs to the Technique that was active in
+                # Battle.  Preserve that triggering zone for active_zones.
+                'source_zone': 'battle',
                 'opponent_card': defender_entry.get('card'),
                 'negated_by_card_instance_id': hand_grab_id,
             })
@@ -6135,6 +6357,25 @@ class AutomaticGameEngine:
             return None
         return card
 
+    def _hand_move_blocked(self, card):
+        """Return whether this card currently cannot enter its owner's Hand."""
+        if not isinstance(card, dict):
+            return False
+        blocked_until = card.get('move_to_hand_blocked_until')
+        blocked_through = card.get('move_to_hand_blocked_through_turn')
+        return (
+            blocked_until == 'turn'
+            or (
+                blocked_until == 'battle'
+                and self.state.get('phase') == 'battle'
+            )
+            or (
+                blocked_through is not None
+                and _number(self.state.get('turn'), 1)
+                <= _number(blocked_through)
+            )
+        )
+
     def move_card(
         self, instance_id, to_zone, *, to_player=None, reason='',
         effect_controller=None, effect_source=None,
@@ -6152,17 +6393,7 @@ class AutomaticGameEngine:
                 'to_zone': to_zone, 'reason': 'passive_zone_locked',
             })
             return None
-        blocked_until = card.get('move_to_hand_blocked_until')
-        blocked_through = card.get('move_to_hand_blocked_through_turn')
-        hand_move_blocked = (
-            blocked_until == 'turn'
-            or (blocked_until == 'battle' and self.state.get('phase') == 'battle')
-            or (
-                blocked_through is not None
-                and _number(self.state.get('turn'), 1) <= _number(blocked_through)
-            )
-        )
-        if to_zone == 'hand' and hand_move_blocked:
+        if to_zone == 'hand' and self._hand_move_blocked(card):
             self.emit('card_move_prevented', owner, {
                 'card_instance_id': instance_id, 'from_zone': from_zone,
                 'to_zone': to_zone, 'reason': 'battle_hand_restriction',
@@ -6456,9 +6687,30 @@ class AutomaticGameEngine:
         self, card, target, to_zone, *, exclude_instance_ids=None,
     ):
         definition = self._definition_for_card(card)
+        # Player-scoped limits with the same zone and selector describe the
+        # currently permitted capacity.  Keep the widest active capacity so
+        # an explicit extender (Lucky Days: Calling Cards 1 -> 3) can override
+        # the trait's ordinary limit without disabling unrelated limits.
+        active_limits = {}
+        for limit in self._active_player_zone_limits(target):
+            if not isinstance(limit, dict):
+                continue
+            scope = (
+                str(limit.get('zone') or ''),
+                json.dumps(
+                    limit.get('where') or {}, ensure_ascii=False,
+                    sort_keys=True, separators=(',', ':'),
+                ),
+            )
+            current = active_limits.get(scope)
+            if (
+                current is None
+                or _number(limit.get('max')) > _number(current.get('max'))
+            ):
+                active_limits[scope] = copy.deepcopy(limit)
         limits = [
             *copy.deepcopy(definition.get('zone_limits') or []),
-            *self._active_player_zone_limits(target),
+            *active_limits.values(),
         ]
         excluded = {
             str(instance_id) for instance_id in (exclude_instance_ids or set())
@@ -6707,7 +6959,7 @@ class AutomaticGameEngine:
 
     def discard_card(
         self, instance_id, *, effect_controller=None, effect_source=None,
-        block_hand_until=None,
+        block_hand_until=None, defer_triggers=False, trigger_queue=None,
     ):
         location_side, from_zone, _index, card = self._find_location(instance_id)
         if not card:
@@ -6717,6 +6969,7 @@ class AutomaticGameEngine:
             instance_id, 'list', to_player=owner, reason='discard',
             effect_controller=effect_controller, effect_source=effect_source,
             block_hand_until=block_hand_until,
+            defer_triggers=defer_triggers, trigger_queue=trigger_queue,
         )
         if moved is None:
             return None
@@ -6732,12 +6985,17 @@ class AutomaticGameEngine:
             'card_instance_id': instance_id, 'from_zone': from_zone,
             'to_zone': 'break' if _is_special(card) else 'list',
         }, visibility='public' if moved.get('face_up') else 'private')
-        self._fire('card_discarded', {
+        discarded_context = {
             'controller': owner, 'source_card_instance_id': instance_id,
             'source_card': copy.deepcopy(event_card), 'from_zone': from_zone,
             'effect_controller': effect_controller, 'effect_source': effect_source,
             'effect_source_card': copy.deepcopy(effect_source_card),
-        })
+        }
+        if defer_triggers:
+            if trigger_queue is not None:
+                trigger_queue.append(('card_discarded', discarded_context))
+        else:
+            self._fire('card_discarded', discarded_context)
         return moved
 
     def _offer_break_replenishment(self, owner):

@@ -19,11 +19,30 @@
         character: "캐릭터", passive: "패시브", battle: "배틀 존", list: "리스트",
         hand: "패", side: "사이드 덱", break: "브레이크", lumen: "루멘", ultimate: "얼티밋",
     };
+    const battlePipelineEvents = new Set([
+        "battle_reveal", "use", "before_judgment",
+        "dodge", "opponent_dodge", "guard", "opponent_guard",
+        "hit", "opponent_hit", "counter", "opponent_counter",
+        "clash", "opponent_clash", "combo", "grab_negated",
+        "damage_before", "damage_after", "hp_changed", "fp_changed",
+        "after_judgment", "after_use", "battle_end", "card_moved",
+    ]);
+    const comboPipelineEvents = new Set([
+        "combo", "combo_window", "use", "after_use", "combo_end",
+        "opponent_combo_end",
+    ]);
+    const catchPipelineEvents = new Set(["use", "catch", "hit", "after_use", "combo"]);
+    const phasePipelineEvents = new Set([
+        "game_start", "turn_start", "turn_end", "phase_start", "phase_end",
+    ]);
 
     const abilitySelect = document.getElementById("effect-sandbox-ability");
     const eventSelect = document.getElementById("effect-sandbox-event");
     const sourceZone = document.getElementById("effect-sandbox-source-zone");
+    const phaseSelect = document.getElementById("effect-sandbox-phase");
     const description = document.getElementById("effect-sandbox-choice-description");
+    const executionMode = document.getElementById("effect-sandbox-execution-mode");
+    const executionDescription = document.getElementById("effect-sandbox-execution-description");
     const rows = document.getElementById("effect-sandbox-support-cards");
     const rowTemplate = document.getElementById("effect-sandbox-card-row-template");
     const results = document.getElementById("effect-sandbox-results");
@@ -43,6 +62,92 @@
         return abilities.find((ability) => String(ability.id) === abilitySelect.value) || abilities[0];
     }
 
+    function recommendedExecutionMode(event) {
+        if (phasePipelineEvents.has(event)) return "phase_pipeline";
+        if (["combo", "combo_window", "combo_end", "opponent_combo_end"].includes(event)) {
+            return "combo_pipeline";
+        }
+        if (event === "catch") return "catch_pipeline";
+        if (battlePipelineEvents.has(event)) return "battle_pipeline";
+        return "direct_event";
+    }
+
+    function updateExecutionControls() {
+        const event = eventSelect.value;
+        const supported = battlePipelineEvents.has(event);
+        const comboSupported = comboPipelineEvents.has(event);
+        const catchSupported = catchPipelineEvents.has(event);
+        const phaseSupported = phasePipelineEvents.has(event);
+        const pipelineOption = executionMode.querySelector("option[value=battle_pipeline]");
+        const comboOption = executionMode.querySelector("option[value=combo_pipeline]");
+        const catchOption = executionMode.querySelector("option[value=catch_pipeline]");
+        const phaseOption = executionMode.querySelector("option[value=phase_pipeline]");
+        pipelineOption.disabled = !supported;
+        comboOption.disabled = !comboSupported;
+        catchOption.disabled = !catchSupported;
+        phaseOption.disabled = !phaseSupported;
+        if (
+            (!supported && executionMode.value === "battle_pipeline")
+            || (!comboSupported && executionMode.value === "combo_pipeline")
+            || (!catchSupported && executionMode.value === "catch_pipeline")
+            || (!phaseSupported && executionMode.value === "phase_pipeline")
+        ) {
+            executionMode.value = "direct_event";
+        }
+        executionDescription.replaceChildren();
+        if (executionMode.value === "battle_pipeline") {
+            executionDescription.append(node(
+                "strong", "", "실제 배틀 진행 경로 검증",
+            ));
+            executionDescription.append(node(
+                "span", "",
+                " 배틀 공개·판정·결과 유발·사용 후 순서를 실제 엔진이 진행합니다. 결과 이벤트가 자연스럽게 발생하지 않으면 효과도 발동하지 않습니다.",
+            ));
+        } else if (executionMode.value === "combo_pipeline") {
+            executionDescription.append(node(
+                "strong", "", "실제 콤보 기술 해석 경로 검증",
+            ));
+            executionDescription.append(node(
+                "span", "",
+                " 효과 카드가 콤보 기술이면 그 카드를 직접 사용하고, 루멘·패시브·배틀에서 콤보를 감시하는 효과라면 별도 테스트 기술로 콤보를 진행합니다. 콤보 시→사용 시→데미지→사용 후→콤보 종료를 실제로 처리합니다.",
+            ));
+            if (
+                sourceZone.value === "battle"
+                && !(currentAbility()?.active_zones || []).includes("battle")
+            ) sourceZone.value = "hand";
+        } else if (executionMode.value === "catch_pipeline") {
+            executionDescription.append(node(
+                "strong", "", "실제 캐치 기술 해석 경로 검증",
+            ));
+            executionDescription.append(node(
+                "span", "",
+                " 효과 카드를 실제 캐치 행동으로 선언해 사용 시→캐치 시→히트 시→데미지→사용 후 순서를 진행합니다.",
+            ));
+            if (
+                sourceZone.value === "battle"
+                && !(currentAbility()?.active_zones || []).includes("battle")
+            ) sourceZone.value = "hand";
+        } else if (executionMode.value === "phase_pipeline") {
+            executionDescription.append(node(
+                "strong", "", "실제 게임·턴·페이즈 진행 경로 검증",
+            ));
+            executionDescription.append(node(
+                "span", "",
+                " 게임 시작·턴 전환·페이즈 전환을 실제 상태 머신으로 진행해 시작/종료 효과의 타이밍 전달을 확인합니다.",
+            ));
+        } else {
+            executionDescription.append(node(
+                "strong", "", "직접 이벤트 비교",
+            ));
+            executionDescription.append(node(
+                "span", "",
+                (supported || comboSupported || catchSupported || phaseSupported)
+                    ? " 선택 타이밍의 조건·명령만 격리합니다. 실제 배틀 단계에서 이 타이밍이 전달되는지는 증명하지 않습니다."
+                    : " 이 타이밍은 아직 실제 진행 재현을 지원하지 않아 조건·명령만 격리합니다.",
+            ));
+        }
+    }
+
     function updateAbilityControls() {
         const ability = currentAbility();
         if (!ability) return;
@@ -60,16 +165,31 @@
                 definedGroup.append(option);
             });
             if (definedGroup.children.length) eventSelect.append(definedGroup);
-            const otherGroup = document.createElement("optgroup");
-            otherGroup.label = "조건 비교용 다른 타이밍";
-            eventCatalog.filter((item) => !defined.has(item.value)).forEach((item) => {
-                const option = node("option", "", item.label);
-                option.value = item.value;
-                otherGroup.append(option);
-            });
-            eventSelect.append(otherGroup);
         }
+        const otherGroup = document.createElement("optgroup");
+        otherGroup.label = ability.mode === "continuous"
+            ? "상시 규칙의 실제 동작을 확인할 타이밍"
+            : "조건 비교용 다른 타이밍";
+        eventCatalog.filter((item) => !defined.has(item.value)).forEach((item) => {
+            const option = node("option", "", item.label);
+            option.value = item.value;
+            otherGroup.append(option);
+        });
+        eventSelect.append(otherGroup);
         if ((ability.active_zones || []).length) sourceZone.value = ability.active_zones[0];
+        if (ability.suggested_source_zone) {
+            sourceZone.value = ability.suggested_source_zone;
+        }
+        if (ability.suggested_phase && phaseSelect) {
+            phaseSelect.value = ability.suggested_phase;
+        }
+
+        // A previous Catch/Combo test may have moved the source selector to
+        // Hand. Reusing that mode for a later Hit/Dodge ability silently puts
+        // the reviewed card outside Battle and a synthetic fixture generates
+        // the timing instead. Start each ability from its most faithful real
+        // pipeline; reviewers may still override it for a deliberate test.
+        executionMode.value = recommendedExecutionMode(eventSelect.value);
 
         description.replaceChildren();
         const steps = ability.choice_steps || [];
@@ -93,6 +213,7 @@
         (ability.choice_warnings || []).forEach((warning) => {
             description.append(node("p", "effect-sandbox-inline-warning", warning));
         });
+        updateExecutionControls();
     }
 
     function addCardRow(owner = "p2", zone = "battle", code = "") {
@@ -121,6 +242,13 @@
         return Number.isFinite(value) ? value : 0;
     }
 
+    function optionalIntegerValue(id) {
+        const raw = document.getElementById(id).value.trim();
+        if (!raw) return null;
+        const value = Number.parseInt(raw, 10);
+        return Number.isFinite(value) ? value : null;
+    }
+
     function supportCards() {
         return Array.from(rows.querySelectorAll(".effect-sandbox-card-row")).map((row) => {
             const rawCode = row.querySelector(".effect-sandbox-card-code").value.trim().toUpperCase();
@@ -131,6 +259,7 @@
                 owner: row.querySelector(".effect-sandbox-card-owner").value,
                 zone: row.querySelector(".effect-sandbox-card-zone").value,
                 face_up: row.querySelector(".effect-sandbox-card-face-up").checked,
+                attached_to_source: row.querySelector(".effect-sandbox-card-attached").checked,
             };
         });
     }
@@ -145,6 +274,7 @@
             effect_definition: effectDefinition,
             config: {
                 event: eventSelect.value,
+                execution_mode: executionMode.value,
                 controller: document.getElementById("effect-sandbox-controller").value,
                 phase: document.getElementById("effect-sandbox-phase").value,
                 source_zone: sourceZone.value,
@@ -153,6 +283,18 @@
                 controller_speed: integerValue("effect-sandbox-controller-speed"),
                 opponent_speed: integerValue("effect-sandbox-opponent-speed"),
                 combo_number: integerValue("effect-sandbox-combo-number"),
+                combo_previous_speed: integerValue("effect-sandbox-combo-previous-speed"),
+                combo_previous_card_code: document.getElementById(
+                    "effect-sandbox-combo-previous-card-code",
+                ).value.trim().toUpperCase(),
+                combo_speed: optionalIntegerValue("effect-sandbox-combo-speed"),
+                combo_followup_code: document.getElementById(
+                    "effect-sandbox-combo-followup-code",
+                ).value.trim().toUpperCase(),
+                combo_followup_speed: optionalIntegerValue(
+                    "effect-sandbox-combo-followup-speed",
+                ),
+                catch_speed: optionalIntegerValue("effect-sandbox-catch-speed"),
                 controller_damage_received: integerValue("effect-sandbox-controller-damage"),
                 opponent_damage_received: integerValue("effect-sandbox-opponent-damage"),
                 controller_turn_damage_received: integerValue("effect-sandbox-controller-turn-damage"),
@@ -171,6 +313,23 @@
                 },
                 context: parseObject("effect-sandbox-context", "추가 이벤트 컨텍스트"),
                 engine: parseObject("effect-sandbox-engine", "히스토리·사용 제한"),
+                battle_overrides: {
+                    controller: parseObject(
+                        "effect-sandbox-controller-battle", "내 배틀 카드 재현값",
+                    ),
+                    opponent: parseObject(
+                        "effect-sandbox-opponent-battle", "상대 배틀 카드 재현값",
+                    ),
+                },
+                preserve_battle_overrides: document.getElementById(
+                    "effect-sandbox-preserve-battle-overrides",
+                ).checked,
+                include_source_effects: document.getElementById(
+                    "effect-sandbox-include-source-effects",
+                ).checked,
+                include_support_effects: document.getElementById(
+                    "effect-sandbox-include-support-effects",
+                ).checked,
                 cards: supportCards(),
             },
         };
@@ -206,13 +365,64 @@
         errorBox.hidden = false;
     }
 
-    function renderDecision(decision) {
+    function renderDecision(decision, actions = []) {
         decisionBox.replaceChildren();
-        if (!decision) {
+        if (!decision && !actions.length) {
             decisionBox.hidden = true;
             return;
         }
         decisionBox.hidden = false;
+        if (!decision) {
+            const heading = node("div", "effect-sandbox-decision-head");
+            heading.append(node("strong", "", "실제 진행을 계속할 행동을 선택하세요."));
+            heading.append(node("span", "", "캐치·콤보 등 효과가 연 게임 행동을 검증합니다."));
+            decisionBox.append(heading);
+            const options = node("div", "effect-sandbox-decision-options");
+            const inputName = `sandbox-action-${Date.now()}`;
+            actions.forEach((action) => {
+                const label = node("label", "effect-sandbox-decision-option");
+                const input = document.createElement("input");
+                input.type = "radio";
+                input.name = inputName;
+                input.value = action.action_id;
+                input.dataset.owner = action.owner;
+                const card = action.card || {};
+                const cardLabel = [card.code, card.name].filter(Boolean).join(" · ");
+                const speed = action.choice_speed == null ? "" : `${action.choice_speed}속도`;
+                const suffix = [action.owner, cardLabel, speed].filter(Boolean).join(" · ");
+                label.append(input, node("span", "", `${action.label}${suffix ? ` (${suffix})` : ""}`));
+                options.append(label);
+            });
+            decisionBox.append(options);
+            const feedback = node("p", "effect-sandbox-decision-feedback");
+            const submit = node("button", "v2-button v2-button-primary", "행동 실행 후 계속");
+            submit.type = "button";
+            submit.addEventListener("click", async () => {
+                const selected = options.querySelector("input:checked");
+                if (!selected) {
+                    feedback.textContent = "계속할 행동을 하나 선택해야 합니다.";
+                    return;
+                }
+                feedback.textContent = "";
+                try {
+                    setBusy(true);
+                    const data = await post(root.dataset.decisionUrl, {
+                        token: currentToken,
+                        action_id: selected.value,
+                        owner: selected.dataset.owner,
+                        selected: [],
+                    });
+                    currentToken = data.token;
+                    renderResult(data.result);
+                } catch (error) {
+                    showError(error);
+                } finally {
+                    setBusy(false);
+                }
+            });
+            decisionBox.append(submit, feedback);
+            return;
+        }
         const heading = node("div", "effect-sandbox-decision-head");
         heading.append(node("strong", "", decision.prompt || "카드를 선택하세요."));
         heading.append(node(
@@ -267,6 +477,30 @@
             const head = node("header");
             head.append(node("strong", "", side), node("span", "", `HP ${player.hp} · FP ${player.fp}`));
             panel.append(head);
+            const passiveState = Object.entries(player.passive_state || {});
+            if (passiveState.length) {
+                const stateBox = node("section", "effect-sandbox-passive-state");
+                stateBox.append(node("h4", "", "상태·카운터"));
+                const stateList = node("ul");
+                passiveState.forEach(([key, value]) => {
+                    let detail;
+                    if (value && typeof value === "object") {
+                        const label = value.display_label || value.label || key;
+                        detail = Object.prototype.hasOwnProperty.call(value, "count")
+                            ? `${label}: ${value.count}`
+                            : `${label}: ${
+                                value.value === false || value.active === false
+                                    ? "비활성"
+                                    : "활성"
+                            }`;
+                    } else {
+                        detail = `${key}: ${String(value)}`;
+                    }
+                    stateList.append(node("li", "", detail));
+                });
+                stateBox.append(stateList);
+                panel.append(stateBox);
+            }
             const zones = node("div", "effect-sandbox-zones");
             Object.entries(player.zones || {}).forEach(([zone, cards]) => {
                 if (!cards.length) return;
@@ -277,6 +511,24 @@
                     const item = node("li", card.fixture ? "is-fixture" : "");
                     item.append(node("span", "", card.face_up ? "앞면" : "뒷면"));
                     item.append(node("strong", "", `${card.code ? `${card.code} · ` : ""}${card.name}`));
+                    const stats = [];
+                    if (card.frame !== null && card.frame !== undefined) {
+                        stats.push(
+                            card.effective_frame !== card.frame
+                                ? `속도 ${card.frame}→${card.effective_frame}`
+                                : `속도 ${card.frame}`,
+                        );
+                    }
+                    if (card.damage !== null && card.damage !== undefined) {
+                        stats.push(
+                            card.effective_damage !== card.damage
+                                ? `데미지 ${card.damage}→${card.effective_damage}`
+                                : `데미지 ${card.damage}`,
+                        );
+                    }
+                    if (card.position) stats.push(card.position);
+                    if (card.special) stats.push(card.special);
+                    if (stats.length) item.append(node("small", "", stats.join(" · ")));
                     if (card.attached_to) item.append(node("small", "", `세트 → ${card.attached_to}`));
                     cardList.append(item);
                 });
@@ -366,8 +618,12 @@
         head.replaceChildren();
         head.className = `effect-sandbox-result-head is-${result.status}`;
         head.append(node("strong", "", result.status_label));
-        head.append(node("span", "", `${result.ability_id} · ${result.event_label || result.event} · 결정 ${result.step}회`));
-        renderDecision(result.pending_decision);
+        const reached = (result.pipeline_reached_events || []).join(" → ");
+        head.append(node(
+            "span", "",
+            `${result.ability_id} · ${result.event_label || result.event} · ${result.execution_mode_label} · 결정 ${result.step}회${reached ? ` · 도달 ${reached}` : ""}`,
+        ));
+        renderDecision(result.pending_decision, result.available_actions || []);
         renderAudit(result.audit || {});
         renderState(result.players || {});
         document.getElementById("effect-sandbox-engine-state").textContent = JSON.stringify(result.engine || {}, null, 2);
@@ -391,6 +647,8 @@
     });
 
     abilitySelect.addEventListener("change", updateAbilityControls);
+    eventSelect.addEventListener("change", updateExecutionControls);
+    executionMode.addEventListener("change", updateExecutionControls);
     document.getElementById("effect-sandbox-add-card").addEventListener("click", () => addCardRow());
     document.querySelectorAll("[data-sandbox-preset]").forEach((button) => {
         button.addEventListener("click", () => {

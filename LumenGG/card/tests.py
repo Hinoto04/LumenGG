@@ -1,13 +1,75 @@
 import json
+from datetime import date
 
 from django.contrib.auth.models import Permission, User
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from .models import Card, CardTranslation, Character
 from .search import card_matches_search, card_matches_search_exact
 from common.language import LANGUAGE_SESSION_KEY
+from collection.models import CollectionCard, Pack
 from qna.models import QNA, QNARelation
+
+
+class EffectSandboxPhaseSuggestionTests(SimpleTestCase):
+    def test_nested_phase_is_condition_suggests_lumen(self):
+        from .views.views import _effect_sandbox_suggested_phase
+
+        ability = {
+            'condition': {
+                'op': 'all',
+                'conditions': [
+                    {'op': 'phase_is', 'phase': 'lumen'},
+                    {'op': 'zone_count', 'zone': 'hand', 'max': 4},
+                ],
+            },
+        }
+
+        self.assertEqual(_effect_sandbox_suggested_phase(ability), 'lumen')
+
+    def test_ambiguous_phase_branches_do_not_change_form_phase(self):
+        from .views.views import _effect_sandbox_suggested_phase
+
+        ability = {
+            'condition': {
+                'op': 'any',
+                'conditions': [
+                    {'op': 'phase_is', 'phase': 'lumen'},
+                    {'op': 'phase_is', 'phase': 'recovery'},
+                ],
+            },
+        }
+
+        self.assertEqual(_effect_sandbox_suggested_phase(ability), '')
+
+    def test_source_from_zone_condition_suggests_list(self):
+        from .views.views import _effect_sandbox_suggested_source_zone
+
+        ability = {
+            'condition': {
+                'op': 'equals',
+                'left': 'context.source_from_zone',
+                'right': 'list',
+            },
+        }
+
+        self.assertEqual(
+            _effect_sandbox_suggested_source_zone(ability), 'list',
+        )
+
+    def test_structured_equals_operands_do_not_break_zone_inference(self):
+        from .views.views import _effect_sandbox_suggested_source_zone
+
+        ability = {
+            'condition': {
+                'op': 'equals',
+                'left': {'path': 'context.event_controller'},
+                'right': {'controller': True},
+            },
+        }
+
+        self.assertEqual(_effect_sandbox_suggested_source_zone(ability), '')
 
 
 class CardUpdateLocalizationTests(TestCase):
@@ -133,10 +195,55 @@ class CardUpdateLocalizationTests(TestCase):
         self.assertEqual(translation.search, 'english search/')
 
 
+class CardPrintingDetailTests(TestCase):
+    def setUp(self):
+        self.character = Character.objects.create(
+            name='니아', description='', group='루멘콘덴서', datas={},
+            img='https://example.com/nia.webp',
+        )
+        self.card = Card.objects.create(
+            name='판본 테스트', code='TST-001', character=self.character,
+            img='https://example.com/printing-n.webp',
+        )
+        starter = Pack.objects.create(name='테스트 스타터', code='TST', released=date(2025, 1, 1))
+        promo = Pack.objects.create(name='프로모 팩', code='PRM', released=date(2025, 2, 1))
+        CollectionCard.objects.create(
+            card=self.card, pack=starter, code='TST-001', rare='N',
+            image='https://example.com/printing-n.webp',
+        )
+        CollectionCard.objects.create(
+            card=self.card, pack=starter, code='TST-001', rare='SR',
+            image='https://example.com/printing-sr.webp',
+        )
+        CollectionCard.objects.create(
+            card=self.card, pack=promo, code='PRM-001', rare='SP',
+            image='https://example.com/printing-sp.webp',
+        )
+
+    def test_detail_exposes_printing_modal_and_clickable_release_rows(self):
+        response = self.client.get(reverse('card:detail', args=[self.card.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['card_editions']), 3)
+        self.assertEqual(len(response.context['release_groups']), 2)
+        self.assertEqual(
+            response.context['release_groups'][0]['image'],
+            'https://example.com/printing-n.webp',
+        )
+        self.assertContains(response, 'data-card-edition-open')
+        self.assertContains(response, 'data-card-edition-option', count=3)
+        self.assertContains(response, 'data-card-release-option', count=2)
+        self.assertContains(response, 'data-code="TST-001"')
+        self.assertContains(response, '테스트 스타터')
+        self.assertContains(response, '프로모 팩')
+        self.assertContains(response, 'v2/card-detail.js')
+
+
 class CardEffectReviewTests(TestCase):
     def setUp(self):
         self.character = Character.objects.create(
-            name='CMYK', description='', group='루멘콘덴서', datas={},
+            name='CMYK', localization_key='cmyk-test',
+            description='', group='루멘콘덴서', datas={},
             img='https://example.com/cmyk.webp',
         )
         self.card = Card.objects.create(
@@ -310,8 +417,28 @@ class CardEffectReviewTests(TestCase):
         self.assertContains(response, 'data-effect-editor')
         self.assertContains(response, '카드 고유 콤보 규칙')
         self.assertContains(response, '격리형 효과 테스트')
+        self.assertContains(response, '실제 배틀 판정 (권장)')
+        self.assertContains(response, '실제 콤보 기술 해석')
+        self.assertContains(response, '실제 캐치 기술 해석')
+        self.assertContains(response, '실제 게임·턴·페이즈 진행')
+        self.assertContains(response, '내 배틀 카드 재현값 JSON')
+        self.assertContains(response, '상대 배틀 카드 재현값 JSON')
+        self.assertContains(response, '함께 제시할 후속 카드 코드')
+        self.assertContains(response, '후속 카드 콤보 속도')
+        self.assertContains(
+            response,
+            '입력한 배틀 재현값을 그대로 사용 (타이밍 자동 합성 안 함)',
+        )
         self.assertContains(response, 'p1 · 여러 후보 중 선택')
         self.assertContains(response, '필수 후보 없음 · 후속 처리 중단')
+        self.assertContains(
+            response,
+            'id="effect-sandbox-p1-fp" type="number" min="-999"',
+        )
+        self.assertContains(
+            response,
+            'id="effect-sandbox-p2-fp" type="number" min="-999"',
+        )
         self.assertContains(
             response, reverse('card:effectSandboxStart', args=[self.card.pk]),
         )
@@ -373,6 +500,885 @@ class CardEffectReviewTests(TestCase):
         self.assertEqual(
             self.card.effect_definition['abilities'][0]['effects'][0]['amount'], 1,
         )
+
+    def test_effect_sandbox_reaches_use_through_real_battle_pipeline(self):
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        definition['abilities'][0]['effects'][0]['amount'] = 3
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': 'rev-at-001-n1',
+                'effect_definition': definition,
+                'config': self.sandbox_config(
+                    execution_mode='battle_pipeline', fixture_mode='minimal',
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()['result']
+        self.assertEqual(result['execution_mode'], 'battle_pipeline')
+        self.assertEqual(result['execution_mode_label'], '실제 배틀 진행')
+        self.assertIn('battle_reveal', result['pipeline_reached_events'])
+        self.assertIn('use', result['pipeline_reached_events'])
+        self.assertTrue(result['resolved'])
+        self.assertTrue(any(
+            event['type'] == 'effect_resolved'
+            and event['payload'].get('ability_id') == 'rev-at-001-n1'
+            for event in result['events']
+        ))
+
+    def test_empty_active_zones_keeps_source_trigger_active(self):
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        definition['abilities'][0]['active_zones'] = []
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': 'rev-at-001-n1',
+                'effect_definition': definition,
+                'config': self.sandbox_config(
+                    execution_mode='battle_pipeline', fixture_mode='minimal',
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.json()['result']['resolved'])
+
+    def test_effect_sandbox_pipeline_rejects_wrong_trigger_comparison(self):
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': 'rev-at-001-n1',
+                'effect_definition': self.card.effect_definition,
+                'config': self.sandbox_config(
+                    event='after_use', execution_mode='battle_pipeline',
+                    fixture_mode='minimal',
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn(
+            '실제 진행 경로 모드에서는',
+            response.json()['error'],
+        )
+
+    def test_effect_sandbox_reaches_counter_printed_combo_through_pipeline(self):
+        self.card.hit = '+1'
+        self.card.counter = '콤보'
+        self.card.save(update_fields=['hit', 'counter'])
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        ability = definition['abilities'][0]
+        ability.update({
+            'id': 'rev-at-001-combo',
+            'label': '카운터 콤보 타이밍 테스트',
+            'draft_text': '카운터 판정이 콤보면 1FP를 얻는다.',
+            'trigger': {'event': 'combo'}, 'timing': 'combo',
+            'condition': {
+                'op': 'equals', 'left': 'context.combo_judgment',
+                'right': True,
+            },
+        })
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': ability['id'],
+                'effect_definition': definition,
+                'config': self.sandbox_config(
+                    event='combo', execution_mode='battle_pipeline',
+                    fixture_mode='minimal',
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()['result']
+        self.assertTrue(result['resolved'])
+        self.assertIn('counter', result['pipeline_reached_events'])
+        self.assertIn('opponent_counter', result['pipeline_reached_events'])
+        self.assertIn('combo', result['pipeline_reached_events'])
+
+    def test_effect_sandbox_reaches_special_clash_with_battle_override(self):
+        self.card.frame = 9
+        self.card.pos = '중단'
+        self.card.special = '하단 공격 기술에 상쇄'
+        self.card.save(update_fields=['frame', 'pos', 'special'])
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        ability = definition['abilities'][0]
+        ability.update({
+            'id': 'rev-at-001-special-clash',
+            'label': '상대 콤보 판정 상쇄 테스트',
+            'draft_text': '상대의 히트 판정이 콤보라면 1FP를 얻는다.',
+            'trigger': {'event': 'clash'}, 'timing': 'clash',
+            'condition': {
+                'op': 'equals', 'left': 'context.opponent_card.hit',
+                'right': '콤보',
+            },
+        })
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': ability['id'],
+                'effect_definition': definition,
+                'config': self.sandbox_config(
+                    event='clash', execution_mode='battle_pipeline',
+                    fixture_mode='minimal',
+                    battle_overrides={
+                        'opponent': {
+                            'type': '공격', 'frame': 8, 'pos': '하단',
+                            'hit': '콤보',
+                        },
+                    },
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()['result']
+        self.assertTrue(result['resolved'])
+        self.assertIn('clash', result['pipeline_reached_events'])
+        self.assertTrue(any(
+            event['type'] == 'effect_resolved'
+            and event['payload'].get('ability_id') == ability['id']
+            for event in result['events']
+        ))
+
+    def test_effect_sandbox_can_preserve_exact_attack_clash_matchup(self):
+        self.card.frame = 7
+        self.card.pos = '상단'
+        self.card.body = '손'
+        self.card.save(update_fields=['frame', 'pos', 'body'])
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        definition['defense_rules'] = [{
+            'judgment': 'clash', 'position': '상단', 'grant': True,
+            'where': {'body': '손'},
+        }]
+        ability = definition['abilities'][0]
+        ability.update({
+            'id': 'rev-at-001-exact-clash',
+            'label': '손 판정만 상쇄',
+            'draft_text': '상쇄 시 1FP를 얻는다.',
+            'trigger': {'event': 'clash'}, 'timing': 'clash',
+        })
+        self.client.force_login(self.reviewer)
+
+        def run(opponent_body):
+            return self.client.post(
+                reverse('card:effectSandboxStart', args=[self.card.pk]),
+                data=json.dumps({
+                    'ability_id': ability['id'],
+                    'effect_definition': definition,
+                    'config': self.sandbox_config(
+                        event='clash', execution_mode='battle_pipeline',
+                        fixture_mode='minimal',
+                        preserve_battle_overrides=True,
+                        battle_overrides={'opponent': {
+                            'type': '공격', 'frame': 6, 'damage': 400,
+                            'pos': '상단', 'body': opponent_body,
+                            'special': None, 'hit': '1', 'guard': '1',
+                            'counter': '1', 'g_top': None, 'g_mid': None,
+                            'g_bot': None,
+                        }},
+                        players={
+                            'p1': {'hp': 4000, 'fp': 0,
+                                   'passive_state': {}},
+                            'p2': {'hp': 4000, 'fp': 0,
+                                   'passive_state': {}},
+                        },
+                    ),
+                }),
+                content_type='application/json',
+            )
+
+        matching = run('손')
+        non_matching = run('발')
+
+        self.assertEqual(matching.status_code, 200, matching.content)
+        self.assertEqual(non_matching.status_code, 200, non_matching.content)
+        matching_result = matching.json()['result']
+        non_matching_result = non_matching.json()['result']
+        self.assertTrue(matching_result['resolved'])
+        self.assertIn('clash', matching_result['pipeline_reached_events'])
+        self.assertEqual(
+            next(
+                event['payload']['result']
+                for event in matching_result['events']
+                if event['type'] == 'battle_judged'
+            ),
+            {'p1': 'clash', 'p2': 'clash'},
+        )
+        self.assertFalse(non_matching_result['resolved'])
+        self.assertNotIn(
+            'clash', non_matching_result['pipeline_reached_events'],
+        )
+        self.assertEqual(
+            next(
+                event['payload']['result']
+                for event in non_matching_result['events']
+                if event['type'] == 'battle_judged'
+            ),
+            {'p1': 'countered', 'p2': 'counter'},
+        )
+
+    def test_effect_sandbox_reaches_grab_negated_through_real_choice(self):
+        self.card.special = '그랩'
+        self.card.save(update_fields=['special'])
+        hand_grab = Card.objects.create(
+            name='무효용 그랩', code='REV-AT-GRAB',
+            character=self.character, type='공격', frame=8,
+            damage=300, pos='상단', special='그랩', hit='1',
+            text='', effect_definition={
+                'schema_version': 1, 'reviewed': True, 'no_effect': True,
+                'source_refs': {
+                    'rulebook_pages': [], 'qna_ids': [],
+                    'card_text': False,
+                },
+                'abilities': [],
+            },
+        )
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        ability = definition['abilities'][0]
+        ability.update({
+            'id': 'rev-at-001-grab-negated',
+            'label': '그랩 무효 시 사이드 덱으로 이동',
+            'draft_text': '그랩 무효 시 이 기술을 사이드 덱으로 보낸다.',
+            'trigger': {'event': 'grab_negated'},
+            'timing': 'result',
+            'effects': [{'op': 'move_card', 'to_zone': 'side'}],
+        })
+        self.client.force_login(self.reviewer)
+        started = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': ability['id'],
+                'effect_definition': definition,
+                'config': self.sandbox_config(
+                    event='grab_negated',
+                    execution_mode='battle_pipeline',
+                    fixture_mode='minimal',
+                    cards=[{
+                        'card_id': hand_grab.pk, 'owner': 'p2',
+                        'zone': 'hand', 'face_up': False,
+                    }],
+                    players={
+                        'p1': {'hp': 4000, 'fp': 0,
+                               'passive_state': {}},
+                        'p2': {'hp': 4000, 'fp': 0,
+                               'passive_state': {}},
+                    },
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(started.status_code, 200, started.content)
+        started_body = started.json()
+        decision = started_body['result']['pending_decision']
+        self.assertEqual(decision['kind'], 'grab_negation')
+        continued = self.client.post(
+            reverse('card:effectSandboxDecision', args=[self.card.pk]),
+            data=json.dumps({
+                'token': started_body['token'],
+                'selected': [decision['options'][0]['id']],
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(continued.status_code, 200, continued.content)
+        result = continued.json()['result']
+        self.assertTrue(result['resolved'])
+        self.assertIn('grab_negated', result['pipeline_reached_events'])
+        self.assertIn(
+            self.card.code,
+            [card['code'] for card in result['players']['p1']['zones']['side']],
+        )
+        self.assertIn(
+            hand_grab.code,
+            [card['code'] for card in result['players']['p2']['zones']['break']],
+        )
+
+    def test_effect_sandbox_can_continue_effect_granted_catch_action(self):
+        catch_card = Card.objects.create(
+            name='캐치 후보', code='REV-AT-002', character=self.character,
+            type='공격', frame=7, damage=300, pos='중단', hit='+0',
+            text='', effect_definition={
+                'schema_version': 1, 'reviewed': True, 'no_effect': True,
+                'source_refs': {
+                    'rulebook_pages': [], 'qna_ids': [], 'card_text': False,
+                },
+                'abilities': [],
+            },
+        )
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        ability = definition['abilities'][0]
+        ability.update({
+            'id': 'rev-at-001-grant-catch',
+            'label': '히트 시 리스트에서 캐치',
+            'draft_text': '히트 시 리스트의 8속도 이하 기술로 캐치할 수 있다.',
+            'trigger': {'event': 'hit'}, 'timing': 'hit_counter',
+            'effects': [{
+                'op': 'grant_catch', 'player': {'controller': True},
+                'allow_zones': ['list'], 'max_speed': 8,
+            }],
+        })
+        self.client.force_login(self.reviewer)
+        start = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': ability['id'],
+                'effect_definition': definition,
+                'config': self.sandbox_config(
+                    event='hit', execution_mode='battle_pipeline',
+                    fixture_mode='minimal',
+                    cards=[{
+                        'card_id': catch_card.pk, 'owner': 'p1',
+                        'zone': 'list', 'face_up': True,
+                    }],
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(start.status_code, 200, start.content)
+        start_body = start.json()
+        self.assertEqual(start_body['result']['status'], 'waiting_action')
+        catch_action = next(
+            action for action in start_body['result']['available_actions']
+            if action['type'] == 'play_catch_card'
+        )
+        continued = self.client.post(
+            reverse('card:effectSandboxDecision', args=[self.card.pk]),
+            data=json.dumps({
+                'token': start_body['token'], 'selected': [],
+                'action_id': catch_action['action_id'],
+                'owner': catch_action['owner'],
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(continued.status_code, 200, continued.content)
+        result = continued.json()['result']
+        self.assertTrue(any(
+            event['type'] == 'card_moved'
+            and event['payload'].get('reason') == 'catch'
+            and event['payload'].get('card_instance_id')
+            for event in result['events']
+        ))
+
+    def test_effect_sandbox_can_include_passive_support_effects_in_pipeline(self):
+        passive = Card.objects.create(
+            name='테스트 특성', code='REV-PS-001',
+            character=self.character, type='특성',
+            text='자신 콤보 기술 사용 후, 2FP를 얻는다.',
+            effect_definition={
+                'schema_version': 1, 'reviewed': True,
+                'source_refs': {
+                    'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+                },
+                'abilities': [{
+                    'id': 'rev-ps-001-use',
+                    'label': '콤보 기술 사용 후 2FP 획득',
+                    'draft_text': '자신 콤보 기술 사용 후, 2FP를 얻는다.',
+                    'kind': 'effect', 'mode': 'mandatory',
+                    'trigger': {'event': 'after_use'}, 'timing': 'after_use',
+                    'active_zones': ['passive'], 'visibility': 'public',
+                    'source_refs': {
+                        'rulebook_pages': [48], 'qna_ids': [],
+                        'card_text': True,
+                    },
+                    'effects': [{
+                        'op': 'change_fp', 'player': {'controller': True},
+                        'amount': 2,
+                    }],
+                }, {
+                    'id': 'rev-ps-001-combo-range',
+                    'label': '콤보 속도 +2까지 허용',
+                    'draft_text': '콤보를 직전 속도보다 2 느리게 이을 수 있다.',
+                    'kind': 'function', 'mode': 'continuous',
+                    'timing': 'function', 'active_zones': ['passive'],
+                    'visibility': 'public',
+                    'source_refs': {
+                        'rulebook_pages': [48], 'qna_ids': [],
+                        'card_text': True,
+                    },
+                    'effects': [{
+                        'op': 'modify_combo',
+                        'player': {'controller': True},
+                        'max_speed_delta': 2, 'duration': 'continuous',
+                    }],
+                }],
+            },
+        )
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        definition['combo_rules'] = [{'speed_options': [6]}]
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': 'rev-at-001-n1',
+                'effect_definition': definition,
+                'config': self.sandbox_config(
+                    execution_mode='combo_pipeline', source_zone='hand',
+                    combo_previous_speed=4, combo_speed=6,
+                    fixture_mode='minimal',
+                    include_support_effects=True,
+                    cards=[{
+                        'card_id': passive.pk, 'owner': 'p1',
+                        'zone': 'passive', 'face_up': True,
+                    }],
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        resolved_ids = {
+            event['payload'].get('ability_id')
+            for event in response.json()['result']['events']
+            if event['type'] == 'effect_resolved'
+        }
+        self.assertIn('rev-at-001-n1', resolved_ids)
+        self.assertIn('rev-ps-001-use', resolved_ids)
+
+    def test_effect_sandbox_applies_character_import_deck_rules_to_battle(self):
+        trait = Card.objects.create(
+            name='키메라 특성', code='REV-PS-CHIMERA',
+            character=self.character, type='특성', text='타 캐릭터 공격 효과 무효',
+            effect_definition={
+                'schema_version': 1, 'reviewed': True,
+                'source_refs': {
+                    'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+                },
+                'abilities': [{
+                    'id': 'rev-ps-chimera-function', 'kind': 'function',
+                    'mode': 'continuous', 'timing': 'function',
+                    'visibility': 'public', 'active_zones': ['passive'],
+                    'source_refs': {
+                        'rulebook_pages': [48], 'qna_ids': [],
+                        'card_text': True,
+                    },
+                    'effects': [{'op': 'static_rule', 'rules': ['deck_rules']}],
+                }],
+                'deck_rules': {
+                    'other_character_cards': {
+                        'allowed_types': ['공격'], 'exclude_ultimate': True,
+                        'exclude_character_ids': [],
+                        'treat_as_own_character': True,
+                        'negate_effects': True, 'break_after_use': True,
+                    },
+                },
+            },
+        )
+        foreign_character = Character.objects.create(
+            name='외부 캐릭터', localization_key='foreign-review',
+            description='', group='루멘콘덴서', datas={},
+            img='https://example.com/foreign.webp',
+        )
+        imported = Card.objects.create(
+            name='수입 기술', code='REV-FOREIGN-AT-001',
+            character=foreign_character, type='공격', frame=5,
+            damage=300, pos='상단', text='①사용 시, HP 200을 지불한다.',
+            effect_definition={
+                'schema_version': 1, 'reviewed': True,
+                'source_refs': {
+                    'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+                },
+                'abilities': [{
+                    'id': 'rev-foreign-use-cost', 'kind': 'effect',
+                    'mode': 'mandatory', 'timing': 'use',
+                    'trigger': {'event': 'use'}, 'active_zones': ['battle'],
+                    'visibility': 'public',
+                    'source_refs': {
+                        'rulebook_pages': [48], 'qna_ids': [],
+                        'card_text': True,
+                    },
+                    'effects': [{
+                        'op': 'pay_hp', 'player': {'controller': True},
+                        'amount': 200,
+                    }],
+                }],
+            },
+        )
+        opposing = Card.objects.create(
+            name='상대 기술', code='REV-OPPOSING-AT-001',
+            character=foreign_character, type='공격', frame=12,
+            damage=300, pos='하단', text='',
+            effect_definition={
+                'schema_version': 1, 'reviewed': True, 'no_effect': True,
+                'source_refs': {
+                    'rulebook_pages': [], 'qna_ids': [], 'card_text': False,
+                },
+                'abilities': [],
+            },
+        )
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[trait.pk]),
+            data=json.dumps({
+                'ability_id': 'rev-ps-chimera-function',
+                'effect_definition': trait.effect_definition,
+                'config': self.sandbox_config(
+                    event='after_use', execution_mode='battle_pipeline',
+                    source_zone='passive', fixture_mode='none',
+                    include_source_effects=True,
+                    include_support_effects=True,
+                    cards=[{
+                        'card_id': imported.pk, 'owner': 'p1',
+                        'zone': 'battle', 'face_up': True,
+                    }, {
+                        'card_id': opposing.pk, 'owner': 'p2',
+                        'zone': 'battle', 'face_up': True,
+                    }],
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()['result']
+        self.assertEqual(result['players']['p1']['hp'], 4000)
+        self.assertIn(
+            imported.code,
+            [card['code'] for card in result['players']['p1']['zones']['break']],
+        )
+        self.assertFalse(any(
+            event['type'] == 'effect_resolved'
+            and event['payload'].get('ability_id') == 'rev-foreign-use-cost'
+            for event in result['events']
+        ))
+
+    def test_effect_sandbox_can_include_other_source_card_abilities(self):
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        definition['abilities'][0].update({
+            'id': 'rev-at-001-deploy', 'label': '사용 시 루멘으로 이동',
+            'draft_text': '사용 시 이 카드를 루멘 존으로 이동한다.',
+            'effects': [{'op': 'move_card', 'to_zone': 'lumen'}],
+        })
+        definition['abilities'].append({
+            'id': 'rev-at-001-arrived', 'label': '루멘 배치 후 FP 획득',
+            'draft_text': '이 카드가 루멘 존으로 이동하면 2FP를 얻는다.',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'function',
+            'visibility': 'public', 'active_zones': ['lumen'],
+            'trigger': {'event': 'card_moved'},
+            'condition': {
+                'op': 'all', 'conditions': [{
+                    'op': 'equals',
+                    'left': {'path': 'context.event_card_instance_id'},
+                    'right': {'path': 'context.source_card_instance_id'},
+                }, {
+                    'op': 'equals', 'left': 'context.to_zone', 'right': 'lumen',
+                }],
+            },
+            'source_refs': {
+                'rulebook_pages': [48], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{
+                'op': 'change_fp', 'player': {'controller': True}, 'amount': 2,
+            }],
+        })
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': 'rev-at-001-deploy',
+                'effect_definition': definition,
+                'config': self.sandbox_config(
+                    execution_mode='battle_pipeline', fixture_mode='minimal',
+                    include_source_effects=True,
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        resolved_ids = {
+            event['payload'].get('ability_id')
+            for event in response.json()['result']['events']
+            if event['type'] == 'effect_resolved'
+        }
+        self.assertIn('rev-at-001-deploy', resolved_ids)
+        self.assertIn('rev-at-001-arrived', resolved_ids)
+
+    def test_effect_sandbox_uses_source_character_hand_table(self):
+        self.character.datas = {'hand': {'5000': 5}}
+        self.character.save(update_fields=['datas'])
+        hand_cards = [
+            Card.objects.create(
+                name=f'패 제한 후보 {index}', code=f'REV-HAND-{index:03d}',
+                character=self.character, type='공격', frame=5 + index,
+                damage=300, pos='중단', text='',
+                effect_definition={
+                    'schema_version': 1, 'reviewed': True,
+                    'no_effect': True,
+                    'source_refs': {
+                        'rulebook_pages': [], 'qna_ids': [],
+                        'card_text': False,
+                    },
+                    'abilities': [],
+                },
+            )
+            for index in range(2)
+        ]
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        ability = definition['abilities'][0]
+        ability.update({
+            'id': 'rev-at-001-hand-limit-recovery',
+            'label': '리커버리 최대 패에서 사이드 덱으로 이동',
+            'draft_text': (
+                '리커버리 페이즈 시 자신의 패가 최대 제한과 같을 경우 '
+                '이 카드를 사이드 덱으로 보낸다.'
+            ),
+            'trigger': {'event': 'phase_start'}, 'timing': 'function',
+            'active_zones': ['lumen'],
+            'condition': {
+                'op': 'all',
+                'conditions': [{
+                    'op': 'phase_is', 'phase': 'recovery',
+                }, {
+                    'op': 'equals',
+                    'left': {
+                        'op': 'zone_count',
+                        'player': {'controller': True}, 'zone': 'hand',
+                    },
+                    'right': {'path': 'context.controller_hand_limit'},
+                }],
+            },
+            'effects': [{'op': 'move_card', 'to_zone': 'side'}],
+        })
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': ability['id'],
+                'effect_definition': definition,
+                'config': self.sandbox_config(
+                    event='phase_start', execution_mode='phase_pipeline',
+                    source_zone='lumen', phase='recovery',
+                    fixture_mode='choices',
+                    cards=[{
+                        'card_id': card.pk, 'owner': 'p1',
+                        'zone': 'hand', 'face_up': False,
+                    } for card in hand_cards],
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()['result']
+        self.assertTrue(result['resolved'])
+        self.assertIn(
+            self.card.code,
+            [card['code'] for card in result['players']['p1']['zones']['side']],
+        )
+
+    def test_effect_sandbox_character_key_selector_sees_support_card(self):
+        candidate = Card.objects.create(
+            name='같은 캐릭터 후보', code='REV-AT-003',
+            character=self.character, type='공격', frame=6, damage=300,
+            pos='중단', text='', effect_definition={
+                'schema_version': 1, 'reviewed': True, 'no_effect': True,
+                'source_refs': {
+                    'rulebook_pages': [], 'qna_ids': [], 'card_text': False,
+                },
+                'abilities': [],
+            },
+        )
+        definition = self.forced_choice_definition()
+        selector = definition['abilities'][0]['effects'][0]['selector']
+        selector['zones'] = ['side']
+        selector['where'] = {
+            'is_technique': True,
+            'character_key': self.character.localization_key,
+        }
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': 'forced-list-choice',
+                'effect_definition': definition,
+                'config': self.sandbox_config(
+                    fixture_mode='minimal', cards=[{
+                        'card_id': candidate.pk, 'owner': 'p1',
+                        'zone': 'side', 'face_up': False,
+                    }],
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        decision = response.json()['result']['pending_decision']
+        self.assertEqual(len(decision['options']), 1)
+        self.assertIn('같은 캐릭터 후보', decision['options'][0]['label'])
+
+    def test_effect_sandbox_runs_selected_card_through_real_catch_pipeline(self):
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': 'rev-at-001-n1',
+                'effect_definition': self.card.effect_definition,
+                'config': self.sandbox_config(
+                    execution_mode='catch_pipeline', source_zone='hand',
+                    fixture_mode='minimal', catch_speed=5,
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()['result']
+        self.assertEqual(result['execution_mode'], 'catch_pipeline')
+        self.assertEqual(result['execution_mode_label'], '실제 캐치 기술 해석')
+        self.assertTrue(result['resolved'])
+        reached = result['pipeline_reached_events']
+        self.assertTrue(all(event in reached for event in (
+            'use', 'catch', 'hit', 'after_use',
+        )))
+        self.assertLess(reached.index('use'), reached.index('catch'))
+        self.assertLess(reached.index('catch'), reached.index('hit'))
+        self.assertLess(reached.index('hit'), reached.index('after_use'))
+
+    def test_effect_sandbox_reaches_phase_start_through_state_machine(self):
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        ability = definition['abilities'][0]
+        ability.update({
+            'id': 'rev-at-001-ready-start',
+            'label': '레디 페이즈 시작 시 FP 획득',
+            'draft_text': '레디 페이즈 시작 시 1FP를 얻는다.',
+            'trigger': {'event': 'phase_start'}, 'timing': 'function',
+            'active_zones': ['passive'],
+            'condition': {
+                'op': 'equals', 'left': 'context.phase', 'right': 'ready',
+            },
+        })
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': ability['id'], 'effect_definition': definition,
+                'config': self.sandbox_config(
+                    event='phase_start', execution_mode='phase_pipeline',
+                    source_zone='passive', phase='ready', fixture_mode='minimal',
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()['result']
+        self.assertTrue(result['resolved'])
+        self.assertIn('phase_end', result['pipeline_reached_events'])
+        self.assertIn('phase_start', result['pipeline_reached_events'])
+        self.assertEqual(result['players']['p1']['fp'], 6)
+
+    def test_effect_sandbox_skips_printed_combo_after_catch_without_pair(self):
+        self.card.hit = '콤보'
+        self.card.save(update_fields=['hit'])
+        self.client.force_login(self.reviewer)
+        start = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': 'rev-at-001-n1',
+                'effect_definition': self.card.effect_definition,
+                'config': self.sandbox_config(
+                    execution_mode='catch_pipeline', source_zone='hand',
+                    fixture_mode='minimal', catch_speed=5,
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(start.status_code, 200, start.content)
+        result = start.json()['result']
+        self.assertNotIn(
+            'end_combo',
+            {action['type'] for action in result['available_actions']},
+        )
+        skipped = next(
+            event for event in result['events']
+            if event['type'] == 'combo_skipped'
+        )
+        self.assertEqual(
+            skipped['payload']['reason'], 'normal_combo_requires_two_cards',
+        )
+        self.assertFalse(any(
+            event['type'] == 'combo_started' for event in result['events']
+        ))
+
+    def test_effect_sandbox_runs_continuous_card_catch_rule(self):
+        definition = json.loads(json.dumps(self.card.effect_definition))
+        definition['abilities'] = [{
+            'id': 'rev-at-001-catch-rule', 'label': '카운터로 3속도 캐치',
+            'draft_text': '캐치 시 카운터 1개를 소모해 3속도로 사용할 수 있다.',
+            'kind': 'effect', 'mode': 'continuous', 'timing': 'catch',
+            'visibility': 'public',
+            'source_refs': {
+                'rulebook_pages': [47], 'qna_ids': [], 'card_text': True,
+            },
+            'effects': [{'op': 'static_rule', 'rules': ['catch_rules']}],
+        }]
+        definition['catch_rules'] = [{
+            'optional_fixed_speed': 3,
+            'counter_cost': {'counter': 'test_counter', 'amount': 1},
+            'numbered_effect': True,
+        }]
+        self.client.force_login(self.reviewer)
+
+        response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': 'rev-at-001-catch-rule',
+                'effect_definition': definition,
+                'config': self.sandbox_config(
+                    event='catch', execution_mode='catch_pipeline',
+                    source_zone='hand', fixture_mode='minimal', catch_speed=3,
+                    players={
+                        'p1': {
+                            'hp': 4000, 'fp': 0,
+                            'passive_state': {'test_counter': {'count': 1}},
+                        },
+                        'p2': {'hp': 4000, 'fp': 0, 'passive_state': {}},
+                    },
+                ),
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()['result']
+        self.assertEqual(
+            result['players']['p1']['passive_state']['test_counter']['count'], 0,
+        )
+        self.assertTrue(any(
+            event['type'] == 'catch_counter_cost_paid'
+            and event['payload'].get('fixed_speed') == 3
+            for event in result['events']
+        ))
 
     def test_effect_sandbox_waits_for_mandatory_card_choice_before_move(self):
         definition = self.forced_choice_definition()
@@ -689,6 +1695,63 @@ class CardEffectReviewTests(TestCase):
             if item['card_instance_id'] == chosen
         )
         self.assertEqual((movement['from_zone'], movement['to_zone']), ('side', 'lumen'))
+
+    def test_common_scenario_can_keep_reviewed_card_effects_active(self):
+        self.client.force_login(self.reviewer)
+        config = self.sandbox_config(include_source_effects=True)
+        start_response = self.client.post(
+            reverse('card:effectSandboxStart', args=[self.card.pk]),
+            data=json.dumps({
+                'ability_id': 'sandbox-prototype:move-side-lumen-one',
+                'effect_definition': self.card.effect_definition,
+                'config': config,
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(start_response.status_code, 200, start_response.content)
+        start = start_response.json()
+        ordering = start['result']['pending_decision']
+        prototype_first = next(
+            option['id'] for option in ordering['options']
+            if str(option.get('label') or '').startswith('공통 테스트')
+        )
+        ordered_response = self.client.post(
+            reverse('card:effectSandboxDecision', args=[self.card.pk]),
+            data=json.dumps({
+                'token': start['token'], 'selected': [prototype_first],
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(
+            ordered_response.status_code, 200, ordered_response.content,
+        )
+        ordered = ordered_response.json()
+        decision = ordered['result']['pending_decision']
+        chosen = next(
+            option['id'] for option in decision['options']
+            if 'ATTACK' in option['id'].upper()
+        )
+
+        response = self.client.post(
+            reverse('card:effectSandboxDecision', args=[self.card.pk]),
+            data=json.dumps({
+                'token': ordered['token'], 'selected': [chosen],
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()['result']
+        self.assertEqual(result['players']['p1']['fp'], 6)
+        self.assertTrue(any(
+            event['type'] == 'effect_resolved'
+            and event['payload'].get('ability_id') == 'rev-at-001-n1'
+            for event in result['events']
+        ))
+        self.assertTrue(any(
+            card['instance_id'] == chosen
+            for card in result['players']['p1']['zones']['lumen']
+        ))
 
     def test_common_opponent_discard_makes_opponent_choose_own_card(self):
         self.client.force_login(self.reviewer)

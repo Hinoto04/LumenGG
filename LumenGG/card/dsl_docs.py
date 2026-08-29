@@ -158,7 +158,7 @@ VALUE_DETAILS = {
 
 EFFECT_GROUPS = [
     ('흐름과 선택', [
-        _item('sequence', 'effects를 배열 순서대로 실행한다.', 'effects(필수 명령 배열)'),
+        _item('sequence', 'effects를 배열 순서대로 실행한다.', 'effects(필수 명령 배열), defer_triggers=false', 'defer_triggers=true이면 묶음 안의 이동·버리기 이벤트 유발을 모든 명령이 끝날 때까지 미룬다. 카드 원문이 “그 후”가 아니라 전체 효과 해결 후 상태를 검사하도록 명시한 경우에만 사용한다.'),
         _item('conditional', '조건에 따라 명령 묶음을 분기한다.', 'condition, then(필수 명령 배열), else(선택 명령 배열)'),
         _item('request_choice', '카드/플레이어 선택을 요청하고 결과를 selection_key에 저장한다.', 'player, prompt, selector, selection_key, optional=false, default(필수 선택 시 필수), then, else, skip_if_unavailable', '필수 후보가 부족하면 else 또는 중단, 선택형이면 0장 확정이 가능하다.'),
         _item('request_amount', '정수 하나를 선택하게 한다.', 'player, prompt, min, max, values, selection_key, default, then'),

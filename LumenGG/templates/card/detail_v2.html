@@ -31,7 +31,7 @@
 <section class="v2-detail-grid">
     <article class="v2-panel v2-detail-card">
         <div class="v2-detail-image">
-            <img id="v2CardImage" src="{{ card.img }}" alt="{{ card|card_name:current_language }}">
+            <img id="v2CardImage" src="{{ initial_card_image|default:card.img }}" alt="{{ card|card_name:current_language }}">
             {% if unReleased %}
             <span class="v2-unreleased">{% tr "미발매" %}</span>
             {% endif %}
@@ -42,7 +42,14 @@
                 {% if card.ultimate %}<span class="v2-chip">ULTIMATE</span>{% endif %}
                 {% if card.special %}<span class="v2-chip">{{ card.special|term:current_language }}</span>{% endif %}
                 <span class="v2-chip v2-adoption-chip">{% tr "채용률" %} {{ adoption_stats.adoption_rate|floatformat:1 }}%</span>
-                <button class="v2-image-action" type="button" id="v2ImageButton">{% tr "판본 변경" %}</button>
+                {% if card_editions %}
+                <button class="v2-image-action" type="button" data-card-edition-open aria-haspopup="dialog" aria-controls="cardEditionModal">
+                    <span data-card-edition-label>
+                        {% if initial_card_edition.pack %}{{ initial_card_edition.pack|pack_name:current_language }}{% else %}{% tr "기본 판본" %}{% endif %}
+                    </span>
+                    <span aria-hidden="true">&#9662;</span>
+                </button>
+                {% endif %}
             </div>
         </div>
     </article>
@@ -91,6 +98,36 @@
     </div>
 </section>
 
+{% if card_editions %}
+<div class="v2-card-edition-backdrop" data-card-edition-close hidden></div>
+<section class="v2-card-edition-modal" id="cardEditionModal" role="dialog" aria-modal="true" aria-labelledby="cardEditionTitle" hidden>
+    <header class="v2-card-edition-head">
+        <div>
+            <div class="v2-kicker">CARD PRINTINGS</div>
+            <h2 id="cardEditionTitle">{% tr "판본 선택" %}</h2>
+        </div>
+        <button class="v2-card-edition-close" type="button" data-card-edition-close aria-label="{% tr "닫기" %}">&times;</button>
+    </header>
+    <div class="v2-card-edition-options">
+        {% for edition in card_editions %}
+        <button class="v2-card-edition-option{% if edition.is_initial %} is-selected{% endif %}" type="button"
+                data-card-edition-option
+                data-image="{{ edition.image }}"
+                data-code="{{ edition.code }}"
+                data-label="{% if edition.pack %}{{ edition.pack|pack_name:current_language }}{% else %}{% tr "기본 판본" %}{% endif %}"
+                aria-pressed="{% if edition.is_initial %}true{% else %}false{% endif %}">
+            <span class="v2-card-edition-thumb"><img src="{{ edition.image }}" alt="" loading="lazy"></span>
+            <span class="v2-card-edition-copy">
+                <strong>{% if edition.pack %}{{ edition.pack|pack_name:current_language }}{% else %}{% tr "기본 판본" %}{% endif %}</strong>
+                <small>{{ edition.code }}{% if edition.rare %} / {{ edition.rare }}{% endif %}</small>
+            </span>
+            {% if not edition.is_released %}<span class="v2-card-edition-state">{% tr "미발매" %}</span>{% endif %}
+        </button>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
 {% if perms.card.tag_update %}
 <section class="v2-section">
     <h2 class="v2-section-title">{% tr "태그 업데이트" %}</h2>
@@ -118,20 +155,25 @@
 <section class="v2-section">
     <h2 class="v2-section-title">{% tr "수록 정보" %}</h2>
     <div class="v2-release-list">
-        {% regroup cc by code as release_groups %}
         {% for release in release_groups %}
-        {% with first=release.list.0 %}
-        <div class="v2-release-row">
-            <span class="v2-release-date">{% if first.isReleased %}{{ first.pack.released|date:"y-m-d" }}{% else %}{% tr "미발매" %}{% endif %}</span>
-            <strong class="v2-release-code">{{ release.grouper }}</strong>
-            <span class="v2-release-pack">{{ first.pack|pack_name:current_language }}</span>
+        <button class="v2-release-row" type="button"
+                {% if release.image %}
+                data-card-release-option
+                data-image="{{ release.image }}"
+                data-code="{{ release.code }}"
+                data-label="{{ release.pack|pack_name:current_language }}"
+                {% else %}
+                disabled
+                {% endif %}>
+            <span class="v2-release-date">{% if release.is_released %}{{ release.pack.released|date:"y-m-d" }}{% else %}{% tr "미발매" %}{% endif %}</span>
+            <strong class="v2-release-code">{{ release.code }}</strong>
+            <span class="v2-release-pack">{{ release.pack|pack_name:current_language }}</span>
             <span class="v2-rare-list">
-                {% for ccc in release.list %}
+                {% for ccc in release.items %}
                 <span class="v2-rare {{ ccc.rare }}">{{ ccc.rare }}</span>
                 {% endfor %}
             </span>
-        </div>
-        {% endwith %}
+        </button>
         {% empty %}
         <div class="v2-text-panel">{% tr "수록 정보가 없습니다." %}</div>
         {% endfor %}
@@ -177,32 +219,6 @@
 {% endif %}
 
 <script src="{% static "card/detail_tabs.js" %}?v=20260512-extra-note-toggle"></script>
-<script>
-    const imgList = [];
-    let nowImage = 0;
-    {% for ccc in cc %}
-        {% if ccc.image %}
-        imgList.push("{{ ccc.image }}");
-        {% endif %}
-    {% endfor %}
-    if (imgList.length === 0) {
-        imgList.push("{{ card.img }}");
-    }
-
-    const imageButton = document.getElementById("v2ImageButton");
-    const cardImage = document.getElementById("v2CardImage");
-    const uniqueImages = [...new Set(imgList)];
-
-    if (uniqueImages.length <= 1 && imageButton) {
-        imageButton.style.display = "none";
-    }
-
-    if (imageButton && cardImage) {
-        imageButton.addEventListener("click", () => {
-            nowImage = (nowImage + 1) % uniqueImages.length;
-            cardImage.src = uniqueImages[nowImage];
-        });
-    }
-</script>
+<script src="{% static "v2/card-detail.js" %}?v=20260826-printing-selection"></script>
 {% endwith %}
 {% endblock content %}

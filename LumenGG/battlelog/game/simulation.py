@@ -16,6 +16,46 @@ class SimulationResult:
     winner: str | None
     reason: str
     error: str = ''
+    coverage: dict | None = None
+
+
+def _simulation_coverage(engine):
+    """Summarize which released cards and abilities a headless game reached."""
+    used_cards = set()
+    moved_cards = set()
+    resolved_cards = set()
+    resolved_abilities = set()
+    event_counts = {}
+    for event in engine.events:
+        event_type = str(event.get('type') or '')
+        event_counts[event_type] = event_counts.get(event_type, 0) + 1
+        payload = event.get('payload') or {}
+        card_code = str(payload.get('card_code') or '').strip()
+        if event_type in {
+            'card_readied', 'combo_card_used', 'catch_card_used', 'card_used',
+        } and card_code:
+            used_cards.add(card_code)
+        if event_type == 'battle_revealed':
+            for entry in payload.values():
+                if isinstance(entry, dict) and entry.get('card_code'):
+                    used_cards.add(str(entry['card_code']))
+        if event_type == 'card_moved' and card_code:
+            moved_cards.add(card_code)
+        if event_type == 'effect_resolved':
+            if card_code:
+                resolved_cards.add(card_code)
+            ability_id = str(payload.get('ability_id') or '').strip()
+            if ability_id:
+                resolved_abilities.add(ability_id)
+    return {
+        'used_card_codes': sorted(used_cards),
+        'moved_card_codes': sorted(moved_cards),
+        'resolved_card_codes': sorted(resolved_cards),
+        'resolved_ability_ids': sorted(resolved_abilities),
+        'event_counts': event_counts,
+        'turn': int(engine.state.get('turn') or 0),
+        'phase': str(engine.state.get('phase') or ''),
+    }
 
 
 def _command_limit_error(engine):
@@ -55,6 +95,7 @@ def run_random_game(initial_state, ruleset, *, seed='headless', max_commands=200
             return SimulationResult(
                 completed=True, commands=command_index,
                 winner=engine.engine_state.get('winner'), reason=engine.engine_state.get('reason') or '',
+                coverage=_simulation_coverage(engine),
             )
         candidates = []
         for side in PLAYER_SIDES:
@@ -66,7 +107,11 @@ def run_random_game(initial_state, ruleset, *, seed='headless', max_commands=200
                 engine.now = datetime.fromisoformat(deadline) + timedelta(milliseconds=1)
                 engine.reconcile_clock()
                 continue
-            return SimulationResult(False, command_index, None, 'deadlock', '합법 행동과 진행 가능한 타이머가 없습니다.')
+            return SimulationResult(
+                False, command_index, None, 'deadlock',
+                '합법 행동과 진행 가능한 타이머가 없습니다.',
+                _simulation_coverage(engine),
+            )
         side, action = policy.choice(candidates)
         selections = {}
         if action['type'] == 'submit_decision':
@@ -76,6 +121,7 @@ def run_random_game(initial_state, ruleset, *, seed='headless', max_commands=200
         engine.submit_action(side, action['action_id'], selections, command_id=f'headless-{command_index}')
     return SimulationResult(
         False, max_commands, None, 'command_limit', _command_limit_error(engine),
+        _simulation_coverage(engine),
     )
 
 
@@ -103,6 +149,7 @@ def run_policy_game(
                 commands=command_index,
                 winner=engine.engine_state.get('winner'),
                 reason=engine.engine_state.get('reason') or '',
+                coverage=_simulation_coverage(engine),
             )
         decisions = []
         for side in PLAYER_SIDES:
@@ -122,7 +169,11 @@ def run_policy_game(
                 engine.now = datetime.fromisoformat(deadline) + timedelta(milliseconds=1)
                 engine.reconcile_clock()
                 continue
-            return SimulationResult(False, command_index, None, 'deadlock', '합법 행동과 진행 가능한 타이머가 없습니다.')
+            return SimulationResult(
+                False, command_index, None, 'deadlock',
+                '합법 행동과 진행 가능한 타이머가 없습니다.',
+                _simulation_coverage(engine),
+            )
         side, decision = sorted(
             decisions,
             key=lambda item: (item[1].score, item[0] == engine.state.get('priority_player')),
@@ -139,7 +190,9 @@ def run_policy_game(
             return SimulationResult(
                 False, command_index, None, 'engine_error',
                 f'{type(exc).__name__}: {exc}',
+                _simulation_coverage(engine),
             )
     return SimulationResult(
         False, max_commands, None, 'command_limit', _command_limit_error(engine),
+        _simulation_coverage(engine),
     )
