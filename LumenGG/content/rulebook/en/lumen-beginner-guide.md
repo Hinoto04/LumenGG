@@ -84,7 +84,7 @@ Battlefield specifies the location and name of the card. In a real game, two pla
 | 9 | Ultimate Zone | Leave Ultimate Technique Card as front by default. |
 
 > [! IMPORTANT]
-> If the list is 14 and another card tries to move to the list, that card will be Break instead. For more information, see [Rule 2.1.1](./lumen-comprehensive-rules.md#rule-2-1-1).
+> If a card would move to a List that already contains 14 cards, that card is Broken instead. For details, see the [List rule in the Comprehensive Rules](./lumen-comprehensive-rules.md#rule-2-1-1).
 
 ## 3. Types of cards and how to read them
 

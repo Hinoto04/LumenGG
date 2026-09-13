@@ -3023,6 +3023,78 @@ body.v2-card-edition-open {
     font-variant-numeric: tabular-nums;
 }
 
+.v2-rule-clause-number {
+    font-weight: 800;
+    margin: 1.35rem 0 0.35rem;
+}
+
+.v2-rule-clause-number + p {
+  margin-top: 0;
+}
+
+.v2-rule-contract {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.42rem 0.72rem;
+  margin: 0.34rem 0 0.7rem;
+  padding: 0.5rem 0.62rem;
+  border: 1px solid var(--v2-line, rgba(15, 23, 42, 0.12));
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--v2-surface, #fff) 88%, var(--v2-accent, #6d5dfc) 12%);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.v2-rule-contract a {
+  text-decoration: none;
+}
+
+.v2-rule-contract-key,
+.v2-rule-contract-relation {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+}
+
+.v2-rule-contract-key span,
+.v2-rule-contract-relation b {
+  color: var(--v2-text-muted, #64748b);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.v2-rule-contract-key code {
+  padding: 0.08rem 0.3rem;
+  border-radius: 0.3rem;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--v2-text, #172033);
+  font-size: 0.72rem;
+}
+
+.v2-rule-contract-relation a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.08rem 0.28rem;
+  border-radius: 999px;
+  background: rgba(109, 93, 252, 0.1);
+  color: var(--v2-accent-strong, #5143c8);
+}
+
+.v2-rule-contract-relation a code {
+  color: inherit;
+  font-size: 0.66rem;
+  opacity: 0.76;
+}
+
+.v2-rule-contract-relation.is-dependency a + a::before {
+  content: "·";
+  margin-right: 0.28rem;
+  color: var(--v2-text-muted, #64748b);
+}
+
 @media (max-width: 720px) {
     .v2-rule-inline-visual-head {
         align-items: stretch;

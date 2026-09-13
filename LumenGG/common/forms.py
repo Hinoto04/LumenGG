@@ -70,6 +70,7 @@ class RuleForm(forms.ModelForm):
             'rulebook',
             'parent',
             'reference_name',
+            'reference_targets',
             'priority',
             'show_in_toc',
             'is_public',
@@ -77,12 +78,17 @@ class RuleForm(forms.ModelForm):
         labels = {
             'rulebook': '룰북',
             'reference_name': '참조명',
+            'reference_targets': '참조 규칙',
             'priority': '우선순위',
             'show_in_toc': '목차에 표시',
             'is_public': '공개',
         }
         widgets = {
             'reference_name': forms.TextInput(attrs={'placeholder': '예: damage-resolution'}),
+            'reference_targets': forms.Textarea(attrs={
+                'rows': 3,
+                'placeholder': '["rule-processing-unit", "rule-priority"]',
+            }),
             'priority': forms.NumberInput(attrs={'min': 0, 'step': 1}),
         }
 
@@ -117,6 +123,41 @@ class RuleForm(forms.ModelForm):
                     pending_ids = child_ids
                 parent_queryset = parent_queryset.exclude(pk__in=excluded_ids)
         self.fields['parent'].queryset = parent_queryset
+
+    def clean_reference_targets(self):
+        references = self.cleaned_data.get('reference_targets') or []
+        if not isinstance(references, list):
+            raise forms.ValidationError('참조 규칙은 JSON 문자열 배열이어야 합니다.')
+
+        rules = Rule.objects.values_list(
+            'pk', 'reference_name', 'reference_aliases'
+        )
+        aliases = {
+            key: (rule_id, reference_name)
+            for rule_id, reference_name, old_references in rules
+            for key in [reference_name, *(old_references or [])]
+            if key
+        }
+        normalized = []
+        missing = []
+        for reference in references:
+            if not isinstance(reference, str) or not reference.strip():
+                raise forms.ValidationError('각 참조 규칙은 비어 있지 않은 문자열이어야 합니다.')
+            reference = reference.strip()
+            target = aliases.get(reference)
+            if target is None:
+                missing.append(reference)
+                continue
+            target_id, canonical = target
+            if self.instance.pk and target_id == self.instance.pk:
+                raise forms.ValidationError('규칙 자신을 참조 규칙으로 지정할 수 없습니다.')
+            if canonical not in normalized:
+                normalized.append(canonical)
+        if missing:
+            raise forms.ValidationError(
+                f'존재하지 않는 참조 키: {", ".join(missing)}'
+            )
+        return normalized
 
     def clean(self):
         cleaned_data = super().clean()

@@ -65,7 +65,7 @@
                 <a href="{% url "tournament:index" %}">{% tr "대회" %}</a>
                 <a href="{% url "battlelog:sim" %}">{% tr "계산기" %}</a>
                 <a href="{% url "battlelog:simulatorStart" %}">{% tr "시뮬레이터" %}</a>
-                <a href="{% url "rules:index" %}">{% tr "룰북" %}</a>
+                {% comment %} <a href="{% url "rules:index" %}">{% tr "룰북" %}</a> {% endcomment %}
                 <a href="{% url "collection:index" %}">{% tr "컬렉션" %}</a>
                 <a href="{% url "qna:index" %}">Q&A</a>
             </nav>

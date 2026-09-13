@@ -283,6 +283,14 @@ class Rule(models.Model):
         blank=True,
         help_text='참조명 변경 전 딥링크를 유지하기 위한 이전 참조명입니다.',
     )
+    reference_targets = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            '이 규칙이 정의·절차·예외를 가져와 사용하는 다른 규칙의 참조명 목록입니다. '
+            '예: ["rule-processing-unit", "rule-priority"]'
+        ),
+    )
     priority = models.PositiveIntegerField(
         default=0,
         help_text='같은 상위 규칙 아래에서 숫자가 낮을수록 먼저 표시됩니다.',
@@ -344,6 +352,19 @@ class Rule(models.Model):
     def clean(self):
         super().clean()
         self.reference_name = (self.reference_name or '').strip()
+
+        if not isinstance(self.reference_targets, list):
+            raise ValidationError({'reference_targets': '참조 규칙은 JSON 문자열 배열이어야 합니다.'})
+        normalized_targets = []
+        for reference in self.reference_targets:
+            if not isinstance(reference, str) or not reference.strip():
+                raise ValidationError({'reference_targets': '각 참조 규칙은 비어 있지 않은 문자열이어야 합니다.'})
+            reference = reference.strip()
+            if reference == self.reference_name or reference in (self.reference_aliases or []):
+                raise ValidationError({'reference_targets': '규칙 자신을 참조 규칙으로 지정할 수 없습니다.'})
+            if reference not in normalized_targets:
+                normalized_targets.append(reference)
+        self.reference_targets = normalized_targets
 
         if self.parent_id:
             if self.pk and self.parent_id == self.pk:

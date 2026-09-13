@@ -5,6 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from common.models import Rule, Rulebook, RulebookTranslation, RuleTranslation
+from common.rule_contracts import synchronize_rule_contracts, unresolved_rule_references
 from common.rule_reference_semantics import semanticize_rulebooks
 from common.rulebook_visual_import import import_rulebook_visuals
 from common.rulebooks import (
@@ -185,6 +186,14 @@ class Command(BaseCommand):
                 },
             },
         )
+        synchronize_rule_contracts(book)
+        unresolved = unresolved_rule_references(book)
+        if unresolved:
+            details = ', '.join(
+                f'{item["source"]} -> {item["target"]}'
+                for item in unresolved[:10]
+            )
+            raise CommandError(f'{book.slug}에 존재하지 않는 규칙 참조가 있습니다: {details}')
         visuals = import_rulebook_visuals(book, config, replace=True)
         return {
             'rules': len(created_rules),

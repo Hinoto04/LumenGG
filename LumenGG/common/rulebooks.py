@@ -14,6 +14,7 @@ from django.utils.safestring import mark_safe
 
 from .language import normalize_language, ui_text
 from .models import Rule, Rulebook
+from .rule_contracts import preferred_reference_key, rule_contract_graph
 from .rule_references import link_rule_references
 
 try:
@@ -25,6 +26,11 @@ except ImportError:  # pragma: no cover - trusted local content fallback
 CONTENT_DIR = Path(settings.BASE_DIR) / 'content' / 'rulebook'
 CATALOG_PATH = CONTENT_DIR / 'catalog.json'
 RULEBOOK_LANGUAGES = {'ko', 'en', 'ja'}
+RULE_CONTRACT_LABELS = {
+    'ko': {'key': '참조 키', 'scope': '상위 규칙', 'uses': '참조 규칙'},
+    'en': {'key': 'Reference key', 'scope': 'Parent rule', 'uses': 'Referenced rules'},
+    'ja': {'key': '参照キー', 'scope': '上位規則', 'uses': '参照規則'},
+}
 
 ALLOWED_TAGS = {
     'a', 'abbr', 'b', 'blockquote', 'br', 'code', 'dd', 'del', 'div', 'dl',
@@ -170,6 +176,8 @@ def _get_database_rulebook(slug, language):
         return None
 
     rows = ordered_rule_tree(rules)
+    row_by_rule_id = {row['rule'].pk: row for row in rows}
+    contracts = rule_contract_graph(rules)
     references = _reference_targets(language, current_book=book)
     toc = []
     html_parts = []
@@ -202,6 +210,15 @@ def _get_database_rulebook(slug, language):
         visual_html = _render_rule_visual_guides(rule, language, references)
         has_inline_visuals = has_inline_visuals or bool(visual_html)
         number_html = f'<span class="v2-rule-number">{escape(number)}</span> ' if number else ''
+        if rule.show_in_toc:
+            heading_html = f'<h{heading_level}>{number_html}{escape(title)}</h{heading_level}>'
+        elif number:
+            heading_html = (
+                f'<div class="v2-rule-clause-number" aria-label="{escape(title, quote=True)}">'
+                f'{number_html}</div>'
+            )
+        else:
+            heading_html = ''
         alias_html = ''.join(
             f'<span class="v2-rule-anchor-alias" id="{escape(alias, quote=True)}"></span>'
             for alias in rule.reference_aliases
@@ -211,7 +228,8 @@ def _get_database_rulebook(slug, language):
             alias_html +
             f'<section class="v2-rule-section" id="{escape(anchor, quote=True)}" '
             f'data-rule-reference="{escape(anchor, quote=True)}">'
-            f'<h{heading_level}>{number_html}{escape(title)}</h{heading_level}>'
+            f'{heading_html}'
+            f'{_render_rule_contract(rule, language, contracts, row_by_rule_id)}'
             f'{visual_html}{content}</section>'
         )
 
@@ -237,6 +255,55 @@ def _get_database_rulebook(slug, language):
         'visuals': [],
         'translation_notice': _translation_notices().get(language),
     }
+
+
+def _render_rule_contract(rule, language, contracts, row_by_rule_id):
+    labels = RULE_CONTRACT_LABELS.get(language, RULE_CONTRACT_LABELS['ko'])
+    key = preferred_reference_key(rule)
+    self_href = f'#{quote(rule.reference_name, safe="")}'
+    parts = [
+        '<a class="v2-rule-contract-key" '
+        f'href="{escape(self_href, quote=True)}" '
+        f'title="{escape(labels["key"], quote=True)}">'
+        f'<span>{escape(labels["key"])}</span><code>{escape(key)}</code></a>'
+    ]
+
+    if rule.parent_id and rule.parent_id in row_by_rule_id:
+        parent = row_by_rule_id[rule.parent_id]['rule']
+        parent_title = _rule_translation(parent, language)['title'] or parent.reference_name
+        parent_number = row_by_rule_id[parent.pk]['number']
+        parent_label = f'{parent_number} {parent_title}'.strip()
+        parts.append(
+            '<span class="v2-rule-contract-relation">'
+            f'<b>{escape(labels["scope"])}</b>'
+            f'<a href="#{quote(parent.reference_name, safe="")}">{escape(parent_label)}</a>'
+            '</span>'
+        )
+
+    dependencies = contracts['outgoing'].get(rule.pk, [])
+    if dependencies:
+        links = []
+        for target in dependencies:
+            target_row = row_by_rule_id.get(target.pk)
+            target_title = _rule_translation(target, language)['title'] or target.reference_name
+            target_number = target_row['number'] if target_row else ''
+            target_label = f'{target_number} {target_title}'.strip()
+            links.append(
+                f'<a href="#{quote(target.reference_name, safe="")}" '
+                f'data-rule-contract-target="{escape(preferred_reference_key(target), quote=True)}">'
+                f'<code>{escape(preferred_reference_key(target))}</code>'
+                f'<span>{escape(target_label)}</span></a>'
+            )
+        parts.append(
+            '<span class="v2-rule-contract-relation is-dependency">'
+            f'<b>{escape(labels["uses"])}</b>{"".join(links)}</span>'
+        )
+
+    return (
+        '<nav class="v2-rule-contract" '
+        f'aria-label="{escape(labels["key"], quote=True)}">'
+        f'{"".join(parts)}</nav>'
+    )
 
 
 def _database_rulebook_summary_by_slug(slug, language):

@@ -104,6 +104,7 @@ class RuleAdmin(admin.ModelAdmin):
     list_editable = ('priority', 'show_in_toc', 'is_public')
     search_fields = (
         'reference_name',
+        'reference_targets',
         'translations__title',
         'translations__content',
     )

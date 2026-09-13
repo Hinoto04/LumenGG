@@ -14,7 +14,9 @@ BOOK_REFERENCE_PREFIXES = {
     'tournament': 'floor',
 }
 REFERENCE_TOKEN_RE = re.compile(r'\[\[([^\[\]]+?)\]\]')
-NUMBER_REFERENCE_RE = re.compile(r'(?<![\d.])(\d+(?:\.\d+){1,3})(?![\d.])')
+NUMBER_REFERENCE_RE = re.compile(
+    r'(?<![\d.vV])(\d+(?:\.\d+){1,3})(?![\d.]|-web)'
+)
 HREF_FRAGMENT_RE = re.compile(r'(?P<prefix>href\s*=\s*["\'][^"\']*#)(?P<reference>[^"\']+)')
 RULE_ANCHOR_LINK_RE = re.compile(
     r'<a\b[^>]*\bhref=(?P<quote>["\'])(?P<href>[^"\']*#(?P<reference>[^"\']+))(?P=quote)[^>]*>'
@@ -83,7 +85,14 @@ def semanticize_rulebooks(rulebooks, *, source_numbers=None):
                     aliases.append(alias)
             rule.reference_name = final_reference
             rule.reference_aliases = aliases
-        Rule.objects.bulk_update(rules, ['reference_name', 'reference_aliases'])
+            rule.reference_targets = [
+                old_to_new.get(reference, reference)
+                for reference in (rule.reference_targets or [])
+            ]
+        Rule.objects.bulk_update(
+            rules,
+            ['reference_name', 'reference_aliases', 'reference_targets'],
+        )
 
         current_reference_by_alias = _all_reference_aliases()
         number_maps = _number_maps(rules)
@@ -119,6 +128,14 @@ def semanticize_rulebooks(rulebooks, *, source_numbers=None):
 
 
 def semantic_reference_for_rule(rule):
+    explicit_reference = (rule.reference_name or '').strip()
+    prefix = BOOK_REFERENCE_PREFIXES.get(rule.rulebook.slug, slugify(rule.rulebook.slug) or 'rule')
+    if (
+        re.fullmatch(rf'{re.escape(prefix)}-[a-z][a-z0-9-]*', explicit_reference)
+        and not explicit_reference.startswith(f'{prefix}-section-')
+    ):
+        return explicit_reference[:120].rstrip('-')
+
     translations = list(rule.translations.all())
     english = next((item for item in translations if item.language == 'en' and item.title), None)
     korean = next((item for item in translations if item.language == 'ko' and item.title), None)
@@ -127,7 +144,6 @@ def semantic_reference_for_rule(rule):
     semantic_name = semantic_name.strip('-')[:88].rstrip('-')
     if not semantic_name:
         semantic_name = f'section-{rule.full_number.replace(".", "-") or rule.pk}'
-    prefix = BOOK_REFERENCE_PREFIXES.get(rule.rulebook.slug, slugify(rule.rulebook.slug) or 'rule')
     return f'{prefix}-{semantic_name}'[:120].rstrip('-')
 
 

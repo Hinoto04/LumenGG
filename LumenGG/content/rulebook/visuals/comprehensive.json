@@ -11,35 +11,69 @@
       },
       "items": [
         {
-          "key": "zone-rules",
-          "label": "존",
-          "title": "존과 공개 정보",
-          "text": "각 존에 놓을 수 있는 카드, 공개 여부, 순서와 이동 결과를 확인합니다.",
-          "href": "#rule-zone-and-public-information",
-          "hint": "공개 · 순서 · 이동"
+          "key": "object-rules",
+          "label": "객체",
+          "title": "게임 내 객체의 정의",
+          "text": "대상으로 지정할 수 있는 게임 객체인 플레이어와 카드, 그리고 각 객체가 가진 정보를 확인합니다.",
+          "href": {
+            "heading": "1. 게임 내 객체의 정의",
+            "fallback": "#rule-definitions-of-game-objects"
+          },
+          "hint": "플레이어 · 카드"
         },
         {
-          "key": "deck-rules",
-          "label": "덱",
-          "title": "카드와 덱",
-          "text": "덱 구성, 캐릭터 카드, 특성 카드, 공격·수비 기술의 기본 정의를 확인합니다.",
-          "href": "#rule-cards-and-decks",
-          "hint": "구성 · 카드 종류"
+          "key": "area-rules",
+          "label": "영역",
+          "title": "게임 내 영역의 정의",
+          "text": "각 존에 놓을 수 있는 카드, 공개 여부, 순서와 이동 결과를 확인합니다.",
+          "href": {
+            "heading": "2. 게임 내 영역의 정의",
+            "fallback": "#rule-definitions-of-game-areas"
+          },
+          "hint": "존 · 공개 · 순서"
+        },
+        {
+          "key": "setup-rules",
+          "label": "준비",
+          "title": "게임 준비",
+          "text": "덱 구성 규칙과 초기 패·리스트·사이드 덱의 준비 절차를 확인합니다.",
+          "href": {
+            "heading": "3. 게임 준비",
+            "fallback": "#rule-game-setup"
+          },
+          "hint": "덱 구성 · 초기 배치"
         },
         {
           "key": "phase-rules",
           "label": "턴",
-          "title": "턴과 페이즈",
+          "title": "게임 진행",
           "text": "루멘, 레디, 배틀, 겟, 리커버리 페이즈의 순서를 확인합니다.",
-          "href": "#rule-turns-and-phases",
+          "href": {
+            "heading": "4. 게임 진행",
+            "fallback": "#rule-game-progression"
+          },
           "hint": "턴 순서"
+        },
+        {
+          "key": "end-rules",
+          "label": "종료",
+          "title": "게임 종료",
+          "text": "게임의 승리와 패배, 동시 체력 0과 서든 데스 절차를 확인합니다.",
+          "href": {
+            "heading": "5. 게임 종료",
+            "fallback": "#rule-game-end"
+          },
+          "hint": "승패 · 서든 데스"
         },
         {
           "key": "priority-rules",
           "label": "우선권",
-          "title": "효과와 우선권",
+          "title": "카드의 효과와 우선권",
           "text": "동시에 처리할 효과, 강제/임의 효과, 텍스트 충돌과 대기 효과를 확인합니다.",
-          "href": "#rule-effects-and-priority",
+          "href": {
+            "heading": "6. 카드의 효과와 우선권",
+            "fallback": "#rule-card-effects-and-priority"
+          },
           "hint": "동시 처리"
         },
         {
@@ -47,48 +81,33 @@
           "label": "배틀",
           "title": "배틀",
           "text": "속도, FP, 공격 대 공격, 공격 대 수비, 무승부와 상쇄 판정을 확인합니다.",
-          "href": "#rule-battle",
+          "href": {
+            "heading": "7. 배틀",
+            "fallback": "#rule-battle"
+          },
           "hint": "속도 · FP · 데미지"
         },
         {
-          "key": "combo-rules",
-          "label": "콤보",
-          "title": "콤보",
-          "text": "콤보 진입, 데미지 보정, 콤보 공통 처리와 특수 처리를 확인합니다.",
-          "href": "#rule-combo",
-          "hint": "연속 공격"
+          "key": "combo-catch-rules",
+          "label": "콤보·캐치",
+          "title": "콤보와 캐치",
+          "text": "콤보의 연결과 데미지 보정, 캐치의 조건과 연속 처리를 확인합니다.",
+          "href": {
+            "heading": "8. 콤보와 캐치",
+            "fallback": "#rule-combos-and-catches"
+          },
+          "hint": "연속 공격 · 반격"
         },
         {
-          "key": "catch-rules",
-          "label": "캐치",
-          "title": "캐치",
-          "text": "캐치 조건, 캐치 처리, 연속 캐치와 특수 상황을 확인합니다.",
-          "href": "#rule-catch",
-          "hint": "반격 조건"
-        },
-        {
-          "key": "break-rules",
-          "label": "브레이크",
-          "title": "존 이동과 브레이크",
-          "text": "브레이크, 버리기, 보충, 특수 기술의 불법 이동을 확인합니다.",
-          "href": "#rule-zone-movement-and-break",
-          "hint": "이동 · 제외"
-        },
-        {
-          "key": "ultimate-rules",
-          "label": "얼티밋",
-          "title": "특수 기술과 얼티밋 기술",
-          "text": "특수 기술 사용 절차와 얼티밋 기술의 이동 결과를 확인합니다.",
-          "href": "#rule-special-technique-and-ultimate-technique",
-          "hint": "제한 기술"
-        },
-        {
-          "key": "end-rules",
-          "label": "종료",
-          "title": "게임 종료와 특수 상황",
-          "text": "디펜스 오버와 서든 데스 등 게임 종료 관련 특수 상황을 확인합니다.",
-          "href": "#rule-game-end-and-special-situations",
-          "hint": "승패 · 서든 데스"
+          "key": "rule-effect-rules",
+          "label": "규칙 효과",
+          "title": "규칙에 의한 효과",
+          "text": "존 이동에 따른 브레이크와 보충, 특수 기술의 불법 이동, 디펜스 오버를 확인합니다.",
+          "href": {
+            "heading": "9. 규칙에 의한 효과",
+            "fallback": "#rule-rule-based-effects"
+          },
+          "hint": "브레이크 · 디펜스 오버"
         }
       ]
     }
