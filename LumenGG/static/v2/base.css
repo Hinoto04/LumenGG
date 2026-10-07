@@ -224,12 +224,34 @@ img {
 
 .v2-footer {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 16px;
     padding: 20px 0 32px;
     border-top: 1px solid var(--v2-line);
     color: var(--v2-faint);
     font-size: .86rem;
+}
+
+.v2-footer .footer-legal-links {
+    display: flex;
+    flex-wrap: wrap;
+    flex-basis: 100%;
+    gap: 8px 16px;
+}
+
+.v2-footer .footer-legal-links a {
+    color: var(--v2-muted);
+}
+
+.v2-footer .footer-legal-links a:hover,
+.v2-footer .footer-legal-links a:focus-visible {
+    color: var(--v2-text);
+    text-decoration: underline;
+}
+
+.v2-footer .footer-privacy {
+    font-weight: 700;
 }
 
 .v2-page-head {
