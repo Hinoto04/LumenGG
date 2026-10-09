@@ -17,6 +17,8 @@ import type { Action, CalcState, Player } from "./types";
 import { useApp } from "./provider";
 import { localized } from "./core";
 import { PassivePanel } from "./passive-panel";
+import { hpAppearance } from "./calculator-display";
+import type { PendingHp, HpTarget } from "./hp-queue";
 import { Button, CachedImage, Input, Notice, colors, styles } from "./ui";
 
 export function CalculatorBoard({
@@ -33,6 +35,8 @@ export function CalculatorBoard({
   onShare,
   setup,
   onAction,
+  pendingHp,
+  onHp,
 }: {
   state: CalcState | null;
   mode: string;
@@ -47,6 +51,8 @@ export function CalculatorBoard({
   onShare: () => void;
   setup: React.ReactNode;
   onAction: (action: Action) => Promise<void>;
+  pendingHp: PendingHp;
+  onHp: (target: HpTarget, amount: number) => void;
 }) {
   const { catalog, language, t } = useApp();
   const { width, height } = useWindowDimensions();
@@ -104,14 +110,9 @@ export function CalculatorBoard({
       thresholds.find((n) => player.hp <= n) ?? thresholds.at(-1);
     const hand = threshold === undefined ? "—" : table[threshold];
     const label = t(target === "p1" ? "플레이어1" : "플레이어2");
-    const hpColor =
-      player.hp <= 0
-        ? colors.danger
-        : player.hp <= 1000
-          ? colors.accent
-          : "#72cbbf";
+    const health = hpAppearance(player.hp, player.initial_hp);
     return (
-      <View style={[board.player, { borderColor: hpColor + "80" }]}>
+      <View style={[board.player, { borderColor: health.border }]}>
         {!!player.character?.img && (
           <View
             pointerEvents="none"
@@ -168,20 +169,53 @@ export function CalculatorBoard({
               accessibilityLabel={`${label} HP ${player.hp}, ${t("대미지 적용")}`}
               disabled={disabled}
               onPress={() => setDamageTarget(target)}
-              style={[board.hp, compact && { minHeight: 64 }]}
+              style={[
+                board.hp,
+                {
+                  backgroundColor: health.background,
+                  borderColor: health.border,
+                  overflow: "hidden",
+                },
+                compact && { minHeight: 64 },
+              ]}
             >
+              <View
+                pointerEvents="none"
+                style={[
+                  { position: "absolute", top: 0, bottom: 0, left: 0 },
+                  {
+                    right: undefined,
+                    width: `${health.ratio * 100}%`,
+                    backgroundColor: health.fill,
+                  },
+                ]}
+              />
               <Text style={board.hpLabel}>HP</Text>
               <Text
                 adjustsFontSizeToFit
                 numberOfLines={1}
                 style={[
                   board.hpValue,
-                  { color: hpColor },
+                  { color: health.strong },
                   compact && { fontSize: 42 },
                 ]}
               >
                 {player.hp}
               </Text>
+              {!!pendingHp[target] && (
+                <Text
+                  accessibilityLabel={`${label} ${t("누적 HP 변화")} ${pendingHp[target]}`}
+                  style={[
+                    board.pendingHp,
+                    {
+                      color: pendingHp[target] < 0 ? colors.danger : "#72cbbf",
+                    },
+                  ]}
+                >
+                  {pendingHp[target] > 0 ? "+" : "−"}
+                  {Math.abs(pendingHp[target])}
+                </Text>
+              )}
             </Pressable>
             <View style={board.hpButtons}>
               {[-500, -100, 100, 500].map((amount) => (
@@ -191,7 +225,7 @@ export function CalculatorBoard({
                   accessibilityLabel={`${label} HP ${amount > 0 ? "+" : ""}${amount}`}
                   accessibilityState={{ disabled }}
                   disabled={disabled}
-                  onPress={() => onAction({ action: "hp", target, amount })}
+                  onPress={() => onHp(target, amount)}
                   style={[
                     board.hpButton,
                     {
@@ -217,10 +251,10 @@ export function CalculatorBoard({
           </View>
           <View style={board.fp}>
             <SmallButton
-              label={`${label} FP -1`}
-              icon="−"
+              label={`${label} FP +1`}
+              icon="+"
               disabled={disabled}
-              onPress={() => onAction({ action: "fp", target, amount: -1 })}
+              onPress={() => onAction({ action: "fp", target, amount: 1 })}
             />
             <Pressable
               accessibilityRole="button"
@@ -233,26 +267,38 @@ export function CalculatorBoard({
               <Text style={board.fpNumber}>{player.fp}</Text>
             </Pressable>
             <SmallButton
-              label={`${label} FP +1`}
-              icon="+"
+              label={`${label} FP -1`}
+              icon="−"
               disabled={disabled}
-              onPress={() => onAction({ action: "fp", target, amount: 1 })}
+              onPress={() => onAction({ action: "fp", target, amount: -1 })}
             />
           </View>
         </View>
-        <ScrollView
-          style={board.passives}
-          contentContainerStyle={{ paddingTop: 9, paddingBottom: 8 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <PassivePanel
-            player={player}
-            target={target}
-            definition={player.character?.passive || {}}
-            disabled={disabled}
-            onAction={onAction}
-          />
-        </ScrollView>
+        {player.character?.passive?.adapter === "tao" ? (
+          <View style={[board.passives, { paddingTop: 6 }]}>
+            <PassivePanel
+              player={player}
+              target={target}
+              definition={player.character.passive}
+              disabled={disabled}
+              onAction={onAction}
+            />
+          </View>
+        ) : (
+          <ScrollView
+            style={board.passives}
+            contentContainerStyle={{ paddingTop: 9, paddingBottom: 8 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <PassivePanel
+              player={player}
+              target={target}
+              definition={player.character?.passive || {}}
+              disabled={disabled}
+              onAction={onAction}
+            />
+          </ScrollView>
+        )}
       </View>
     );
   }
@@ -419,14 +465,10 @@ export function CalculatorBoard({
             !Number(damage) ||
             Math.abs(Number(damage)) > 50000
           }
-          onPress={async () => {
+          onPress={() => {
             if (!damageTarget) return;
             Keyboard.dismiss();
-            await onAction({
-              action: "hp",
-              target: damageTarget,
-              amount: -Math.abs(Number(damage)),
-            });
+            onHp(damageTarget, -Math.abs(Number(damage)));
             setDamageTarget(null);
           }}
         />
@@ -544,6 +586,17 @@ const board = StyleSheet.create({
     borderColor: colors.line,
   },
   hpLabel: { color: colors.muted, fontSize: 10, fontWeight: "700" },
+  pendingHp: {
+    position: "absolute",
+    top: 5,
+    right: 6,
+    backgroundColor: "#161616dd",
+    borderRadius: 7,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    fontSize: 14,
+    fontWeight: "800",
+  },
   hpValue: {
     fontSize: 54,
     lineHeight: 60,

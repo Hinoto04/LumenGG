@@ -9,6 +9,7 @@ import type {
   Player,
   CalcState,
 } from "./types";
+import { passiveActive } from "./calculator-display";
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
@@ -182,7 +183,7 @@ export function passiveActions(
     passive_state: { ...player.passive_state, [key]: { value } },
   };
   for (const status of definition.latchedStatuses || []) {
-    const stored = Boolean(passiveGet(player, status.key, false));
+    const stored = passiveActive(passiveGet(player, status.key, false));
     const active = conditionMet(status.activateWhen, next);
     const keep = conditionMet(status.keepWhile || status.activateWhen, next);
     if (active && !stored) actions.push(action(status.key, true, status.label));
@@ -195,7 +196,7 @@ export function passiveActions(
   ) {
     const yang = Number(passiveGet(next, "yang_counter")),
       yin = Number(passiveGet(next, "yin_counter"));
-    const harmony = Boolean(passiveGet(player, "harmony", false));
+    const harmony = passiveActive(passiveGet(player, "harmony", false));
     if (yang === 4 && yin === 4 && !harmony)
       actions.push(action("harmony", true, "조화"));
     else if (harmony && (yang < 3 || yin < 3))

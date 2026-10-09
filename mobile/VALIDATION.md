@@ -5,12 +5,12 @@ deployed to the production database/server.
 
 - Full Django regression suite: 1,089 tests passed, including 18 mobile API,
   migration and realtime scenarios.
-- TypeScript strict type checking, Expo dependency compatibility, and 17
+- TypeScript strict type checking, Expo dependency compatibility, and 23
   application/SQL storage tests passed.
 - Both Android and iOS Hermes bundles exported successfully.
 - An installable ARM64/x86_64 Android APK was built with JDK 21/SDK 36.
 - An upload-signed Android App Bundle was built for `kr.hinoto.lumen`, version
-  1.0.1, versionCode 2, minSdk 24 and targetSdk 36.
+  1.0.2, versionCode 3, minSdk 24 and targetSdk 36.
 - bundletool 1.18.3 validated the final AAB. All 1,268 payload entries had valid
   signatures matching the saved upload certificate. All 50 native libraries
   passed the 16 KB ELF segment alignment check; the AAB requests
@@ -68,6 +68,24 @@ The revised filter/calculator UI was also checked on the Android 15 emulator:
 iOS Hermes export is checked; iOS device rotation and Android 16 tablet rotation
 still require those devices. The latter's compatibility property is included in
 the generated Android manifest.
+
+Additional calculator checks on the Android 15 emulator:
+
+- Three rapid HP taps (-500, -100, -100) displayed a -700 badge with HP still
+  5000, then committed HP 4300 with a single -700 history event.
+- At HP 800, the ratio-based bar showed an orange background/short fill, while
+  the other player's full-health bar stayed green.
+- Both FP + controls are above FP − controls. Root's Charge button showed its
+  name instead of ON/OFF; its checked state toggled on and off.
+- Tao's Yang/Yin counters share a row. At 4/4 harmony, both effect switches
+  appeared dark on the next row. Repeated taps enabled/disabled the same effect;
+  choosing the other effect preserved mutual exclusion. The Tao panel had no
+  scroll container.
+- Leaving for the menu before an HP +100 debounce expired flushed the local
+  change; calculator re-entry restored HP 900 from the previous HP 800.
+
+Queue tests cover 900 ms trailing debounce, opposite-delta cancellation,
+disconnect cancellation, serial shared delivery and local flush/disposal.
 
 The final distributable uses the production HTTPS origin, contains the public
 seed, and excludes the temporary emulator API/cleartext settings. Both the AAB

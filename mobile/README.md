@@ -26,6 +26,16 @@ actions in the center, and independently scrolling passive controls below HP.
 Tap an HP value for custom damage. Settings, sharing and history use landscape
 dialogs. HP undo retains the existing web behavior; FP reset is separate.
 
+HP controls show a signed pending total and commit after 900 ms without another
+tap on that player. Both players have independent deadlines; shared sends are
+serialized. Local pending changes flush on background/navigation, and shared
+pending changes are discarded on disconnect. HP undo first cancels an unsent
+total. The bar uses the web's initial-HP ratio/hue scale and a proportional fill.
+FP + is above the value and − below it. Passive switches contain their activation
+name and use gold/dark backgrounds; counters are centered. Tao puts Yang/Yin in
+one row and shows two harmony effect switches below it, with the existing single
+effect selection rule and tap-again-to-clear behavior.
+
 Per-screen orientation uses [Expo Router's native stack orientation option](https://docs.expo.dev/versions/latest/sdk/screen-orientation/#per-screen-orientation-with-expo-router).
 iOS allows both orientations and requires full screen on iPad. Android 16's
 large-screen compatibility property preserves these orientation requests;
@@ -65,7 +75,7 @@ submission are account-specific and are not embedded in the repository.
 
 ### Local Play Store bundle
 
-The application ID is `kr.hinoto.lumen`, version `1.0.1`, versionCode 2.
+The application ID is `kr.hinoto.lumen`, version `1.0.2`, versionCode 3.
 The upload keystore is `C:\Hinoto\lumen-upload.keystore`; the configured alias is
 `HInoto_key`. Its RSA-3072 certificate expires on December 31, 9999. The passwords
 are stored outside the repository in Windows-encrypted SecureStrings at
@@ -79,7 +89,7 @@ From the repository root:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1
 # For a later upload, use a greater versionCode:
-powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1 -VersionCode 3
+powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1 -VersionCode 4
 ```
 
 The default versionCode comes from app.config.ts. The script regenerates Android

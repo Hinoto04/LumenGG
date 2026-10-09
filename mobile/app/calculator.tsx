@@ -1,6 +1,13 @@
 import { userMessage } from "../src/errors";
 import React, { useEffect, useRef, useState } from "react";
-import { ScrollView, View, Text, Pressable, Share } from "react-native";
+import {
+  ScrollView,
+  View,
+  Text,
+  Pressable,
+  Share,
+  AppState,
+} from "react-native";
 import { router } from "expo-router";
 import { useApp } from "../src/provider";
 import type { Action, CalcState } from "../src/types";
@@ -15,6 +22,7 @@ import {
   parseShareLink,
 } from "../src/shared";
 import { CalculatorBoard } from "../src/calculator-board";
+import { HpQueue, type PendingHp } from "../src/hp-queue";
 import { styles, Button, Input, Choices, Notice, colors } from "../src/ui";
 
 export default function Calculator() {
@@ -32,6 +40,11 @@ export default function Calculator() {
     [now, setNow] = useState(Date.now()),
     [settings, setSettings] = useState(false),
     [ready, setReady] = useState(false);
+  const [pendingHp, setPendingHp] = useState<PendingHp>({ p1: 0, p2: 0 });
+  const hpQueue = useRef<HpQueue | null>(null);
+  const sharedBusy = useRef(false);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
   const client = useRef<SharedCalculator | null>(null),
     localRef = useRef(local);
   localRef.current = local;
@@ -61,9 +74,6 @@ export default function Calculator() {
     };
   }, []);
   useEffect(() => {
-    if (local) saveCalculator(local).catch((err) => setError(userMessage(err)));
-  }, [local]);
-  useEffect(() => {
     if (session) {
       client.current = new SharedCalculator(
         session,
@@ -80,21 +90,76 @@ export default function Calculator() {
   }, [session, language]);
   const state = mode === "shared" ? shared : local;
   async function action(value: Action) {
+    if (mode === "shared" && sharedBusy.current) return;
+    const sharedAction = mode === "shared";
     try {
       setError("");
+      if (["undo", "reset_session", "sudden_death"].includes(value.action)) {
+        const pending = hpQueue.current?.hasPending;
+        hpQueue.current?.clear();
+        if (value.action === "undo" && pending) return;
+      }
       if (mode === "shared") {
+        sharedBusy.current = true;
+        hpQueue.current?.setBusy(true);
         setBusy(true);
         await client.current?.send(value);
       } else if (localRef.current) {
         const next = reduceCalculator(localRef.current, value);
         localRef.current = next;
         setLocal(next);
+        await saveCalculator(next);
       }
     } catch (err) {
       setError(userMessage(err));
     } finally {
-      setBusy(false);
+      if (sharedAction) {
+        sharedBusy.current = false;
+        setBusy(false);
+        hpQueue.current?.setBusy(false);
+      }
     }
+  }
+  const actionRef = useRef(action);
+  actionRef.current = action;
+  useEffect(() => {
+    const queue = new HpQueue(
+      (value) => actionRef.current(value),
+      setPendingHp,
+      undefined,
+      (err) => setError(userMessage(err)),
+    );
+    hpQueue.current = queue;
+    const subscription = AppState.addEventListener("change", (phase) => {
+      if (phase !== "active") {
+        if (modeRef.current === "local") void queue.flush();
+        else queue.clear();
+      }
+    });
+    return () => {
+      subscription.remove();
+      if (modeRef.current === "local")
+        void queue.flush().finally(() => queue.dispose());
+      else queue.dispose();
+    };
+  }, []);
+  const available =
+    !!state?.can_control &&
+    !state.is_expired &&
+    (mode !== "shared" || (connected && online));
+  const availableRef = useRef(available);
+  availableRef.current = available;
+  useEffect(() => {
+    hpQueue.current?.setAvailable(available);
+  }, [available]);
+  const hpScope = `${mode}:${session?.view_token || ""}:${state?.players.p1.character?.id || ""}:${state?.players.p2.character?.id || ""}`;
+  useEffect(() => {
+    hpQueue.current?.clear();
+  }, [hpScope]);
+  async function changeMode(next: string) {
+    if (modeRef.current === "local") await hpQueue.current?.flush();
+    else hpQueue.current?.clear();
+    setMode(next);
   }
   function selected() {
     const a = catalog?.characters.find(
@@ -108,6 +173,7 @@ export default function Calculator() {
   }
   async function create(sharedMode: boolean) {
     try {
+      hpQueue.current?.clear();
       const [a, b] = selected();
       if (sharedMode) {
         const result = await request(
@@ -133,6 +199,7 @@ export default function Calculator() {
         const next = newCalculator(a, b, language);
         localRef.current = next;
         setLocal(next);
+        await saveCalculator(next);
         setMode("local");
       }
       setError("");
@@ -184,14 +251,21 @@ export default function Calculator() {
       }}
       onShare={() => {
         openSettings();
-        setMode("shared");
+        void changeMode("shared");
       }}
       onAction={action}
+      pendingHp={pendingHp}
+      onHp={(target, amount) => {
+        if (availableRef.current) {
+          hpQueue.current?.setAvailable(true);
+          hpQueue.current?.add(target, amount);
+        }
+      }}
       setup={
         <>
           <Choices
             value={mode}
-            onChange={setMode}
+            onChange={changeMode}
             values={[
               { key: "local", label: t("로컬") },
               { key: "shared", label: t("공유") },
