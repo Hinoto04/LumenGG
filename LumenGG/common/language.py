@@ -32,6 +32,13 @@ SUPPORTED_LANGUAGE_CODES = {code for code, _label in SUPPORTED_LANGUAGES}
 
 UI_TRANSLATIONS = {
     LANGUAGE_ENGLISH: {
+        '운영 및 정책 안내': 'Legal and policy information',
+        '운영·정책 안내': 'Legal & Policies',
+        '개인정보처리방침': 'Privacy Policy',
+        '이용약관': 'Terms of Use',
+        '면책·권리 안내': 'Disclaimer & Rights',
+        '운영자 소개': 'About the Operator',
+        '문의하기': 'Contact',
         '주 메뉴': 'Main menu',
         '메뉴 열기': 'Open menu',
         '메뉴 닫기': 'Close menu',
@@ -173,6 +180,13 @@ UI_TRANSLATIONS = {
         '전체 덱': 'All decks',
     },
     LANGUAGE_JAPANESE: {
+        '운영 및 정책 안내': '運営・ポリシー案内',
+        '운영·정책 안내': '運営・ポリシー案内',
+        '개인정보처리방침': 'プライバシーポリシー',
+        '이용약관': '利用規約',
+        '면책·권리 안내': '免責・権利に関する案内',
+        '운영자 소개': '運営者紹介',
+        '문의하기': 'お問い合わせ',
         '주 메뉴': 'メインメニュー',
         '메뉴 열기': 'メニューを開く',
         '메뉴 닫기': 'メニューを閉じる',
