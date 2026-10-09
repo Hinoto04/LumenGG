@@ -5,12 +5,12 @@ deployed to the production database/server.
 
 - Full Django regression suite: 1,089 tests passed, including 18 mobile API,
   migration and realtime scenarios.
-- TypeScript strict type checking, Expo dependency compatibility, and 23
+- TypeScript strict type checking, Expo dependency compatibility, and 36
   application/SQL storage tests passed.
 - Both Android and iOS Hermes bundles exported successfully.
 - An installable ARM64/x86_64 Android APK was built with JDK 21/SDK 36.
 - An upload-signed Android App Bundle was built for `kr.hinoto.lumen`, version
-  1.0.2, versionCode 3, minSdk 24 and targetSdk 36.
+  1.0.4, versionCode 5, minSdk 24 and targetSdk 36.
 - bundletool 1.18.3 validated the final AAB. All 1,268 payload entries had valid
   signatures matching the saved upload certificate. All 50 native libraries
   passed the 16 KB ELF segment alignment check; the AAB requests
@@ -86,6 +86,31 @@ Additional calculator checks on the Android 15 emulator:
 
 Queue tests cover 900 ms trailing debounce, opposite-delta cancellation,
 disconnect cancellation, serial shared delivery and local flush/disposal.
+
+Card printing and collection filter checks on the Android 15 emulator:
+
+- Standing Guard (ST1-011) showed its separate starter-pack printings with pack
+  names, printing numbers, rarity, release dates and thumbnails.
+- Collection opened a full-screen filter sheet. The pack choices scrolled
+  horizontally while the Apply footer remained fixed.
+- Skin selection previewed 72 items. Cancel retained all 1,802 items; Apply
+  displayed 72 items; Reset plus Apply restored all 1,802 items.
+- Card search's filter screen still opened and previewed all 455 cards after
+  extracting the shared filter-sheet components.
+
+Collection data tests verify grouped rarities, separate same-code packs/skins,
+missing references, combined filters, quantity-sensitive unowned filtering and
+localized search/code normalization.
+
+FP/history changes passed 981 isolated `mobile_api`/`battlelog` regression tests,
+including new coverage for shared passive event before/after payloads. Client
+tests cover FP debounce, selective reset cancellation, numeric/boolean passive
+logs, shared payloads, missing legacy values, player attribution and timer
+exclusion before history limits. Android UI checks verified FP 0 → 3 and numeric
+passive history with opposite-side player cards. Final native checks also
+verified Charge's inactive → active label, Yang 1 → 2, and no timer rows after
+starting/stopping the timer. The pending FP screenshot showed +3 while the
+committed FP value was still 0, then the history recorded a single 0 → 3 change.
 
 The final distributable uses the production HTTPS origin, contains the public
 seed, and excludes the temporary emulator API/cleartext settings. Both the AAB

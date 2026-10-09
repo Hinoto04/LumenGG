@@ -168,6 +168,19 @@ class MobileApiTests(TestCase):
         with self.assertRaises(StaleCalculator):perform_mobile_action(session.view_token,body,session.control_token)
         with self.assertRaises(PermissionDenied):perform_mobile_action(session.view_token,body,'bad')
 
+    def test_shared_passive_events_preserve_before_and_after_values(self):
+        session = self.session()
+        for value in (2, 3):
+            body = {'action_id': str(uuid.uuid4()), 'expected_version': session.version,
+                    'action': 'passive', 'target': 'p2', 'key': 'test_counter',
+                    'value': value, 'label': '테스트 카운터'}
+            session = perform_mobile_action(session.view_token, body, session.control_token)
+        events = mobile_state(session, session.control_token)['events']
+        event = next(event for event in events if event.get('payload', {}).get('key') == 'test_counter')
+        self.assertEqual(event['target'], 'p2')
+        self.assertEqual(event['payload']['before_state']['value'], 2)
+        self.assertEqual(event['payload']['after_state']['value'], 3)
+
     def test_calculator_api_and_expiration(self):
         anon=APIClient();session=self.session()
         body={'action_id':str(uuid.uuid4()),'expected_version':session.version,'action':'hp','target':'p1','amount':-100}

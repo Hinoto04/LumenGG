@@ -34,6 +34,62 @@ const settle = async () => {
   await Promise.resolve();
   await Promise.resolve();
 };
+test("FP taps aggregate for 700ms and mixed HP/FP deadlines remain independent", async () => {
+  const clock = new Clock();
+  const sent: Action[] = [];
+  const fpTotals: number[] = [];
+  const queue = new HpQueue(
+    async (action) => {
+      sent.push(action);
+    },
+    (_hp, fp) => fpTotals.push(fp.p1),
+    clock,
+  );
+  queue.add("p1", -500);
+  queue.add("p1", 1, "fp");
+  clock.advance(200);
+  queue.add("p1", 1, "fp");
+  clock.advance(699);
+  assert.equal(sent.length, 0);
+  assert.equal(fpTotals.at(-1), 2);
+  clock.advance(1);
+  await settle();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.action, "batch");
+  assert.deepEqual(
+    sent[0]!.actions?.map((action) => [action.action, action.amount]),
+    [
+      ["hp", -500],
+      ["fp", 2],
+    ],
+  );
+});
+test("FP reset cancels only that player's pending FP and leaves HP and the other player intact", async () => {
+  const clock = new Clock();
+  const sent: Action[] = [];
+  const queue = new HpQueue(
+    async (action) => {
+      sent.push(action);
+    },
+    () => {},
+    clock,
+  );
+  queue.add("p1", 2, "fp");
+  queue.add("p2", -1, "fp");
+  queue.add("p1", -100);
+  queue.clear("fp", "p1");
+  clock.advance(700);
+  await settle();
+  clock.advance(200);
+  await settle();
+  assert.deepEqual(
+    sent.map((action) => [action.action, action.target, action.amount]),
+    [
+      ["fp", "p2", -1],
+      ["hp", "p1", -100],
+    ],
+  );
+});
 test("rapid HP taps keep the displayed HP unchanged until 900ms after the last tap and submit one sum", async () => {
   const clock = new Clock();
   const sent: Action[] = [];

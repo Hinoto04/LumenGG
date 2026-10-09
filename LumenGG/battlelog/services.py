@@ -1481,6 +1481,7 @@ def update_passive(session, target, card_id=None, delta=0, note='', key='', valu
         state = getattr(locked, state_field) or {}
         key = str(key or card_id or 'memo')[:80]
         current = dict(state.get(key, {}))
+        before_state = copy.deepcopy(current)
         if card_id or delta:
             current['count'] = max(0, int(current.get('count', 0)) + int(delta or 0))
         if value is not None:
@@ -1505,6 +1506,8 @@ def update_passive(session, target, card_id=None, delta=0, note='', key='', valu
                 'value': value,
                 'note': note[:200],
                 'state': current,
+                'before_state': before_state,
+                'after_state': copy.deepcopy(current),
             },
         )
         return locked

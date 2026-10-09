@@ -15,7 +15,10 @@ const systemScheduler: Scheduler = {
 
 /** Short foreground UI debounce; never an offline shared-action outbox. */
 export class HpQueue {
-  private entries = new Map<HpTarget, { amount: number; deadline: number }>();
+  private entries = new Map<
+    string,
+    { target: HpTarget; kind: "hp" | "fp"; amount: number; deadline: number }
+  >();
   private timer: unknown;
   private sending = false;
   private busy = false;
@@ -25,14 +28,17 @@ export class HpQueue {
   private waiters: (() => void)[] = [];
   constructor(
     private send: (action: Action) => Promise<void>,
-    private changed: (pending: PendingHp) => void,
+    private changed: (pending: PendingHp, fp: PendingHp) => void,
     private clock: Scheduler = systemScheduler,
     private failed: (error: unknown) => void = () => {},
   ) {}
   get hasPending() {
     return this.entries.size > 0;
   }
-  add(target: HpTarget, amount: number) {
+  get hasPendingHp() {
+    return [...this.entries.values()].some((entry) => entry.kind === "hp");
+  }
+  add(target: HpTarget, amount: number, kind: "hp" | "fp" = "hp") {
     if (
       this.disposed ||
       !this.available ||
@@ -40,13 +46,16 @@ export class HpQueue {
       !Number.isSafeInteger(amount)
     )
       return;
-    const total = (this.entries.get(target)?.amount || 0) + amount;
+    const key = `${kind}:${target}`;
+    const total = (this.entries.get(key)?.amount || 0) + amount;
     if (total)
-      this.entries.set(target, {
+      this.entries.set(key, {
+        target,
+        kind,
         amount: total,
-        deadline: this.clock.now() + 900,
+        deadline: this.clock.now() + (kind === "fp" ? 700 : 900),
       });
-    else this.entries.delete(target);
+    else this.entries.delete(key);
     this.notify();
     this.schedule();
   }
@@ -59,12 +68,18 @@ export class HpQueue {
     this.busy = value;
     this.schedule();
   }
-  clear() {
-    this.entries.clear();
+  clear(kind?: "hp" | "fp", target?: HpTarget) {
+    for (const [key, entry] of this.entries)
+      if (
+        (!kind || entry.kind === kind) &&
+        (!target || entry.target === target)
+      )
+        this.entries.delete(key);
     this.stopTimer();
     this.forced = false;
     this.notify();
     this.finishWaiters();
+    this.schedule();
   }
   flush(): Promise<void> {
     if (this.disposed || (!this.entries.size && !this.sending))
@@ -82,10 +97,16 @@ export class HpQueue {
   }
   private notify() {
     if (!this.disposed)
-      this.changed({
-        p1: this.entries.get("p1")?.amount || 0,
-        p2: this.entries.get("p2")?.amount || 0,
-      });
+      this.changed(
+        {
+          p1: this.entries.get("hp:p1")?.amount || 0,
+          p2: this.entries.get("hp:p2")?.amount || 0,
+        },
+        {
+          p1: this.entries.get("fp:p1")?.amount || 0,
+          p2: this.entries.get("fp:p2")?.amount || 0,
+        },
+      );
   }
   private stopTimer() {
     if (this.timer !== undefined) this.clock.cancel(this.timer);
@@ -124,10 +145,14 @@ export class HpQueue {
     if (this.disposed || !this.available || this.busy || this.sending) return;
     this.stopTimer();
     const actions: Action[] = [];
-    for (const [target, entry] of this.entries) {
+    for (const [key, entry] of this.entries) {
       if (this.forced || entry.deadline <= this.clock.now()) {
-        actions.push({ action: "hp", target, amount: entry.amount });
-        this.entries.delete(target);
+        actions.push({
+          action: entry.kind,
+          target: entry.target,
+          amount: entry.amount,
+        });
+        this.entries.delete(key);
       }
     }
     if (!actions.length) {

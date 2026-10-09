@@ -17,6 +17,7 @@ import type { Action, CalcState, Player } from "./types";
 import { useApp } from "./provider";
 import { localized } from "./core";
 import { PassivePanel } from "./passive-panel";
+import { CalculatorHistory } from "./calculator-history";
 import { hpAppearance } from "./calculator-display";
 import type { PendingHp, HpTarget } from "./hp-queue";
 import { Button, CachedImage, Input, Notice, colors, styles } from "./ui";
@@ -36,7 +37,9 @@ export function CalculatorBoard({
   setup,
   onAction,
   pendingHp,
+  pendingFp,
   onHp,
+  onFp,
 }: {
   state: CalcState | null;
   mode: string;
@@ -52,7 +55,9 @@ export function CalculatorBoard({
   setup: React.ReactNode;
   onAction: (action: Action) => Promise<void>;
   pendingHp: PendingHp;
+  pendingFp: PendingHp;
   onHp: (target: HpTarget, amount: number) => void;
+  onFp: (target: HpTarget, amount: number) => void;
 }) {
   const { catalog, language, t } = useApp();
   const { width, height } = useWindowDimensions();
@@ -252,9 +257,9 @@ export function CalculatorBoard({
           <View style={board.fp}>
             <SmallButton
               label={`${label} FP +1`}
-              icon="+"
+              icon={pendingFp[target] > 0 ? `+${pendingFp[target]}` : "+"}
               disabled={disabled}
-              onPress={() => onAction({ action: "fp", target, amount: 1 })}
+              onPress={() => onFp(target, 1)}
             />
             <Pressable
               accessibilityRole="button"
@@ -268,9 +273,11 @@ export function CalculatorBoard({
             </Pressable>
             <SmallButton
               label={`${label} FP -1`}
-              icon="−"
+              icon={
+                pendingFp[target] < 0 ? `−${Math.abs(pendingFp[target])}` : "−"
+              }
               disabled={disabled}
-              onPress={() => onAction({ action: "fp", target, amount: -1 })}
+              onPress={() => onFp(target, -1)}
             />
           </View>
         </View>
@@ -421,26 +428,7 @@ export function CalculatorBoard({
         title={t("기록")}
         onClose={() => setHistoryOpen(false)}
       >
-        {!state?.events.length && <Notice text="기록이 없습니다." />}
-        {(state?.events || [])
-          .slice(-100)
-          .reverse()
-          .map((event, i) => (
-            <Text
-              key={event.id || i}
-              style={[
-                styles.text,
-                {
-                  paddingVertical: 9,
-                  borderBottomWidth: 1,
-                  borderColor: colors.line,
-                },
-              ]}
-            >
-              {event.target} · {event.type} · {event.amount ?? ""}{" "}
-              {event.undone ? "↩" : ""}
-            </Text>
-          ))}
+        <CalculatorHistory state={state} />
       </LandscapeModal>
       <LandscapeModal
         visible={!!damageTarget}
@@ -498,7 +486,9 @@ function SmallButton({
       hitSlop={4}
       style={[board.smallButton, disabled && { opacity: 0.4 }]}
     >
-      <Text style={board.smallIcon}>{icon}</Text>
+      <Text adjustsFontSizeToFit numberOfLines={1} style={board.smallIcon}>
+        {icon}
+      </Text>
     </Pressable>
   );
 }

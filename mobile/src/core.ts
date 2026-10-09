@@ -256,6 +256,7 @@ export function reduceCalculator(
     target: action.target,
     amount,
     created_at: new Date(now).toISOString(),
+    player_name: player?.name,
   };
   switch (action.action) {
     case "hp":
@@ -266,17 +267,41 @@ export function reduceCalculator(
       }
       break;
     case "fp":
-      if (player) player.fp += amount;
+      if (player) {
+        event.fp_before = player.fp;
+        player.fp += amount;
+        event.fp_after = player.fp;
+      }
       break;
     case "fp_reset":
-      if (player) player.fp = 0;
+      if (player) {
+        event.fp_before = player.fp;
+        player.fp = 0;
+        event.fp_after = 0;
+      }
       break;
     case "passive":
-      if (player && action.key)
+      if (player && action.key) {
+        const control = (player.character?.passive?.controls || []).find(
+          (c: any) => c.key === action.key,
+        );
+        const before = player.passive_state[action.key] || {
+          value: control?.default ?? control?.initial ?? 0,
+        };
+        const label =
+          action.label || control?.label || before.label || action.key;
         player.passive_state[action.key] = {
           value: action.value,
-          label: action.label,
+          label,
         };
+        event.payload = {
+          key: action.key,
+          label,
+          before_state: clone(before),
+          after_state: clone(player.passive_state[action.key]),
+          value: action.value,
+        };
+      }
       break;
     case "timer":
       next.timer =
@@ -293,7 +318,11 @@ export function reduceCalculator(
         .reverse()
         .find((e) => e.type === "hp" && !e.undone);
       if (prior && (prior.target === "p1" || prior.target === "p2")) {
+        event.target = prior.target;
+        event.player_name = next.players[prior.target as "p1" | "p2"].name;
+        event.hp_before = next.players[prior.target as "p1" | "p2"].hp;
         next.players[prior.target as "p1" | "p2"].hp = prior.hp_before;
+        event.hp_after = prior.hp_before;
         prior.undone = true;
       }
       break;
@@ -331,7 +360,7 @@ export function reduceCalculator(
       return state;
   }
   next.version++;
-  next.events.push(event);
+  if (action.action !== "timer") next.events.push(event);
   return next;
 }
 export function shouldOverlayPending(

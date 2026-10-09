@@ -20,6 +20,13 @@ ranges have named minimum/maximum fields. Edits stay in a draft until the fixed
 bottom Apply button is pressed; Cancel leaves the previous filters intact. Apply
 stays above the keyboard, and invalid/reversed numeric ranges cannot be applied.
 
+Collection uses the same full-screen filter sheet for pack, character, rarity,
+item type and unowned items. Its footer previews the matching item count and
+applies the draft only on confirmation. Card detail shows printing groups with
+pack name, printing number, rarities, release date, item type and thumbnail.
+Reprints and skins retain separate rows; missing pack/printing data has an
+explicit empty-state label. These features read the offline catalog.
+
 Calculator opens in landscape; other routes use portrait. Its three columns
 follow the web calculator: player HP/FP panels on either side, timer and common
 actions in the center, and independently scrolling passive controls below HP.
@@ -35,6 +42,16 @@ FP + is above the value and − below it. Passive switches contain their activat
 name and use gold/dark backgrounds; counters are centered. Tao puts Yang/Yin in
 one row and shows two harmony effect switches below it, with the existing single
 effect selection rule and tap-again-to-clear behavior.
+
+FP buttons now aggregate for 700 ms, independently of the HP timers, and display
+their signed pending total. FP reset cancels that player's unsent FP changes.
+Both resources share a serial sender for shared sessions. History uses left/teal
+cards for player 1 and right/gold cards for player 2, with player/character names,
+timestamps and explicit old/new HP, FP or passive values. Timer events are not
+stored in local history and legacy/shared timer records are omitted from the
+display. Old records without values are labeled as unrecorded.
+Shared passive before/after details require deploying the additive JSON payload
+fields in `battlelog.services.update_passive`; no database migration is needed.
 
 Per-screen orientation uses [Expo Router's native stack orientation option](https://docs.expo.dev/versions/latest/sdk/screen-orientation/#per-screen-orientation-with-expo-router).
 iOS allows both orientations and requires full screen on iPad. Android 16's
@@ -75,7 +92,7 @@ submission are account-specific and are not embedded in the repository.
 
 ### Local Play Store bundle
 
-The application ID is `kr.hinoto.lumen`, version `1.0.2`, versionCode 3.
+The application ID is `kr.hinoto.lumen`, version `1.0.4`, versionCode 5.
 The upload keystore is `C:\Hinoto\lumen-upload.keystore`; the configured alias is
 `HInoto_key`. Its RSA-3072 certificate expires on December 31, 9999. The passwords
 are stored outside the repository in Windows-encrypted SecureStrings at
@@ -89,7 +106,7 @@ From the repository root:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1
 # For a later upload, use a greater versionCode:
-powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1 -VersionCode 4
+powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1 -VersionCode 6
 ```
 
 The default versionCode comes from app.config.ts. The script regenerates Android

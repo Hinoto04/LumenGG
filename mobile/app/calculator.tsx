@@ -41,6 +41,7 @@ export default function Calculator() {
     [settings, setSettings] = useState(false),
     [ready, setReady] = useState(false);
   const [pendingHp, setPendingHp] = useState<PendingHp>({ p1: 0, p2: 0 });
+  const [pendingFp, setPendingFp] = useState<PendingHp>({ p1: 0, p2: 0 });
   const hpQueue = useRef<HpQueue | null>(null);
   const sharedBusy = useRef(false);
   const modeRef = useRef(mode);
@@ -94,11 +95,15 @@ export default function Calculator() {
     const sharedAction = mode === "shared";
     try {
       setError("");
-      if (["undo", "reset_session", "sudden_death"].includes(value.action)) {
-        const pending = hpQueue.current?.hasPending;
-        hpQueue.current?.clear();
-        if (value.action === "undo" && pending) return;
+      if (value.action === "undo") {
+        const pending = hpQueue.current?.hasPendingHp;
+        hpQueue.current?.clear("hp");
+        if (pending) return;
       }
+      if (["reset_session", "sudden_death"].includes(value.action))
+        hpQueue.current?.clear();
+      if (value.action === "fp_reset")
+        hpQueue.current?.clear("fp", value.target);
       if (mode === "shared") {
         sharedBusy.current = true;
         hpQueue.current?.setBusy(true);
@@ -125,7 +130,10 @@ export default function Calculator() {
   useEffect(() => {
     const queue = new HpQueue(
       (value) => actionRef.current(value),
-      setPendingHp,
+      (hp, fp) => {
+        setPendingHp(hp);
+        setPendingFp(fp);
+      },
       undefined,
       (err) => setError(userMessage(err)),
     );
@@ -255,6 +263,13 @@ export default function Calculator() {
       }}
       onAction={action}
       pendingHp={pendingHp}
+      pendingFp={pendingFp}
+      onFp={(target, amount) => {
+        if (availableRef.current) {
+          hpQueue.current?.setAvailable(true);
+          hpQueue.current?.add(target, amount, "fp");
+        }
+      }}
       onHp={(target, amount) => {
         if (availableRef.current) {
           hpQueue.current?.setAvailable(true);

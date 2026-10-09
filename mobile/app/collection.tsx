@@ -1,89 +1,51 @@
 import React, { useState } from "react";
-import { View, Text, FlatList, ScrollView } from "react-native";
+import { View, Text, FlatList, Keyboard } from "react-native";
 import { useApp } from "../src/provider";
-import { localized, normalizeSearch } from "../src/core";
-import { styles, Choices, Input, Button, CachedImage, Notice } from "../src/ui";
+import { localized } from "../src/core";
+import { styles, Input, Button, CachedImage, Notice } from "../src/ui";
+import { CollectionFilterScreen } from "../src/collection-filter-screen";
+import {
+  collectionRows,
+  collectionFilterCount,
+  emptyCollectionFilters,
+  type CollectionFilters,
+} from "../src/collection-data";
 export default function Collection() {
   const { catalog, language, amounts, setAmount, status, t, syncErrors } =
     useApp();
-  const [query, setQuery] = useState(""),
-    [pack, setPack] = useState(""),
-    [character, setCharacter] = useState(""),
-    [rare, setRare] = useState(""),
-    [type, setType] = useState(""),
-    [onlyZero, setOnlyZero] = useState(false),
-    [filters, setFilters] = useState(false);
-  const needle = normalizeSearch(query);
-  const rows = (catalog?.collection || []).filter(
-    (c) =>
-      (!needle || normalizeSearch(c.name + c.code).includes(needle)) &&
-      (!pack || String(c.pack_id) === pack) &&
-      (!character || String(c.character_id) === character) &&
-      (!rare || c.rare === rare) &&
-      (!type || c.item_type === type) &&
-      (!onlyZero || !amounts[c.id]),
-  );
+  const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<CollectionFilters>({
+    ...emptyCollectionFilters,
+  });
+  const [filterVisible, setFilterVisible] = useState(false);
+  const rows = catalog
+    ? collectionRows(catalog, filters, query, amounts, language)
+    : [];
   return (
     <View style={styles.screen}>
       <Input value={query} onChangeText={setQuery} placeholder={t("검색")} />
       <View style={styles.row}>
-        <Button label="필터" onPress={() => setFilters(!filters)} />
         <Button
-          label={onlyZero ? "미보유 ✓" : "미보유"}
-          onPress={() => setOnlyZero(!onlyZero)}
+          label={`${t("필터")}${collectionFilterCount(filters) ? ` (${collectionFilterCount(filters)})` : ""}`}
+          onPress={() => {
+            Keyboard.dismiss();
+            setFilterVisible(true);
+          }}
         />
+        <Text style={styles.muted}>
+          {rows.length} {t("개")}
+        </Text>
       </View>
-      {filters && (
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          style={{ maxHeight: 230, marginTop: 10 }}
-        >
-          <Choices
-            value={pack}
-            onChange={setPack}
-            values={[
-              { key: "", label: t("전체 팩") },
-              ...(catalog?.packs || []).map((p) => ({
-                key: String(p.id),
-                label: localized(p, language),
-              })),
-            ]}
-          />
-          <Choices
-            value={character}
-            onChange={setCharacter}
-            values={[
-              { key: "", label: t("전체") },
-              ...(catalog?.characters || []).map((c) => ({
-                key: String(c.id),
-                label: localized(c, language),
-              })),
-            ]}
-          />
-          <Choices
-            value={rare}
-            onChange={setRare}
-            values={[
-              { key: "", label: t("전체 레어도") },
-              ...[...new Set(catalog?.collection.map((c) => c.rare))].map(
-                (v) => ({ key: v, label: v }),
-              ),
-            ]}
-          />
-          <Choices
-            value={type}
-            onChange={setType}
-            values={[
-              { key: "", label: t("전체 종류") },
-              ...["card", "skin", "token", "other"].map((v) => ({
-                key: v,
-                label: t(v),
-              })),
-            ]}
-          />
-        </ScrollView>
-      )}
+      <CollectionFilterScreen
+        visible={filterVisible}
+        value={filters}
+        query={query}
+        onClose={() => setFilterVisible(false)}
+        onApply={(next) => {
+          setFilters(next);
+          setFilterVisible(false);
+        }}
+      />
       <Notice text={status} />
       <FlatList
         keyboardShouldPersistTaps="handled"
