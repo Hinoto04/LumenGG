@@ -17,6 +17,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential pkg-config default-libmysqlclient-dev && rm -rf /var/lib/apt/lists/*
 
 # Create a non-privileged user that the app will run under.
 # See https://docs.docker.com/go/dockerfile-user-best-practices/
@@ -39,10 +40,10 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install -r requirements.txt
 
 # Switch to the non-privileged user to run the application.
-USER appuser
-
 # Copy the source code into the container.
-COPY . .
+COPY --chown=appuser:appuser . .
+RUN mkdir -p /app/mobile_catalog /app/staticfiles /home/ubuntu/images/lumendb && chown -R appuser:appuser /app/mobile_catalog /app/staticfiles /home/ubuntu/images/lumendb
+USER appuser
 
 # Expose the port that the application listens on.
 # EXPOSE 8000

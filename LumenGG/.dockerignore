@@ -32,3 +32,8 @@
 **/values.dev.yaml
 LICENSE
 README.md
+**/SECRET_KEYS.py
+**/.temp
+mobile_catalog/
+media/
+logs/

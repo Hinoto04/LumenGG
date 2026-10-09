@@ -1,0 +1,21 @@
+{
+  "generator": "built-in image_gen",
+  "files": [
+    {
+      "file": "lumendb-icon-512.png",
+      "width": 512,
+      "height": 512,
+      "mode": "RGBA",
+      "size_bytes": 274272,
+      "sha256": "1c279c64e96c3d92169bbc33f0e052506021f2aa10c852348d754bdf3cfff03a"
+    },
+    {
+      "file": "lumendb-feature-1024x500.png",
+      "width": 1024,
+      "height": 500,
+      "mode": "RGB",
+      "size_bytes": 922752,
+      "sha256": "ab10f39187e25f6831185a7b5a791323fc906c2d03cdf6a4d7f3f30bcde48939"
+    }
+  ]
+}

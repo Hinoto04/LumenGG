@@ -43,6 +43,7 @@ sitemaps = {
 }
 
 urlpatterns = [
+    path('api/mobile/v1/', include('mobile_api.urls')),
     path('admin/', admin.site.urls),
     path('', include('card.urls'), name='card'),
     path('common/', include('common.urls'), name='common'),

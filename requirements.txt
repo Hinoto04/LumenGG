@@ -3,6 +3,9 @@ bleach==6.2.0
 certifi==2024.12.14
 charset-normalizer==3.4.0
 Django==5.1.4
+djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.1
+filelock==3.20.3
 django-summernote==0.8.20.0
 et_xmlfile==2.0.0
 idna==3.10

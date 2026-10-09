@@ -46,6 +46,9 @@ ALLOWED_HOSTS = [
 
 INSTALLED_APPS = [
     'daphne',
+    'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
+    'mobile_api.apps.MobileApiConfig',
     'card.apps.CardConfig',
     'common.apps.CommonConfig',
     'deck.apps.DeckConfig',
@@ -72,6 +75,7 @@ MIDDLEWARE = [
     #'battlelog.middleware.ExpiredBattleSessionCleanupMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'mobile_api.middleware.AccountWriteMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -96,6 +100,24 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'LumenGG.wsgi.application'
+
+from datetime import timedelta
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework_simplejwt.authentication.JWTAuthentication'],
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
+    'DEFAULT_THROTTLE_CLASSES': ['rest_framework.throttling.AnonRateThrottle', 'rest_framework.throttling.UserRateThrottle'],
+    'DEFAULT_THROTTLE_RATES': {'anon': '60/min', 'user': '300/min'},
+}
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=14),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'CHECK_REVOKE_TOKEN': True,
+}
+MOBILE_CATALOG_ROOT = Path(os.environ.get('LUMENGG_MOBILE_CATALOG_ROOT', BASE_DIR / 'mobile_catalog'))
+MOBILE_CATALOG_FETCH_IMAGES = env_bool('LUMENGG_MOBILE_FETCH_IMAGES', default=True)
+MOBILE_IMAGE_ALLOWED_HOSTS = {'images.hinoto.kr', 'lumen.hinoto.kr'}
 ASGI_APPLICATION = 'LumenGG.asgi.application'
 
 CHANNEL_LAYER_MODE = os.environ.get('LUMENGG_CHANNEL_LAYER', '').lower()

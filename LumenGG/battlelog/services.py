@@ -884,7 +884,7 @@ def serialize_session(session, user=None, control_token='', include_events=True,
         'control_url': reverse('battlelog:sessionControl', kwargs={
             'view_token': session.view_token,
             'control_token': session.control_token,
-        }),
+        }) if can_control else '',
         'players': {
             'p1': {
                 'name': session.player1_name,
@@ -1625,6 +1625,13 @@ def _perform_single_session_action(session, body, user=None, control_token=''):
 
 
 def perform_session_action(session, body, user=None, control_token=''):
+    with transaction.atomic():
+        locked = BattleSession.objects.select_for_update().get(pk=session.pk)
+        current = battle_session_queryset().get(pk=locked.pk)
+        return _perform_session_action_locked(current, body, user, control_token)
+
+
+def _perform_session_action_locked(session, body, user=None, control_token=''):
     action = body.get('action', '')
     if action == 'batch':
         actions = body.get('actions') or []

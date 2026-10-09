@@ -8,6 +8,9 @@ import os
 
 from .settings import *  # noqa: F403
 
+ALLOWED_HOSTS = [*ALLOWED_HOSTS, 'testserver', '10.0.2.2']
+SECRET_KEY = 'lumendb-isolated-tests-signing-key-never-use-in-production'
+
 
 TEST_DATABASE = os.environ.get('LUMENGG_TEST_DATABASE', 'sqlite').lower()
 

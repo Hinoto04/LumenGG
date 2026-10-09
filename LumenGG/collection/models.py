@@ -73,5 +73,16 @@ class Collected(models.Model):
     card = models.ForeignKey(CollectionCard, on_delete=models.CASCADE, related_name='collected')
     amount = models.SmallIntegerField(default=0)
 
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user', 'card'], name='collection_user_card_unique')]
+
     def __str__(self):
         return self.user.username + ' <- ' + self.card.name + '-' + self.card.rare
+
+
+class CollectedDuplicateArchive(models.Model):
+    """Preserve every legacy row before deduplicating ownership quantities."""
+    original_id = models.BigIntegerField()
+    user_id_value = models.BigIntegerField()
+    card_id_value = models.BigIntegerField()
+    amount = models.SmallIntegerField()

@@ -173,4 +173,15 @@ LumenGG/media/generated/deck_captures/
 staticfiles/
 LumenGG/staticfiles/
 /LumenGG/.temp
+/mobile/node_modules/
+/mobile/.expo/
+/mobile/.env.local
+/artifacts/
+/mobile/dist/
+/mobile/android/
+/mobile/ios/
+/LumenGG/mobile_catalog/
 /.temp
+/mobile/credentials.json
+*.keystore
+*.jks
