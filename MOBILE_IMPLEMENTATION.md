@@ -80,6 +80,16 @@ responses and ASGI/WebSocket connection errors through existing deployment logs.
 
 ## HTTP API: `/api/mobile/v1`
 
+Mobile 1.0.5 makes decks read-only in the app. `GET /decks?scope=public&q=...&character_id=...&page=1`
+returns public, non-deleted decks in pages of 30; `scope=mine` requires authentication
+and includes the owner's private/unlisted decks. `GET /decks/<id>` allows public
+or unlisted decks and the owner's private decks. Other private/deleted decks return
+404. These endpoints reject POST/PUT/PATCH/DELETE and need no new migration.
+The legacy sync contract remains for existing clients; 1.0.5 only submits collection
+operations and archives previous unsent deck changes locally. Deploy these new
+read endpoints before distributing 1.0.5. Decks already in the account snapshot
+and previously viewed decks can still be opened offline.
+
 Authentication uses `Authorization: Bearer <access>` with 5-minute access and
 14-day rotating refresh tokens. Password changes revoke existing tokens.
 

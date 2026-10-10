@@ -98,6 +98,7 @@ export interface Deck {
   deleted?: boolean;
   locked?: boolean;
   version?: string;
+  author?: User;
 }
 export interface Operation {
   operation_id: string;

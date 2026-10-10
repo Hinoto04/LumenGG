@@ -1,6 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import views
+from . import decks
 
 app_name = 'mobile_api'
 urlpatterns = [
@@ -13,6 +14,8 @@ urlpatterns = [
     path('catalog/files/<str:version>', views.catalog_file),
     path('catalog/images/<str:filename>', views.catalog_image),
     path('sync', views.sync, name='sync'),
+    path('decks', decks.deck_list, name='decks'),
+    path('decks/<int:deck_id>', decks.deck_detail, name='deck_detail'),
     path('calculators/', views.calculators),
     path('calculators/<str:view_token>/state', views.calculator_state),
     path('calculators/<str:view_token>/events', views.calculator_events),

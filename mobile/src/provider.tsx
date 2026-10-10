@@ -18,9 +18,9 @@ import {
   pending,
   mergeSnapshot,
   saveDocument,
+  disableDeckWrites,
 } from "./storage";
 import { request, ApiError, logOut } from "./api";
-import { deckError } from "./core";
 import { uiTranslation } from "./i18n";
 
 interface AppContextValue {
@@ -40,8 +40,6 @@ interface AppContextValue {
   sync: () => Promise<void>;
   setUser: (u: User | null) => Promise<void>;
   reload: () => Promise<void>;
-  saveDeck: (d: Deck) => Promise<string | null>;
-  deleteDeck: (d: Deck) => Promise<void>;
   setAmount: (
     id: number,
     n: number | ((current: number) => number),
@@ -68,11 +66,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const scope = user ? "user:" + user.id : "guest";
   const scopeRef = useRef(scope),
     userRef = useRef(user),
-    catalogRef = useRef(catalog),
     syncFlight = useRef<Promise<void> | null>(null);
   scopeRef.current = scope;
   userRef.current = user;
-  catalogRef.current = catalog;
   const reload = useCallback(async () => {
     const current = scopeRef.current;
     const epoch = editEpoch.current;
@@ -99,6 +95,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!owner) return;
     syncFlight.current = (async () => {
       try {
+        await disableDeckWrites();
         if (current === scopeRef.current) setStatus("동기화 중");
         let more = true,
           failed = 0;
@@ -171,6 +168,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAccount(u);
         userRef.current = u;
         scopeRef.current = u ? "user:" + u.id : "guest";
+        await disableDeckWrites();
         await reload();
         cacheThumbnails(c).catch(() => undefined);
         refresh().catch(() => undefined);
@@ -230,31 +228,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAccount(u);
     await reload();
   }
-  async function saveDeck(deck: Deck) {
-    if (scope !== scopeRef.current) return "계정이 변경되었습니다.";
-    editEpoch.current++;
-    const issue = catalogRef.current
-      ? deckError(deck, catalogRef.current)
-      : "DB를 불러오는 중입니다.";
-    await saveDocument(scopeRef.current, "deck", deck.uuid, deck, !issue);
-    await reload();
-    if (!issue) sync();
-    return issue;
-  }
-  async function deleteDeck(deck: Deck) {
-    if (scope !== scopeRef.current) return;
-    editEpoch.current++;
-    await saveDocument(
-      scopeRef.current,
-      "deck",
-      deck.uuid,
-      { ...deck, deleted: true },
-      true,
-      "delete",
-    );
-    await reload();
-    sync();
-  }
   async function setAmount(
     id: number,
     n: number | ((current: number) => number),
@@ -306,8 +279,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sync,
         setUser,
         reload,
-        saveDeck,
-        deleteDeck,
         setAmount,
         t,
         signOut: async () => {

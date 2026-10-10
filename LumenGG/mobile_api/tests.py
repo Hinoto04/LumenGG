@@ -26,6 +26,72 @@ from rest_framework.exceptions import ValidationError
 from django.core.exceptions import PermissionDenied
 
 
+class MobileDeckBrowseTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username='deck_owner')
+        self.other = User.objects.create_user(username='other_player')
+        self.character = Character.objects.create(name='캐릭터', description='', group='test', datas={})
+        self.card = Card.objects.create(name='카드', character=self.character, type='공격')
+        self.public = self.make_deck(self.other, '콤보 공개', 'public')
+        self.private = self.make_deck(self.other, '숨긴 덱', 'private')
+        self.unlisted = self.make_deck(self.other, '링크 덱', 'unlisted')
+        self.mine = self.make_deck(self.owner, '내 비공개 덱', 'private')
+        self.deleted = self.make_deck(self.other, '삭제 덱', 'public', deleted=True)
+        CardInDeck.objects.create(deck=self.public, card=self.card, count=3, hand=1, side=1)
+        self.client = APIClient()
+
+    def make_deck(self, author, name, visibility, **kwargs):
+        return Deck.objects.create(author=author, character=self.character, name=name,
+                                   visibility=visibility, description='<p>설명</p>', **kwargs)
+
+    def test_public_search_excludes_private_unlisted_and_deleted(self):
+        result = self.client.get('/api/mobile/v1/decks')
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual([d['id'] for d in result.data['decks']], [self.public.pk])
+        self.assertEqual(result.data['decks'][0]['author']['username'], self.other.username)
+        for query in ['콤보', 'other_player']:
+            self.assertEqual(self.client.get('/api/mobile/v1/decks', {'q': query}).data['count'], 1)
+        self.assertEqual(self.client.get('/api/mobile/v1/decks', {'character_id': 999}).data['count'], 0)
+
+    def test_mine_requires_authentication_and_returns_only_owner(self):
+        self.assertEqual(self.client.get('/api/mobile/v1/decks?scope=mine').status_code, 401)
+        self.client.force_authenticate(self.owner)
+        result = self.client.get('/api/mobile/v1/decks?scope=mine')
+        self.assertEqual([d['id'] for d in result.data['decks']], [self.mine.pk])
+        self.assertEqual(self.client.get('/api/mobile/v1/decks?scope=mine&q=없음').data['count'], 0)
+
+    def test_detail_checks_visibility_and_preserves_zone_counts(self):
+        result = self.client.get(f'/api/mobile/v1/decks/{self.public.pk}')
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.data['cards'], [{'card_id': self.card.pk, 'count': 3, 'hand': 1, 'side': 1}])
+        self.assertEqual(result.data['description'], '<p>설명</p>')
+        self.assertEqual(self.client.get(f'/api/mobile/v1/decks/{self.unlisted.pk}').status_code, 200)
+        for deck in [self.private, self.mine, self.deleted]:
+            self.assertEqual(self.client.get(f'/api/mobile/v1/decks/{deck.pk}').status_code, 404)
+        self.client.force_authenticate(self.owner)
+        self.assertEqual(self.client.get(f'/api/mobile/v1/decks/{self.mine.pk}').status_code, 200)
+        self.assertEqual(self.client.get(f'/api/mobile/v1/decks/{self.private.pk}').status_code, 404)
+
+    def test_endpoints_are_read_only(self):
+        self.client.force_authenticate(self.owner)
+        for method in ['post', 'put', 'patch', 'delete']:
+            for path in ['/api/mobile/v1/decks', f'/api/mobile/v1/decks/{self.mine.pk}']:
+                self.assertEqual(getattr(self.client, method)(path, {}, format='json').status_code, 405)
+        self.mine.refresh_from_db()
+        self.assertFalse(self.mine.deleted)
+
+    def test_pagination_and_invalid_parameters(self):
+        for i in range(31):
+            self.make_deck(self.other, f'페이지 {i}', 'public')
+        first = self.client.get('/api/mobile/v1/decks')
+        second = self.client.get('/api/mobile/v1/decks?page=2')
+        self.assertEqual((first.data['count'], len(first.data['decks']), first.data['next_page']), (32, 30, 2))
+        self.assertEqual((len(second.data['decks']), second.data['next_page']), (2, None))
+        self.assertFalse({d['id'] for d in first.data['decks']} & {d['id'] for d in second.data['decks']})
+        for query in ['page=0', 'page=no', 'character_id=-1', 'character_id=x', 'scope=other']:
+            self.assertEqual(self.client.get('/api/mobile/v1/decks?' + query).status_code, 400)
+
+
 @override_settings(MOBILE_CATALOG_FETCH_IMAGES=False)
 class MobileApiTests(TestCase):
     def setUp(self):

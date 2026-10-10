@@ -29,6 +29,7 @@ def deck_payload(deck):
         'keyword': deck.keyword, 'tags': deck.tags, 'visibility': deck.visibility,
         'deleted': deck.deleted, 'locked': is_deck_locked_by_tournament(deck),
         'version': deck.version,
+        'author': {'id': deck.author_id, 'username': deck.author.username},
         'cards': [{'card_id': c.card_id, 'count': c.count, 'hand': c.hand, 'side': c.side} for c in deck.cids.all()],
     }
 
@@ -36,7 +37,7 @@ def deck_payload(deck):
 def account_snapshot(user):
     return {
         'user': {'id': user.pk, 'username': user.username},
-        'decks': [deck_payload(d) for d in Deck.objects.filter(author=user).prefetch_related('cids').order_by('id')],
+        'decks': [deck_payload(d) for d in Deck.objects.filter(author=user).select_related('author').prefetch_related('cids').order_by('id')],
         'collection': list(Collected.objects.filter(user=user).order_by('card_id').values('card_id', 'amount')),
     }
 

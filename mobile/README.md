@@ -92,7 +92,7 @@ submission are account-specific and are not embedded in the repository.
 
 ### Local Play Store bundle
 
-The application ID is `kr.hinoto.lumen`, version `1.0.4`, versionCode 5.
+The application ID is `kr.hinoto.lumen`, version `1.0.5`, versionCode 6.
 The upload keystore is `C:\Hinoto\lumen-upload.keystore`; the configured alias is
 `HInoto_key`. Its RSA-3072 certificate expires on December 31, 9999. The passwords
 are stored outside the repository in Windows-encrypted SecureStrings at
@@ -139,8 +139,17 @@ local; editing creates a fresh operation. Acknowledging an older revision cannot
 erase a newer edit. The server applies operations in arrival order and remembers
 operation UUIDs, so an old retry cannot overwrite a newer server value.
 
-Guest import creates new deck UUIDs. Imported drafts are validated before sync;
-only selected collection quantities replace the account quantities. Login does
+Decks are read-only in the mobile app: My decks uses the account snapshot, and
+public deck search uses GET /api/mobile/v1/decks with query/character filters
+and 30-item pages. Private decks are available only to their owner; unlisted
+decks can be opened by ID but are not searchable. Viewing has List, Hand, Side
+in that order, followed by the description. Small/Medium/Large show 9/6/3
+physical card copies per row, including repeated cards, and retain the choice.
+Previously loaded decks remain available offline with account-scoped caches.
+Old unsent deck edits are archived locally as legacy_deck and their operations
+are removed from transmission; guest import now copies only selected
+collection quantities. No deck creation, editing, copying or deletion is offered.
+The new browsing API requires server deployment but adds no migration. Login does
 not silently combine or add quantities. Logout keeps account caches isolated;
 refresh/control tokens are in SecureStore.
 
@@ -173,6 +182,6 @@ changes, idempotent sync, account boundaries, token rotation, expiration and
 WebSocket broadcasts to existing web viewers. See [server rollout](../MOBILE_IMPLEMENTATION.md).
 
 Before store submission, also verify on Android and iOS devices: first launch in
-airplane mode; search/Q&A; draft and quantities across force-stop; reconnect and
+airplane mode; search/Q&A; viewed decks and quantities across force-stop; reconnect and
 account switching; unchanged app binary receiving a new catalog; shared web/app
 actions, viewer permissions and reconnect; cache eviction and storage exhaustion.

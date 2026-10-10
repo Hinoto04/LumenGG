@@ -3,14 +3,14 @@
 The implementation was checked with isolated databases, never migrated or
 deployed to the production database/server.
 
-- Full Django regression suite: 1,089 tests passed, including 18 mobile API,
+- Earlier full Django regression suite: 1,089 tests passed, including 18 mobile API,
   migration and realtime scenarios.
-- TypeScript strict type checking, Expo dependency compatibility, and 36
+- TypeScript strict type checking, Expo dependency compatibility, and 42
   application/SQL storage tests passed.
 - Both Android and iOS Hermes bundles exported successfully.
 - An installable ARM64/x86_64 Android APK was built with JDK 21/SDK 36.
 - An upload-signed Android App Bundle was built for `kr.hinoto.lumen`, version
-  1.0.4, versionCode 5, minSdk 24 and targetSdk 36.
+  1.0.5, versionCode 6, minSdk 24 and targetSdk 36.
 - bundletool 1.18.3 validated the final AAB. All 1,268 payload entries had valid
   signatures matching the saved upload certificate. All 50 native libraries
   passed the 16 KB ELF segment alignment check; the AAB requests
@@ -124,3 +124,26 @@ Still requiring deployment/account/device access: production migration/hosting,
 Docker image execution and MariaDB validation, Play Console registration and
 submission, and iOS signing/native/physical-device tests. Existing Expo tooling npm
 advisories are documented in the server rollout guide.
+
+
+Mobile 1.0.5 deck browsing validation:
+
+- 42 client tests passed, including physical-copy zone partitioning, 9/6/3-column
+  sizes, missing catalog references, description HTML-to-text rendering, draft
+  archival, suppression of old deck operations, and collection-only guest import.
+- 24 isolated mobile API tests passed. New browsing coverage checks anonymous
+  public search, author/name/character search, pagination, owner-only private
+  decks, hidden unlisted/deleted search results, and 405 for write methods.
+- TypeScript and both Android/iOS Hermes exports passed.
+- Android 15 used an isolated local test backend with a 24-card public fixture.
+  The app opened the deck from public search. Native accessibility bounds showed
+  exactly 9, 6 and 3 cards on the first row for Small, Medium and Large.
+  Zone headings were List (21), Hand (2), Side (1), then Description. No deck
+  creation, edit, copy or delete buttons were present.
+- Force-stop/relaunch restored Large (3 columns). After selecting Small, disabling
+  Wi-Fi/data and force-stopping/relaunching still restored the cached deck with
+  9 columns. Network connectivity was restored after the test.
+- Screenshots: artifacts/LumenDB-decks-9.png, LumenDB-decks-6.png,
+  LumenDB-decks-3.png. Small and Medium were visually inspected.
+- The test APK/API are separate from the production-address upload-signed AAB.
+  This task does not deploy the new GET deck endpoints to production.

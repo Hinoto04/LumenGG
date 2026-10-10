@@ -239,18 +239,6 @@ export async function importGuest(
   scope: string,
   selectedCollectionIds: number[],
 ) {
-  const decks = await documents<Deck>("guest", "deck");
-  for (const deck of decks.filter((d) => !d.deleted)) {
-    const uuid = randomUUID();
-    await saveDocument(
-      scope,
-      "deck",
-      uuid,
-      { ...deck, uuid, id: undefined },
-      false,
-    );
-  }
-  // Imported drafts stay local until validated by the editor.
   const collection = await documents<{ card_id: number; amount: number }>(
     "guest",
     "collection",
@@ -259,4 +247,18 @@ export async function importGuest(
     selectedCollectionIds.includes(c.card_id),
   ))
     await saveDocument(scope, "collection", String(item.card_id), item);
+}
+
+// Preserve old drafts privately, but never send old deck edits after upgrading.
+export function disableDeckWrites() {
+  return write((db) =>
+    db.withExclusiveTransactionAsync(async (tx) => {
+      await tx.runAsync(`INSERT OR REPLACE INTO documents(scope,entity,id,data,revision,dirty,error)
+      SELECT scope,'legacy_deck',id,data,revision,0,error FROM documents WHERE entity='deck' AND dirty=1`);
+      await tx.runAsync("DELETE FROM queue WHERE entity='deck'");
+      await tx.runAsync(
+        "DELETE FROM documents WHERE entity='deck' AND dirty=1",
+      );
+    }),
+  );
 }

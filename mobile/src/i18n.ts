@@ -1,5 +1,31 @@
 import type { Language } from "./types";
 const words: Record<string, [string, string]> = {
+  "내 덱": ["My decks", "自分のデッキ"],
+  "공개 덱 검색": ["Search public decks", "公開デッキ検索"],
+  "덱 검색": ["Deck search", "デッキ検索"],
+  "덱 이름 · 작성자 · 키워드 검색": [
+    "Deck name · author · keywords",
+    "デッキ名・作成者・キーワード",
+  ],
+  "내 덱을 확인하려면 로그인해주세요.": [
+    "Log in to view your decks.",
+    "自分のデッキを見るにはログインしてください。",
+  ],
+  "표시할 덱이 없습니다.": ["No decks found.", "デッキがありません。"],
+  "덱을 볼 수 없습니다.": [
+    "This deck is unavailable.",
+    "このデッキは閲覧できません。",
+  ],
+  "카드가 없습니다.": ["No cards.", "カードがありません。"],
+  "덱 설명": ["Deck description", "デッキ説明"],
+  "설명이 없습니다.": ["No description.", "説明はありません。"],
+  "불러오는 중": ["Loading", "読み込み中"],
+  새로고침: ["Refresh", "更新"],
+  "더 보기": ["Load more", "もっと見る"],
+  작게: ["Small", "小"],
+  보통: ["Medium", "中"],
+  크게: ["Large", "大"],
+  리스트: ["List", "リスト"],
   설정: ["Settings", "設定"],
   카드: ["Cards", "カード"],
   "카드 필터": ["Card filters", "カードフィルター"],

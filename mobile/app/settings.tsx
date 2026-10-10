@@ -6,7 +6,7 @@ import { logIn, request, clearTokens, absoluteUrl } from "../src/api";
 import { documents, importGuest, preference, eraseScope } from "../src/storage";
 import { trimImages } from "../src/catalog";
 import { styles, Button, Input, Choices, Notice } from "../src/ui";
-import type { Language, Deck } from "../src/types";
+import type { Language } from "../src/types";
 export default function Settings() {
   const app = useApp(),
     { user, language, t } = app;
@@ -109,9 +109,6 @@ export default function Settings() {
                     setBusy(true);
                     try {
                       await importGuest(app.scope, selected);
-                      const decks = await documents<Deck>(app.scope, "deck");
-                      for (const d of decks.filter((d) => !d.id && !d.deleted))
-                        await app.saveDeck(d);
                       await app.reload();
                       await app.sync();
                       setShowImport(false);
@@ -241,7 +238,7 @@ export default function Settings() {
         </View>
       </View>
       <Notice text={app.online ? "인터넷 연결됨" : "오프라인"} />
-      <Text style={styles.muted}>LumenDB 1.0.0</Text>
+      <Text style={styles.muted}>LumenDB 1.0.5</Text>
     </ScrollView>
   );
 }

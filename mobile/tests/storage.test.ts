@@ -12,6 +12,7 @@ import {
   setPreference,
   userDb,
   importGuest,
+  disableDeckWrites,
 } from "../src/storage-engine";
 import type { SyncResponse, Deck } from "../src/types";
 let db: DatabaseSync;
@@ -104,7 +105,7 @@ test("guest and account queues are isolated and user data survives catalog point
   assert.equal(await preference("catalog-active", ""), "new.sqlite");
   assert.equal((await documents<any>("guest", "collection"))[0].amount, 2);
 });
-test("guest import uses matching new UUID and copies only selected quantities", async () => {
+test("guest import copies selected quantities without creating decks", async () => {
   const deck: Deck = {
     uuid: randomUUID(),
     name: "draft",
@@ -120,13 +121,51 @@ test("guest import uses matching new UUID and copies only selected quantities", 
   await saveDocument("guest", "collection", "3", { card_id: 3, amount: 8 });
   await importGuest("user:1", [2]);
   const imported = await documents<Deck>("user:1", "deck");
-  assert.notEqual(imported[0]!.uuid, deck.uuid);
-  const stored = db
-    .prepare(
-      "SELECT id,data FROM documents WHERE scope='user:1' AND entity='deck'",
-    )
-    .get() as any;
-  assert.equal(stored.id, JSON.parse(stored.data).uuid);
+  assert.equal(imported.length, 0);
   assert.equal((await documents<any>("user:1", "collection")).length, 1);
   assert.equal((await documents<any>("user:1", "collection"))[0].amount, 5);
+});
+
+test("read-only upgrade archives old deck edits and keeps collection synchronization", async () => {
+  await saveDocument("user:1", "deck", "draft", {
+    uuid: "draft",
+    name: "pending draft",
+  });
+  await saveDocument(
+    "user:2",
+    "deck",
+    "delete",
+    { uuid: "delete", deleted: true },
+    true,
+    "delete",
+  );
+  await saveDocument(
+    "guest",
+    "deck",
+    "guest",
+    { uuid: "guest", name: "guest draft" },
+    false,
+  );
+  await saveDocument("user:1", "collection", "2", { card_id: 2, amount: 5 });
+  await disableDeckWrites();
+  await disableDeckWrites();
+  assert.equal((await pending("user:1")).length, 1);
+  assert.equal((await pending("user:1"))[0]!.operation.entity, "collection");
+  assert.equal((await pending("user:2")).length, 0);
+  assert.equal((await documents("user:1", "deck")).length, 0);
+  assert.equal(
+    (await documents<any>("user:1", "legacy_deck"))[0].name,
+    "pending draft",
+  );
+  assert.equal(
+    (await documents<any>("guest", "legacy_deck"))[0].name,
+    "guest draft",
+  );
+  const response = snapshot(5);
+  response.decks = [{ uuid: "draft", id: 1, name: "web version" } as Deck];
+  await mergeSnapshot("user:1", response, []);
+  assert.equal(
+    (await documents<Deck>("user:1", "deck"))[0]!.name,
+    "web version",
+  );
 });
