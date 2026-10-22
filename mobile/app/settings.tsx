@@ -238,7 +238,7 @@ export default function Settings() {
         </View>
       </View>
       <Notice text={app.online ? "인터넷 연결됨" : "오프라인"} />
-      <Text style={styles.muted}>LumenDB 1.0.5</Text>
+      <Text style={styles.muted}>LumenDB 1.0.6</Text>
     </ScrollView>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, Pressable, ScrollView } from "react-native";
+import { View, Text, FlatList, Pressable, Keyboard } from "react-native";
 import { router } from "expo-router";
 import { useApp } from "../src/provider";
 import { localized } from "../src/core";
@@ -9,20 +9,20 @@ import { preference, setPreference } from "../src/storage";
 import { userMessage } from "../src/errors";
 import type { Deck } from "../src/types";
 import {
-  styles,
-  colors,
-  Button,
-  Input,
-  Choices,
-  CachedImage,
-  Notice,
-} from "../src/ui";
+  DeckFilterScreen,
+  defaultDeckFilters,
+  type DeckFilters,
+} from "../src/deck-filter-screen";
+import { styles, colors, Button, Input, CachedImage, Notice } from "../src/ui";
 
 export default function Decks() {
   const { decks, catalog, language, user, scope, sync, status, t } = useApp();
-  const [mode, setMode] = useState("mine"),
-    [query, setQuery] = useState(""),
-    [character, setCharacter] = useState(""),
+  const [filters, setFilters] = useState<DeckFilters>({
+    ...defaultDeckFilters,
+  });
+  const [filterVisible, setFilterVisible] = useState(false);
+  const { mode, character } = filters;
+  const [query, setQuery] = useState(""),
     [results, setResults] = useState<Deck[]>([]),
     [nextPage, setNextPage] = useState<number | null>(null),
     [busy, setBusy] = useState(false),
@@ -98,53 +98,58 @@ export default function Decks() {
   }
   return (
     <View style={styles.screen}>
-      <Choices
-        value={mode}
-        onChange={setMode}
-        values={[
-          { key: "mine", label: t("내 덱") },
-          { key: "public", label: t("공개 덱 검색") },
-        ]}
-      />
       <Input
         value={query}
         onChangeText={setQuery}
         placeholder={t("덱 이름 · 작성자 · 키워드 검색")}
         accessibilityLabel={t("덱 검색")}
       />
-      <ScrollView
-        horizontal
-        style={{ flexGrow: 0 }}
-        showsHorizontalScrollIndicator={false}
-      >
-        <Choices
-          value={character}
-          onChange={setCharacter}
-          values={[
-            { key: "", label: t("전체 캐릭터") },
-            ...(catalog?.characters || []).map((c) => ({
-              key: String(c.id),
-              label: localized(c, language),
-            })),
-          ]}
+      <View style={[styles.row, { marginBottom: 8 }]}>
+        <Button
+          label={`${t("필터")}${character || mode !== "mine" ? ` (${Number(!!character) + Number(mode !== "mine")})` : ""}`}
+          onPress={() => {
+            Keyboard.dismiss();
+            setFilterVisible(true);
+          }}
         />
-      </ScrollView>
+        <Text style={styles.muted}>
+          {busy ? t("불러오는 중") : `${data.length} ${t("덱")}`}
+        </Text>
+        <View style={{ marginLeft: "auto" }}>
+          <Button
+            label="새로고침"
+            disabled={busy}
+            onPress={() => (mode === "mine" ? sync() : setRetry((v) => v + 1))}
+          />
+        </View>
+      </View>
+      <Text style={[styles.muted, { marginBottom: 10 }]}>
+        {t(mode === "mine" ? "내 덱" : "공개 덱")} ·{" "}
+        {character
+          ? localized(
+              catalog?.characters.find((c) => String(c.id) === character) || {
+                localized: {},
+              },
+              language,
+            )
+          : t("전체 캐릭터")}
+      </Text>
+      <DeckFilterScreen
+        visible={filterVisible}
+        value={filters}
+        query={query}
+        onClose={() => setFilterVisible(false)}
+        onApply={(next) => {
+          setFilters(next);
+          setFilterVisible(false);
+        }}
+      />
       {mode === "mine" && !user && (
         <View style={styles.panel}>
           <Notice text="내 덱을 확인하려면 로그인해주세요." />
           <Button label="로그인" onPress={() => router.push("/settings")} />
         </View>
       )}
-      <View style={[styles.row, { marginBottom: 8 }]}>
-        <Text style={styles.muted}>
-          {busy ? t("불러오는 중") : `${data.length} ${t("덱")}`}
-        </Text>
-        <Button
-          label="새로고침"
-          disabled={busy}
-          onPress={() => (mode === "mine" ? sync() : setRetry((v) => v + 1))}
-        />
-      </View>
       <Notice text={mode === "mine" && user ? status : message} />
       <FlatList
         data={data}

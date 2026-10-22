@@ -10,7 +10,7 @@ deployed to the production database/server.
 - Both Android and iOS Hermes bundles exported successfully.
 - An installable ARM64/x86_64 Android APK was built with JDK 21/SDK 36.
 - An upload-signed Android App Bundle was built for `kr.hinoto.lumen`, version
-  1.0.5, versionCode 6, minSdk 24 and targetSdk 36.
+  1.0.6, versionCode 7, minSdk 24 and targetSdk 36.
 - bundletool 1.18.3 validated the final AAB. All 1,268 payload entries had valid
   signatures matching the saved upload certificate. All 50 native libraries
   passed the 16 KB ELF segment alignment check; the AAB requests
@@ -147,3 +147,24 @@ Mobile 1.0.5 deck browsing validation:
   LumenDB-decks-3.png. Small and Medium were visually inspected.
 - The test APK/API are separate from the production-address upload-signed AAB.
   This task does not deploy the new GET deck endpoints to production.
+
+
+Mobile 1.0.6 deck filters:
+
+- TypeScript, all 42 existing client tests, and Android/iOS Hermes exports passed.
+- An APK converted from the final upload-signed AAB was installed on Android 15.
+  The deck list opened the shared full-screen sheet with Deck list (My/Public)
+  and Character groups. Character chips scrolled horizontally and Apply stayed
+  pinned at the bottom. Public preview displayed the server's matching count.
+- Selecting Public and a character then pressing Android Back retained the prior
+  My/all filter. Apply committed both choices, displayed the applied summary and
+  a two-filter badge. Reset followed by Cancel preserved the applied filters;
+  Reset followed by Apply returned to My/all. Collection's shared sheet still
+  opened with its Apply footer and canceled correctly.
+- Screenshot artifacts/LumenDB-deck-filter.png was visually inspected.
+- bundletool validation, all 1,268 payload upload-certificate signatures, all 50
+  ELF libraries' 16KB alignment and the converted APK's 16KB zip alignment passed.
+  Manifest checks confirmed kr.hinoto.lumen, version 1.0.6/code 7, and HTTPS.
+- The emulator initially stalled during several apps' cold starts (including
+  Photos/Play Store; logs showed high system I/O wait). The warm rerun completed
+  the full native flow. Physical-device/iOS native testing remains outstanding.

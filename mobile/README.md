@@ -92,7 +92,7 @@ submission are account-specific and are not embedded in the repository.
 
 ### Local Play Store bundle
 
-The application ID is `kr.hinoto.lumen`, version `1.0.5`, versionCode 6.
+The application ID is `kr.hinoto.lumen`, version `1.0.6`, versionCode 7.
 The upload keystore is `C:\Hinoto\lumen-upload.keystore`; the configured alias is
 `HInoto_key`. Its RSA-3072 certificate expires on December 31, 9999. The passwords
 are stored outside the repository in Windows-encrypted SecureStrings at
@@ -185,3 +185,10 @@ Before store submission, also verify on Android and iOS devices: first launch in
 airplane mode; search/Q&A; viewed decks and quantities across force-stop; reconnect and
 account switching; unchanged app binary receiving a new catalog; shared web/app
 actions, viewer permissions and reconnect; cache eviction and storage exhaustion.
+
+Deck browsing opens the same full-screen filter sheet as cards and collection.
+Deck list (My/Public) and Character are grouped horizontal choices. Changes
+remain a draft until Apply; Cancel/Android Back discard them, and Reset restores
+My decks / all characters. The list shows a summary of applied filters. Public
+preview counts come from the existing read-only API; offline/unavailable counts
+are omitted without blocking Apply.

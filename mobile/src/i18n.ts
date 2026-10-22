@@ -1,5 +1,8 @@
 import type { Language } from "./types";
 const words: Record<string, [string, string]> = {
+  "덱 필터": ["Deck filters", "デッキフィルター"],
+  "덱 목록": ["Deck list", "デッキ一覧"],
+  "공개 덱": ["Public decks", "公開デッキ"],
   "내 덱": ["My decks", "自分のデッキ"],
   "공개 덱 검색": ["Search public decks", "公開デッキ検索"],
   "덱 검색": ["Deck search", "デッキ検索"],

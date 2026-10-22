@@ -27,7 +27,7 @@ export function FilterSheet({
 }: {
   visible: boolean;
   title: string;
-  count: number;
+  count: number | null;
   unit?: string;
   error?: string | null;
   onClose: () => void;
@@ -94,7 +94,8 @@ export function FilterSheet({
               style={[filterStyles.apply, !!error && { opacity: 0.4 }]}
             >
               <Text style={filterStyles.applyText}>
-                {t("적용")} · {count} {t(unit)}
+                {t("적용")}
+                {count !== null ? ` · ${count} ${t(unit)}` : ""}
               </Text>
             </Pressable>
           </View>
