@@ -186,3 +186,7 @@ LumenGG/staticfiles/
 *.keystore
 *.jks
 /mobile/.temp
+
+# Local previews, generated image/PDF exports, and browser profiles
+/output/
+/tmp/
