@@ -1,10 +1,15 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import views
-from . import decks
+from . import decks, party
 
 app_name = 'mobile_api'
 urlpatterns = [
+    path('party/', party.create),
+    path('party/<str:code>/join', party.join),
+    path('party/<str:code>/state', party.state),
+    path('party/<str:code>/action', party.action),
+    path('party/<str:code>/test-seat', party.test_seat),
     path('auth/login', TokenObtainPairView.as_view(), name='login'),
     path('auth/refresh', TokenRefreshView.as_view(), name='refresh'),
     path('auth/signup', views.signup),

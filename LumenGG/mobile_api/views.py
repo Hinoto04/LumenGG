@@ -147,7 +147,8 @@ def calculators(request):
 
 
 def standalone(view_token):
-    return get_object_or_404(battle_session_queryset(), view_token=view_token, session_type=BattleSession.SESSION_STANDALONE)
+    return get_object_or_404(battle_session_queryset(), view_token=view_token,
+                             session_type__in=[BattleSession.SESSION_STANDALONE, BattleSession.SESSION_PARTY])
 
 
 @api_view(['GET'])

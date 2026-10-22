@@ -1,10 +1,18 @@
 from django.urls import path
 
-from . import views
+from . import views, party_views
 
 app_name = 'battlelog'
 
 urlpatterns = [
+    path('party/', party_views.party_home, name='partyHome'),
+    path('party/create/', party_views.party_create, name='partyCreate'),
+    path('party/board/', party_views.party_board, name='partyBoard'),
+    path('party/<str:code>/', party_views.party_room, name='partyRoom'),
+    path('party/<str:code>/join/', party_views.party_join, name='partyJoin'),
+    path('party/<str:code>/state/', party_views.party_state, name='partyState'),
+    path('party/<str:code>/action/', party_views.party_action, name='partyAction'),
+    path('party/<str:code>/test-seat/', party_views.party_test_seat, name='partyTestSeat'),
     path('simulator/', views.simulatorStart, name='simulatorStart'),
     path('simulator/guide/', views.simulatorGuide, name='simulatorGuide'),
     path('simulator/deck-search/', views.simulatorDeckSearch, name='simulatorDeckSearch'),

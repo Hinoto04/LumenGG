@@ -23,6 +23,21 @@ export default function Home() {
   return (
     <SafeAreaView edges={["bottom"]} style={homeStyles.screen}>
       {entrySheet}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t("루멘 파티")}
+        onPress={() => router.push("/party")}
+        style={[
+          homeStyles.tile,
+          { flexDirection: "row", marginBottom: gap, padding: 12 },
+        ]}
+      >
+        <Text style={{ color: colors.accent, fontSize: 20 }}>⚄</Text>
+        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "700" }}>
+          {t("루멘 파티")}
+        </Text>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>2–4P</Text>
+      </Pressable>
       <View
         style={homeStyles.grid}
         onLayout={(event) => setHeight(event.nativeEvent.layout.height)}

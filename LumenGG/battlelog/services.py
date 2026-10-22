@@ -482,9 +482,19 @@ def tournament_match_is_open(session):
     )
 
 
+def party_battle_complete(encounter):
+    return encounter.snapshot.get('exchanges', 0) >= 2 or bool(encounter.snapshot.get('completed'))
+
+
 def can_control_session(user, session, control_token=''):
     if session_is_expired(session):
         return False
+    if session.session_type == BattleSession.SESSION_PARTY:
+        encounter = session.party_encounter
+        return bool(
+            control_token and secrets.compare_digest(control_token, session.control_token)
+            and encounter.status == 'active' and not party_battle_complete(encounter)
+        )
     if session.session_type == BattleSession.SESSION_STANDALONE:
         return bool(control_token and secrets.compare_digest(control_token, session.control_token))
     if not session.tournament_match_id or not tournament_match_is_open(session):
@@ -508,6 +518,8 @@ def can_toggle_sudden_death(user, session, control_token=''):
 
 
 def can_choose_character(user, session, target, control_token=''):
+    if session.session_type == BattleSession.SESSION_PARTY:
+        return False
     if not can_control_session(user, session, control_token):
         return False
     if session.session_type == BattleSession.SESSION_STANDALONE:
@@ -879,6 +891,13 @@ def serialize_session(session, user=None, control_token='', include_events=True,
         'version': session.version,
         'presence': battle_presence_counts(session.view_token),
         'type': session.session_type,
+        'party': ({
+            'code': session.party_encounter.room.code,
+            'return_url': reverse('battlelog:partyRoom', args=[session.party_encounter.room.code]),
+            'exchanges': session.party_encounter.snapshot.get('exchanges', 0),
+            'completed': party_battle_complete(session.party_encounter),
+            'status': session.party_encounter.status,
+        } if session.session_type == BattleSession.SESSION_PARTY else None),
         'is_expired': session_is_expired(session),
         'can_control': can_control,
         'can_sudden_death': can_sudden_death,
@@ -1606,6 +1625,15 @@ def reset_standalone_session(session):
 def _perform_single_session_action(session, body, user=None, control_token=''):
     action = body.get('action', '')
 
+    if session.session_type == BattleSession.SESSION_PARTY:
+        if not can_control_session(user, session, control_token):
+            raise PermissionDenied()
+        if action not in {'hp', 'fp', 'fp_reset', 'shield', 'shield_reset', 'undo', 'timer', 'passive', 'party_exchange'}:
+            raise ValueError('파티 교전에서는 HP, FP, 패시브와 공방 완료만 사용할 수 있습니다.')
+        if action == 'party_exchange':
+            from .party_services import complete_exchange
+            return complete_exchange(session, body)
+
     if action == 'hp':
         if not can_control_session(user, session, control_token):
             raise PermissionDenied()
@@ -1695,6 +1723,10 @@ def _perform_session_action_locked(session, body, user=None, control_token=''):
     action = body.get('action', '')
     if action == 'batch':
         actions = body.get('actions') or []
+        if session.session_type == BattleSession.SESSION_PARTY and isinstance(actions, list) and any(
+            isinstance(item, dict) and item.get('action') == 'party_exchange' for item in actions
+        ):
+            raise ValueError('공방 완료는 다른 입력과 별도로 진행해주세요.')
         if not isinstance(actions, list) or not actions:
             raise ValueError('처리할 행동이 없습니다.')
         if len(actions) > 100:

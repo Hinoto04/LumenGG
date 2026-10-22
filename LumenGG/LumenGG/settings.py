@@ -33,6 +33,7 @@ def env_bool(name, default=False):
     return value.lower() in ('1', 'true', 'yes', 'on')
 
 DEBUG = env_bool('LUMENGG_DEBUG', default=False)
+PARTY_TEST_CONTROLS = DEBUG and env_bool('LUMENGG_PARTY_TEST_CONTROLS', default=False)
 
 ALLOWED_HOSTS = [
     'localhost',

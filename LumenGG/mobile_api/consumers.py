@@ -14,7 +14,7 @@ class MobileCalculatorConsumer(JsonWebsocketConsumer):
         self.control_token = ''
         self.language = 'ko'
         self.group_name = battle_session_group(self.view_token)
-        if not BattleSession.objects.filter(view_token=self.view_token, session_type='standalone').exists():
+        if not BattleSession.objects.filter(view_token=self.view_token, session_type__in=['standalone', 'party']).exists():
             self.close(code=4404)
             return
         async_to_sync(self.channel_layer.group_add)(self.group_name, self.channel_name)

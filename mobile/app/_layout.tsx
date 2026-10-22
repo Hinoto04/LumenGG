@@ -22,9 +22,14 @@ function Navigation() {
       "hardwareBackPress",
       () => {
         if (
-          ["/cards", "/decks", "/collection", "/qna", "/calculator"].includes(
-            pathname,
-          )
+          [
+            "/cards",
+            "/decks",
+            "/collection",
+            "/qna",
+            "/calculator",
+            "/party",
+          ].includes(pathname)
         )
           router.dismissTo("/");
         else if (router.canGoBack()) router.back();
@@ -59,6 +64,7 @@ function Navigation() {
       <Stack.Screen name="decks" options={{ title: t("덱") }} />
       <Stack.Screen name="collection" options={{ title: t("컬렉션") }} />
       <Stack.Screen name="qna" options={{ title: "QNA" }} />
+      <Stack.Screen name="party" options={{ title: t("루멘 파티") }} />
       <Stack.Screen
         name="calculator"
         options={{

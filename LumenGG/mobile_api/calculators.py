@@ -1,5 +1,6 @@
 import copy
 import uuid
+import secrets
 from django.db import transaction
 from django.core.exceptions import PermissionDenied
 from rest_framework.exceptions import ValidationError
@@ -45,20 +46,22 @@ def perform_mobile_action(view_token, body, control_token='', user=None):
     with transaction.atomic():
         locked = BattleSession.objects.select_for_update().get(view_token=view_token)
         session = battle_session_queryset().get(pk=locked.pk)
-        if session.session_type != BattleSession.SESSION_STANDALONE:
+        if session.session_type not in (BattleSession.SESSION_STANDALONE, BattleSession.SESSION_PARTY):
             raise PermissionDenied('Only standalone calculators are supported.')
         if session_is_expired(session):
             raise ValidationError('Calculator session has expired.')
-        if not can_control_session(None, session, control_token):
+        if not control_token or not secrets.compare_digest(control_token, session.control_token):
             raise PermissionDenied('A control token is required.')
         existing = CalculatorReceipt.objects.filter(session=session, action_id=action_id).first()
         if existing:
             if existing.request_hash != request_hash:
                 raise ValidationError('An action ID cannot be reused with different data.')
             return session
+        if not can_control_session(None, session, control_token):
+            raise PermissionDenied('A control token is required.')
         if body.get('expected_version') != session.version:
             raise StaleCalculator()
-        allowed = {'hp', 'fp', 'fp_reset', 'shield', 'shield_reset', 'undo', 'timer', 'reset_session', 'sudden_death', 'sudden_turn', 'passive', 'character'}
+        allowed = {'hp', 'fp', 'fp_reset', 'shield', 'shield_reset', 'undo', 'timer', 'reset_session', 'sudden_death', 'sudden_turn', 'passive', 'character', 'party_exchange'}
         if body.get('action') == 'batch':
             actions = body.get('actions')
             if not isinstance(actions, list) or not 1 <= len(actions) <= 100 or any(not isinstance(a, dict) or a.get('action') not in allowed for a in actions):

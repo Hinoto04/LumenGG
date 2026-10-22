@@ -1,0 +1,186 @@
+{
+  "version": 2,
+  "sizeMm": [
+    63,
+    88
+  ],
+  "effectBox": {
+    "left": 0.1,
+    "top": 0.6818181818181818,
+    "width": 0.8,
+    "height": 0.22954545454545452,
+    "fontPt": 8.8,
+    "lineHeight": 1.25,
+    "verticalAlign": "center"
+  },
+  "cards": [
+    {
+      "id": "LP-I01",
+      "type": "item",
+      "name": "붕대",
+      "cardImage": "cards/lp-i01-bandage.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I02",
+      "type": "item",
+      "name": "회복 키트",
+      "cardImage": "cards/lp-i02-healing-kit.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I03",
+      "type": "item",
+      "name": "전투 준비",
+      "cardImage": "cards/lp-i03-battle-preparation.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I04",
+      "type": "item",
+      "name": "빨리 빨리",
+      "cardImage": "cards/lp-i04-hurry-hurry.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I05",
+      "type": "item",
+      "name": "벽돌 투척",
+      "cardImage": "cards/lp-i05-brick-throw.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I06",
+      "type": "item",
+      "name": "조잡한 총",
+      "cardImage": "cards/lp-i06-crude-gun.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I07",
+      "type": "item",
+      "name": "이쪽으로",
+      "cardImage": "cards/lp-i07-this-way.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I08",
+      "type": "item",
+      "name": "통행 금지",
+      "cardImage": "cards/lp-i08-roadblock.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I09",
+      "type": "item",
+      "name": "효과 보호막",
+      "cardImage": "cards/lp-i09-effect-shield.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I10",
+      "type": "item",
+      "name": "기술 수련",
+      "cardImage": "cards/lp-i10-skill-training.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I11",
+      "type": "item",
+      "name": "투명 망토",
+      "cardImage": "cards/lp-i11-invisibility-cloak.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I12",
+      "type": "item",
+      "name": "스마트 주사위",
+      "cardImage": "cards/lp-i12-smart-die.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-I13",
+      "type": "item",
+      "name": "너 죽고 나 죽자",
+      "cardImage": "cards/lp-i13-mutual-retaliation.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-E01",
+      "type": "event",
+      "name": "패 말살",
+      "cardImage": "cards/lp-e01-hand-annihilation.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-E02",
+      "type": "event",
+      "name": "부자가 될거야",
+      "cardImage": "cards/lp-e02-going-to-be-rich.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-E03",
+      "type": "event",
+      "name": "끈적한 늪",
+      "cardImage": "cards/lp-e03-sticky-swamp.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-E04",
+      "type": "event",
+      "name": "빨리 빨리",
+      "cardImage": "cards/lp-e04-everyone-hurry.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-E05",
+      "type": "event",
+      "name": "찬스!",
+      "cardImage": "cards/lp-e05-chance.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-E06",
+      "type": "event",
+      "name": "모두 제자리로",
+      "cardImage": "cards/lp-e06-everyone-go-home.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-E07",
+      "type": "event",
+      "name": "아이템 상자",
+      "cardImage": "cards/lp-e07-item-chest.png",
+      "effectText": "",
+      "fontPt": 8.8
+    },
+    {
+      "id": "LP-E08",
+      "type": "event",
+      "name": "식중독",
+      "cardImage": "cards/lp-e08-food-poisoning.png",
+      "effectText": "",
+      "fontPt": 8.8
+    }
+  ]
+}
