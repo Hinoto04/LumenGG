@@ -1,0 +1,237 @@
+{
+  "seal": {
+    "file": "seal-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/seal-v2.png",
+    "trim_alpha": true
+  },
+  "core": {
+    "file": "core-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/core-v2.png",
+    "trim_alpha": true,
+    "reference_source": "artifacts/calculator-character/raster-sources/cards/UNC-PR-002.webp"
+  },
+  "claw": {
+    "file": "claw-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/claw-v2.png",
+    "trim_alpha": true,
+    "reference_source": "artifacts/calculator-character/raster-sources/cards/UNC-PR-005.webp"
+  },
+  "furnace": {
+    "file": "furnace-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/furnace-v2.png",
+    "trim_alpha": true
+  },
+  "fracture": {
+    "file": "fracture-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/fracture-v2.png",
+    "trim_alpha": true
+  },
+  "blade": {
+    "file": "blade-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/blade-v2.png",
+    "trim_alpha": true
+  },
+  "gear": {
+    "file": "gear-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/gear-v2.png",
+    "trim_alpha": true,
+    "reference_source": "artifacts/calculator-character/raster-sources/cards/UNC-PR-003.webp"
+  },
+  "spider": {
+    "file": "spider-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/spider-v2.png",
+    "trim_alpha": true
+  },
+  "foresight": {
+    "file": "foresight-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/foresight-v2.png",
+    "trim_alpha": true
+  },
+  "foresight_coin": {
+    "file": "foresight_coin-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/foresight_coin-v2.png",
+    "trim_alpha": true
+  },
+  "dagger": {
+    "file": "dagger-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/dagger-v2.png",
+    "trim_alpha": true
+  },
+  "knowledge": {
+    "file": "knowledge-card-v2.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/ST1-PS1.webp",
+    "crop": [
+      165,
+      155,
+      490,
+      440
+    ],
+    "card_code": "ST1-PS1",
+    "card_name": "「오버 리밋」",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/ST1-PS1.webp",
+    "fit": "contain"
+  },
+  "stance": {
+    "file": "stance-card-v2.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/ST3-PS1.webp",
+    "crop": [
+      150,
+      170,
+      510,
+      450
+    ],
+    "card_code": "ST3-PS1",
+    "card_name": "「다운 스탠스」",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/ST3-PS1.webp",
+    "fit": "contain"
+  },
+  "notice": {
+    "file": "notice-cutout-v2.png",
+    "kind": "restored-card",
+    "source": "artifacts/calculator-character/raster-sources/generated/notice-v3.png",
+    "canvas": [
+      384,
+      512
+    ],
+    "trim_alpha": true,
+    "reference_source": "artifacts/calculator-character/raster-sources/cards/ST4-PS1.webp",
+    "card_code": "ST4-PS1",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/ST4-PS1.webp",
+    "edit": "Original calling card isolated; obscured corners reconstructed with image_gen."
+  },
+  "pressure": {
+    "file": "pressure-card-v2.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/ST5-PS1.webp",
+    "crop": [
+      215,
+      165,
+      440,
+      400
+    ],
+    "card_code": "ST5-PS1",
+    "card_name": "「위압」",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/ST5-PS1.webp",
+    "fit": "contain"
+  },
+  "veil": {
+    "file": "veil-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/veil-v2.png",
+    "trim_alpha": true
+  },
+  "cockpit": {
+    "file": "cockpit-card-v2.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/RFS-PS-002.webp",
+    "crop": [
+      160,
+      125,
+      225,
+      200
+    ],
+    "card_code": "RFS-PS-002",
+    "card_name": "X-05 솔다트",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/RFS-PS-002.webp",
+    "fit": "contain"
+  },
+  "wave": {
+    "file": "wave-card-v2.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/DFR-PS-001.webp",
+    "crop": [
+      94,
+      158,
+      597,
+      529
+    ],
+    "card_code": "DFR-PS-001",
+    "card_name": "잼 데이",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/DFR-PS-001.webp",
+    "fit": "contain"
+  },
+  "wish": {
+    "file": "wish-card-v2.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/CB03-PS-001.webp",
+    "crop": [
+      190,
+      198,
+      270,
+      270
+    ],
+    "card_code": "CB03-PS-001",
+    "card_name": "하이텐션",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/CB03-PS-001.webp",
+    "fit": "contain"
+  },
+  "condenser": {
+    "file": "condenser-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/condenser-v2.png",
+    "trim_alpha": true,
+    "reference_source": "artifacts/calculator-character/raster-sources/cards/UNC-PR-004.webp"
+  },
+  "viola": {
+    "file": "viola-matte-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/clean-sources/generated/viola-v2.png",
+    "trim_alpha": true,
+    "reference_source": "artifacts/calculator-character/raster-sources/cards/UNC-PR-006.webp"
+  },
+  "guardian": {
+    "file": "guardian-card-v2.png",
+    "kind": "card",
+    "source": "LumenGG/static/v2/calculator-character/passives/guardian.webp",
+    "crop": [
+      165,
+      380,
+      650,
+      450
+    ],
+    "fit": "contain",
+    "card_code": "LMI-AT-056",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/LMI-AT-056.webp"
+  },
+  "assassin": {
+    "file": "assassin-card-v2.png",
+    "kind": "card",
+    "source": "LumenGG/static/v2/calculator-character/passives/assassin.webp",
+    "crop": [
+      275,
+      390,
+      430,
+      430
+    ],
+    "fit": "contain",
+    "card_code": "LMI-AT-057",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/LMI-AT-057.webp"
+  },
+  "paladin": {
+    "file": "paladin-card-v2.png",
+    "kind": "card",
+    "source": "LumenGG/static/v2/calculator-character/passives/paladin.webp",
+    "crop": [
+      245,
+      395,
+      490,
+      460
+    ],
+    "fit": "contain",
+    "card_code": "LMI-AT-058",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/LMI-AT-058.webp"
+  }
+}

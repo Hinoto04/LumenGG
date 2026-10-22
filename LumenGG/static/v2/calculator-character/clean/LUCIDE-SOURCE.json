@@ -1,0 +1,32 @@
+{
+  "project": "Lucide",
+  "url": "https://github.com/lucide-icons/lucide",
+  "downloaded": "2026-10-19",
+  "license": "ISC; Feather-derived icons MIT",
+  "icons": {
+    "seal": "shield",
+    "core": "zap",
+    "claw": "paw-print",
+    "furnace": "flame",
+    "fracture": "puzzle",
+    "blade": "sword",
+    "gear": "wrench",
+    "spider": "bug",
+    "foresight": "scan-eye",
+    "foresight_coin": "circle-dot",
+    "dagger": "sword",
+    "knowledge": "book-open",
+    "stance": "chevrons-down",
+    "notice": "venetian-mask",
+    "pressure": "audio-lines",
+    "veil": "moon",
+    "cockpit": "bot",
+    "wave": "audio-waveform",
+    "wish": "star",
+    "condenser": "lamp",
+    "viola": "flower-2",
+    "guardian": "shield",
+    "assassin": "swords",
+    "paladin": "shield-plus"
+  }
+}

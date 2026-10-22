@@ -1,0 +1,186 @@
+{
+  "setsumei": {
+    "layout": "seal",
+    "controls": {}
+  },
+  "nia": {
+    "layout": "focus",
+    "controls": {
+      "over_limit": {
+        "symbol": "knowledge",
+        "effect": "orbit"
+      }
+    }
+  },
+  "root": {
+    "layout": "core",
+    "controls": {
+      "root_charge": {
+        "symbol": "core",
+        "effect": "arc"
+      }
+    }
+  },
+  "delphy": {
+    "layout": "workshop",
+    "controls": {
+      "down_stance": {
+        "symbol": "stance",
+        "effect": "arc"
+      },
+      "garage_token": {
+        "symbol": "gear",
+        "effect": "spark"
+      }
+    }
+  },
+  "keith": {
+    "layout": "calling-card",
+    "controls": {
+      "notice": {
+        "symbol": "notice",
+        "effect": "light"
+      }
+    }
+  },
+  "wolf": {
+    "layout": "howling",
+    "controls": {
+      "howling_counter": {
+        "symbol": "claw",
+        "effect": "mist"
+      },
+      "pressure": {
+        "symbol": "pressure",
+        "effect": "orbit"
+      }
+    }
+  },
+  "viola": {
+    "layout": "tokens",
+    "controls": {
+      "silver_counter": {
+        "effect": "light"
+      }
+    }
+  },
+  "tao": {
+    "layout": "balance",
+    "controls": {
+      "yang_counter": {
+        "effect": "light"
+      },
+      "yin_counter": {
+        "effect": "mist"
+      },
+      "harmony": {
+        "effect": "orbit"
+      }
+    }
+  },
+  "rita": {
+    "layout": "legion",
+    "controls": {
+      "light_lumen": {
+        "effect": "light"
+      },
+      "rita_role": {
+        "effect": "light"
+      }
+    }
+  },
+  "rev": {
+    "layout": "dagger-fan",
+    "controls": {
+      "dagger_token": {
+        "symbol": "dagger",
+        "effect": "mist"
+      },
+      "dark_night": {
+        "symbol": "veil",
+        "effect": "mist"
+      }
+    }
+  },
+  "rin": {
+    "layout": "furnace",
+    "controls": {
+      "ember_token": {
+        "symbol": "furnace",
+        "effect": "fire"
+      }
+    }
+  },
+  "yohan": {
+    "layout": "foresight",
+    "controls": {
+      "foresight_counter": {
+        "symbol": "foresight_coin",
+        "effect": "light"
+      },
+      "disaster_one": {
+        "symbol": "foresight",
+        "effect": "arc",
+        "color": "#ff756c"
+      }
+    }
+  },
+  "jezebel": {
+    "layout": "web",
+    "controls": {
+      "spider_token": {
+        "symbol": "spider",
+        "effect": "orbit"
+      }
+    }
+  },
+  "iomong": {
+    "layout": "empty",
+    "controls": {}
+  },
+  "chimera": {
+    "layout": "fracture",
+    "controls": {
+      "broken_card_count": {
+        "symbol": "fracture",
+        "effect": "arc"
+      }
+    }
+  },
+  "muyeong": {
+    "layout": "blue-flame",
+    "controls": {
+      "blue_flame": {
+        "symbol": "blade",
+        "effect": "fire"
+      }
+    }
+  },
+  "finf": {
+    "layout": "cockpit",
+    "controls": {
+      "zero_suit": {
+        "symbol": "cockpit",
+        "effect": "arc"
+      }
+    }
+  },
+  "cmyk": {
+    "layout": "tracks",
+    "controls": {
+      "464": {
+        "symbol": "wave",
+        "effect": "wave"
+      }
+    }
+  },
+  "minyeong": {
+    "layout": "wishes",
+    "controls": {
+      "506": {
+        "symbol": "wish",
+        "effect": "spark"
+      }
+    }
+  }
+}

@@ -253,9 +253,10 @@ function renderThresholdAction(control) {
             return;
         }
         if (!ready) return;
-        api.set(control.key, true, control.label).then(() => {
-            (control.resetKeys || []).forEach((key) => api.set(key, 0, control.resetLabel || key));
-        });
+        api.dispatch({action:"batch",actions:[
+            {action:"passive",target:api.target,key:control.key,value:true,label:control.label},
+            ...(control.resetKeys || []).map(key => ({action:"passive",target:api.target,key,value:0,label:control.resetLabel || key})),
+        ]});
     }, active ? "is-active" : "");
     button.disabled = !api.canControl || (!active && !ready);
     controls.appendChild(button);

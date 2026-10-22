@@ -123,11 +123,15 @@ export function CachedImage({
   large = false,
   height = 130,
   fill = false,
+  transparent = false,
+  contentPosition = "center",
 }: {
   url: string;
   large?: boolean;
-  height?: number;
+  height?: number | `${number}%`;
   fill?: boolean;
+  transparent?: boolean;
+  contentPosition?: "center" | "left center" | "right center";
 }) {
   const [source, setSource] = useState(url ? absoluteUrl(url) : "");
   useEffect(() => {
@@ -146,11 +150,12 @@ export function CachedImage({
     <Image
       source={source}
       contentFit="contain"
+      contentPosition={contentPosition}
       style={{
         width: large || fill ? "100%" : 94,
         height,
         borderRadius: 6,
-        backgroundColor: colors.panel,
+        backgroundColor: transparent ? "transparent" : colors.panel,
       }}
     />
   ) : (

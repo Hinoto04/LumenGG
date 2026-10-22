@@ -1,0 +1,161 @@
+{
+  "seal": {
+    "file": "seal-painted-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/seal.png"
+  },
+  "core": {
+    "file": "core-painted-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/core.png"
+  },
+  "claw": {
+    "file": "claw-painted-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/claw.png"
+  },
+  "furnace": {
+    "file": "furnace-painted-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/furnace.png"
+  },
+  "fracture": {
+    "file": "fracture-painted-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/fracture.png"
+  },
+  "blade": {
+    "file": "blade-painted-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/blade.png"
+  },
+  "gear": {
+    "file": "gear-painted-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/gear.png"
+  },
+  "spider": {
+    "file": "spider-painted-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/spider.png"
+  },
+  "foresight": {
+    "file": "foresight-painted-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/foresight.png"
+  },
+  "dagger": {
+    "file": "dagger-painted-v2.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/dagger.png"
+  },
+  "knowledge": {
+    "file": "knowledge-card-v2.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/ST1-PS1.webp",
+    "crop": [
+      165,
+      155,
+      490,
+      440
+    ],
+    "card_code": "ST1-PS1",
+    "card_name": "「오버 리밋」",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/ST1-PS1.webp"
+  },
+  "stance": {
+    "file": "stance-card-v2.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/ST3-PS1.webp",
+    "crop": [
+      150,
+      170,
+      510,
+      450
+    ],
+    "card_code": "ST3-PS1",
+    "card_name": "「다운 스탠스」",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/ST3-PS1.webp"
+  },
+  "notice": {
+    "file": "notice-cutout-v3.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/notice-v3.png",
+    "canvas": [
+      384,
+      512
+    ],
+    "trim_alpha": true,
+    "reference_source": "artifacts/calculator-character/raster-sources/cards/ST4-PS1.webp",
+    "card_code": "ST4-PS1",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/ST4-PS1.webp",
+    "edit": "Original calling card isolated; obscured corners reconstructed with image_gen."
+  },
+  "pressure": {
+    "file": "pressure-card-v2.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/ST5-PS1.webp",
+    "crop": [
+      215,
+      165,
+      440,
+      400
+    ],
+    "card_code": "ST5-PS1",
+    "card_name": "「위압」",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/ST5-PS1.webp"
+  },
+  "veil": {
+    "file": "veil-night-v3.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/veil-v3.png"
+  },
+  "cockpit": {
+    "file": "cockpit-card-v2.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/RFS-PS-002.webp",
+    "crop": [
+      160,
+      125,
+      225,
+      200
+    ],
+    "card_code": "RFS-PS-002",
+    "card_name": "X-05 솔다트",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/RFS-PS-002.webp"
+  },
+  "wave": {
+    "file": "wave-group-v3.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/DFR-PS-001.webp",
+    "crop": [
+      94,
+      158,
+      597,
+      529
+    ],
+    "card_code": "DFR-PS-001",
+    "card_name": "잼 데이",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/DFR-PS-001.webp",
+    "fit": "contain"
+  },
+  "wish": {
+    "file": "wish-card-v2.png",
+    "kind": "card",
+    "source": "artifacts/calculator-character/raster-sources/cards/CB03-PS-001.webp",
+    "crop": [
+      280,
+      175,
+      260,
+      260
+    ],
+    "card_code": "CB03-PS-001",
+    "card_name": "하이텐션",
+    "source_url": "https://images.hinoto.kr/lumendb/webp/CB03-PS-001.webp"
+  },
+  "foresight_coin": {
+    "file": "foresight-coin-v3.png",
+    "kind": "generated",
+    "source": "artifacts/calculator-character/raster-sources/generated/foresight-coin-v3.png"
+  }
+}

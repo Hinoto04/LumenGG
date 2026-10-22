@@ -32,6 +32,13 @@ SUPPORTED_LANGUAGE_CODES = {code for code, _label in SUPPORTED_LANGUAGES}
 
 UI_TRANSLATIONS = {
     LANGUAGE_ENGLISH: {
+        '보호막': 'Shield',
+        '보호막 흡수': 'Shield absorbed',
+        '보호막 복원': 'Shield restored',
+        '계산기 UI 선택': 'Choose calculator UI',
+        '기존 계산기': 'Classic calculator',
+        '캐릭터 UI 계산기': 'Character calculator',
+        '깔끔한 UI 계산기': 'Clean calculator',
         '운영 및 정책 안내': 'Legal and policy information',
         '운영·정책 안내': 'Legal & Policies',
         '개인정보처리방침': 'Privacy Policy',
@@ -180,6 +187,13 @@ UI_TRANSLATIONS = {
         '전체 덱': 'All decks',
     },
     LANGUAGE_JAPANESE: {
+        '보호막': 'シールド',
+        '보호막 흡수': 'シールド吸収',
+        '보호막 복원': 'シールド復元',
+        '깔끔한 UI 계산기': 'シンプルな計算機',
+        '계산기 UI 선택': '計算機UIを選択',
+        '기존 계산기': '従来の計算機',
+        '캐릭터 UI 계산기': 'キャラクター計算機',
         '운영 및 정책 안내': '運営・ポリシー案内',
         '운영·정책 안내': '運営・ポリシー案内',
         '개인정보처리방침': 'プライバシーポリシー',

@@ -87,6 +87,8 @@ export function calculatorLogRows(
         before = event.hp_before;
         after = event.hp_after;
         detail = `${format(before)} → ${format(after)}`;
+        if (payload.shield_absorbed) detail += ` · ${t("보호막 흡수")} ${payload.shield_absorbed}`;
+        if (payload.shield_restored) detail += ` · ${t("보호막 복원")} ${payload.shield_restored}`;
       } else if (event.type === "fp" || event.type === "fp_reset") {
         before = own(event, "fp_before") ? event.fp_before : payload.before;
         after = own(event, "fp_after") ? event.fp_after : payload.after;
@@ -100,6 +102,7 @@ export function calculatorLogRows(
           event.label ||
           key ||
           t("패시브");
+        if (key === "finf_shield") title = t("보호막");
         before = stateValue(payload.before_state);
         after = stateValue(payload.after_state || payload.state);
         if (after === undefined && own(payload, "value")) after = payload.value;

@@ -34,6 +34,76 @@ const settle = async () => {
   await Promise.resolve();
   await Promise.resolve();
 };
+
+test("shield taps aggregate once, cancellation and reset flush leave no delayed gain", async () => {
+  const clock = new Clock(),
+    sent: Action[] = [],
+    totals: number[] = [];
+  const queue = new HpQueue(
+    async (a) => {
+      sent.push(a);
+    },
+    (_hp, _fp, shield) => totals.push(shield.p1),
+    clock,
+  );
+  queue.add("p1", 100, "shield");
+  queue.add("p1", 100, "shield");
+  queue.add("p1", 100, "shield");
+  clock.advance(899);
+  assert.equal(sent.length, 0);
+  assert.equal(totals.at(-1), 300);
+  clock.advance(1);
+  await settle();
+  assert.deepEqual(sent[0], { action: "shield", target: "p1", amount: 300 });
+  queue.add("p1", 100, "shield");
+  queue.add("p1", -100, "shield");
+  clock.advance(900);
+  await settle();
+  assert.equal(sent.length, 1);
+  queue.add("p1", 100, "shield");
+  await queue.flush();
+  clock.advance(900);
+  await settle();
+  assert.equal(sent.length, 2);
+});
+
+test("rapid alternating shield and damage preserves order, including sends in flight", async () => {
+  const clock = new Clock(),
+    sent: Action[] = [];
+  let release: () => void = () => {};
+  const queue = new HpQueue(
+    async (a) => {
+      sent.push(a);
+      if (sent.length === 1)
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+    },
+    () => {},
+    clock,
+  );
+  queue.add("p1", 300, "shield");
+  queue.add("p1", -500);
+  clock.advance(0); // The first shield is being sent; more input arrives meanwhile.
+  queue.add("p1", 200, "shield");
+  queue.add("p1", -100);
+  release();
+  await settle();
+  clock.advance(900);
+  await settle();
+  clock.advance(0);
+  await settle();
+  const actions = sent.flatMap((a) => a.actions || [a]);
+  assert.deepEqual(
+    actions.map((a) => [a.action, a.amount]),
+    [
+      ["shield", 300],
+      ["hp", -500],
+      ["shield", 200],
+      ["hp", -100],
+    ],
+  );
+});
 test("FP taps aggregate for 700ms and mixed HP/FP deadlines remain independent", async () => {
   const clock = new Clock();
   const sent: Action[] = [];

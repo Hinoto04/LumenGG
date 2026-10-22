@@ -65,23 +65,23 @@ function setCounter(counter, value) {
     const nextYang = counter === "yang" ? nextValue : getYang();
     const nextYin = counter === "yin" ? nextValue : getYin();
 
-    setBusy(true);
-    api.set(key, nextValue, label)
-        .then(() => syncHarmonyAfterCounterChange(nextYang, nextYin))
-        .finally(() => setBusy(false));
+    const actions = [{action:"passive", target:api.target, key, value:nextValue, label}];
+    if (shouldActivateHarmony(nextYang, nextYin) && !isHarmony()) {
+        actions.push({action:"passive",target:api.target,key:"harmony",value:true,label:labels.harmony});
+    } else if (isHarmony() && !shouldKeepHarmony(nextYang, nextYin)) {
+        actions.push({action:"passive",target:api.target,key:"harmony_effect",value:"",label:labels.harmonyEffect},
+            {action:"passive",target:api.target,key:"harmony",value:false,label:labels.harmony});
+    }
+    api.dispatch({action:"batch", actions});
 }
 
 function setHarmonyEffect(effect) {
     const harmonyStored = isHarmony();
     const canActivate = shouldActivateHarmony(getYang(), getYin());
     if (!harmonyStored && !canActivate) return;
-    setBusy(true);
-    const chain = harmonyStored
-        ? Promise.resolve()
-        : api.set("harmony", true, labels.harmony);
-    chain
-        .then(() => api.set("harmony_effect", effect, labels.harmonyEffect))
-        .finally(() => setBusy(false));
+    const actions = harmonyStored ? [] : [{action:"passive",target:api.target,key:"harmony",value:true,label:labels.harmony}];
+    actions.push({action:"passive",target:api.target,key:"harmony_effect",value:effect,label:labels.harmonyEffect});
+    api.dispatch({action:"batch", actions});
 }
 
 function render() {

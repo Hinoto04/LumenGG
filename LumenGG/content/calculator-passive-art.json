@@ -1,0 +1,57 @@
+{
+  "condenser": {
+    "file": "viola-token.webp",
+    "width": 780,
+    "height": 1063,
+    "crop": [
+      343,
+      249,
+      99,
+      144
+    ]
+  },
+  "viola": {
+    "file": "viola-token.webp",
+    "width": 780,
+    "height": 1063,
+    "crop": [
+      67,
+      176,
+      97,
+      103
+    ]
+  },
+  "guardian": {
+    "file": "guardian.webp",
+    "width": 980,
+    "height": 1330,
+    "crop": [
+      235,
+      310,
+      510,
+      510
+    ]
+  },
+  "assassin": {
+    "file": "assassin.webp",
+    "width": 980,
+    "height": 1330,
+    "crop": [
+      235,
+      260,
+      510,
+      510
+    ]
+  },
+  "paladin": {
+    "file": "paladin.webp",
+    "width": 980,
+    "height": 1330,
+    "crop": [
+      235,
+      260,
+      510,
+      510
+    ]
+  }
+}

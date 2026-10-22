@@ -28,6 +28,7 @@ from qna.models import QNA
 from battlelog.services import character_hand_table, initial_hp_for_character, initial_passive_state_for_character
 from .models import CatalogRelease
 from .passives import native_passive
+from battlelog.calculator_ui import character_calculator_ui
 from .sync import digest
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ def read_snapshot():
         cards = list(Card.objects.select_related('character').prefetch_related('translations').order_by('id'))
         packs = list(Pack.objects.prefetch_related('translations').order_by('id'))
         for character in characters:
-            data = {'id': character.pk, 'color': character.color, 'img': character.body_img or character.img,
+            data = {'id': character.pk, 'color': character.color, 'calculator_ui': character_calculator_ui(character), 'img': character.body_img or character.img,
                     'img_sm': character.icon_img or character.sd_img or character.img,
                     'hand_table': character_hand_table(character), 'initial_hp': initial_hp_for_character(character),
                     'initial_passive_state': initial_passive_state_for_character(character),

@@ -1,0 +1,154 @@
+[
+  {
+    "id": 1,
+    "name": "세츠메이",
+    "theme_key": "setsumei",
+    "accent": "#89d66c",
+    "secondary": "#d1edb9",
+    "motif": "crest"
+  },
+  {
+    "id": 2,
+    "name": "니아",
+    "theme_key": "nia",
+    "accent": "#b1ef71",
+    "secondary": "#f3efb9",
+    "motif": "eye"
+  },
+  {
+    "id": 3,
+    "name": "루트",
+    "theme_key": "root",
+    "accent": "#ff6574",
+    "secondary": "#ffd0a0",
+    "motif": "core"
+  },
+  {
+    "id": 4,
+    "name": "델피",
+    "theme_key": "delphy",
+    "accent": "#66deee",
+    "secondary": "#c5f7ff",
+    "motif": "gear"
+  },
+  {
+    "id": 5,
+    "name": "키스",
+    "theme_key": "keith",
+    "accent": "#efc464",
+    "secondary": "#fff0c1",
+    "motif": "card"
+  },
+  {
+    "id": 6,
+    "name": "울프",
+    "theme_key": "wolf",
+    "accent": "#abbcff",
+    "secondary": "#e0e8ff",
+    "motif": "claw"
+  },
+  {
+    "id": 7,
+    "name": "비올라",
+    "theme_key": "viola",
+    "accent": "#de9bff",
+    "secondary": "#f9ddff",
+    "motif": "ribbon"
+  },
+  {
+    "id": 8,
+    "name": "타오",
+    "theme_key": "tao",
+    "accent": "#ffb5df",
+    "secondary": "#fff0c9",
+    "motif": "balance"
+  },
+  {
+    "id": 9,
+    "name": "리타",
+    "theme_key": "rita",
+    "accent": "#f5e59a",
+    "secondary": "#fff9de",
+    "motif": "star"
+  },
+  {
+    "id": 10,
+    "name": "레브",
+    "theme_key": "rev",
+    "accent": "#ba95ec",
+    "secondary": "#e2d4f8",
+    "motif": "dagger"
+  },
+  {
+    "id": 11,
+    "name": "린",
+    "theme_key": "rin",
+    "accent": "#ff9b62",
+    "secondary": "#ffe0a1",
+    "motif": "flame"
+  },
+  {
+    "id": 12,
+    "name": "요한",
+    "theme_key": "yohan",
+    "accent": "#bfcbd6",
+    "secondary": "#f1e2bc",
+    "motif": "reticle"
+  },
+  {
+    "id": 13,
+    "name": "이제벨",
+    "theme_key": "jezebel",
+    "accent": "#f77b99",
+    "secondary": "#ffd0dc",
+    "motif": "web"
+  },
+  {
+    "id": 14,
+    "name": "이오몽",
+    "theme_key": "iomong",
+    "accent": "#9edfc3",
+    "secondary": "#f5c4e1",
+    "motif": "flower"
+  },
+  {
+    "id": 15,
+    "name": "키메라",
+    "theme_key": "chimera",
+    "accent": "#dc8c95",
+    "secondary": "#e4bdcb",
+    "motif": "fracture"
+  },
+  {
+    "id": 16,
+    "name": "무영",
+    "theme_key": "muyeong",
+    "accent": "#7dbbff",
+    "secondary": "#c2e8ff",
+    "motif": "blade"
+  },
+  {
+    "id": 17,
+    "name": "핀프",
+    "theme_key": "finf",
+    "accent": "#c2d085",
+    "secondary": "#f1d28e",
+    "motif": "cockpit"
+  },
+  {
+    "id": 19,
+    "name": "CMYK",
+    "theme_key": "cmyk",
+    "accent": "#79e9ee",
+    "secondary": "#f7a5db",
+    "motif": "wave"
+  },
+  {
+    "id": 20,
+    "name": "미녕이",
+    "theme_key": "minyeong",
+    "accent": "#d7b9f5",
+    "secondary": "#f6e7c3",
+    "motif": "moon"
+  }
+]

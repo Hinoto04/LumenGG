@@ -23,11 +23,21 @@ export interface Card {
   localized: Localized;
   search?: string;
 }
+export interface CalculatorTheme {
+  theme_key: string;
+  accent: string;
+  secondary: string;
+  motif: string;
+  passive_variant?: string;
+  background?: string;
+  emblem?: string;
+}
 export interface Character {
   id: number;
   img: string;
   img_sm: string;
   color: string;
+  calculator_ui?: CalculatorTheme | null;
   localized: Localized;
   initial_hp: number;
   hand_table: Record<string, number>;
@@ -180,6 +190,13 @@ export interface Player {
   character: any;
 }
 export interface CalcState {
+  party?: {
+    code: string;
+    return_url: string;
+    exchanges: number;
+    completed: boolean;
+    status: string;
+  } | null;
   version: number;
   players: { p1: Player; p2: Player };
   timer: {
@@ -196,6 +213,7 @@ export interface CalcState {
   control_url?: string;
 }
 export interface Action {
+  expected_exchange?: number;
   action: string;
   target?: "p1" | "p2";
   amount?: number;

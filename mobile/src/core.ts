@@ -10,6 +10,7 @@ import type {
   CalcState,
 } from "./types";
 import { passiveActive } from "./calculator-display";
+import { applyHealthDelta, shieldAmount, setShield, supportsShield, MAX_SHIELD_DELTA } from "./calculator-shield";
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
@@ -222,6 +223,8 @@ export function newCalculator(
       id: c.id,
       name: localized(c, language),
       img: c.img,
+      color: c.color,
+      calculator_ui: c.calculator_ui,
       hand_table: c.hand_table,
       initial_passive_state: c.initial_passive_state,
       passive: localized(c, language, "passive"),
@@ -262,8 +265,20 @@ export function reduceCalculator(
     case "hp":
       if (player) {
         event.hp_before = player.hp;
-        player.hp += amount;
+        const shield = applyHealthDelta(player, amount);
+        if (shield.shield_absorbed) event.payload = shield;
         event.hp_after = player.hp;
+      }
+      break;
+    case "shield":
+    case "shield_reset":
+      if (!player || !supportsShield(player) || (action.action === "shield" && (!Number.isSafeInteger(amount) || !amount || Math.abs(amount) > MAX_SHIELD_DELTA))) return state;
+      {
+        const before = shieldAmount(player);
+        setShield(player, action.action === "shield_reset" ? 0 : before + amount);
+        event.type = "passive";
+        event.amount = shieldAmount(player) - before;
+        event.payload = { key: "finf_shield", label: "보호막", value: shieldAmount(player), before_state: { value: before }, after_state: { value: shieldAmount(player) }, reset: action.action === "shield_reset" };
       }
       break;
     case "fp":
@@ -322,6 +337,10 @@ export function reduceCalculator(
         event.player_name = next.players[prior.target as "p1" | "p2"].name;
         event.hp_before = next.players[prior.target as "p1" | "p2"].hp;
         next.players[prior.target as "p1" | "p2"].hp = prior.hp_before;
+        const restored = Number(prior.payload?.shield_absorbed || 0);
+        const restoredPlayer = next.players[prior.target as "p1" | "p2"];
+        if (restored && supportsShield(restoredPlayer)) setShield(restoredPlayer, shieldAmount(restoredPlayer) + restored);
+        event.payload = { shield_restored: restored };
         event.hp_after = prior.hp_before;
         prior.undone = true;
       }

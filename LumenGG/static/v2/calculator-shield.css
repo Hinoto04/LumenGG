@@ -1,0 +1,8 @@
+/* Finf-only additions; other players and the classic layout keep their geometry. */
+body .v2-battle-hp [data-player-hp].has-shield{font-size:clamp(30px,4.8vw,56px);white-space:nowrap}
+.v2-battle-hp [data-player-hp] .v2-battle-shield-value{display:inline-block;color:#a9e4ff;font-size:.45em;font-weight:800;letter-spacing:0;margin-left:7px;vertical-align:middle;text-shadow:none}
+.v2-battle-passives.has-shield-controls{display:flex;flex-direction:row;align-items:stretch;gap:8px;min-width:0}
+.v2-battle-passives.has-shield-controls>div:not(.v2-shield-controls){flex:1;min-width:0;width:auto}
+.v2-battle-passives.has-shield-controls>.v2-shield-controls{flex:0 0 76px;width:76px;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.v2-shield-button{box-sizing:border-box;min-width:44px;min-height:44px;border:1px solid #8cd7f477;border-radius:8px;background:#122334e6;color:#c3edff;font-size:12px;font-weight:700;line-height:15px;white-space:pre-line;padding:3px;cursor:pointer}
+.v2-shield-button:disabled{opacity:.4;cursor:default}

@@ -2,6 +2,7 @@ import type { Action } from "./types";
 
 export type HpTarget = "p1" | "p2";
 export type PendingHp = Record<HpTarget, number>;
+type ResourceKind = "hp" | "fp" | "shield";
 type Scheduler = {
   now: () => number;
   later: (fn: () => void, delay: number) => unknown;
@@ -17,8 +18,10 @@ const systemScheduler: Scheduler = {
 export class HpQueue {
   private entries = new Map<
     string,
-    { target: HpTarget; kind: "hp" | "fp"; amount: number; deadline: number }
+    { target: HpTarget; kind: ResourceKind; amount: number; deadline: number }
   >();
+  private staged: { target: HpTarget; kind: ResourceKind; amount: number }[] =
+    [];
   private timer: unknown;
   private sending = false;
   private busy = false;
@@ -28,17 +31,23 @@ export class HpQueue {
   private waiters: (() => void)[] = [];
   constructor(
     private send: (action: Action) => Promise<void>,
-    private changed: (pending: PendingHp, fp: PendingHp) => void,
+    private changed: (
+      pending: PendingHp,
+      fp: PendingHp,
+      shield: PendingHp,
+    ) => void,
     private clock: Scheduler = systemScheduler,
     private failed: (error: unknown) => void = () => {},
   ) {}
   get hasPending() {
-    return this.entries.size > 0;
+    return this.entries.size > 0 || this.staged.length > 0;
   }
   get hasPendingHp() {
-    return [...this.entries.values()].some((entry) => entry.kind === "hp");
+    return [...this.entries.values(), ...this.staged].some(
+      (entry) => entry.kind === "hp",
+    );
   }
-  add(target: HpTarget, amount: number, kind: "hp" | "fp" = "hp") {
+  add(target: HpTarget, amount: number, kind: ResourceKind = "hp") {
     if (
       this.disposed ||
       !this.available ||
@@ -46,6 +55,16 @@ export class HpQueue {
       !Number.isSafeInteger(amount)
     )
       return;
+    // HP and shield edits cannot commute. Seal the preceding group before
+    // accepting the opposite resource, even while an earlier send is in flight.
+    if (kind !== "fp") {
+      const otherKey = `${kind === "hp" ? "shield" : "hp"}:${target}`;
+      const other = this.entries.get(otherKey);
+      if (other) {
+        this.staged.push(other);
+        this.entries.delete(otherKey);
+      }
+    }
     const key = `${kind}:${target}`;
     const total = (this.entries.get(key)?.amount || 0) + amount;
     if (total)
@@ -68,7 +87,14 @@ export class HpQueue {
     this.busy = value;
     this.schedule();
   }
-  clear(kind?: "hp" | "fp", target?: HpTarget) {
+  clear(kind?: ResourceKind, target?: HpTarget) {
+    this.staged = this.staged.filter(
+      (entry) =>
+        !(
+          (!kind || entry.kind === kind) &&
+          (!target || entry.target === target)
+        ),
+    );
     for (const [key, entry] of this.entries)
       if (
         (!kind || entry.kind === kind) &&
@@ -82,7 +108,7 @@ export class HpQueue {
     this.schedule();
   }
   flush(): Promise<void> {
-    if (this.disposed || (!this.entries.size && !this.sending))
+    if (this.disposed || (!this.hasPending && !this.sending))
       return Promise.resolve();
     this.forced = true;
     const result = new Promise<void>((resolve) => this.waiters.push(resolve));
@@ -92,20 +118,27 @@ export class HpQueue {
   dispose() {
     this.disposed = true;
     this.entries.clear();
+    this.staged = [];
     this.stopTimer();
     this.waiters.splice(0).forEach((resolve) => resolve());
   }
   private notify() {
+    const total = (kind: ResourceKind, target: HpTarget) =>
+      (this.entries.get(`${kind}:${target}`)?.amount || 0) +
+      this.staged
+        .filter((e) => e.kind === kind && e.target === target)
+        .reduce((sum, e) => sum + e.amount, 0);
     if (!this.disposed)
       this.changed(
         {
-          p1: this.entries.get("hp:p1")?.amount || 0,
-          p2: this.entries.get("hp:p2")?.amount || 0,
+          p1: total("hp", "p1"),
+          p2: total("hp", "p2"),
         },
         {
-          p1: this.entries.get("fp:p1")?.amount || 0,
-          p2: this.entries.get("fp:p2")?.amount || 0,
+          p1: total("fp", "p1"),
+          p2: total("fp", "p2"),
         },
+        { p1: total("shield", "p1"), p2: total("shield", "p2") },
       );
   }
   private stopTimer() {
@@ -113,7 +146,7 @@ export class HpQueue {
     this.timer = undefined;
   }
   private finishWaiters() {
-    if (!this.entries.size && !this.sending) {
+    if (!this.hasPending && !this.sending) {
       this.forced = false;
       this.waiters.splice(0).forEach((resolve) => resolve());
     }
@@ -125,7 +158,7 @@ export class HpQueue {
       !this.available ||
       this.busy ||
       this.sending ||
-      !this.entries.size
+      !this.hasPending
     ) {
       this.finishWaiters();
       return;
@@ -138,13 +171,21 @@ export class HpQueue {
         this.timer = undefined;
         void this.drain();
       },
-      this.forced ? 0 : Math.max(0, deadline - this.clock.now()),
+      this.forced || this.staged.length
+        ? 0
+        : Math.max(0, deadline - this.clock.now()),
     );
   }
   private async drain() {
     if (this.disposed || !this.available || this.busy || this.sending) return;
     this.stopTimer();
-    const actions: Action[] = [];
+    const actions: Action[] = this.staged
+      .splice(0)
+      .map((entry) => ({
+        action: entry.kind,
+        target: entry.target,
+        amount: entry.amount,
+      }));
     for (const [key, entry] of this.entries) {
       if (this.forced || entry.deadline <= this.clock.now()) {
         actions.push({

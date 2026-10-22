@@ -1,5 +1,5 @@
 import { userMessage } from "../src/errors";
-import React, { useEffect, useRef, useState } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import {
   ScrollView,
   View,
@@ -7,8 +7,9 @@ import {
   Pressable,
   Share,
   AppState,
+  BackHandler,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useApp } from "../src/provider";
 import type { Action, CalcState } from "../src/types";
 import { localized, newCalculator, reduceCalculator } from "../src/core";
@@ -22,11 +23,17 @@ import {
   parseShareLink,
 } from "../src/shared";
 import { CalculatorBoard } from "../src/calculator-board";
+import { calculatorUi, calculatorLink, linkedCalculatorUi } from "../src/calculator-ui";
+const CharacterCalculatorBoard = React.lazy(() => import("../src/calculator-character-board"));
 import { HpQueue, type PendingHp } from "../src/hp-queue";
+import { PassiveInputQueue, isPassiveInput, projectPassiveInputs } from "../src/calculator-passive-queue";
 import { styles, Button, Input, Choices, Notice, colors } from "../src/ui";
 
 export default function Calculator() {
+  const params = useLocalSearchParams<{ party?: string; ui?: string }>();
   const { catalog, language, t, online } = useApp();
+  const ui = calculatorUi(params.ui);
+  const Board = ui === "character" ? CharacterCalculatorBoard : CalculatorBoard;
   const [local, setLocal] = useState<CalcState | null>(null),
     [shared, setShared] = useState<CalcState | null>(null),
     [session, setSession] = useState<SharedSession | null>(null),
@@ -42,13 +49,29 @@ export default function Calculator() {
     [ready, setReady] = useState(false);
   const [pendingHp, setPendingHp] = useState<PendingHp>({ p1: 0, p2: 0 });
   const [pendingFp, setPendingFp] = useState<PendingHp>({ p1: 0, p2: 0 });
+  const [pendingShield, setPendingShield] = useState<PendingHp>({ p1: 0, p2: 0 });
   const hpQueue = useRef<HpQueue | null>(null);
+  const passiveQueue = useRef<PassiveInputQueue | null>(null);
+  const [pendingPassives, setPendingPassives] = useState<Action[]>([]);
   const sharedBusy = useRef(false);
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const client = useRef<SharedCalculator | null>(null),
     localRef = useRef(local);
   localRef.current = local;
+  const partyCompleted = useRef<boolean | null>(null);
+  useEffect(() => {
+    const completed = shared?.party?.completed;
+    if (mode === "shared" && completed !== undefined) {
+      if (
+        completed &&
+        partyCompleted.current === false &&
+        session?.control_token
+      )
+        router.dismissTo("/party");
+      partyCompleted.current = completed;
+    }
+  }, [shared?.party?.completed, mode]);
   useEffect(() => {
     let live = true;
     Promise.all([
@@ -60,6 +83,7 @@ export default function Calculator() {
         localRef.current = saved;
         setLocal(saved);
         setSession(sharedSession);
+        if (params.party && sharedSession) setMode("shared");
         setReady(true);
       })
       .catch((err) => {
@@ -89,8 +113,20 @@ export default function Calculator() {
       setConnected(false);
     };
   }, [session, language]);
-  const state = mode === "shared" ? shared : local;
-  async function action(value: Action) {
+  const baseState = mode === "shared" ? shared : local;
+  const state = projectPassiveInputs(baseState, pendingPassives);
+  useEffect(() => {
+    if (!state?.party) return;
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        void flushInputs().then(() => router.dismissTo("/party"));
+        return true;
+      },
+    );
+    return () => subscription.remove();
+  }, [state?.party?.code]);
+  async function commitAction(value: Action) {
     if (mode === "shared" && sharedBusy.current) return;
     const sharedAction = mode === "shared";
     try {
@@ -104,9 +140,11 @@ export default function Calculator() {
         hpQueue.current?.clear();
       if (value.action === "fp_reset")
         hpQueue.current?.clear("fp", value.target);
+      if (value.action === "shield_reset") await hpQueue.current?.flush();
       if (mode === "shared") {
         sharedBusy.current = true;
         hpQueue.current?.setBusy(true);
+        passiveQueue.current?.setBusy(true);
         setBusy(true);
         await client.current?.send(value);
       } else if (localRef.current) {
@@ -122,17 +160,38 @@ export default function Calculator() {
         sharedBusy.current = false;
         setBusy(false);
         hpQueue.current?.setBusy(false);
+        passiveQueue.current?.setBusy(false);
       }
     }
   }
+  async function flushInputs() {
+    await passiveQueue.current?.flush();
+    await hpQueue.current?.flush();
+  }
+  async function action(value: Action) {
+    if (isPassiveInput(value)) {
+      if (!availableRef.current) return;
+      await hpQueue.current?.flush();
+      passiveQueue.current?.add(value);
+      return;
+    }
+    if (["reset_session", "sudden_death"].includes(value.action)) passiveQueue.current?.clear();
+    await passiveQueue.current?.flush();
+    await commitAction(value);
+  }
+  const commitRef = useRef(commitAction);
+  commitRef.current = commitAction;
   const actionRef = useRef(action);
   actionRef.current = action;
   useEffect(() => {
+    const passives = new PassiveInputQueue(value => commitRef.current(value), setPendingPassives, undefined, err => setError(userMessage(err)));
+    passiveQueue.current = passives;
     const queue = new HpQueue(
       (value) => actionRef.current(value),
-      (hp, fp) => {
+      (hp, fp, shield) => {
         setPendingHp(hp);
         setPendingFp(fp);
+        setPendingShield(shield);
       },
       undefined,
       (err) => setError(userMessage(err)),
@@ -140,15 +199,15 @@ export default function Calculator() {
     hpQueue.current = queue;
     const subscription = AppState.addEventListener("change", (phase) => {
       if (phase !== "active") {
-        if (modeRef.current === "local") void queue.flush();
-        else queue.clear();
+        if (modeRef.current === "local") void passives.flush().then(() => queue.flush());
+        else { passives.clear(); queue.clear(); }
       }
     });
     return () => {
       subscription.remove();
       if (modeRef.current === "local")
-        void queue.flush().finally(() => queue.dispose());
-      else queue.dispose();
+        void passives.flush().then(() => queue.flush()).finally(() => { passives.dispose(); queue.dispose(); });
+      else { passives.dispose(); queue.dispose(); }
     };
   }, []);
   const available =
@@ -159,14 +218,16 @@ export default function Calculator() {
   availableRef.current = available;
   useEffect(() => {
     hpQueue.current?.setAvailable(available);
+    passiveQueue.current?.setAvailable(available);
   }, [available]);
   const hpScope = `${mode}:${session?.view_token || ""}:${state?.players.p1.character?.id || ""}:${state?.players.p2.character?.id || ""}`;
   useEffect(() => {
     hpQueue.current?.clear();
+    passiveQueue.current?.clear();
   }, [hpScope]);
   async function changeMode(next: string) {
-    if (modeRef.current === "local") await hpQueue.current?.flush();
-    else hpQueue.current?.clear();
+    if (modeRef.current === "local") await flushInputs();
+    else { passiveQueue.current?.clear(); hpQueue.current?.clear(); }
     setMode(next);
   }
   function selected() {
@@ -181,6 +242,8 @@ export default function Calculator() {
   }
   async function create(sharedMode: boolean) {
     try {
+      passiveQueue.current?.clear();
+      await passiveQueue.current?.flush();
       hpQueue.current?.clear();
       const [a, b] = selected();
       if (sharedMode) {
@@ -240,7 +303,8 @@ export default function Calculator() {
     label: localized(c, language),
   }));
   return (
-    <CalculatorBoard
+    <Suspense fallback={<View style={styles.screen}><Notice text={t("불러오는 중")} /></View>}>
+    <Board
       state={state}
       mode={mode}
       disabled={disabled}
@@ -262,18 +326,37 @@ export default function Calculator() {
         void changeMode("shared");
       }}
       onAction={action}
+      onPartyReturn={() => {
+        void flushInputs().then(() => router.dismissTo("/party"));
+      }}
+      onPartyComplete={() => {
+        void flushInputs().then(() =>
+          action({
+            action: "party_exchange",
+            expected_exchange: state?.party?.exchanges,
+          }),
+        );
+      }}
       pendingHp={pendingHp}
       pendingFp={pendingFp}
+      pendingShield={pendingShield}
+      onShield={(target, amount) => {
+        if (availableRef.current) void passiveQueue.current?.flush().then(() => hpQueue.current?.add(target, amount, "shield"));
+      }}
       onFp={(target, amount) => {
         if (availableRef.current) {
-          hpQueue.current?.setAvailable(true);
-          hpQueue.current?.add(target, amount, "fp");
+          void passiveQueue.current?.flush().then(() => {
+            hpQueue.current?.setAvailable(availableRef.current);
+            hpQueue.current?.add(target, amount, "fp");
+          });
         }
       }}
       onHp={(target, amount) => {
         if (availableRef.current) {
-          hpQueue.current?.setAvailable(true);
-          hpQueue.current?.add(target, amount);
+          void passiveQueue.current?.flush().then(() => {
+            hpQueue.current?.setAvailable(availableRef.current);
+            hpQueue.current?.add(target, amount);
+          });
         }
       }}
       setup={
@@ -339,6 +422,8 @@ export default function Calculator() {
                   onPress={async () => {
                     try {
                       const next = parseShareLink(link);
+                      const linkedUi = linkedCalculatorUi(link);
+                      router.setParams({ ui: linkedUi || "classic" });
                       await saveShared(next);
                       setSession(next);
                       setShared(null);
@@ -354,9 +439,9 @@ export default function Calculator() {
                       label="조회 링크"
                       onPress={() =>
                         Share.share({
-                          message: absoluteUrl(
-                            "/battlelog/session/" + session.view_token + "/",
-                          ),
+                          message: absoluteUrl(calculatorLink(
+                            "/battlelog/session/" + session.view_token + "/", ui
+                          )),
                         })
                       }
                     />
@@ -365,13 +450,13 @@ export default function Calculator() {
                         label="제어 링크"
                         onPress={() =>
                           Share.share({
-                            message: absoluteUrl(
+                            message: absoluteUrl(calculatorLink(
                               "/battlelog/session/" +
                                 session.view_token +
                                 "/control/" +
                                 session.control_token +
-                                "/",
-                            ),
+                                "/", ui
+                            )),
                           })
                         }
                       />
@@ -392,6 +477,7 @@ export default function Calculator() {
         </>
       }
     />
+    </Suspense>
   );
 }
 

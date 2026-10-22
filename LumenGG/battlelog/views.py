@@ -26,6 +26,7 @@ from .automatic_services import (
 )
 from .game.engine import IllegalAction, StaleState
 from .models import LumenSimulatorSession
+from .calculator_ui import calculator_ui, calculator_url
 from .presence import battle_presence_counts, simulator_presence_counts
 from .realtime import broadcast_battle_session
 from .realtime import broadcast_simulator_session
@@ -79,9 +80,10 @@ def sim(req):
             player2_character,
             req.user,
         )
-        return redirect('battlelog:sessionControl', view_token=session.view_token, control_token=session.control_token)
+        url = reverse('battlelog:sessionControl', kwargs={'view_token': session.view_token, 'control_token': session.control_token})
+        return redirect(calculator_url(url, req.POST.get('ui')))
 
-    return render(req, 'battlelog/sim_v2.html', {'characters': characters})
+    return render(req, 'battlelog/sim_v2.html', {'characters': characters, 'calculator_ui': calculator_ui(req.GET.get('ui'))})
 
 
 def simulatorStart(req):
@@ -526,6 +528,7 @@ def _render_session(req, view_token, control_token):
     session = _get_session(view_token)
     state = serialize_session(session, req.user, control_token, include_events=False, language=language)
     character_options = character_options_for_session(session, req.user, control_token, language=language)
+    ui = calculator_ui(req.GET.get('ui'))
     context = {
         'session': session,
         'state': state,
@@ -533,12 +536,17 @@ def _render_session(req, view_token, control_token):
         'can_control': can_control_session(req.user, session, control_token),
         'can_sudden_death': can_toggle_sudden_death(req.user, session, control_token),
         'character_options': character_options,
-        'view_url': req.build_absolute_uri(state['view_url']),
-        'control_url': req.build_absolute_uri(state['control_url']),
+        'view_url': req.build_absolute_uri(calculator_url(state['view_url'], ui)),
+        'control_url': req.build_absolute_uri(calculator_url(state['control_url'], ui)),
         'current_url': req.build_absolute_uri(),
         'battle_i18n': javascript_i18n(language),
     }
-    return render(req, 'battlelog/session_v2.html', context)
+    if req.GET.get('choose_ui') == '1':
+        context['classic_url'] = calculator_url(req.get_full_path(), 'classic')
+        context['character_url'] = calculator_url(req.get_full_path(), 'character')
+        return render(req, 'battlelog/calculator_entry.html', context)
+    template = 'battlelog/session_character.html' if ui == 'character' else 'battlelog/session_v2.html'
+    return render(req, template, context)
 
 
 @require_GET

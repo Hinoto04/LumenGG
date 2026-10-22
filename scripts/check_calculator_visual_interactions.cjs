@@ -1,0 +1,68 @@
+const fs=require("fs"),path=require("path"),assert=require("node:assert/strict");
+const {chromium}=require("playwright");
+(async()=>{
+ const out=path.resolve("artifacts/calculator-character");
+ const pairs=JSON.parse(fs.readFileSync(path.join(out,"visual-review-sessions.json"),"utf8"));
+ const browser=await chromium.launch({channel:"msedge",headless:true});
+ const context=await browser.newContext({viewport:{width:740,height:360},reducedMotion:"reduce"});
+ const page=await context.newPage(),classic=await context.newPage();
+ const errors=[];for(const p of [page,classic])p.on("pageerror",e=>errors.push(String(e)));
+ const checks=[];
+ const state=()=>page.evaluate(async()=>{const c=window.v2BattleConfig;return (await fetch(c.stateUrl+"?control_token="+c.controlToken)).json()});
+ const wait=async(fn,label)=>{for(let i=0;i<60;i++){if(await fn())return;await new Promise(r=>setTimeout(r,150))}throw Error(label)};
+ const open=async(pair)=>{await page.goto("http://127.0.0.1:8767"+pair.character,{waitUntil:"networkidle"});};
+ const value=(s,p,k)=>s.players[p].passive_state[k]?.value??s.players[p].passive_state[k]?.count??0;
+ const pair=pairs.find(p=>p.characters.includes("비올라"));
+ await open(pair);
+ await page.evaluate(async()=>{const c=window.v2BattleConfig;await fetch(c.actionUrl,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":document.querySelector("input[name=csrfmiddlewaretoken]").value},body:JSON.stringify({action:"reset_session",control_token:c.controlToken})})});
+ await page.reload({waitUntil:"networkidle"});
+ await classic.goto("http://127.0.0.1:8767"+pair.classic,{waitUntil:"networkidle"});
+ const token=page.locator('[data-control-key="silver_counter"] button');
+ for(let count=1;count<=3;count++){
+  await token.nth(2).click();
+  await wait(async()=>value(await state(),"p1","silver_counter")===count,"Viola increment");
+ }
+ await token.nth(0).click();
+ await wait(async()=>value(await state(),"p1","silver_counter")===2,"Viola removes last lit slot");
+ assert.equal(await token.nth(2).getAttribute("aria-pressed"),"false");
+ await wait(async()=>await classic.locator(".config-passive-value").first().textContent().then(t=>t.includes("2")),"Classic state parity");
+ checks.push("Viola arbitrary empty/filled slot clicks update one contiguous token and synchronize with classic");
+ for(const shade of ["white","black"])for(let count=1;count<=4;count++){
+  await page.locator(".tao-bar-"+shade+" .tao-cell").nth(3).click();
+  await wait(async()=>value(await state(),"p2",shade==="white"?"yang_counter":"yin_counter")===count,"Tao bar "+shade);
+ }
+ assert.equal(await page.locator(".tao-cell:not(:disabled)").count(),0);
+ const before=await state();
+ await page.locator('[data-tao-effect="fp_1"]').click();
+ await wait(async()=>value(await state(),"p2","harmony_effect")==="fp_1","Tao effect selection");
+ assert.equal((await state()).players.p2.fp,before.players.p2.fp);
+ assert.equal((await state()).players.p2.hp,before.players.p2.hp);
+ assert.equal(await page.locator(".tao-cell:not(:disabled)").count(),8);
+ await page.screenshot({path:path.join(out,"visual-tao-harmony.png")});
+ await page.locator(".tao-bar-white .tao-cell").first().click();
+ await wait(async()=>value(await state(),"p2","yang_counter")===3,"Tao retention");
+ assert.equal(value(await state(),"p2","harmony"),true);
+ await page.locator(".tao-bar-white .tao-cell").first().click();
+ await wait(async()=>value(await state(),"p2","harmony")===false,"Tao clear");
+ assert.equal(value(await state(),"p2","harmony_effect"),"");
+ checks.push("Tao bottom fill/top removal, temporary choice lock, effect display, retention and clear; no automatic HP/FP changes");
+ const rita=pairs.find(p=>p.characters.includes("리타"));
+ await open(rita);
+ await page.locator('[data-control-key="light_lumen"]').click();
+ await wait(async()=>value(await state(),"p1","light_lumen")===true,"Lumen");
+ const guardian=page.locator('[data-role="guardian"]');
+ await guardian.click();
+ await wait(async()=>value(await state(),"p1","rita_role")==="guardian","Guardian select");
+ await page.screenshot({path:path.join(out,"visual-rita-active.png")});
+ await guardian.click();
+ await wait(async()=>value(await state(),"p1","rita_role")==="","Guardian off");
+ checks.push("Rita Lumen activation and original-card diamond select/off");
+ const spectator=await context.newPage();
+ const spectatorUrl=rita.classic.replace(/control\/[^/]+\/$/,"")+"?ui=character";
+ await spectator.goto("http://127.0.0.1:8767"+spectatorUrl,{waitUntil:"networkidle"});
+ assert.equal(await spectator.locator("[data-player-passives] button:not(:disabled)").count(),0);
+ checks.push("Spectator cannot mutate image controls");
+ assert.deepEqual(errors,[]);
+ fs.writeFileSync(path.join(out,"visual-interaction-report.json"),JSON.stringify({checks,errors},null,2));
+ console.log({checks,errors});await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

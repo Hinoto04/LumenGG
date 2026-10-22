@@ -1,0 +1,238 @@
+/* Loaded only by the opt-in character calculator. */
+.v2-character-calculator{--v2-text:#eef2fc;--v2-muted:#b6c2d5;--v2-faint:#8796ad;--v2-panel-bg:#111b2b;--v2-soft-bg:#17243b;--v2-surface-2:#162136;--v2-line:#35445e;--v2-accent:#e0bd80;--arena-accent:#a6b8d4;--arena-secondary:#e8eff9;background:#070b13;color:#eef2fc}
+.v2-character-calculator .v2-content{padding:8px}
+.v2-character-calculator .v2-shell{width:100%;max-width:none}
+.v2-character-calculator .v2-battle-page{height:calc(100dvh - 16px);display:flex;flex-direction:column;gap:8px}
+.v2-character-calculator .v2-battle-layout{flex:1;min-height:0;grid-template-columns:minmax(0,1fr) 132px minmax(0,1fr);gap:10px}
+.v2-character-calculator .v2-battle-player{min-width:0;min-height:0;padding:10px;gap:8px;display:grid;grid-template-columns:minmax(0,1fr) 44px;grid-template-rows:156px minmax(0,1fr);border:1px solid color-mix(in srgb,var(--arena-accent) 55%,#182034);border-radius:14px;background:#101725;isolation:isolate;overflow:hidden}
+.v2-character-calculator .v2-battle-player-head{display:none}
+.v2-character-calculator .v2-battle-player>.arena-background{position:absolute;inset:0;z-index:-1;background:var(--arena-scene,none) center/cover;pointer-events:none}
+.v2-character-calculator .v2-battle-player-p1>.arena-background{transform:scaleX(-1)}
+.v2-character-calculator .v2-battle-player-p2{grid-template-columns:44px minmax(0,1fr)}
+.v2-character-calculator .v2-battle-player-p2 .v2-battle-hp{grid-column:2}
+.v2-character-calculator .v2-battle-player-p2 .v2-battle-fp{grid-column:1}
+.v2-character-calculator .v2-battle-player::before{top:0;bottom:-3%;right:-8%;width:94%;opacity:.8;background-size:contain;filter:drop-shadow(0 0 14px #0004)}
+.v2-character-calculator .v2-battle-player-p2::before{left:-8%;right:auto}
+.v2-character-calculator .v2-battle-player::after{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;background:#080d16;opacity:var(--arena-shade,.65)}
+.v2-character-calculator .v2-battle-hp{grid-column:1;grid-row:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:minmax(0,1fr) 44px;gap:4px}
+.v2-character-calculator .v2-battle-hp>div{grid-column:1/-1;grid-row:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:84px;border:1px solid color-mix(in srgb,var(--battle-hp-color) 45%,#1a2437);background:#091322b8;border-radius:10px;overflow:hidden;backdrop-filter:none}
+.v2-character-calculator .v2-battle-hp>div::before{content:'HP';position:absolute;top:6px;left:8px;color:#c3cdde;font-size:9px;font-weight:700;letter-spacing:.15em}
+.v2-character-calculator .v2-battle-hp>div::after{content:'';position:absolute;bottom:0;left:0;height:4px;width:calc(var(--battle-hp-ratio,.5)*100%);background:var(--battle-hp-strong-color);transition:width .3s ease}
+.v2-character-calculator .v2-battle-hp [data-player-hp]{color:var(--battle-hp-strong-color);font-size:62px;line-height:1.08;letter-spacing:-.04em;text-shadow:0 2px 12px #0008;font-variant-numeric:tabular-nums}
+.v2-character-calculator .v2-battle-hp .arena-hand{position:absolute;top:5px;right:7px;font-size:11px;line-height:1.2;color:#f6e5bb;background:none;border:0;padding:0;font-weight:700;letter-spacing:0}
+.v2-character-calculator .v2-battle-hp-button{grid-row:2;min-width:44px;min-height:44px;height:44px;border-radius:6px;font-size:13px;font-weight:800;padding:0 1px;backdrop-filter:none;background-color:#16243bb5}
+.v2-character-calculator .v2-battle-hp-button[data-hp-step='-500']{grid-column:1}
+.v2-character-calculator .v2-battle-hp-button[data-hp-step='-100']{grid-column:2}
+.v2-character-calculator .v2-battle-hp-button[data-hp-step='100']{grid-column:3}
+.v2-character-calculator .v2-battle-hp-button[data-hp-step='500']{grid-column:4}
+.v2-character-calculator .v2-battle-fp{grid-column:2;grid-row:1;display:grid;grid-template-columns:1fr;grid-template-rows:44px minmax(44px,1fr) 44px;gap:0}
+.v2-character-calculator .v2-battle-fp-button{min-height:44px;padding:0;font-size:23px;color:var(--arena-accent);background:#0d1626b8;border:1px solid #6b7d9966;border-radius:6px}
+.v2-character-calculator [data-fp-step='1']{grid-row:1}
+.v2-character-calculator [data-fp-step='-1']{grid-row:3}
+.v2-character-calculator .v2-battle-fp-value{grid-row:2;min-height:44px;background:#0b1423b8;color:var(--arena-secondary);border:1px solid #6b7d9966;border-radius:6px;padding:0}
+.v2-character-calculator .v2-battle-fp-value::before{content:'FP';display:block;font-size:9px;color:#bdc9db}
+.v2-character-calculator .v2-battle-fp-value strong{font-size:23px}
+.v2-character-calculator .v2-battle-passives{grid-row:2;grid-column:1/-1;min-width:0;min-height:0;overflow:visible;display:flex;align-items:stretch}
+.v2-character-calculator .v2-battle-passives>div{width:100%;min-width:0;min-height:0}
+.v2-character-calculator .visual-generic{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.v2-character-calculator .visual-token-row{width:100%;display:flex;justify-content:center;align-items:center;gap:4px}
+.v2-character-calculator .visual-token-grid{display:grid;grid-template-columns:repeat(5,minmax(44px,1fr))}
+.v2-character-calculator .visual-token{position:relative;flex:1;max-width:70px;min-width:44px;min-height:44px;aspect-ratio:1;border:1px solid #b4c2d150;border-radius:10px;padding:4px;background:#10192c66;overflow:hidden;cursor:pointer}
+.v2-character-calculator .visual-token .visual-emblem{opacity:.24;filter:grayscale(1)}
+.v2-character-calculator .visual-token.is-on{border-color:var(--arena-accent);box-shadow:0 0 16px color-mix(in srgb,var(--arena-accent) 40%,transparent);background:#111a2944}
+.v2-character-calculator .visual-token.is-on .visual-emblem{opacity:1;filter:drop-shadow(0 0 4px var(--arena-accent))}
+.v2-character-calculator .visual-emblem{display:block;width:100%;height:100%;max-height:64px;object-fit:contain;pointer-events:none}
+.v2-character-calculator .visual-viola .visual-token{aspect-ratio:1;max-width:100px;border:0;background:transparent;padding:0;border-radius:50%}
+.v2-character-calculator .visual-crop{position:absolute;inset:0;display:block;overflow:hidden;pointer-events:none;background:linear-gradient(135deg,#444b66,#161c30)}
+.v2-character-calculator .visual-crop>img{position:absolute;max-width:none;object-fit:fill;pointer-events:none}
+.v2-character-calculator .visual-token .visual-crop{opacity:.2;filter:grayscale(1) brightness(.75)}
+.v2-character-calculator .visual-token.is-on .visual-crop{opacity:1;filter:drop-shadow(0 0 8px var(--arena-accent))}
+.v2-character-calculator .visual-switch{display:flex;align-items:center;justify-content:center;position:relative;min-width:70px;min-height:54px;width:min(130px,100%);max-height:76px;flex:1;padding:6px;border:1px solid #95a6bd66;border-radius:14px;background:#0c17275c;cursor:pointer}
+.v2-character-calculator .visual-switch>.visual-emblem{width:54px;height:54px;opacity:.25;filter:grayscale(1)}
+.v2-character-calculator .visual-switch.is-ready{border-color:color-mix(in srgb,var(--arena-accent) 55%,transparent)}
+.v2-character-calculator .visual-switch.is-on{border-color:var(--arena-accent);box-shadow:0 0 24px color-mix(in srgb,var(--arena-accent) 35%,transparent);background:color-mix(in srgb,var(--arena-accent) 18%,#0c17275c)}
+.v2-character-calculator .visual-switch.is-on>.visual-emblem{opacity:1;filter:drop-shadow(0 0 7px var(--arena-accent))}
+.v2-character-calculator .visual-state-indicator{position:absolute;right:5px;bottom:3px;color:var(--arena-accent);font-size:12px}
+.v2-character-calculator .visual-static{width:80px;height:80px;opacity:.2;pointer-events:none}
+.v2-character-calculator .visual-free-counter{display:flex;align-items:center;justify-content:center;gap:12px;width:100%}
+.v2-character-calculator .visual-step{min-width:44px;min-height:44px;font-size:23px;color:var(--arena-secondary);border:1px solid #8496b166;border-radius:8px;background:#0d1728b0}
+.v2-character-calculator .visual-counter-image{position:relative;width:78px;height:78px}
+.v2-character-calculator .visual-counter-image>.visual-emblem{opacity:.35;max-height:none}
+.v2-character-calculator .visual-count{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:30px;font-weight:900;text-shadow:0 2px 8px #000}
+.v2-character-calculator .visual-rita{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:4px 0}
+.v2-character-calculator .lumen-switch{width:58px;height:72px;min-height:44px;position:relative;flex:none;border:0;background:transparent;cursor:pointer;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.v2-character-calculator .lumen-switch .visual-crop{opacity:.2;filter:grayscale(1) brightness(.7)}
+.v2-character-calculator .lumen-switch.is-on .visual-crop{opacity:1;filter:brightness(1.5) drop-shadow(0 0 12px #fff0b8)}
+.v2-character-calculator .legion-row{display:flex;align-items:center;justify-content:center;width:100%;gap:14px;padding:0 6px}
+.v2-character-calculator .legion-diamond{position:relative;flex:1;max-width:98px;min-width:54px;aspect-ratio:1;border:2px solid #b9c2cf66;background:#101a2c77;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);padding:0;cursor:pointer}
+.v2-character-calculator .legion-diamond .visual-crop{opacity:.25;filter:grayscale(1) brightness(.7);inset:3px;clip-path:inherit}
+.v2-character-calculator .legion-diamond.is-on{background:var(--arena-accent);filter:drop-shadow(0 0 10px #ffeaa4);border-color:#fff7d1}
+.v2-character-calculator .legion-diamond.is-on .visual-crop{opacity:1;filter:brightness(1.15)}
+.v2-character-calculator .visual-tao{display:flex;align-items:stretch;justify-content:space-between;gap:6px;min-height:179px;max-height:100%}
+.v2-character-calculator .tao-bar{width:44px;flex:none;display:flex;flex-direction:column-reverse;gap:1px;align-self:center}
+.v2-character-calculator .tao-cell{position:relative;width:44px;height:44px;min-height:44px;flex:none;padding:3px;border-radius:6px;border:1px dashed #b1bbcc66;background:#111c2b77;cursor:pointer}
+.v2-character-calculator .tao-cell-core{display:block;width:100%;height:100%;border-radius:3px;opacity:.16;background:#e9edf5}
+.v2-character-calculator .tao-bar-white .tao-cell.is-on{border:1px solid #fff4da;box-shadow:0 0 8px #fff8c966}
+.v2-character-calculator .tao-bar-white .is-on .tao-cell-core{opacity:1;background:linear-gradient(135deg,#fffefa,#dadce3)}
+.v2-character-calculator .tao-bar-black .tao-cell.is-on{border:1px solid #b3b9d1;box-shadow:inset 0 0 6px #dce7ff66,0 0 5px #b5bfff44}
+.v2-character-calculator .tao-bar-black .is-on .tao-cell-core{opacity:1;background:linear-gradient(135deg,#343749,#020307)}
+.v2-character-calculator .tao-center{min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px}
+.v2-character-calculator .tao-effect-caption{height:22px;line-height:22px;font-weight:900;color:#fff6d8;font-size:16px;text-shadow:0 2px 6px #000}
+.v2-character-calculator .tao-sigil{position:relative;width:clamp(92px,100%,142px);max-width:142px;aspect-ratio:1;border-radius:50%;background:#f7f5ed;box-shadow:0 0 26px #ffb5df44;isolation:isolate;overflow:hidden}
+.v2-character-calculator .tao-sigil.is-idle{opacity:.15;box-shadow:none}
+.v2-character-calculator .tao-black-half{position:absolute;left:0;top:0;bottom:0;width:50%;background:#090c17}
+.v2-character-calculator .tao-black-orb,.v2-character-calculator .tao-white-orb{position:absolute;left:25%;width:50%;height:50%;border-radius:50%}
+.v2-character-calculator .tao-black-orb{top:0;background:#090c17}
+.v2-character-calculator .tao-white-orb{bottom:0;background:#f7f5ed}
+.v2-character-calculator .tao-dot{position:absolute;left:44%;width:12%;height:12%;border-radius:50%}
+.v2-character-calculator .tao-dot-white{top:19%;background:#f7f5ed}
+.v2-character-calculator .tao-dot-black{bottom:19%;background:#090c17}
+.v2-character-calculator .tao-half{position:absolute;top:0;bottom:0;width:50%;border:0;background:transparent;border-radius:0;padding:0;min-height:44px;cursor:pointer}
+.v2-character-calculator .tao-yin{left:0;color:#fff}
+.v2-character-calculator .tao-yang{right:0;color:#111}
+.v2-character-calculator .tao-half.is-selected{background:#ffd47d38;box-shadow:inset 0 0 22px #fff1a6b0}
+.v2-character-calculator .tao-choice-hint{position:absolute;left:2px;right:2px;top:45%;font-size:10px;font-weight:900;line-height:1.2;background:#0a1224b8;color:#fff;border-radius:4px;padding:4px 0;text-shadow:0 1px 2px #000}
+.v2-character-calculator .tao-sigil.is-forming{animation:tao-form .5s ease-out}
+.v2-character-calculator .tao-sigil.is-leaving{animation:tao-leave .45s ease-in forwards}
+.v2-character-calculator .just-lit::after,.v2-character-calculator .just-unlit::after{content:'';pointer-events:none;position:absolute;inset:0;background:radial-gradient(ellipse,#fff,#fff6 30%,transparent 70%);animation:passive-flash .5s ease-out forwards}
+.v2-character-calculator .just-unlit::after{background:radial-gradient(ellipse,var(--arena-accent),transparent 70%);animation-duration:.6s}
+.v2-character-calculator button:focus-visible{outline:2px solid #fff6bb;outline-offset:2px}
+.v2-character-calculator .v2-battle-center{order:0;width:auto;max-width:none;justify-self:stretch;padding:8px;gap:8px;background:linear-gradient(180deg,#131d30,#0a101c);border-color:#2d3a52;border-radius:12px}
+.v2-character-calculator .v2-battle-timer-top{display:grid;grid-template-columns:44px minmax(0,1fr);gap:6px}
+.v2-character-calculator .v2-battle-timer-top .v2-button{inline-size:auto;max-inline-size:none;block-size:auto;min-block-size:44px;min-height:44px;white-space:normal}
+.v2-character-calculator .v2-battle-timer-top>a{grid-column:1;grid-row:1;inline-size:44px;font-size:0}
+.v2-character-calculator .v2-battle-timer-top>a::before{content:'←';font-size:20px}
+.v2-character-calculator .v2-battle-round-clock{grid-column:2;grid-row:1;min-width:0;width:auto;max-width:none;overflow:visible}
+.v2-character-calculator .v2-battle-round-clock strong{font-size:12px;max-width:none}
+.v2-character-calculator .v2-battle-round-clock[data-arena='true']>span{display:none}
+.v2-character-calculator .v2-battle-round-clock span{font-size:9px}
+.v2-character-calculator .v2-battle-timer-top>[data-battle-action='sudden']{grid-column:1/-1;width:100%;font-size:11px}
+.v2-character-calculator .v2-battle-timer-top>[data-battle-action='sudden']::before{display:none}
+.v2-character-calculator .v2-battle-center .v2-button{min-height:44px;padding:6px 3px;font-size:11px}
+.v2-character-calculator .v2-battle-big-timer{min-height:116px;padding:8px 3px;background:radial-gradient(ellipse at 50% 0,#36446166,transparent),#101b2d;border:1px solid #526587;border-radius:10px}
+.v2-character-calculator .v2-battle-big-timer span{font-size:10px;letter-spacing:.06em;color:#adbed7}
+.v2-character-calculator .v2-battle-big-timer strong{color:#e5c990;font-size:64px;line-height:1;font-variant-numeric:tabular-nums}
+.v2-character-calculator .v2-battle-center-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.v2-character-calculator .v2-battle-center-actions .v2-button{white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.2;font-size:10px}
+.v2-character-calculator .v2-battle-set-panel:empty,.v2-character-calculator .v2-battle-report-actions:has(button[hidden]),.v2-character-calculator .v2-battle-character-selectors:empty{display:none}
+@keyframes passive-flash{from{opacity:.85}to{opacity:0}}
+@keyframes tao-form{from{transform:rotate(-180deg) scale(.25);opacity:0}to{transform:rotate(0) scale(1);opacity:1}}
+@keyframes tao-leave{from{transform:rotate(0) scale(1);opacity:1}to{transform:rotate(180deg) scale(.25);opacity:0}}
+@media(orientation:landscape) and (max-height:500px){
+ .v2-character-calculator .v2-battle-layout{grid-template-columns:minmax(0,1fr) 112px minmax(0,1fr);gap:6px}
+ .v2-character-calculator .v2-battle-player{padding:8px;gap:6px;grid-template-rows:132px minmax(0,1fr)}
+ .v2-character-calculator .v2-battle-hp [data-player-hp]{font-size:46px}
+ .v2-character-calculator .v2-battle-hp-button{font-size:12px}
+ .v2-character-calculator .v2-battle-center{padding:6px;gap:6px}
+ .v2-character-calculator .v2-battle-big-timer{min-height:90px}
+ .v2-character-calculator .v2-battle-big-timer strong{font-size:48px}
+ .v2-character-calculator .v2-battle-center-actions .v2-button{font-size:0;height:44px}
+ .v2-character-calculator .v2-battle-center-actions .v2-button::before{font-size:20px}
+ .v2-character-calculator .visual-token{max-width:58px;max-height:58px}
+ .v2-character-calculator .visual-viola .visual-token{max-width:92px;max-height:92px}
+ .v2-character-calculator .visual-token-grid .visual-token{width:44px;height:44px;max-width:none}
+ .v2-character-calculator .visual-switch{max-height:60px}
+ .v2-character-calculator .lumen-switch{width:48px;height:62px}
+ .v2-character-calculator .legion-diamond{max-width:82px}
+}
+@media(orientation:portrait) and (max-width:760px){
+ .v2-character-calculator .v2-battle-page{height:auto}
+ .v2-character-calculator .v2-battle-layout{display:flex;flex-direction:column}
+ .v2-character-calculator .v2-battle-player{height:410px;min-height:410px;grid-template-rows:144px minmax(0,1fr)}
+ .v2-character-calculator .v2-battle-center{order:-1;display:grid;grid-template-columns:1fr 1fr}
+ .v2-character-calculator .v2-battle-big-timer{min-height:100px}
+ .v2-character-calculator .v2-battle-center-actions{grid-column:1/-1;grid-template-columns:repeat(4,1fr)}
+}
+@media(prefers-reduced-motion:reduce){.v2-character-calculator *,.v2-character-calculator *::after{animation:none!important;transition:none!important}}
+
+.v2-character-calculator .visual-token-six{grid-template-columns:repeat(3,44px)}
+.v2-character-calculator .tao-sigil.is-idle:not(.is-leaving){background:transparent;box-shadow:none;overflow:visible;opacity:.65}
+.v2-character-calculator .tao-sigil.is-idle:not(.is-leaving) .tao-black-half,
+.v2-character-calculator .tao-sigil.is-idle:not(.is-leaving) .tao-dot,
+.v2-character-calculator .tao-sigil.is-idle:not(.is-leaving) .tao-half{display:none}
+.v2-character-calculator .tao-sigil.is-idle:not(.is-leaving) .tao-black-orb{left:auto;right:0;top:38%;width:24%;height:24%;border:1px solid #8791a7}
+.v2-character-calculator .tao-sigil.is-idle:not(.is-leaving) .tao-white-orb{left:0;top:38%;width:24%;height:24%}
+
+.v2-character-calculator .v2-battle-center .v2-battle-timer-top>a{font-size:0}
+.v2-character-calculator .visual-viola .visual-token{border:1px solid #c4a4df88;background:#10172abf}
+.v2-character-calculator .visual-viola .visual-token .visual-crop{opacity:.5;filter:grayscale(1) brightness(.85)}
+.v2-character-calculator .visual-viola .visual-token.is-on .visual-crop{opacity:1;filter:brightness(1.1)}
+.v2-character-calculator .legion-diamond .visual-crop{opacity:.5;filter:grayscale(1) brightness(.85)}
+.v2-character-calculator .legion-diamond.is-on .visual-crop{opacity:1;filter:brightness(1.15)}
+.v2-character-calculator .lumen-switch .visual-crop{opacity:.4;filter:grayscale(1)}
+.v2-character-calculator .v2-battle-hp-pending{top:5px;left:28px;right:auto;font-size:11px}
+
+@media(prefers-reduced-motion:reduce){
+ .v2-character-calculator .just-lit::after,.v2-character-calculator .just-unlit::after{display:none}
+ .v2-character-calculator .tao-sigil.is-leaving{display:none}
+}
+
+.v2-character-calculator .party-calculator-bar.arena-party-tools{display:grid;gap:4px;margin:0;padding:0;border:0;background:none;text-align:center}
+.v2-character-calculator .arena-party-tools [data-party-exchanges]{font-size:11px;line-height:16px}
+.v2-character-calculator .arena-party-tools [data-party-exchange]{width:100%;min-height:44px;font-size:11px}
+@media(orientation:portrait) and (max-width:760px){.v2-character-calculator .arena-party-tools{grid-column:1/-1}}
+/* Bespoke passive silhouettes and persistent, state-only ambient effects. */
+.v2-character-calculator .passive-symbol{display:block;object-fit:contain;width:100%;height:100%;pointer-events:none}
+.v2-character-calculator .visual-switch>.passive-symbol{max-width:128px;max-height:140px}
+.v2-character-calculator .passive-readonly{border:0!important;background:transparent!important;cursor:default;opacity:1}
+.v2-character-calculator .passive-layout-focus .visual-switch{width:146px;max-height:132px;min-height:116px;flex:none;border:0;background:#0a152044}
+.v2-character-calculator .passive-layout-core .visual-switch{width:136px;max-height:136px;min-height:136px;flex:none;border:0;background:#161a2655;border-radius:50%}
+.v2-character-calculator .passive-layout-calling-card .visual-switch{width:102px;max-height:142px;min-height:138px;flex:none;border:0;background:transparent}
+.v2-character-calculator .passive-layout-workshop{gap:4px}
+.v2-character-calculator .passive-layout-workshop .visual-switch{width:96px;min-height:78px;max-height:78px;flex:none;background:#10202b66;border:0}
+.v2-character-calculator .passive-layout-workshop .visual-token{max-width:58px;height:58px;flex:none;border-radius:50%;background:#10202977}
+.v2-character-calculator .visual-token-stage{display:block;position:relative;width:240px;height:176px;min-height:176px;flex:none;max-width:100%}
+.v2-character-calculator .passive-layout-howling .visual-token-stage{width:224px}
+.v2-character-calculator .visual-token-stage .visual-token{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;min-height:44px;max-height:none;border:0;background:#111a2966;padding:2px;border-radius:9px;overflow:visible}
+.v2-character-calculator .visual-token-stage .visual-token>.passive-symbol{transform:rotate(var(--token-angle,0deg))}
+.v2-character-calculator .visual-token-stage .visual-switch.stage-switch{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:60px;height:60px;min-height:60px;max-height:60px;padding:0;flex:none;border-radius:50%;background:#11182b99;border:0;overflow:visible}
+.v2-character-calculator .passive-layout-dagger-fan .visual-token-stage .stage-switch{top:67%}
+.v2-character-calculator .passive-layout-foresight .visual-switch.stage-switch{left:50%;width:76px;height:76px;min-height:76px;max-height:76px}
+.v2-character-calculator .visual-counter-image{width:112px;height:128px;overflow:visible}
+.v2-character-calculator .visual-counter-image>.passive-symbol{position:absolute;inset:0;height:100px}
+.v2-character-calculator .visual-count{inset:auto 0 0;height:32px;line-height:32px;background:#0a1424bb;border-radius:20px;font-size:27px;z-index:2}
+.v2-character-calculator .passive-layout-cockpit .visual-switch{width:154px;min-height:132px;max-height:132px;flex:none;border:0;background:#111a2b66}
+.v2-character-calculator .passive-layout-blue-flame .visual-switch{width:142px;min-height:150px;max-height:150px;flex:none}
+.v2-character-calculator .visual-switch.is-on>.passive-symbol,.v2-character-calculator .visual-token.is-on>.passive-symbol{filter:drop-shadow(0 0 5px color-mix(in srgb,var(--arena-accent) 50%,transparent))}
+.v2-character-calculator .passive-layout-calling-card .just-lit>.passive-symbol{animation:passive-card-turn .5s ease-out}
+.v2-character-calculator .passive-layout-workshop .just-lit>.passive-symbol{animation:passive-lever .4s ease-out}
+.v2-character-calculator .ambient-effect{--effect-color:var(--arena-accent);position:absolute;inset:2px;pointer-events:none;z-index:1;border-radius:inherit;isolation:isolate}
+.v2-character-calculator .ambient-effect::before,.v2-character-calculator .ambient-effect::after,.v2-character-calculator .ambient-effect>i{content:'';position:absolute;pointer-events:none}
+.v2-character-calculator .ambient-light::before{inset:0;border:1px solid var(--effect-color);border-radius:inherit;box-shadow:0 0 10px var(--effect-color);animation:passive-breathe 2.8s ease-in-out infinite;opacity:.2}
+.v2-character-calculator .ambient-orbit::before,.v2-character-calculator .ambient-arc::before{inset:0;border-radius:50%;border:2px solid transparent;border-top-color:var(--effect-color);border-bottom-color:var(--effect-color);animation:passive-orbit 5s linear infinite;opacity:.45;filter:drop-shadow(0 0 3px var(--effect-color))}
+.v2-character-calculator .ambient-arc::before{border-style:dashed;animation-duration:3.3s}
+.v2-character-calculator .ambient-orbit::after,.v2-character-calculator .ambient-arc::after{inset:10%;border-radius:50%;border:1px solid transparent;border-right-color:var(--effect-color);animation:passive-orbit 7s linear infinite reverse;opacity:.3}
+.v2-character-calculator .ambient-fire>i{width:17%;height:45%;bottom:7%;left:17%;border-radius:80% 20% 65% 35%;background:linear-gradient(0deg,transparent,var(--effect-color));filter:blur(2px);opacity:.28;transform-origin:50% 100%;animation:passive-flame 1.7s ease-in-out infinite alternate}
+.v2-character-calculator .ambient-fire>i:nth-child(2){left:43%;height:58%;animation-delay:-.7s}
+.v2-character-calculator .ambient-fire>i:nth-child(3){left:70%;height:34%;animation-delay:-1.1s}
+.v2-character-calculator .ambient-mist::before{inset:5%;background:radial-gradient(ellipse at 50% 70%,var(--effect-color),transparent 70%);filter:blur(5px);opacity:.15;animation:passive-mist 3.8s ease-in-out infinite alternate}
+.v2-character-calculator .ambient-wave>i{inset:12%;border:1px solid var(--effect-color);border-radius:50%;opacity:0;animation:passive-ripple 3.2s ease-out infinite}
+.v2-character-calculator .ambient-wave>i:nth-child(2){animation-delay:-1s;border-color:#f799da}
+.v2-character-calculator .ambient-wave>i:nth-child(3){animation-delay:-2s;border-color:#ffe592}
+.v2-character-calculator .ambient-spark>i{width:4px;height:4px;left:16%;top:64%;background:var(--effect-color);box-shadow:0 0 6px var(--effect-color);transform:rotate(45deg);animation:passive-spark 3.5s ease-in-out infinite;opacity:.25}
+.v2-character-calculator .ambient-spark>i:nth-child(2){left:78%;top:30%;animation-delay:-1.3s}
+.v2-character-calculator .ambient-spark>i:nth-child(3){left:55%;top:12%;animation-delay:-2.1s}
+.v2-character-calculator [data-effects-paused='true'] .ambient-effect *,.v2-character-calculator [data-effects-paused='true'] .ambient-effect::before,.v2-character-calculator [data-effects-paused='true'] .ambient-effect::after{animation-play-state:paused}
+@keyframes passive-orbit{to{transform:rotate(360deg)}}
+@keyframes passive-breathe{50%{opacity:.42;transform:scale(.94)}}
+@keyframes passive-flame{to{transform:translateY(-7px) scaleY(1.2) rotate(9deg);opacity:.12}}
+@keyframes passive-mist{to{transform:translateY(-6px) scale(1.08);opacity:.3}}
+@keyframes passive-ripple{0%{transform:scale(.65);opacity:0}25%{opacity:.3}100%{transform:scale(1.1);opacity:0}}
+@keyframes passive-spark{50%{transform:translateY(-7px) rotate(135deg);opacity:.65}}
+@keyframes passive-card-turn{from{transform:perspective(400px) rotateY(-90deg)}to{transform:perspective(400px) rotateY(0)}}
+@keyframes passive-lever{from{transform:translateY(-5px)}to{transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){
+ .v2-character-calculator .ambient-effect::before,.v2-character-calculator .ambient-effect::after,.v2-character-calculator .ambient-effect>i{animation:none!important;transform:none!important;opacity:.16}
+ .v2-character-calculator .ambient-wave>i{opacity:.12}
+}
+.v2-character-calculator .passive-layout-spirit .just-lit>.passive-symbol{animation:passive-bird-hop .5s ease-out}
+.v2-character-calculator .passive-layout-fracture .just-lit>.passive-symbol{animation:passive-shards .5s ease-out}
+@keyframes passive-bird-hop{from{transform:translateY(-9px) rotate(-5deg)}to{transform:translateY(0) rotate(0)}}
+@keyframes passive-shards{from{transform:scale(1.08)}to{transform:scale(1)}}
+.v2-character-calculator .visual-token-stage .visual-switch.stage-switch{min-width:44px}
+/* Clip decoration only; touch controls and their layouts remain fully visible. */
+.v2-character-calculator .ambient-effect{overflow:hidden}
+/* Painted cutouts and original-card crops replace the former drawn symbols. */
+.v2-character-calculator .passive-symbol.is-idle{opacity:.5;filter:grayscale(.55) brightness(.95)}
+.v2-character-calculator .passive-symbol.is-card-art{border-radius:10px;filter:drop-shadow(0 2px 4px #0008)}
+.v2-character-calculator .passive-symbol.is-card-art.is-idle{filter:grayscale(.55) brightness(.95)}

@@ -21,8 +21,12 @@
     if (!state.events) state.events = [];
     const pendingHp = new Map();
     const pendingFp = new Map();
+    const pendingShield = new Map();
+    const shields = window.CalculatorShieldModel;
+    const passiveInputs = window.CalculatorPassiveInputModel;
     const pendingSocketActions = new Map();
     const lastRenderedHp = new Map();
+    const characterPassiveFrames = new Map();
     let socket = null;
     let socketReady = false;
     let reconnectAttempts = 0;
@@ -120,7 +124,9 @@
         }
         const previousEvents = state.events || [];
         applyLocalTimerBaseline(nextState);
-        state = nextState;
+        state = queuedActionBatch.length
+            ? passiveInputs.projectPassiveInputs(nextState, queuedActionBatch.flatMap(item => passiveInputs.flattenActions(item.payload)))
+            : nextState;
         if (!state.events) state.events = previousEvents;
         return true;
     }
@@ -192,7 +198,8 @@
         if (event.type === "hp") {
             const amount = Number(event.amount || 0);
             const sign = amount > 0 ? "+" : "";
-            return `${playerLabel(event.target)} HP ${sign}${amount} → ${event.hp_after}`;
+            const absorbed = event.payload?.shield_absorbed;
+            return `${playerLabel(event.target)} HP ${sign}${amount} → ${event.hp_after}` + (absorbed ? ` / ${t('보호막 흡수')} ${absorbed}` : '');
         }
         if (event.type === "fp") {
             const amount = Number(event.amount || 0);
@@ -202,7 +209,7 @@
                 ? `${playerLabel(event.target)} FP 초기화`
                 : `${playerLabel(event.target)} FP ${sign}${amount} → ${after}`;
         }
-        if (event.type === "undo") return `${playerLabel(event.target)} 체력 변경 되돌림`;
+        if (event.type === "undo") return `${playerLabel(event.target)} 체력 변경 되돌림` + (event.payload?.shield_restored ? ` / ${t('보호막 복원')} ${event.payload.shield_restored}` : '');
         if (event.type === "timer") return event.payload && event.payload.running ? "10초 타이머 시작" : "10초 타이머 정지";
         if (event.type === "sudden_death") {
             if (event.payload && event.payload.turn_advanced) {
@@ -242,13 +249,16 @@
     }
 
     function setControlDisabled() {
-        document.querySelectorAll("[data-hp-target], [data-fp-target], [data-fp-reset]").forEach((button) => {
-            const target = button.dataset.hpTarget || button.dataset.fpTarget || button.dataset.fpReset;
+        document.querySelectorAll('[data-player-passives]').forEach((holder) => {
+            if (state.party) holder.inert = !state.can_control || partyExchangeBusy;
+        });
+        document.querySelectorAll("[data-hp-target], [data-fp-target], [data-fp-reset], [data-shield-target], [data-shield-reset]").forEach((button) => {
+            const target = button.dataset.hpTarget || button.dataset.fpTarget || button.dataset.fpReset || button.dataset.shieldTarget || button.dataset.shieldReset;
             const player = target && state.players ? state.players[target] : null;
-            button.disabled = !state.can_control || state.is_expired || !player || !player.character;
+            button.disabled = !state.can_control || state.is_expired || !player || !player.character || partyExchangeBusy;
         });
         document.querySelectorAll("[data-battle-action='timer'], [data-battle-action='undo'], [data-battle-reset]").forEach((button) => {
-            button.disabled = !state.can_control || state.is_expired;
+            button.disabled = !state.can_control || state.is_expired || partyExchangeBusy;
         });
         const suddenButton = document.querySelector("[data-battle-action='sudden']");
         if (suddenButton) {
@@ -344,6 +354,7 @@
             player,
             passiveState,
             canControl: state.can_control && !state.is_expired,
+            renderShieldControls() { renderShieldControls(target, root); },
             action(payload) {
                 const actionPayload = { action: "passive", target, ...(payload || {}) };
                 return postAction(actionPayload, optimisticPassive(target, actionPayload));
@@ -359,6 +370,14 @@
             note(key, note, label) {
                 const actionPayload = { action: "passive", target, key: key || "memo", note, label: label || key || "메모" };
                 return postAction(actionPayload, optimisticPassive(target, actionPayload));
+            },
+            dispatch(payload) {
+                const actions = payload.action === "batch" ? payload.actions || [] : [payload];
+                return postAction(payload, (draft) => {
+                    actions.forEach((item) => {
+                        if (item.action === "passive") optimisticPassive(item.target || target, item)(draft);
+                    });
+                });
             },
             get(key, fallback) {
                 const entry = passiveState[String(key)] || {};
@@ -405,10 +424,21 @@
     function renderPassives(target) {
         const holder = document.querySelector(`[data-player-passives="${target}"]`);
         if (!holder) return;
-        holder.replaceChildren();
-
         const player = state.players[target];
+        holder.classList.toggle('has-shield-controls', shields.supportsShield(player));
         const passiveUi = player.character ? player.character.passive_ui || {} : {};
+        if (window.characterCalculator) {
+            const frame = JSON.stringify([player.character?.id, player.character?.calculator_ui?.theme_key, player.hp, player.fp, player.passive_state, state.can_control, state.is_expired]);
+            if (characterPassiveFrames.get(target) === frame) return;
+            characterPassiveFrames.set(target, frame);
+        }
+        if (window.characterCalculator?.renderPassives) {
+            window.characterCalculator.renderPassives(makePassiveApi(target, holder, {}));
+            renderShieldControls(target, holder);
+            return;
+        }
+        const scrollTop = holder.scrollTop;
+        holder.replaceChildren();
         const hasCustomPanel = passiveUi.html || passiveUi.css || passiveUi.js;
         if (!player.character) {
             const empty = document.createElement("p");
@@ -419,9 +449,30 @@
         }
         if (hasCustomPanel) {
             renderCustomPassiveUi(target, holder, passiveUi);
+            renderShieldControls(target, holder);
+            if (window.characterCalculator) holder.scrollTop = scrollTop;
             return;
         }
         renderFallbackPassiveMemo(target, holder);
+        renderShieldControls(target, holder);
+    }
+
+    function renderShieldControls(target, holder) {
+        holder.querySelectorAll(':scope > .v2-shield-controls').forEach(column => column.remove());
+        if (!shields.supportsShield(state.players[target])) return;
+        const column = document.createElement('div');
+        column.className = 'v2-shield-controls';
+        for (const [kind, step, text] of [['shield', 100, t('보호막') + '+'], ['reset', 0, t('초기화')], ['shield', -100, t('보호막') + '−']]) {
+            const button = document.createElement('button');
+            button.type = 'button'; button.className = 'v2-shield-button';
+            button.textContent = text; button.dataset.queueLabel = text;
+            button.setAttribute('aria-label', playerLabel(target) + ' ' + t('보호막') + ' ' + (step ? (step > 0 ? '+100' : '-100') : t('초기화')));
+            if (kind === 'reset') button.dataset.shieldReset = target;
+            else { button.dataset.shieldTarget = target; button.dataset.shieldStep = step; }
+            column.append(button);
+        }
+        holder.append(column);
+        updateQueuedButtons('shield', target, pendingShield.get(target)?.amount || 0);
     }
 
     function renderCharacterSelectors() {
@@ -499,6 +550,21 @@
     }
 
     function renderState() {
+        if (state.party) {
+            if (!lastPartyCompleted && state.party.completed && config.controlToken) {
+                window.setTimeout(() => location.assign(state.party.return_url), 0);
+            }
+            lastPartyCompleted = state.party.completed;
+            const counter = document.querySelector('[data-party-exchanges]');
+            const complete = document.querySelector('[data-party-exchange]');
+            const help = document.querySelector('[data-party-calculator-help]');
+            if (counter) counter.textContent = `${state.party.exchanges}/2`;
+            if (complete) {
+                complete.disabled = !state.can_control || state.party.completed || partyExchangeBusy;
+                complete.textContent = state.party.completed ? '전투 종료' : `${state.party.exchanges + 1}번째 공방 완료`;
+            }
+            if (help) help.textContent = state.party.completed ? '전투가 끝났습니다. 참가자 한 명이 파티에서 결과를 제출해주세요.' : 'HP·FP 입력 후 공방 완료를 눌러주세요. 첫 공방에서 기절하면 바로 종료됩니다.';
+        }
         document.querySelectorAll("[data-player-name]").forEach((node) => {
             node.textContent = state.players[node.dataset.playerName].name;
         });
@@ -512,7 +578,17 @@
                 showHpDelta(target, Number(player.hp) - Number(previousHp));
             }
             lastRenderedHp.set(target, Number(player.hp));
-            if (hp) hp.textContent = player.hp;
+            if (hp) {
+                hp.textContent = player.hp;
+                const shield = shields.shieldAmount(player);
+                hp.classList.toggle('has-shield', shield > 0);
+                if (shield) {
+                    const badge = document.createElement('span');
+                    badge.className = 'v2-battle-shield-value'; badge.textContent = '+' + shield;
+                    badge.setAttribute('aria-label', t('보호막') + ' ' + shield);
+                    hp.append(badge);
+                }
+            }
             if (fp) {
                 const value = document.createElement("strong");
                 value.textContent = player.fp > 0 ? `+${player.fp}` : String(player.fp);
@@ -561,6 +637,7 @@
         renderCharacterSelectors();
         if (historyOpen) renderHistory();
         setControlDisabled();
+        window.characterCalculator?.render(state);
     }
 
     function renderPresence() {
@@ -667,7 +744,7 @@
     }
 
     function isBatchableAction(payload) {
-        return ["hp", "fp", "fp_reset", "passive"].includes(payload && payload.action);
+        return ["hp", "fp", "fp_reset", "shield", "shield_reset", "passive"].includes(payload && payload.action) || passiveInputs.isPassiveInput(payload);
     }
 
     function flushActionBatch() {
@@ -686,7 +763,7 @@
         queuedActionRollbackState = null;
         return postSocketAction({
             action: "batch",
-            actions: batch.map((item) => item.payload),
+            actions: passiveInputs.compactPassiveActions(batch.map((item) => item.payload)),
         })
             .then((result) => {
                 batch.forEach((item) => item.resolve(result));
@@ -743,7 +820,7 @@
         return (draft) => {
             if (!draft.players || !draft.players[target]) return;
             const player = draft.players[target];
-            player.hp += amount;
+            shields.applyHealthDelta(player, amount);
             if (player.character) player.character.hand_limit = handLimitForPlayer(player);
             draft.suggested_winner = "";
             if (draft.players.p1.hp <= 0 && draft.players.p2.hp > 0) draft.suggested_winner = "p2";
@@ -761,6 +838,13 @@
         return (draft) => {
             if (!draft.players || !draft.players[target]) return;
             draft.players[target].fp += amount;
+        };
+    }
+
+    function optimisticShield(target, amount, reset = false) {
+        return draft => {
+            const player = draft.players?.[target];
+            if (player && shields.supportsShield(player)) shields.setShield(player, reset ? 0 : shields.shieldAmount(player) + amount);
         };
     }
 
@@ -933,6 +1017,7 @@
         socket = new WebSocket(buildWebSocketUrl(config.wsPath));
 
         socket.addEventListener("open", () => {
+            window.characterCalculator?.suppressMotion();
             socketReady = true;
             reconnectAttempts = 0;
             stopPollingFallback();
@@ -994,6 +1079,7 @@
     }
 
     function queuedButtonConfig(kind) {
+        if (kind === 'shield') return { targetAttr: 'shieldTarget', stepAttr: 'shieldStep', selector: 'data-shield-target' };
         if (kind === "hp") {
             return { targetAttr: "hpTarget", stepAttr: "hpStep", selector: "data-hp-target" };
         }
@@ -1008,7 +1094,7 @@
         document.querySelectorAll(`[${configForKind.selector}="${target}"]`).forEach((button) => {
             const step = Number(button.dataset[configForKind.stepAttr] || 0);
             const isActiveDirection = (amount > 0 && step > 0) || (amount < 0 && step < 0);
-            button.textContent = kind === "fp" && isActiveDirection ? formatQueuedAmount(amount) : buttonBaseText(button);
+            button.textContent = kind === 'shield' && isActiveDirection ? buttonBaseText(button) + '\n' + formatQueuedAmount(amount) : kind === "fp" && isActiveDirection ? formatQueuedAmount(amount) : buttonBaseText(button);
         });
     }
 
@@ -1033,6 +1119,7 @@
     function clearPendingLocalAdjustments() {
         Array.from(pendingHp.keys()).forEach((target) => clearQueuedDelta(pendingHp, "hp", target));
         Array.from(pendingFp.keys()).forEach((target) => clearQueuedDelta(pendingFp, "fp", target));
+        Array.from(pendingShield.keys()).forEach((target) => clearQueuedDelta(pendingShield, "shield", target));
         if (actionBatchTimer) {
             window.clearTimeout(actionBatchTimer);
             actionBatchTimer = null;
@@ -1043,6 +1130,8 @@
     }
 
     function queueDelta(queue, kind, target, step, delay, action, optimisticUpdate) {
+        if (kind === 'hp' && pendingShield.has(target)) flushResourceDelta(pendingShield, 'shield', target, optimisticShield);
+        if (kind === 'shield' && pendingHp.has(target)) flushResourceDelta(pendingHp, 'hp', target, optimisticHp);
         const queued = queue.get(target) || { amount: 0, timer: null };
         queued.amount += step;
         window.clearTimeout(queued.timer);
@@ -1065,6 +1154,62 @@
         }, delay);
         queue.set(target, queued);
     }
+
+    function flushResourceDelta(queue, kind, target, optimistic) {
+        const queued = queue.get(target);
+        if (!queued?.amount) return;
+        const amount = queued.amount;
+        clearQueuedDelta(queue, kind, target);
+        postAction({action: kind, target, amount}, optimistic(target, amount));
+    }
+
+    document.addEventListener('click', event => {
+        const button = event.target.closest('[data-shield-target], [data-shield-reset]');
+        if (!button || button.disabled || !state.can_control || state.is_expired || partyExchangeBusy) return;
+        const target = button.dataset.shieldTarget || button.dataset.shieldReset;
+        if (!shields.supportsShield(state.players[target])) return;
+        if (button.dataset.shieldReset) {
+            flushResourceDelta(pendingHp, 'hp', target, optimisticHp);
+            flushResourceDelta(pendingShield, 'shield', target, optimisticShield);
+            postAction({action: 'shield_reset', target}, optimisticShield(target, 0, true));
+        } else queueDelta(pendingShield, 'shield', target, Number(button.dataset.shieldStep), 900, 'shield', optimisticShield);
+    });
+
+    let partyExchangeBusy = false;
+    let lastPartyCompleted = state.party ? state.party.completed : true;
+    async function flushPartyDeltas() {
+        const actions = [];
+        for (const [kind, queue] of [['hp', pendingHp], ['fp', pendingFp], ['shield', pendingShield]]) {
+            for (const [target, queued] of queue) {
+                if (queued.amount) actions.push({action: kind, target, amount: queued.amount});
+                clearQueuedDelta(queue, kind, target);
+            }
+        }
+        const hadBatch = queuedActionBatch.length > 0;
+        const batchResult = await flushActionBatch();
+        if (hadBatch && !batchResult) throw new Error('입력 저장을 확인하지 못했습니다. 다시 시도해주세요.');
+        if (actions.length) {
+            const result = await postAction({action: 'batch', actions});
+            if (!result) throw new Error('HP·FP 입력 저장을 확인하지 못했습니다. 다시 시도해주세요.');
+        }
+    }
+    document.querySelector('[data-party-exchange]')?.addEventListener('click', async () => {
+        if (partyExchangeBusy || !state.can_control || !state.party) return;
+        partyExchangeBusy = true;
+        renderState();
+        try {
+            await flushPartyDeltas();
+            await postAction({action: 'party_exchange', expected_exchange: state.party.exchanges});
+        } catch (error) { showRealtimeToast(error.message); }
+        finally { partyExchangeBusy = false; renderState(); }
+    });
+    document.querySelectorAll('[data-party-return]').forEach(link => link.addEventListener('click', async (event) => {
+        if (!state.can_control) return;
+        event.preventDefault();
+        const href = event.currentTarget.href;
+        try { await flushPartyDeltas(); location.assign(href); }
+        catch (error) { showRealtimeToast(error.message); }
+    }));
 
     document.querySelectorAll("[data-hp-target]").forEach((button) => {
         button.addEventListener("click", () => {
@@ -1109,13 +1254,17 @@
                 setShortTimerDisplay();
                 window.setTimeout(setShortTimerDisplay, 80);
             }
-            if (action === "undo") postAction({ action: "undo" });
+            if (action === "undo") {
+                window.characterCalculator?.suppressMotion();
+                postAction({ action: "undo" });
+            }
             if (action === "sudden") {
                 const enable = !state.sudden_death;
                 const message = enable
                     ? t("서든 데스에 진입할까요? 각 플레이어의 HP는 1000, FP는 0이 되고 추가 턴 3턴이 시작됩니다.")
                     : t("서든 데스를 해제할까요?");
                 if (!window.confirm(message)) return;
+                window.characterCalculator?.suppressMotion();
                 postAction(
                     { action: "sudden_death", enabled: enable },
                     optimisticSuddenDeath(enable),
@@ -1130,6 +1279,7 @@
             if (!window.confirm(t("계산기 세션을 초기화할까요? 현재 HP, FP, 패시브, 타이머, 로그가 초기 상태로 돌아갑니다."))) {
                 return;
             }
+            window.characterCalculator?.suppressMotion();
             clearPendingLocalAdjustments();
             historyLoaded = false;
             postAction({ action: "reset_session" });

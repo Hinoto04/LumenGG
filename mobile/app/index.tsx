@@ -5,6 +5,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../src/provider";
 import { colors } from "../src/ui";
 
+import { useCalculatorEntry } from "../src/calculator-entry";
+
 const gap = 12;
 const menus = [
   { label: "카드", icon: "▣", href: "/cards" },
@@ -15,10 +17,12 @@ const menus = [
 
 export default function Home() {
   const { t } = useApp();
+  const { chooseUi, entrySheet } = useCalculatorEntry();
   const [height, setHeight] = useState(0);
   const cellHeight = Math.max(0, (height - gap * 3) / 4);
   return (
     <SafeAreaView edges={["bottom"]} style={homeStyles.screen}>
+      {entrySheet}
       <View
         style={homeStyles.grid}
         onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
@@ -26,7 +30,10 @@ export default function Home() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("계산기")}
-          onPress={() => router.push("/calculator")}
+          onPress={async () => {
+            const ui = await chooseUi();
+            if (ui) router.push({ pathname: "/calculator", params: { ui } });
+          }}
           style={({ pressed }) => [
             homeStyles.tile,
             homeStyles.hero,

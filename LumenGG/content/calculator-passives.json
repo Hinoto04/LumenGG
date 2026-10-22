@@ -1,0 +1,408 @@
+{
+  "setsumei": {
+    "controls": []
+  },
+  "nia": {
+    "controls": [
+      {
+        "type": "toggle",
+        "key": "over_limit",
+        "label": "오버 리밋",
+        "labels": {
+          "ko": "오버 리밋",
+          "en": "Over Limit",
+          "ja": "オーバーリミット"
+        }
+      }
+    ]
+  },
+  "root": {
+    "controls": [
+      {
+        "type": "toggle",
+        "key": "root_charge",
+        "label": "차지",
+        "labels": {
+          "ko": "차지",
+          "en": "Charge",
+          "ja": "チャージ"
+        }
+      }
+    ]
+  },
+  "delphy": {
+    "controls": [
+      {
+        "type": "toggle",
+        "key": "down_stance",
+        "label": "다운 스탠스",
+        "labels": {
+          "ko": "다운 스탠스",
+          "en": "Down Stance",
+          "ja": "ダウンスタンス"
+        }
+      },
+      {
+        "type": "counter",
+        "key": "garage_token",
+        "label": "개러지 토큰",
+        "max": 3,
+        "unit": "장",
+        "labels": {
+          "ko": "개러지 토큰",
+          "en": "Garage Token",
+          "ja": "ガレージトークン"
+        }
+      }
+    ]
+  },
+  "keith": {
+    "controls": [
+      {
+        "type": "toggle",
+        "key": "notice",
+        "label": "예고",
+        "labels": {
+          "ko": "예고",
+          "en": "Advance Notice",
+          "ja": "予告"
+        }
+      }
+    ]
+  },
+  "wolf": {
+    "controls": [
+      {
+        "type": "counter",
+        "key": "howling_counter",
+        "label": "하울링 카운터",
+        "max": 5,
+        "labels": {
+          "ko": "하울링 카운터",
+          "en": "Howling",
+          "ja": "ハウリング"
+        }
+      },
+      {
+        "type": "thresholdAction",
+        "key": "pressure",
+        "label": "위압",
+        "requires": {
+          "type": "counterAtLeast",
+          "key": "howling_counter",
+          "value": 5
+        },
+        "resetKeys": [
+          "howling_counter"
+        ],
+        "resetLabel": "하울링 카운터",
+        "labels": {
+          "ko": "위압",
+          "en": "Intimidation",
+          "ja": "威圧"
+        }
+      }
+    ]
+  },
+  "viola": {
+    "controls": [
+      {
+        "type": "counter",
+        "key": "silver_counter",
+        "label": "은연 카운터",
+        "max": 3,
+        "labels": {
+          "ko": "은연 카운터",
+          "en": "Hidden Bond",
+          "ja": "隠縁"
+        }
+      }
+    ]
+  },
+  "tao": {
+    "controls": [
+      {
+        "type": "counter",
+        "key": "yang_counter",
+        "label": "양",
+        "max": 4,
+        "labels": {
+          "ko": "양",
+          "en": "Yang",
+          "ja": "陽"
+        }
+      },
+      {
+        "type": "counter",
+        "key": "yin_counter",
+        "label": "음",
+        "max": 4,
+        "labels": {
+          "ko": "음",
+          "en": "Yin",
+          "ja": "陰"
+        }
+      },
+      {
+        "type": "latchedStatus",
+        "key": "harmony",
+        "label": "조화",
+        "activateWhen": {
+          "type": "allEquals",
+          "keys": [
+            "yang_counter",
+            "yin_counter"
+          ],
+          "value": 4
+        },
+        "keepWhile": {
+          "type": "allAtLeast",
+          "keys": [
+            "yang_counter",
+            "yin_counter"
+          ],
+          "value": 3
+        },
+        "labels": {
+          "ko": "조화",
+          "en": "Harmony",
+          "ja": "調和"
+        }
+      },
+      {
+        "type": "choice",
+        "key": "harmony_effect",
+        "label": "조화 효과",
+        "enableWhen": {
+          "type": "active",
+          "key": "harmony"
+        },
+        "choices": [
+          {
+            "value": "damage_100",
+            "label": "+100DMG"
+          },
+          {
+            "value": "fp_1",
+            "label": "+1FP"
+          }
+        ],
+        "labels": {
+          "ko": "조화 효과",
+          "en": "Harmony effect",
+          "ja": "調和効果"
+        }
+      }
+    ],
+    "adapter": "tao"
+  },
+  "rita": {
+    "controls": [
+      {
+        "type": "toggle",
+        "key": "light_lumen",
+        "label": "빛의 루멘",
+        "labels": {
+          "ko": "빛의 루멘",
+          "en": "Light Lumen",
+          "ja": "光のルーメン"
+        }
+      },
+      {
+        "type": "choice",
+        "key": "rita_role",
+        "label": "레기온",
+        "choices": [
+          {
+            "value": "guardian",
+            "label": "가디언",
+            "labels": {
+              "ko": "가디언",
+              "en": "Guardian",
+              "ja": "ガーディアン"
+            }
+          },
+          {
+            "value": "assassin",
+            "label": "어쌔신",
+            "labels": {
+              "ko": "어쌔신",
+              "en": "Assassin",
+              "ja": "アサシン"
+            }
+          },
+          {
+            "value": "paladin",
+            "label": "팔라딘",
+            "labels": {
+              "ko": "팔라딘",
+              "en": "Paladin",
+              "ja": "パラディン"
+            }
+          }
+        ],
+        "labels": {
+          "ko": "레기온",
+          "en": "Legion",
+          "ja": "レギオン"
+        }
+      }
+    ]
+  },
+  "rev": {
+    "controls": [
+      {
+        "type": "counter",
+        "key": "dagger_token",
+        "label": "단검 토큰",
+        "max": 6,
+        "labels": {
+          "ko": "단검 토큰",
+          "en": "Dagger Token",
+          "ja": "短剣トークン"
+        }
+      },
+      {
+        "type": "toggle",
+        "key": "dark_night",
+        "label": "암야",
+        "labels": {
+          "ko": "암야",
+          "en": "Dark Night",
+          "ja": "闇夜"
+        }
+      }
+    ]
+  },
+  "rin": {
+    "controls": [
+      {
+        "type": "counter",
+        "key": "ember_token",
+        "label": "불씨 토큰",
+        "labels": {
+          "ko": "불씨 토큰",
+          "en": "Ember",
+          "ja": "火種"
+        }
+      }
+    ]
+  },
+  "yohan": {
+    "controls": [
+      {
+        "type": "counter",
+        "key": "foresight_counter",
+        "label": "예지 카운터",
+        "max": 10,
+        "labels": {
+          "ko": "예지 카운터",
+          "en": "Foresight",
+          "ja": "予知"
+        }
+      },
+      {
+        "type": "toggle",
+        "key": "disaster_one",
+        "label": "디제스터 원",
+        "labels": {
+          "ko": "디제스터 원",
+          "en": "Disaster One",
+          "ja": "ディザスター・ワン"
+        }
+      }
+    ]
+  },
+  "jezebel": {
+    "controls": [
+      {
+        "type": "counter",
+        "key": "spider_token",
+        "label": "거미 토큰",
+        "labels": {
+          "ko": "거미 토큰",
+          "en": "Spider Token",
+          "ja": "蜘蛛トークン"
+        }
+      }
+    ]
+  },
+  "iomong": {
+    "controls": []
+  },
+  "chimera": {
+    "controls": [
+      {
+        "type": "counter",
+        "key": "broken_card_count",
+        "label": "브레이크된 카드 수",
+        "unit": "장",
+        "labels": {
+          "ko": "브레이크된 카드 수",
+          "en": "Broken card count",
+          "ja": "ブレイクされたカード数"
+        }
+      }
+    ]
+  },
+  "muyeong": {
+    "controls": [
+      {
+        "type": "status",
+        "key": "blue_flame",
+        "label": "청염",
+        "condition": {
+          "type": "hpAtMost",
+          "value": 2500
+        },
+        "labels": {
+          "ko": "청염",
+          "en": "Blue Flame",
+          "ja": "青炎"
+        }
+      }
+    ]
+  },
+  "finf": {
+    "controls": [
+      {
+        "type": "toggle",
+        "key": "zero_suit",
+        "label": "제로 슈트",
+        "labels": {
+          "ko": "제로 슈트",
+          "en": "Zero Suit",
+          "ja": "ゼロスーツ"
+        }
+      }
+    ]
+  },
+  "cmyk": {
+    "controls": [
+      {
+        "type": "counter",
+        "key": "464",
+        "label": "잼 데이",
+        "labels": {
+          "ko": "잼 데이",
+          "en": "Jam Day",
+          "ja": "ジャム・デイ"
+        }
+      }
+    ]
+  },
+  "minyeong": {
+    "controls": [
+      {
+        "type": "counter",
+        "key": "506",
+        "label": "하이텐션",
+        "labels": {
+          "ko": "하이텐션",
+          "en": "High Tension",
+          "ja": "ハイテンション"
+        }
+      }
+    ]
+  }
+}

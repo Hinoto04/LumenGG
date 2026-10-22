@@ -1,0 +1,43 @@
+/* Opt-in character HUD display preferences; classic has no matching scope. */
+.v2-character-calculator .arena-display-open{min-width:44px;min-height:44px;cursor:pointer;background:#17243b;color:#dce7f7;border:1px solid #52617b;border-radius:8px;padding:2px}
+.v2-character-calculator .arena-display-open::before{content:'⚙';font-size:19px;line-height:1}
+.v2-character-calculator .arena-display-open[data-arena='true'] strong{display:none}
+.v2-character-calculator .arena-display-open{position:relative}
+.v2-character-calculator .arena-display-open:not([data-arena='true'])::before{position:absolute;top:1px;right:2px;font-size:9px;opacity:.7}
+.v2-character-calculator .arena-display-dialog{width:min(440px,calc(100vw - 40px));max-height:calc(100dvh - 32px);box-sizing:border-box;overflow-y:auto;border:1px solid #586a82;border-radius:16px;padding:22px;background:#111c2c;color:#edf3ff}
+.v2-character-calculator .arena-display-dialog::backdrop{background:#020611b8}
+.v2-character-calculator .arena-display-dialog h2{font-size:20px;margin:0 0 18px}
+.v2-character-calculator .arena-display-dialog p{color:#afc0d5;font-size:12px;line-height:1.5}
+.v2-character-calculator .arena-display-choices{display:flex;gap:10px;border:0;padding:0;margin:0 0 18px}
+.v2-character-calculator .arena-display-choices legend{padding:0 0 8px;font-size:13px}
+.v2-character-calculator .arena-display-choices label{min-height:44px;display:flex;align-items:center;gap:8px;border:1px solid #5c6d84;border-radius:8px;padding:0 14px;cursor:pointer}
+.v2-character-calculator .arena-display-choices label:has(:checked){background:#27374e;border-color:#b4cae5}
+.v2-character-calculator .arena-display-brightness{margin-bottom:16px}
+.v2-character-calculator .arena-display-brightness[hidden]{display:none}
+.v2-character-calculator .arena-display-brightness output{float:right;font-variant-numeric:tabular-nums}
+.v2-character-calculator .arena-display-brightness input{display:block;width:100%;min-height:44px;accent-color:#9fb7da}
+.v2-character-calculator[data-calculator-style='clean'] .arena-background,
+.v2-character-calculator[data-calculator-style='clean'] .v2-battle-player::before,
+.v2-character-calculator[data-calculator-style='clean'] .v2-battle-player::after{display:none!important;background-image:none!important}
+.v2-character-calculator[data-calculator-style='clean'] .v2-battle-player{background:#101725}
+.v2-character-calculator[data-calculator-style='clean'] .v2-battle-center,
+.v2-character-calculator[data-calculator-style='clean'] .v2-battle-big-timer{background:#121e30}
+.v2-character-calculator[data-calculator-style='clean'] .ambient-effect,
+.v2-character-calculator[data-calculator-style='clean'] .just-lit::after,
+.v2-character-calculator[data-calculator-style='clean'] .just-unlit::after{display:none!important}
+.v2-character-calculator[data-calculator-style='clean'] .v2-battle-player *{animation:none!important;box-shadow:none!important;filter:none!important}
+.v2-character-calculator[data-calculator-style='clean'] .visual-switch,
+.v2-character-calculator[data-calculator-style='clean'] .visual-token,
+.v2-character-calculator[data-calculator-style='clean'] .legion-diamond{background:#172234;border:1px solid #687c9566}
+.v2-character-calculator[data-calculator-style='clean'] .is-on{border-color:var(--arena-accent)}
+.v2-character-calculator[data-calculator-style='clean'] .visual-token-stage .visual-switch.stage-switch,
+.v2-character-calculator[data-calculator-style='clean'] .visual-token-stage .visual-token{border:1px solid #687c9566;background:#172234}
+.v2-character-calculator[data-calculator-style='clean'] .visual-token-stage .visual-switch.stage-switch.is-on,
+.v2-character-calculator[data-calculator-style='clean'] .visual-token-stage .visual-token.is-on{border-color:var(--arena-accent)}
+.v2-character-calculator[data-calculator-style='clean'] .passive-symbol{padding:2px;box-sizing:border-box}
+.v2-character-calculator[data-calculator-style='clean'] .passive-symbol.is-idle{opacity:.65}
+.v2-character-calculator[data-calculator-style='clean'] .lumen-switch .passive-symbol,
+.v2-character-calculator[data-calculator-style='clean'] .legion-diamond .passive-symbol{opacity:.65}
+.v2-character-calculator[data-calculator-style='clean'] .is-on .passive-symbol{opacity:1}
+.v2-character-calculator[data-calculator-style='clean'] .legion-diamond,
+.v2-character-calculator[data-calculator-style='clean'] .lumen-switch{clip-path:none;border-radius:8px;background:#172234}

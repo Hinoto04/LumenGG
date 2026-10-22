@@ -798,12 +798,14 @@ def _passive_ui(character, language=DEFAULT_LANGUAGE, context='battle'):
 def _character_payload(character, hp, language=DEFAULT_LANGUAGE):
     if not character:
         return None
+    from .calculator_ui import character_calculator_ui
     return {
         'id': character.id,
         'name': translated_character_field(character, language, 'name'),
         'img': character.body_img or character.sd_img or character.img,
         'icon_img': character.icon_img,
         'color': character.color,
+        'calculator_ui': character_calculator_ui(character),
         'hand_table': character_hand_table(character),
         'hand_limit': hand_limit_for_hp(character, hp),
         'passive_ui': _passive_ui(character, language),
