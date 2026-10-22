@@ -146,33 +146,36 @@ def calculators(request):
                      'state': mobile_state(session, session.control_token, language(request))}, status=201)
 
 
-def standalone(view_token):
-    return get_object_or_404(battle_session_queryset(), view_token=view_token,
-                             session_type__in=[BattleSession.SESSION_STANDALONE, BattleSession.SESSION_PARTY])
+def standalone(view_token, user=None):
+    from .calculators import require_tournament_player
+    session = get_object_or_404(battle_session_queryset(), view_token=view_token,
+                             session_type__in=[BattleSession.SESSION_STANDALONE, BattleSession.SESSION_PARTY, BattleSession.SESSION_TOURNAMENT])
+    require_tournament_player(session, user)
+    return session
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def calculator_state(request, view_token):
-    return Response(mobile_state(standalone(view_token), token(request), language(request)))
+    return Response(mobile_state(standalone(view_token, request.user), token(request), language(request), request.user))
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def calculator_events(request, view_token):
-    return Response({'events': mobile_state(standalone(view_token), token(request), language(request)).get('events', [])})
+    return Response({'events': mobile_state(standalone(view_token, request.user), token(request), language(request), request.user).get('events', [])})
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def calculator_action(request, view_token):
-    standalone(view_token)
+    standalone(view_token, request.user)
     try:
         session = perform_mobile_action(view_token, request.data, token(request), request.user)
     except StaleCalculator:
-        return Response({'code': 'stale_state', 'state': mobile_state(standalone(view_token), token(request), language(request))}, status=409)
+        return Response({'code': 'stale_state', 'state': mobile_state(standalone(view_token, request.user), token(request), language(request), request.user)}, status=409)
     except PermissionDenied:
         return Response({'code': 'permission_denied'}, status=403)
     except (ValueError, TypeError) as exc:
         raise ValidationError(str(exc))
-    return Response({'ok': True, 'state': mobile_state(session, token(request), language(request))})
+    return Response({'ok': True, 'state': mobile_state(session, token(request), language(request), request.user)})

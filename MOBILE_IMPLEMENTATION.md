@@ -162,3 +162,38 @@ The pinned Expo SDK still inherits npm audit advisories in its build tooling
 (including braces/node-forge/xcode). The Markdown runtime is overridden to a
 patched current version. Recheck advisories and compatible SDK patches before
 store submission; do not apply npm's suggested downgrade of Expo/React Native.
+
+
+## Participant tournament API (mobile 1.0.7)
+
+All tournament endpoints require an active JWT account. The list is membership
+scoped, including unlisted tournaments, and match access is restricted to the
+signed-in player's own pairing (operator status alone is insufficient).
+
+- GET /api/mobile/v1/tournaments: account's tournament entries.
+- GET /api/mobile/v1/tournaments/<id>: own matches and submitted deck references.
+- POST /api/mobile/v1/tournaments/<id>/matches/<match>/calculator: reuse/create
+  the web BattleSession; returns view_token and participant-specific native state.
+- POST /api/mobile/v1/tournaments/<id>/matches/<match>/report: winner p1/p2/draw,
+  player1_score and player2_score as nonnegative integers. Uses shared web score
+  validation. Identical reported results return success; conflicting changes
+  return 409. Closed rounds and BYE submissions are rejected.
+
+Existing mobile calculator state/action/events endpoints also accept JWT-owned
+Tournament sessions. The WebSocket starts with authentication_required and
+receives access_token in authenticate, never in a URL. JWT validity and current
+membership are rechecked for state/actions/broadcasts; invalid/expired JWTs close
+4401, nonparticipants close 4403. No tournament control token/control URL is
+returned. The client refreshes near-expiry tokens, reauthenticates on reconnect,
+and uses authenticated HTTP reconciliation for uncertain action outcomes.
+
+report_set is a standalone action (never allowed inside batch), uses the existing
+bilateral confirmation service, and is idempotent by actor + action UUID. Round
+timeout disables resource actions but still permits a decided set confirmation.
+The server enforces own-side/submitted-deck character choices, match status and
+round status. Manual reports serialize with calculator confirmation; round
+completion takes a round lock so simultaneous table finishes see prior commits.
+
+Deploy backend/ASGI first and then app version 1.0.7 / Android code 8. This change
+reuses existing tournament/BattleSession/CalculatorReceipt tables and introduces
+no migration. It does not create/join/administer tournaments from the native app.

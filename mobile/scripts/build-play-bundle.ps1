@@ -90,8 +90,37 @@ try {
         throw 'App Bundle signature verification failed.'
     }
     $version = (Get-Content -LiteralPath (Join-Path $mobileRoot 'package.json') -Raw | ConvertFrom-Json).version
+    $mapping = Join-Path $mobileRoot 'android\app\build\outputs\mapping\release\mapping.txt'
+    if (-not (Test-Path -LiteralPath $mapping -PathType Leaf) -or
+        (Get-Item -LiteralPath $mapping).Length -eq 0) {
+        throw 'Release R8 mapping.txt is missing. Do not publish without crash deobfuscation.'
+    }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($bundle)
+    try {
+        $entry = $archive.GetEntry('BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map')
+        if (-not $entry -or $entry.Length -ne (Get-Item -LiteralPath $mapping).Length) {
+            throw 'The AAB does not contain the matching R8 deobfuscation metadata.'
+        }
+        $mappingStream = $entry.Open()
+        $mappingHasher = [Security.Cryptography.SHA256]::Create()
+        try {
+            $embeddedHash = [BitConverter]::ToString($mappingHasher.ComputeHash($mappingStream)).Replace('-', '')
+            if ($embeddedHash -ne (Get-FileHash -LiteralPath $mapping -Algorithm SHA256).Hash) {
+                throw 'Embedded and exported R8 mappings differ.'
+            }
+        } finally {
+            $mappingStream.Dispose()
+            $mappingHasher.Dispose()
+        }
+    } finally { $archive.Dispose() }
     $destination = Join-Path $outputRoot "LumenDB-$version.aab"
     Copy-Item -LiteralPath $bundle -Destination $destination -Force
+    Copy-Item -LiteralPath $mapping -Destination (Join-Path $outputRoot "LumenDB-$version-mapping.txt") -Force
+    $jsMap = Join-Path $mobileRoot 'android\app\build\generated\sourcemaps\react\release\index.android.bundle.map'
+    if (Test-Path -LiteralPath $jsMap -PathType Leaf) {
+        Copy-Item -LiteralPath $jsMap -Destination (Join-Path $outputRoot "LumenDB-$version-js.map") -Force
+    }
     Copy-Item -LiteralPath (Join-Path $mobileRoot 'android\app\build\outputs\apk\release\app-release.apk') `
         -Destination (Join-Path $outputRoot 'LumenDB-preview.apk') -Force
     Get-Content -LiteralPath $logPath -Tail 3

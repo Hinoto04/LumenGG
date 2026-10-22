@@ -48,6 +48,22 @@ async function refreshAccess(): Promise<string> {
   });
   return refreshFlight;
 }
+export async function accessToken(expectedUserId: number): Promise<string> {
+  let stored = await tokens();
+  const read = (value: string) =>
+    JSON.parse(
+      atob(value.split(".")[1]!.replace(/-/g, "+").replace(/_/g, "/")),
+    );
+  if (!stored || Number(read(stored.access).user_id) !== expectedUserId)
+    throw new ApiError(401, "Account changed.");
+  if (Number(read(stored.access).exp) * 1000 < Date.now() + 15000) {
+    await refreshAccess();
+    stored = await tokens();
+  }
+  if (!stored || Number(read(stored.access).user_id) !== expectedUserId)
+    throw new ApiError(401, "Account changed.");
+  return stored.access;
+}
 export async function request(
   path: string,
   init: RequestInit = {},

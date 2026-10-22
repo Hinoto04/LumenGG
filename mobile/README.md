@@ -92,7 +92,7 @@ submission are account-specific and are not embedded in the repository.
 
 ### Local Play Store bundle
 
-The application ID is `kr.hinoto.lumen`, version `1.0.6`, versionCode 7.
+The application ID is `kr.hinoto.lumen`, version `1.0.8`, versionCode 9.
 The upload keystore is `C:\Hinoto\lumen-upload.keystore`; the configured alias is
 `HInoto_key`. Its RSA-3072 certificate expires on December 31, 9999. The passwords
 are stored outside the repository in Windows-encrypted SecureStrings at
@@ -106,7 +106,7 @@ From the repository root:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1
 # For a later upload, use a greater versionCode:
-powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1 -VersionCode 6
+powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1 -VersionCode 10
 ```
 
 The default versionCode comes from app.config.ts. The script regenerates Android
@@ -192,3 +192,46 @@ remain a draft until Apply; Cancel/Android Back discard them, and Reset restores
 My decks / all characters. The list shows a summary of applied filters. Public
 preview counts come from the existing read-only API; offline/unavailable counts
 are omitted without blocking Apply.
+
+
+## Participant tournaments (1.0.7)
+
+Home has a My tournaments entry beside Lumen Party. Signed-in users can view
+only tournaments they entered, their assigned matches (including byes/history),
+submitted decks, round end time and recorded scores. Read snapshots are cached
+per account; calculator actions and result submissions require connectivity.
+
+Open a match with the existing Classic/Character/Clean UI chooser. The mobile
+calculator shares the exact web BattleSession, round timer, sudden-death rules
+and BattleSet confirmations. Each participant selects only their own permitted
+submitted-deck character. Both participants confirm a decided set winner before
+the next set/match completion. The match/sets modal shows score, confirmation
+status, character choices and Return to tournament. There is also an explicit
+manual match report form using the same score/winner validation as the web.
+A submitted match cannot be edited by a participant; identical retries are safe.
+
+Tournament calculators use JWT authentication in the first WebSocket message,
+with account refresh/reconnect and authenticated HTTP retry. They never export
+control tokens or control URLs. Guest share links and Party calculators retain
+their existing token protocol. Account changes dispose the tournament connection
+and hide the previous account's data. Deploy the new tournament API and updated
+ASGI consumer before distributing this app. No additional tournament migration
+is introduced by 1.0.7; earlier Party migrations are still required for Party.
+
+## Android release optimization (1.0.8 / code 9)
+
+`with-release-optimization` enables R8 code optimization/obfuscation and resource
+shrinking on every Expo prebuild, using `proguard-android-optimize.txt`. Debug
+builds retain normal development behavior. The Play build script refuses to
+publish an artifact without an R8 mapping embedded in its AAB metadata, and
+exports a versioned `LumenDB-<version>-mapping.txt` alongside it. Play reads the
+embedded mapping automatically. Never associate a later build's mapping with
+an older version code. Code 8 did not use R8 and has no R8 mapping to upload.
+
+Calculator artwork uses 66 WebP runtime assets (quality 90, or lossless when
+smaller) with original pixel dimensions and lossless alpha. The original art
+remains under `assets/calculator-character`; only the runtime variants are
+referenced by the app. To regenerate with Pillow installed, run
+`python mobile/scripts/optimize-calculator-assets.py` from the repository root.
+The script always reads original artwork, avoiding repeated lossy encoding.
+No offline catalog or app feature is removed to reduce the download size.

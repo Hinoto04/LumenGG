@@ -5,78 +5,78 @@ export const calculatorArt: Record<
 > = {
   setsumei: {
     background: require("../assets/calculator-character/setsumei/background.webp"),
-    emblem: require("../assets/calculator-character/setsumei/emblem.png"),
+    emblem: require("../assets/calculator-release/setsumei/emblem.webp"),
   },
   nia: {
     background: require("../assets/calculator-character/nia/background.webp"),
-    emblem: require("../assets/calculator-character/nia/emblem.png"),
+    emblem: require("../assets/calculator-release/nia/emblem.webp"),
   },
   root: {
     background: require("../assets/calculator-character/root/background.webp"),
-    emblem: require("../assets/calculator-character/root/emblem.png"),
+    emblem: require("../assets/calculator-release/root/emblem.webp"),
   },
   delphy: {
     background: require("../assets/calculator-character/delphy/background.webp"),
-    emblem: require("../assets/calculator-character/delphy/emblem.png"),
+    emblem: require("../assets/calculator-release/delphy/emblem.webp"),
   },
   keith: {
     background: require("../assets/calculator-character/keith/background.webp"),
-    emblem: require("../assets/calculator-character/keith/emblem.png"),
+    emblem: require("../assets/calculator-release/keith/emblem.webp"),
   },
   wolf: {
     background: require("../assets/calculator-character/wolf/background.webp"),
-    emblem: require("../assets/calculator-character/wolf/emblem.png"),
+    emblem: require("../assets/calculator-release/wolf/emblem.webp"),
   },
   viola: {
     background: require("../assets/calculator-character/viola/background.webp"),
-    emblem: require("../assets/calculator-character/viola/emblem.png"),
+    emblem: require("../assets/calculator-release/viola/emblem.webp"),
   },
   tao: {
     background: require("../assets/calculator-character/tao/background.webp"),
-    emblem: require("../assets/calculator-character/tao/emblem.png"),
+    emblem: require("../assets/calculator-release/tao/emblem.webp"),
   },
   rita: {
     background: require("../assets/calculator-character/rita/background.webp"),
-    emblem: require("../assets/calculator-character/rita/emblem.png"),
+    emblem: require("../assets/calculator-release/rita/emblem.webp"),
   },
   rev: {
     background: require("../assets/calculator-character/rev/background.webp"),
-    emblem: require("../assets/calculator-character/rev/emblem.png"),
+    emblem: require("../assets/calculator-release/rev/emblem.webp"),
   },
   rin: {
     background: require("../assets/calculator-character/rin/background.webp"),
-    emblem: require("../assets/calculator-character/rin/emblem.png"),
+    emblem: require("../assets/calculator-release/rin/emblem.webp"),
   },
   yohan: {
     background: require("../assets/calculator-character/yohan/background.webp"),
-    emblem: require("../assets/calculator-character/yohan/emblem.png"),
+    emblem: require("../assets/calculator-release/yohan/emblem.webp"),
   },
   jezebel: {
     background: require("../assets/calculator-character/jezebel/background.webp"),
-    emblem: require("../assets/calculator-character/jezebel/emblem.png"),
+    emblem: require("../assets/calculator-release/jezebel/emblem.webp"),
   },
   iomong: {
     background: require("../assets/calculator-character/iomong/background.webp"),
-    emblem: require("../assets/calculator-character/iomong/emblem.png"),
+    emblem: require("../assets/calculator-release/iomong/emblem.webp"),
   },
   chimera: {
     background: require("../assets/calculator-character/chimera/background.webp"),
-    emblem: require("../assets/calculator-character/chimera/emblem.png"),
+    emblem: require("../assets/calculator-release/chimera/emblem.webp"),
   },
   muyeong: {
     background: require("../assets/calculator-character/muyeong/background.webp"),
-    emblem: require("../assets/calculator-character/muyeong/emblem.png"),
+    emblem: require("../assets/calculator-release/muyeong/emblem.webp"),
   },
   finf: {
     background: require("../assets/calculator-character/finf/background.webp"),
-    emblem: require("../assets/calculator-character/finf/emblem.png"),
+    emblem: require("../assets/calculator-release/finf/emblem.webp"),
   },
   cmyk: {
     background: require("../assets/calculator-character/cmyk/background.webp"),
-    emblem: require("../assets/calculator-character/cmyk/emblem.png"),
+    emblem: require("../assets/calculator-release/cmyk/emblem.webp"),
   },
   minyeong: {
     background: require("../assets/calculator-character/minyeong/background.webp"),
-    emblem: require("../assets/calculator-character/minyeong/emblem.png"),
+    emblem: require("../assets/calculator-release/minyeong/emblem.webp"),
   },
 };

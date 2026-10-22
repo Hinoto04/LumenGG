@@ -4,7 +4,7 @@ const config: ExpoConfig = {
   name: "LumenDB",
   icon: "./assets/icon.png",
   slug: "lumendb",
-  version: "1.0.6",
+  version: "1.0.8",
   scheme: "lumendb",
   orientation: "default",
   userInterfaceStyle: "dark",
@@ -15,7 +15,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: "kr.hinoto.lumen",
-    versionCode: 7,
+    versionCode: 9,
     // Android 13–15 must deliver Back to React Native's navigation handlers.
     // React Native registers the Android 16 dispatcher callback itself.
     predictiveBackGestureEnabled: false,
@@ -34,6 +34,7 @@ const config: ExpoConfig = {
     "expo-status-bar",
     "./plugins/with-screen-orientations",
     "./plugins/with-upload-signing",
+    "./plugins/with-release-optimization",
   ],
   experiments: { typedRoutes: true },
 };

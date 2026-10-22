@@ -10,7 +10,10 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import type { Action, CalcState, Player } from "./types";
@@ -48,6 +51,8 @@ export function CalculatorBoard({
   onShield,
   onPartyReturn,
   onPartyComplete,
+  onTournamentReturn,
+  tournamentControls,
   renderPlayer,
   appearance,
 }: {
@@ -74,6 +79,8 @@ export function CalculatorBoard({
   onShield: (target: HpTarget, amount: number) => void;
   onPartyReturn?: () => void;
   onPartyComplete?: () => void;
+  onTournamentReturn?: () => void;
+  tournamentControls?: React.ReactNode;
 }) {
   const { catalog, language, t } = useApp();
   const { width, height } = useWindowDimensions();
@@ -83,13 +90,34 @@ export function CalculatorBoard({
   const [damage, setDamage] = useState("100");
   const characterFrame = appearance === "character";
   const compact = height < 390;
-  const centerWidth = characterFrame ? (width < 900 ? 148 : 164) : width < 730 ? 120 : 144;
+  const centerWidth = characterFrame
+    ? width < 900
+      ? 148
+      : 164
+    : width < 730
+      ? 120
+      : 144;
   const centerGap = characterFrame ? 6 : 8;
-  const timerHeight = Math.max(84, Math.min(280,
-    height - insets.top - insets.bottom - 16 - (characterFrame ? 12 : 0)
-      - 44 - 44 - (state?.party ? 96 : 44) - (state?.sudden_death ? 44 : 0)
-      - centerGap * (state?.sudden_death ? 4 : 3) - (error && !setupOpen ? 44 : 0)));
-  const timerFontSize = Math.floor(Math.min(96, timerHeight * 0.56, (centerWidth - 24) * 0.75));
+  const timerHeight = Math.max(
+    84,
+    Math.min(
+      280,
+      height -
+        insets.top -
+        insets.bottom -
+        16 -
+        (characterFrame ? 12 : 0) -
+        44 -
+        44 -
+        (state?.party || state?.type === "tournament" ? 96 : 44) -
+        (state?.sudden_death ? 44 : 0) -
+        centerGap * (state?.sudden_death ? 4 : 3) -
+        (error && !setupOpen ? 44 : 0),
+    ),
+  );
+  const timerFontSize = Math.floor(
+    Math.min(96, timerHeight * 0.56, (centerWidth - 24) * 0.75),
+  );
   function confirmReset(sudden: boolean) {
     if (!state) return;
     Alert.alert(
@@ -230,7 +258,14 @@ export function CalculatorBoard({
                 ]}
               >
                 {player.hp}
-                {!!shieldAmount(player) && <Text style={{ color: "#a9e4ff", fontSize: compact ? 18 : 24 }}> +{shieldAmount(player)}</Text>}
+                {!!shieldAmount(player) && (
+                  <Text
+                    style={{ color: "#a9e4ff", fontSize: compact ? 18 : 24 }}
+                  >
+                    {" "}
+                    +{shieldAmount(player)}
+                  </Text>
+                )}
               </Text>
               {!!pendingHp[target] && (
                 <Text
@@ -306,32 +341,39 @@ export function CalculatorBoard({
             />
           </View>
         </View>
-        <ShieldPassiveRow player={player} target={target} disabled={disabled} pending={pendingShield[target]} onShield={amount => onShield(target, amount)} onAction={onAction}>
-        {player.character?.passive?.adapter === "tao" ? (
-          <View style={[board.passives, { paddingTop: 6 }]}>
-            <PassivePanel
-              player={player}
-              target={target}
-              definition={player.character.passive}
-              disabled={disabled}
-              onAction={onAction}
-            />
-          </View>
-        ) : (
-          <ScrollView
-            style={board.passives}
-            contentContainerStyle={{ paddingTop: 9, paddingBottom: 8 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            <PassivePanel
-              player={player}
-              target={target}
-              definition={player.character?.passive || {}}
-              disabled={disabled}
-              onAction={onAction}
-            />
-          </ScrollView>
-        )}
+        <ShieldPassiveRow
+          player={player}
+          target={target}
+          disabled={disabled}
+          pending={pendingShield[target]}
+          onShield={(amount) => onShield(target, amount)}
+          onAction={onAction}
+        >
+          {player.character?.passive?.adapter === "tao" ? (
+            <View style={[board.passives, { paddingTop: 6 }]}>
+              <PassivePanel
+                player={player}
+                target={target}
+                definition={player.character.passive}
+                disabled={disabled}
+                onAction={onAction}
+              />
+            </View>
+          ) : (
+            <ScrollView
+              style={board.passives}
+              contentContainerStyle={{ paddingTop: 9, paddingBottom: 8 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              <PassivePanel
+                player={player}
+                target={target}
+                definition={player.character?.passive || {}}
+                disabled={disabled}
+                onAction={onAction}
+              />
+            </ScrollView>
+          )}
         </ShieldPassiveRow>
       </View>
     );
@@ -341,190 +383,247 @@ export function CalculatorBoard({
     : state?.timer.duration_seconds || 10;
   return (
     <CharacterFrame.Provider value={characterFrame}>
-    <SafeAreaView style={[board.screen, characterFrame && {backgroundColor:"#070b13"}]}>
-      <StatusBar hidden />
-      {!!error && !setupOpen && <Notice text={error} />}
-      <View style={board.layout}>
-        {state ? (
-          renderPlayer ? renderPlayer("p1", () => setDamageTarget("p1")) : playerPanel("p1")
-        ) : (
-          <View style={board.placeholder}>
-            <Text style={styles.text}>{t("플레이어1")}</Text>
-          </View>
-        )}
-        <View style={[board.center, { width: centerWidth }, characterFrame && {padding:6, backgroundColor:"#101a2b", borderRadius:12, gap:6}]}>
-          <View style={board.centerTop}>
-            <SmallButton
-              label={state?.party ? t("파티로 돌아가기") : t("메뉴")}
-              icon="‹"
-              onPress={
-                state?.party && onPartyReturn
-                  ? onPartyReturn
-                  : () => router.dismissTo("/")
-              }
-            />
-            <Text
-              numberOfLines={1}
-              style={[
-                board.mode,
-                characterFrame && {position:"absolute",left:44,right:44,fontSize:8},
-                mode === "shared" && {
-                  color: connected ? "#72cbbf" : colors.danger,
-                },
-              ]}
-            >
-              {state?.party
-                ? `${state.party.exchanges}/2`
-                : t(mode === "shared" ? "공유" : "로컬")}
-            </Text>
-            {!state?.party && (
-              <SmallButton
-                label={t("계산기 설정")}
-                icon="⚙"
-                onPress={onSetup}
-              />
-            )}
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("타이머")}
-            accessibilityState={{ disabled }}
-            disabled={disabled}
-            onPress={() => onAction({ action: "timer" })}
+      <SafeAreaView
+        style={[board.screen, characterFrame && { backgroundColor: "#070b13" }]}
+      >
+        <StatusBar hidden />
+        {!!error && !setupOpen && <Notice text={error} />}
+        <View style={board.layout}>
+          {state ? (
+            renderPlayer ? (
+              renderPlayer("p1", () => setDamageTarget("p1"))
+            ) : (
+              playerPanel("p1")
+            )
+          ) : (
+            <View style={board.placeholder}>
+              <Text style={styles.text}>{t("플레이어1")}</Text>
+            </View>
+          )}
+          <View
             style={[
-              board.timer,
-              characterFrame && {backgroundColor:"#17243b",borderColor:"#526585"},
-              state?.timer.is_running && { borderColor: colors.accent },
-              { height: timerHeight, minHeight: timerHeight },
+              board.center,
+              { width: centerWidth },
+              characterFrame && {
+                padding: 6,
+                backgroundColor: "#101a2b",
+                borderRadius: 12,
+                gap: 6,
+              },
             ]}
           >
-            <Text style={[board.timerLabel, {fontSize:centerWidth >= 140 ? 13 : 12}]}>{t("10초 타이머")}</Text>
-            <Text adjustsFontSizeToFit numberOfLines={1} style={[board.timerValue, { fontSize: timerFontSize }]}>
-              {seconds}
-            </Text>
-          </Pressable>
-          <View style={[board.centerActions, characterFrame && {gap:2,justifyContent:"center"}]}>
-            <SmallButton
-              label={t("되돌리기")}
-              icon="↶"
-              disabled={disabled}
-              onPress={() => onAction({ action: "undo" })}
-            />
-            <SmallButton
-              label={t("기록")}
-              icon="≡"
-              onPress={() => setHistoryOpen(true)}
-            />
-            {!state?.party && (
-              <SmallButton label={t("공유")} icon="↗" onPress={onShare} />
-            )}
-          </View>
-          {state?.party ? (
-            <View style={{ gap: 8 }}>
-              <Button
+            <View style={board.centerTop}>
+              <SmallButton
                 label={
-                  state.party.completed
-                    ? "전투 종료"
-                    : `${state.party.exchanges + 1}번째 공방 완료`
+                  state?.party
+                    ? t("파티로 돌아가기")
+                    : state?.type === "tournament"
+                      ? t("대회로 돌아가기")
+                      : t("메뉴")
                 }
-                disabled={disabled || state.party.completed}
-                onPress={() => onPartyComplete?.()}
+                icon="‹"
+                onPress={
+                  state?.type === "tournament" && onTournamentReturn
+                    ? onTournamentReturn
+                    : state?.party && onPartyReturn
+                      ? onPartyReturn
+                      : () => router.dismissTo("/")
+                }
               />
-              <Button
-                label="파티로 돌아가기"
-                onPress={() => onPartyReturn?.()}
-              />
+              <Text
+                numberOfLines={1}
+                style={[
+                  board.mode,
+                  characterFrame && {
+                    position: "absolute",
+                    left: 44,
+                    right: 44,
+                    fontSize: 8,
+                  },
+                  mode === "shared" && {
+                    color: connected ? "#72cbbf" : colors.danger,
+                  },
+                ]}
+              >
+                {state?.party
+                  ? `${state.party.exchanges}/2`
+                  : state?.type === "tournament"
+                    ? state.tournament?.table
+                    : t(mode === "shared" ? "공유" : "로컬")}
+              </Text>
+              {!state?.party && state?.type !== "tournament" && (
+                <SmallButton
+                  label={t("계산기 설정")}
+                  icon="⚙"
+                  onPress={onSetup}
+                />
+              )}
             </View>
-          ) : (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={t("서든 데스")}
+              accessibilityLabel={t("타이머")}
+              accessibilityState={{ disabled }}
               disabled={disabled}
-              onPress={() => confirmReset(true)}
+              onPress={() => onAction({ action: "timer" })}
               style={[
-                board.sudden,
-                characterFrame && {minHeight:44},
-                state?.sudden_death && { backgroundColor: "#592631" },
-                disabled && { opacity: 0.4 },
+                board.timer,
+                characterFrame && {
+                  backgroundColor: "#17243b",
+                  borderColor: "#526585",
+                },
+                state?.timer.is_running && { borderColor: colors.accent },
+                { height: timerHeight, minHeight: timerHeight },
               ]}
             >
-              <Text style={board.suddenText}>{t("서든 데스")}</Text>
+              <Text
+                style={[
+                  board.timerLabel,
+                  { fontSize: centerWidth >= 140 ? 13 : 12 },
+                ]}
+              >
+                {t("10초 타이머")}
+              </Text>
+              <Text
+                adjustsFontSizeToFit
+                numberOfLines={1}
+                style={[board.timerValue, { fontSize: timerFontSize }]}
+              >
+                {seconds}
+              </Text>
             </Pressable>
+            <View
+              style={[
+                board.centerActions,
+                characterFrame && { gap: 2, justifyContent: "center" },
+              ]}
+            >
+              <SmallButton
+                label={t("되돌리기")}
+                icon="↶"
+                disabled={disabled}
+                onPress={() => onAction({ action: "undo" })}
+              />
+              <SmallButton
+                label={t("기록")}
+                icon="≡"
+                onPress={() => setHistoryOpen(true)}
+              />
+              {!state?.party && state?.type !== "tournament" && (
+                <SmallButton label={t("공유")} icon="↗" onPress={onShare} />
+              )}
+            </View>
+            {state?.type === "tournament" ? (
+              tournamentControls
+            ) : state?.party ? (
+              <View style={{ gap: 8 }}>
+                <Button
+                  label={
+                    state.party.completed
+                      ? "전투 종료"
+                      : `${state.party.exchanges + 1}번째 공방 완료`
+                  }
+                  disabled={disabled || state.party.completed}
+                  onPress={() => onPartyComplete?.()}
+                />
+                <Button
+                  label="파티로 돌아가기"
+                  onPress={() => onPartyReturn?.()}
+                />
+              </View>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("서든 데스")}
+                disabled={disabled}
+                onPress={() => confirmReset(true)}
+                style={[
+                  board.sudden,
+                  characterFrame && { minHeight: 44 },
+                  state?.sudden_death && { backgroundColor: "#592631" },
+                  disabled && { opacity: 0.4 },
+                ]}
+              >
+                <Text style={board.suddenText}>{t("서든 데스")}</Text>
+              </Pressable>
+            )}
+            {!!state?.sudden_death && (
+              <Button
+                label={`${t("남은 턴")} ${state.sudden_death_turns_remaining}`}
+                disabled={disabled || !state.sudden_death_turns_remaining}
+                onPress={() => onAction({ action: "sudden_turn" })}
+              />
+            )}
+            {!ready && <Notice text="DB를 불러오는 중입니다." />}
+          </View>
+          {state ? (
+            renderPlayer ? (
+              renderPlayer("p2", () => setDamageTarget("p2"))
+            ) : (
+              playerPanel("p2")
+            )
+          ) : (
+            <View style={board.placeholder}>
+              <Text style={styles.text}>{t("플레이어2")}</Text>
+            </View>
           )}
-          {!!state?.sudden_death && (
-            <Button
-              label={`${t("남은 턴")} ${state.sudden_death_turns_remaining}`}
-              disabled={disabled || !state.sudden_death_turns_remaining}
-              onPress={() => onAction({ action: "sudden_turn" })}
-            />
-          )}
-          {!ready && <Notice text="DB를 불러오는 중입니다." />}
         </View>
-        {state ? (
-          renderPlayer ? renderPlayer("p2", () => setDamageTarget("p2")) : playerPanel("p2")
-        ) : (
-          <View style={board.placeholder}>
-            <Text style={styles.text}>{t("플레이어2")}</Text>
-          </View>
-        )}
-      </View>
-      <LandscapeModal
-        visible={setupOpen}
-        title={t("계산기 설정")}
-        onClose={onCloseSetup}
-      >
-        <Notice text={error} />
-        {setup}
-        {!!state && (
-          <View style={{ marginTop: 14 }}>
-            <Button
-              label="전체 초기화"
-              disabled={disabled}
-              danger
-              onPress={() => confirmReset(false)}
-            />
-          </View>
-        )}
-      </LandscapeModal>
-      <LandscapeModal
-        visible={historyOpen}
-        title={t("기록")}
-        onClose={() => setHistoryOpen(false)}
-      >
-        <CalculatorHistory state={state} />
-      </LandscapeModal>
-      <LandscapeModal
-        visible={!!damageTarget}
-        title={t("대미지 적용")}
-        onClose={() => setDamageTarget(null)}
-      >
-        <Text style={[styles.text, { marginBottom: 12 }]}>
-          {damageTarget && state?.players[damageTarget].name}
-        </Text>
-        <Input
-          accessibilityLabel={t("대미지")}
-          value={damage}
-          onChangeText={setDamage}
-          keyboardType="numeric"
-          placeholder={t("대미지")}
-        />
-        <Button
-          label="대미지 적용"
-          disabled={
-            disabled ||
-            !Number.isInteger(Number(damage)) ||
-            !Number(damage) ||
-            Math.abs(Number(damage)) > 50000
-          }
-          onPress={() => {
-            if (!damageTarget) return;
-            Keyboard.dismiss();
-            onHp(damageTarget, -Math.abs(Number(damage)));
-            setDamageTarget(null);
-          }}
-        />
-      </LandscapeModal>
-    </SafeAreaView>
+        <LandscapeModal
+          visible={setupOpen}
+          title={t("계산기 설정")}
+          onClose={onCloseSetup}
+        >
+          <Notice text={error} />
+          {setup}
+          {!!state && (
+            <View style={{ marginTop: 14 }}>
+              <Button
+                label="전체 초기화"
+                disabled={disabled}
+                danger
+                onPress={() => confirmReset(false)}
+              />
+            </View>
+          )}
+        </LandscapeModal>
+        <LandscapeModal
+          visible={historyOpen}
+          title={t("기록")}
+          onClose={() => setHistoryOpen(false)}
+        >
+          <CalculatorHistory state={state} />
+        </LandscapeModal>
+        <LandscapeModal
+          visible={!!damageTarget}
+          title={t("대미지 적용")}
+          onClose={() => setDamageTarget(null)}
+        >
+          <Text style={[styles.text, { marginBottom: 12 }]}>
+            {damageTarget && state?.players[damageTarget].name}
+          </Text>
+          <Input
+            accessibilityLabel={t("대미지")}
+            value={damage}
+            onChangeText={setDamage}
+            keyboardType="numeric"
+            placeholder={t("대미지")}
+          />
+          <Button
+            label="대미지 적용"
+            disabled={
+              disabled ||
+              !Number.isInteger(Number(damage)) ||
+              !Number(damage) ||
+              Math.abs(Number(damage)) > 50000
+            }
+            onPress={() => {
+              if (!damageTarget) return;
+              Keyboard.dismiss();
+              onHp(damageTarget, -Math.abs(Number(damage)));
+              setDamageTarget(null);
+            }}
+          />
+        </LandscapeModal>
+      </SafeAreaView>
     </CharacterFrame.Provider>
   );
 }
@@ -551,7 +650,16 @@ function SmallButton({
       disabled={disabled}
       onPress={onPress}
       hitSlop={characterFrame ? 0 : 4}
-      style={[board.smallButton, characterFrame && {width:44,height:44,backgroundColor:"#17243b",borderColor:"#3c4b63"}, disabled && { opacity: 0.4 }]}
+      style={[
+        board.smallButton,
+        characterFrame && {
+          width: 44,
+          height: 44,
+          backgroundColor: "#17243b",
+          borderColor: "#3c4b63",
+        },
+        disabled && { opacity: 0.4 },
+      ]}
     >
       <Text adjustsFontSizeToFit numberOfLines={1} style={board.smallIcon}>
         {icon}
@@ -559,7 +667,7 @@ function SmallButton({
     </Pressable>
   );
 }
-function LandscapeModal({
+export function LandscapeModal({
   visible,
   title,
   onClose,

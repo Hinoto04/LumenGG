@@ -29,6 +29,7 @@ function Navigation() {
             "/qna",
             "/calculator",
             "/party",
+            "/tournaments",
           ].includes(pathname)
         )
           router.dismissTo("/");
@@ -65,6 +66,8 @@ function Navigation() {
       <Stack.Screen name="collection" options={{ title: t("컬렉션") }} />
       <Stack.Screen name="qna" options={{ title: "QNA" }} />
       <Stack.Screen name="party" options={{ title: t("루멘 파티") }} />
+      <Stack.Screen name="tournaments" options={{ title: t("내 대회") }} />
+      <Stack.Screen name="tournament/[id]" options={{ title: t("내 경기") }} />
       <Stack.Screen
         name="calculator"
         options={{

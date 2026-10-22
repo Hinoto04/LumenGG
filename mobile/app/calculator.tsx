@@ -23,15 +23,30 @@ import {
   parseShareLink,
 } from "../src/shared";
 import { CalculatorBoard } from "../src/calculator-board";
-import { calculatorUi, calculatorLink, linkedCalculatorUi } from "../src/calculator-ui";
-const CharacterCalculatorBoard = React.lazy(() => import("../src/calculator-character-board"));
+import {
+  calculatorUi,
+  calculatorLink,
+  linkedCalculatorUi,
+} from "../src/calculator-ui";
+const CharacterCalculatorBoard = React.lazy(
+  () => import("../src/calculator-character-board"),
+);
 import { HpQueue, type PendingHp } from "../src/hp-queue";
-import { PassiveInputQueue, isPassiveInput, projectPassiveInputs } from "../src/calculator-passive-queue";
+import {
+  PassiveInputQueue,
+  isPassiveInput,
+  projectPassiveInputs,
+} from "../src/calculator-passive-queue";
 import { styles, Button, Input, Choices, Notice, colors } from "../src/ui";
+import { TournamentCalculatorControls } from "../src/tournament-calculator-controls";
 
 export default function Calculator() {
-  const params = useLocalSearchParams<{ party?: string; ui?: string }>();
-  const { catalog, language, t, online } = useApp();
+  const params = useLocalSearchParams<{
+    party?: string;
+    tournament?: string;
+    ui?: string;
+  }>();
+  const { catalog, language, t, online, user, scope } = useApp();
   const ui = calculatorUi(params.ui);
   const Board = ui === "character" ? CharacterCalculatorBoard : CalculatorBoard;
   const [local, setLocal] = useState<CalcState | null>(null),
@@ -49,7 +64,10 @@ export default function Calculator() {
     [ready, setReady] = useState(false);
   const [pendingHp, setPendingHp] = useState<PendingHp>({ p1: 0, p2: 0 });
   const [pendingFp, setPendingFp] = useState<PendingHp>({ p1: 0, p2: 0 });
-  const [pendingShield, setPendingShield] = useState<PendingHp>({ p1: 0, p2: 0 });
+  const [pendingShield, setPendingShield] = useState<PendingHp>({
+    p1: 0,
+    p2: 0,
+  });
   const hpQueue = useRef<HpQueue | null>(null);
   const passiveQueue = useRef<PassiveInputQueue | null>(null);
   const [pendingPassives, setPendingPassives] = useState<Action[]>([]);
@@ -82,8 +100,17 @@ export default function Calculator() {
         if (!live) return;
         localRef.current = saved;
         setLocal(saved);
-        setSession(sharedSession);
-        if (params.party && sharedSession) setMode("shared");
+        const usable =
+          !sharedSession?.tournament ||
+          sharedSession.tournament.user_id === user?.id;
+        setSession(usable ? sharedSession : null);
+        if (
+          ((params.party && !sharedSession?.tournament) ||
+            (params.tournament && sharedSession?.tournament)) &&
+          sharedSession &&
+          usable
+        )
+          setMode("shared");
         setReady(true);
       })
       .catch((err) => {
@@ -112,20 +139,43 @@ export default function Calculator() {
       client.current = null;
       setConnected(false);
     };
-  }, [session, language]);
-  const baseState = mode === "shared" ? shared : local;
+  }, [session, language, scope]);
+  useEffect(() => {
+    if (session?.tournament && session.tournament.user_id !== user?.id) {
+      client.current?.dispose();
+      client.current = null;
+      setShared(null);
+      setSession(null);
+      router.replace("/tournaments");
+    }
+  }, [scope, session]);
+  const baseState =
+    session?.tournament && session.tournament.user_id !== user?.id
+      ? null
+      : mode === "shared"
+        ? shared
+        : local;
   const state = projectPassiveInputs(baseState, pendingPassives);
   useEffect(() => {
-    if (!state?.party) return;
+    if (!state?.party && state?.type !== "tournament" && !params.tournament)
+      return;
     const subscription = BackHandler.addEventListener(
       "hardwareBackPress",
       () => {
-        void flushInputs().then(() => router.dismissTo("/party"));
+        void flushInputs().then(() => returnToTournamentOrParty());
         return true;
       },
     );
     return () => subscription.remove();
-  }, [state?.party?.code]);
+  }, [state?.party?.code, state?.tournament?.id]);
+  function returnToTournamentOrParty() {
+    if (session?.tournament)
+      router.dismissTo({
+        pathname: "/tournament/[id]",
+        params: { id: String(session.tournament.tournament_id) },
+      });
+    else router.dismissTo(params.tournament ? "/tournaments" : "/party");
+  }
   async function commitAction(value: Action) {
     if (mode === "shared" && sharedBusy.current) return;
     const sharedAction = mode === "shared";
@@ -175,7 +225,8 @@ export default function Calculator() {
       passiveQueue.current?.add(value);
       return;
     }
-    if (["reset_session", "sudden_death"].includes(value.action)) passiveQueue.current?.clear();
+    if (["reset_session", "sudden_death"].includes(value.action))
+      passiveQueue.current?.clear();
     await passiveQueue.current?.flush();
     await commitAction(value);
   }
@@ -184,7 +235,12 @@ export default function Calculator() {
   const actionRef = useRef(action);
   actionRef.current = action;
   useEffect(() => {
-    const passives = new PassiveInputQueue(value => commitRef.current(value), setPendingPassives, undefined, err => setError(userMessage(err)));
+    const passives = new PassiveInputQueue(
+      (value) => commitRef.current(value),
+      setPendingPassives,
+      undefined,
+      (err) => setError(userMessage(err)),
+    );
     passiveQueue.current = passives;
     const queue = new HpQueue(
       (value) => actionRef.current(value),
@@ -199,35 +255,57 @@ export default function Calculator() {
     hpQueue.current = queue;
     const subscription = AppState.addEventListener("change", (phase) => {
       if (phase !== "active") {
-        if (modeRef.current === "local") void passives.flush().then(() => queue.flush());
-        else { passives.clear(); queue.clear(); }
+        if (modeRef.current === "local")
+          void passives.flush().then(() => queue.flush());
+        else {
+          passives.clear();
+          queue.clear();
+        }
       }
     });
     return () => {
       subscription.remove();
       if (modeRef.current === "local")
-        void passives.flush().then(() => queue.flush()).finally(() => { passives.dispose(); queue.dispose(); });
-      else { passives.dispose(); queue.dispose(); }
+        void passives
+          .flush()
+          .then(() => queue.flush())
+          .finally(() => {
+            passives.dispose();
+            queue.dispose();
+          });
+      else {
+        passives.dispose();
+        queue.dispose();
+      }
     };
   }, []);
   const available =
     !!state?.can_control &&
     !state.is_expired &&
-    (mode !== "shared" || (connected && online));
+    (mode !== "shared" || (connected && online)) &&
+    !(
+      state?.type === "tournament" &&
+      !state.sudden_death &&
+      state.round_timer?.ends_at &&
+      Date.parse(state.round_timer.ends_at) <= now
+    );
   const availableRef = useRef(available);
   availableRef.current = available;
   useEffect(() => {
     hpQueue.current?.setAvailable(available);
     passiveQueue.current?.setAvailable(available);
   }, [available]);
-  const hpScope = `${mode}:${session?.view_token || ""}:${state?.players.p1.character?.id || ""}:${state?.players.p2.character?.id || ""}`;
+  const hpScope = `${mode}:${session?.view_token || ""}:${state?.set?.current_number || ""}:${state?.players.p1.character?.id || ""}:${state?.players.p2.character?.id || ""}`;
   useEffect(() => {
     hpQueue.current?.clear();
     passiveQueue.current?.clear();
   }, [hpScope]);
   async function changeMode(next: string) {
     if (modeRef.current === "local") await flushInputs();
-    else { passiveQueue.current?.clear(); hpQueue.current?.clear(); }
+    else {
+      passiveQueue.current?.clear();
+      hpQueue.current?.clear();
+    }
     setMode(next);
   }
   function selected() {
@@ -284,7 +362,8 @@ export default function Calculator() {
     busy ||
     !state?.can_control ||
     (mode === "shared" && (!connected || !online)) ||
-    !!state?.is_expired;
+    !!state?.is_expired ||
+    !available;
   function openSettings() {
     setP1(
       String(
@@ -302,181 +381,240 @@ export default function Calculator() {
     key: String(c.id),
     label: localized(c, language),
   }));
+  if (params.tournament && (!user || !session?.tournament || !state)) {
+    return (
+      <View
+        style={[
+          styles.screen,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <Notice
+          text={
+            error ||
+            (!user
+              ? "참가한 대회를 확인하려면 로그인해주세요."
+              : ready && !session?.tournament
+                ? "내 대회에서 경기를 선택해주세요."
+                : "대회 계산기에 연결 중입니다.")
+          }
+        />
+        <Button label="대회로 돌아가기" onPress={returnToTournamentOrParty} />
+      </View>
+    );
+  }
   return (
-    <Suspense fallback={<View style={styles.screen}><Notice text={t("불러오는 중")} /></View>}>
-    <Board
-      state={state}
-      mode={mode}
-      disabled={disabled}
-      connected={connected && online}
-      now={now}
-      error={error}
-      ready={ready}
-      setupOpen={ready && (settings || !state)}
-      onSetup={openSettings}
-      onCloseSetup={() => {
-        if (!state && local) {
-          setMode("local");
-          setSettings(false);
-        } else if (!state) router.dismissTo("/");
-        else setSettings(false);
-      }}
-      onShare={() => {
-        openSettings();
-        void changeMode("shared");
-      }}
-      onAction={action}
-      onPartyReturn={() => {
-        void flushInputs().then(() => router.dismissTo("/party"));
-      }}
-      onPartyComplete={() => {
-        void flushInputs().then(() =>
-          action({
-            action: "party_exchange",
-            expected_exchange: state?.party?.exchanges,
-          }),
-        );
-      }}
-      pendingHp={pendingHp}
-      pendingFp={pendingFp}
-      pendingShield={pendingShield}
-      onShield={(target, amount) => {
-        if (availableRef.current) void passiveQueue.current?.flush().then(() => hpQueue.current?.add(target, amount, "shield"));
-      }}
-      onFp={(target, amount) => {
-        if (availableRef.current) {
-          void passiveQueue.current?.flush().then(() => {
-            hpQueue.current?.setAvailable(availableRef.current);
-            hpQueue.current?.add(target, amount, "fp");
-          });
+    <Suspense
+      fallback={
+        <View style={styles.screen}>
+          <Notice text={t("불러오는 중")} />
+        </View>
+      }
+    >
+      <Board
+        state={state}
+        mode={mode}
+        disabled={disabled}
+        connected={connected && online}
+        now={now}
+        error={error}
+        ready={ready}
+        setupOpen={ready && (settings || !state)}
+        onSetup={openSettings}
+        onCloseSetup={() => {
+          if (!state && local) {
+            setMode("local");
+            setSettings(false);
+          } else if (!state) router.dismissTo("/");
+          else setSettings(false);
+        }}
+        onShare={() => {
+          openSettings();
+          void changeMode("shared");
+        }}
+        onAction={action}
+        onTournamentReturn={() => {
+          void flushInputs().then(returnToTournamentOrParty);
+        }}
+        tournamentControls={
+          state?.type === "tournament" ? (
+            <TournamentCalculatorControls
+              state={state}
+              now={now}
+              busy={busy}
+              connected={connected && online}
+              onAction={async (value) => {
+                await flushInputs();
+                await action(value);
+              }}
+              onResults={() => {
+                void flushInputs().then(returnToTournamentOrParty);
+              }}
+            />
+          ) : null
         }
-      }}
-      onHp={(target, amount) => {
-        if (availableRef.current) {
-          void passiveQueue.current?.flush().then(() => {
-            hpQueue.current?.setAvailable(availableRef.current);
-            hpQueue.current?.add(target, amount);
-          });
-        }
-      }}
-      setup={
-        <>
-          <Choices
-            value={mode}
-            onChange={changeMode}
-            values={[
-              { key: "local", label: t("로컬") },
-              { key: "shared", label: t("공유") },
-            ]}
-          />
-          <View style={{ flexDirection: "row", gap: 16 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{t("플레이어1")}</Text>
-              <CharacterStrip
-                value={p1 || String(catalog?.characters[0]?.id || "")}
-                onChange={setP1}
-                values={choices}
-                label={t("플레이어1")}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{t("플레이어2")}</Text>
-              <CharacterStrip
-                value={p2 || String(catalog?.characters[0]?.id || "")}
-                onChange={setP2}
-                values={choices}
-                label={t("플레이어2")}
-              />
-            </View>
-          </View>
-          <Button
-            label={state ? "새 계산기 시작" : "시작"}
-            disabled={
-              !ready ||
-              !catalog?.characters.length ||
-              (mode === "shared" && !online)
-            }
-            onPress={async () => {
-              if (await create(mode === "shared")) setSettings(false);
-            }}
-          />
-          {mode === "shared" && (
-            <View style={[styles.panel, { marginTop: 16 }]}>
-              {!!session && (
-                <Notice
-                  text={
-                    connected && online ? "연결됨" : "재연결 중 · 제어 잠금"
-                  }
+        onPartyReturn={() => {
+          void flushInputs().then(() => router.dismissTo("/party"));
+        }}
+        onPartyComplete={() => {
+          void flushInputs().then(() =>
+            action({
+              action: "party_exchange",
+              expected_exchange: state?.party?.exchanges,
+            }),
+          );
+        }}
+        pendingHp={pendingHp}
+        pendingFp={pendingFp}
+        pendingShield={pendingShield}
+        onShield={(target, amount) => {
+          if (availableRef.current)
+            void passiveQueue.current
+              ?.flush()
+              .then(() => hpQueue.current?.add(target, amount, "shield"));
+        }}
+        onFp={(target, amount) => {
+          if (availableRef.current) {
+            void passiveQueue.current?.flush().then(() => {
+              hpQueue.current?.setAvailable(availableRef.current);
+              hpQueue.current?.add(target, amount, "fp");
+            });
+          }
+        }}
+        onHp={(target, amount) => {
+          if (availableRef.current) {
+            void passiveQueue.current?.flush().then(() => {
+              hpQueue.current?.setAvailable(availableRef.current);
+              hpQueue.current?.add(target, amount);
+            });
+          }
+        }}
+        setup={
+          <>
+            <Choices
+              value={mode}
+              onChange={changeMode}
+              values={[
+                { key: "local", label: t("로컬") },
+                { key: "shared", label: t("공유") },
+              ]}
+            />
+            <View style={{ flexDirection: "row", gap: 16 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>{t("플레이어1")}</Text>
+                <CharacterStrip
+                  value={p1 || String(catalog?.characters[0]?.id || "")}
+                  onChange={setP1}
+                  values={choices}
+                  label={t("플레이어1")}
                 />
-              )}
-              <Input
-                accessibilityLabel={t("공유 링크")}
-                value={link}
-                onChangeText={setLink}
-                placeholder={t("공유 링크")}
-              />
-              <View style={styles.row}>
-                <Button
-                  label="참여"
-                  disabled={!online}
-                  onPress={async () => {
-                    try {
-                      const next = parseShareLink(link);
-                      const linkedUi = linkedCalculatorUi(link);
-                      router.setParams({ ui: linkedUi || "classic" });
-                      await saveShared(next);
-                      setSession(next);
-                      setShared(null);
-                      setError("");
-                    } catch (err) {
-                      setError(userMessage(err));
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>{t("플레이어2")}</Text>
+                <CharacterStrip
+                  value={p2 || String(catalog?.characters[0]?.id || "")}
+                  onChange={setP2}
+                  values={choices}
+                  label={t("플레이어2")}
+                />
+              </View>
+            </View>
+            <Button
+              label={state ? "새 계산기 시작" : "시작"}
+              disabled={
+                !ready ||
+                !catalog?.characters.length ||
+                (mode === "shared" && !online)
+              }
+              onPress={async () => {
+                if (await create(mode === "shared")) setSettings(false);
+              }}
+            />
+            {mode === "shared" && (
+              <View style={[styles.panel, { marginTop: 16 }]}>
+                {!!session && (
+                  <Notice
+                    text={
+                      connected && online ? "연결됨" : "재연결 중 · 제어 잠금"
                     }
-                  }}
+                  />
+                )}
+                <Input
+                  accessibilityLabel={t("공유 링크")}
+                  value={link}
+                  onChangeText={setLink}
+                  placeholder={t("공유 링크")}
                 />
-                {session && (
-                  <>
-                    <Button
-                      label="조회 링크"
-                      onPress={() =>
-                        Share.share({
-                          message: absoluteUrl(calculatorLink(
-                            "/battlelog/session/" + session.view_token + "/", ui
-                          )),
-                        })
+                <View style={styles.row}>
+                  <Button
+                    label="참여"
+                    disabled={!online}
+                    onPress={async () => {
+                      try {
+                        const next = parseShareLink(link);
+                        const linkedUi = linkedCalculatorUi(link);
+                        router.setParams({ ui: linkedUi || "classic" });
+                        await saveShared(next);
+                        setSession(next);
+                        setShared(null);
+                        setError("");
+                      } catch (err) {
+                        setError(userMessage(err));
                       }
-                    />
-                    {!!session.control_token && (
+                    }}
+                  />
+                  {session && (
+                    <>
                       <Button
-                        label="제어 링크"
+                        label="조회 링크"
                         onPress={() =>
                           Share.share({
-                            message: absoluteUrl(calculatorLink(
-                              "/battlelog/session/" +
-                                session.view_token +
-                                "/control/" +
-                                session.control_token +
-                                "/", ui
-                            )),
+                            message: absoluteUrl(
+                              calculatorLink(
+                                "/battlelog/session/" +
+                                  session.view_token +
+                                  "/",
+                                ui,
+                              ),
+                            ),
                           })
                         }
                       />
-                    )}
-                    <Button
-                      label="나가기"
-                      onPress={async () => {
-                        await saveShared(null);
-                        setSession(null);
-                        setShared(null);
-                      }}
-                    />
-                  </>
-                )}
+                      {!!session.control_token && (
+                        <Button
+                          label="제어 링크"
+                          onPress={() =>
+                            Share.share({
+                              message: absoluteUrl(
+                                calculatorLink(
+                                  "/battlelog/session/" +
+                                    session.view_token +
+                                    "/control/" +
+                                    session.control_token +
+                                    "/",
+                                  ui,
+                                ),
+                              ),
+                            })
+                          }
+                        />
+                      )}
+                      <Button
+                        label="나가기"
+                        onPress={async () => {
+                          await saveShared(null);
+                          setSession(null);
+                          setShared(null);
+                        }}
+                      />
+                    </>
+                  )}
+                </View>
               </View>
-            </View>
-          )}
-        </>
-      }
-    />
+            )}
+          </>
+        }
+      />
     </Suspense>
   );
 }

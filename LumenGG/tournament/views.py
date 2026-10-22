@@ -32,6 +32,7 @@ from .models import (
     TournamentRound,
 )
 from .services import (
+    set_match_result as _set_match_result,
     build_standings,
     complete_round_if_ready,
     copy_deck_for_tournament_submission,
@@ -188,33 +189,6 @@ def _join_deck_slots(form, tournament):
         })
     return slots
 
-
-def _set_match_result(match, winner_value, player1_score, player2_score):
-    if player1_score < 0 or player2_score < 0:
-        raise ValueError('점수는 0 이상으로 입력해주세요.')
-    if player1_score + player2_score > match.round.set_count:
-        raise ValueError(f'세트 점수 합계는 {match.round.set_count}세트를 넘을 수 없습니다.')
-
-    match.player1_score = player1_score
-    match.player2_score = player2_score
-    match.is_draw = winner_value == 'draw'
-
-    if match.is_draw:
-        if match.round.stage == TournamentRound.STAGE_ELIMINATION:
-            raise ValueError('토너먼트 라운드는 무승부를 입력할 수 없습니다.')
-        if player1_score != player2_score:
-            raise ValueError('무승부는 양쪽 세트 점수가 같아야 합니다.')
-        match.winner = None
-    elif winner_value == str(match.player1_id):
-        if player1_score <= player2_score:
-            raise ValueError('승자의 세트 점수가 더 높아야 합니다.')
-        match.winner = match.player1
-    elif winner_value == str(match.player2_id):
-        if player2_score <= player1_score:
-            raise ValueError('승자의 세트 점수가 더 높아야 합니다.')
-        match.winner = match.player2
-    else:
-        raise ValueError('승자를 선택해주세요.')
 
 
 def _read_match_result(post_data, match, prefix=''):
@@ -861,16 +835,25 @@ def reportMatchV2(req, id, match_id):
     if req.method != 'POST' or match.is_bye:
         return redirect('tournament:detail', id=tournament.id)
 
-    try:
-        _read_match_result(req.POST, match)
-    except ValueError as exc:
-        messages.error(req, str(exc))
-        return redirect('tournament:detail', id=tournament.id)
-
-    match.status = TournamentMatch.STATUS_REPORTED
-    match.reported_at = timezone.now()
-    match.save(update_fields=['player1_score', 'player2_score', 'is_draw', 'winner', 'status', 'reported_at'])
-    complete_round_if_ready(match.round)
+    from battlelog.models import BattleSession
+    with transaction.atomic():
+        BattleSession.objects.select_for_update().filter(tournament_match=match).first()
+        round_obj = TournamentRound.objects.select_for_update().get(pk=match.round_id)
+        match = TournamentMatch.objects.select_for_update().select_related('round', 'player1__user', 'player2__user').get(pk=match.pk)
+        if not _can_report_match(req.user, tournament, match):
+            raise PermissionDenied()
+        if round_obj.status != TournamentRound.STATUS_RUNNING:
+            messages.error(req, '이미 종료된 라운드는 결과를 수정할 수 없습니다.')
+            return redirect('tournament:detail', id=tournament.id)
+        try:
+            _read_match_result(req.POST, match)
+        except ValueError as exc:
+            messages.error(req, str(exc))
+            return redirect('tournament:detail', id=tournament.id)
+        match.status = TournamentMatch.STATUS_REPORTED
+        match.reported_at = timezone.now()
+        match.save(update_fields=['player1_score', 'player2_score', 'is_draw', 'winner', 'status', 'reported_at'])
+        complete_round_if_ready(round_obj)
     messages.success(req, '매치 결과를 저장했습니다.')
     return redirect('tournament:detail', id=tournament.id)
 

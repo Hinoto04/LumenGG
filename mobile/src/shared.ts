@@ -2,11 +2,12 @@ import { AppState } from "react-native";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import type { Action, CalcState } from "./types";
-import { BASE_URL, request, ApiError } from "./api";
+import { BASE_URL, request, ApiError, accessToken } from "./api";
 
 export interface SharedSession {
   view_token: string;
   control_token: string;
+  tournament?: { tournament_id: number; match_id: number; user_id: number };
 }
 export async function saveShared(session: SharedSession | null) {
   if (session)
@@ -33,11 +34,13 @@ export class SharedCalculator {
   private disposed = false;
   private retry: ReturnType<typeof setTimeout> | undefined;
   private state: CalcState | null = null;
+  private authenticated = false;
   private attempt = 0;
   private action: Action | null = null;
   private pendingResolve: ((s: CalcState) => void) | null = null;
   private pendingReject: ((e: Error) => void) | null = null;
   private timeout: ReturnType<typeof setTimeout> | undefined;
+  private poll: ReturnType<typeof setInterval> | undefined;
   private appSubscription: ReturnType<typeof AppState.addEventListener>;
   constructor(
     private session: SharedSession,
@@ -55,6 +58,11 @@ export class SharedCalculator {
       }
     });
     this.connect();
+    if (session.tournament)
+      this.poll = setInterval(() => {
+        if (this.authenticated && this.socket?.readyState === WebSocket.OPEN)
+          this.socket.send(JSON.stringify({ type: "state" }));
+      }, 10000);
   }
   private accept(state: CalcState) {
     if (!this.state || state.version >= this.state.version) {
@@ -72,21 +80,39 @@ export class SharedCalculator {
         "/",
     );
     this.socket = socket;
-    socket.onopen = () =>
-      socket.send(
-        JSON.stringify({
-          type: "authenticate",
-          request_id: "auth",
-          control_token: this.session.control_token,
-          language: this.language,
-        }),
-      );
+    this.authenticated = false;
+    socket.onopen = async () => {
+      try {
+        const token = this.session.tournament
+          ? await accessToken(this.session.tournament.user_id)
+          : undefined;
+        if (
+          this.disposed ||
+          this.socket !== socket ||
+          socket.readyState !== WebSocket.OPEN
+        )
+          return;
+        socket.send(
+          JSON.stringify({
+            type: "authenticate",
+            request_id: "auth",
+            control_token: this.session.control_token,
+            language: this.language,
+            access_token: token,
+          }),
+        );
+      } catch {
+        this.connection(false);
+        socket.close(4403);
+      }
+    };
     socket.onmessage = (event) => {
       if (this.socket !== socket) return;
       try {
         const payload = JSON.parse(event.data);
         if (payload.state) this.accept(payload.state);
         if (payload.request_id === "auth") {
+          this.authenticated = true;
           this.attempt = 0;
           this.connection(true);
           if (this.action) this.recover();
@@ -103,14 +129,15 @@ export class SharedCalculator {
     };
     socket.onclose = (event) => {
       if (this.socket !== socket) return;
+      this.authenticated = false;
       this.connection(false);
-      if (!this.disposed && event.code !== 4404)
+      if (!this.disposed && ![4403, 4404].includes(event.code))
         this.retry = setTimeout(
           () => this.connect(),
           Math.min(15000, 1000 * 2 ** this.attempt++),
         );
-      if (event.code === 4404)
-        this.finish(undefined, new Error("Calculator unavailable."));
+      if ([4403, 4404].includes(event.code))
+        this.finish(undefined, new Error("계산기를 이용할 수 없습니다."));
     };
     socket.onerror = () => {
       this.connection(false);
@@ -119,7 +146,11 @@ export class SharedCalculator {
   }
   async send(action: Action): Promise<CalcState> {
     if (this.action) throw new Error("이전 동작을 처리 중입니다.");
-    if (!this.state?.can_control || this.socket?.readyState !== WebSocket.OPEN)
+    if (
+      (!this.state?.can_control &&
+        !(action.action === "report_set" && this.state?.set?.can_report)) ||
+      this.socket?.readyState !== WebSocket.OPEN
+    )
       throw new Error("계산기 연결이 끊겼습니다.");
     this.action = {
       ...action,
@@ -154,7 +185,9 @@ export class SharedCalculator {
           headers: { "X-Calculator-Control": this.session.control_token },
           body: JSON.stringify(action),
         },
+        !!this.session.tournament,
         false,
+        this.session.tournament?.user_id,
       );
       if (this.action !== action) return;
       this.accept(response.state);
@@ -185,6 +218,7 @@ export class SharedCalculator {
     clearTimeout(this.retry);
     clearTimeout(this.timeout);
     this.appSubscription.remove();
+    clearInterval(this.poll);
     this.socket?.close();
     this.finish(undefined, new Error("Session closed."));
   }

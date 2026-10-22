@@ -653,9 +653,40 @@ def _create_round_unlocked(
 
 
 def complete_round_if_ready(round_obj):
-    if not round_obj.matches.filter(status=TournamentMatch.STATUS_PENDING).exists():
-        round_obj.status = TournamentRound.STATUS_FINISHED
-        round_obj.ended_at = timezone.now()
-        round_obj.save(update_fields=['status', 'ended_at'])
-        return True
+    # Different tables may finish concurrently through web/mobile calculators.
+    with transaction.atomic():
+        TournamentRound.objects.select_for_update().get(pk=round_obj.pk)
+        if not round_obj.matches.filter(status=TournamentMatch.STATUS_PENDING).exists():
+            round_obj.status = TournamentRound.STATUS_FINISHED
+            round_obj.ended_at = timezone.now()
+            round_obj.save(update_fields=['status', 'ended_at'])
+            return True
     return False
+
+
+def set_match_result(match, winner_value, player1_score, player2_score):
+    if player1_score < 0 or player2_score < 0:
+        raise ValueError('점수는 0 이상으로 입력해주세요.')
+    if player1_score + player2_score > match.round.set_count:
+        raise ValueError(f'세트 점수 합계는 {match.round.set_count}세트를 넘을 수 없습니다.')
+
+    match.player1_score = player1_score
+    match.player2_score = player2_score
+    match.is_draw = winner_value == 'draw'
+
+    if match.is_draw:
+        if match.round.stage == TournamentRound.STAGE_ELIMINATION:
+            raise ValueError('토너먼트 라운드는 무승부를 입력할 수 없습니다.')
+        if player1_score != player2_score:
+            raise ValueError('무승부는 양쪽 세트 점수가 같아야 합니다.')
+        match.winner = None
+    elif winner_value == str(match.player1_id):
+        if player1_score <= player2_score:
+            raise ValueError('승자의 세트 점수가 더 높아야 합니다.')
+        match.winner = match.player1
+    elif winner_value == str(match.player2_id):
+        if player2_score <= player1_score:
+            raise ValueError('승자의 세트 점수가 더 높아야 합니다.')
+        match.winner = match.player2
+    else:
+        raise ValueError('승자를 선택해주세요.')

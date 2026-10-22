@@ -190,6 +190,39 @@ export interface Player {
   character: any;
 }
 export interface CalcState {
+  type?: string;
+  tournament?: {
+    id: number | null;
+    name: string;
+    match_id: number | null;
+    match_status?: string;
+    round_number?: number;
+    table?: string;
+  };
+  round_timer?: {
+    ends_at: string | null;
+    remaining_seconds: number | null;
+    is_over: boolean;
+  };
+  set?: {
+    current_number: number;
+    max_sets: number;
+    required_wins: number;
+    score: { p1: number; p2: number };
+    winner_candidate: string;
+    can_report: boolean;
+    report_side: string;
+    player1_confirmed: boolean;
+    player2_confirmed: boolean;
+    status: string;
+  };
+  character_choices?: Record<
+    "p1" | "p2",
+    {
+      can_choose: boolean;
+      options: { id: number; name: string; color: string }[];
+    }
+  >;
   party?: {
     code: string;
     return_url: string;
