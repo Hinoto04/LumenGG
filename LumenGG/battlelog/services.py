@@ -44,6 +44,7 @@ from .event_buffer import (
 )
 from .models import BattleEvent, BattleSession, BattleSet
 from .presence import battle_presence_counts
+from .shields import SHIELD_KEY, MAX_SHIELD_DELTA, supports_shield, shield_amount, with_shield
 
 
 STANDALONE_SESSION_LIFETIME = timedelta(hours=1)
@@ -162,6 +163,8 @@ def initial_passive_state_for_character(character):
             'count': YOHAN_INITIAL_FORESIGHT_COUNT,
             'label': '예지 카운터',
         }
+    if supports_shield(character):
+        state = with_shield(state, 0)
     return state
 
 
@@ -1041,10 +1044,18 @@ def apply_hp_delta(session, target, amount, user=None):
     with transaction.atomic():
         locked = BattleSession.objects.select_for_update().get(id=session.id)
         field = 'player1_hp' if target == BattleEvent.TARGET_PLAYER1 else 'player2_hp'
+        prefix = 'player1' if target == BattleEvent.TARGET_PLAYER1 else 'player2'
+        state_field = prefix + '_passive_state'
+        shield_before = shield_amount(getattr(locked, state_field)) if supports_shield(getattr(locked, prefix + '_character')) else 0
+        absorbed = min(shield_before, -amount) if amount < 0 else 0
         before = getattr(locked, field)
-        after = before + amount
+        after = before + amount + absorbed
         setattr(locked, field, after)
-        locked.save(update_fields=[field, 'updated_at'])
+        changed = [field, 'updated_at']
+        if absorbed:
+            setattr(locked, state_field, with_shield(getattr(locked, state_field), shield_before - absorbed))
+            changed.append(state_field)
+        locked.save(update_fields=changed)
         _clear_current_set_confirmations(locked)
         record_battle_event(
             locked,
@@ -1054,7 +1065,29 @@ def apply_hp_delta(session, target, amount, user=None):
             amount=amount,
             hp_before=before,
             hp_after=after,
+            payload={'shield_before': shield_before, 'shield_after': shield_before - absorbed, 'shield_absorbed': absorbed} if absorbed else {},
         )
+        return locked
+
+
+def apply_shield_delta(session, target, amount=0, reset=False, user=None):
+    if target not in (BattleEvent.TARGET_PLAYER1, BattleEvent.TARGET_PLAYER2):
+        raise ValueError('대상 플레이어가 올바르지 않습니다.')
+    if not reset and (amount == 0 or abs(amount) > MAX_SHIELD_DELTA):
+        raise ValueError('보호막 변경값이 올바르지 않습니다.')
+    with transaction.atomic():
+        locked = BattleSession.objects.select_for_update().get(id=session.id)
+        prefix = 'player1' if target == BattleEvent.TARGET_PLAYER1 else 'player2'
+        if not supports_shield(getattr(locked, prefix + '_character')):
+            raise ValueError('보호막은 핀프만 사용할 수 있습니다.')
+        field = prefix + '_passive_state'
+        before = shield_amount(getattr(locked, field))
+        after = 0 if reset else max(0, before + amount)
+        setattr(locked, field, with_shield(getattr(locked, field), after))
+        locked.save(update_fields=[field, 'updated_at'])
+        record_battle_event(locked, user, event_type=BattleEvent.EVENT_PASSIVE, target=target,
+            amount=after-before, payload={'key': SHIELD_KEY, 'label': '보호막', 'value': after,
+                'before_state': {'value': before}, 'after_state': {'value': after}, 'reset': reset})
         return locked
 
 
@@ -1124,10 +1157,12 @@ def undo_last_hp_event(session, user=None):
             target = pending_event.get('target')
             hp_before = pending_event.get('hp_before')
             amount = pending_event.get('amount') or 0
+            shield_payload = pending_event.get('payload') or {}
             marked_event = mark_pending_event_undone(locked.id, pending_event.get('event_uid')) or pending_event
             undone_event_uid = marked_event.get('event_uid') or pending_event.get('event_uid')
         else:
             target = db_event.target
+            shield_payload = db_event.payload or {}
             hp_before = db_event.hp_before
             amount = db_event.amount or 0
             db_event.undone = True
@@ -1137,7 +1172,14 @@ def undo_last_hp_event(session, user=None):
         field = 'player1_hp' if target == BattleEvent.TARGET_PLAYER1 else 'player2_hp'
         current_hp = getattr(locked, field)
         setattr(locked, field, hp_before)
-        locked.save(update_fields=[field, 'updated_at'])
+        changed = [field, 'updated_at']
+        prefix = 'player1' if target == BattleEvent.TARGET_PLAYER1 else 'player2'
+        restored = shield_payload.get('shield_absorbed', 0)
+        if restored and supports_shield(getattr(locked, prefix + '_character')):
+            state_field = prefix + '_passive_state'
+            setattr(locked, state_field, with_shield(getattr(locked, state_field), shield_amount(getattr(locked, state_field)) + restored))
+            changed.append(state_field)
+        locked.save(update_fields=changed)
         record_battle_event(
             locked,
             user,
@@ -1148,7 +1190,7 @@ def undo_last_hp_event(session, user=None):
             hp_after=hp_before,
             undone_event=None if use_pending_event else db_event,
             undone_event_uid=undone_event_uid,
-            payload={'undone_event_id': None if use_pending_event else db_event.id},
+            payload={'undone_event_id': None if use_pending_event else db_event.id, 'shield_restored': restored},
         )
         return locked
 
@@ -1480,6 +1522,8 @@ def update_passive(session, target, card_id=None, delta=0, note='', key='', valu
         state_field = 'player1_passive_state' if target == BattleEvent.TARGET_PLAYER1 else 'player2_passive_state'
         state = getattr(locked, state_field) or {}
         key = str(key or card_id or 'memo')[:80]
+        if key == SHIELD_KEY:
+            raise ValueError('보호막 버튼을 사용해주세요.')
         current = dict(state.get(key, {}))
         before_state = copy.deepcopy(current)
         if card_id or delta:
@@ -1568,6 +1612,17 @@ def _perform_single_session_action(session, body, user=None, control_token=''):
         if not can_control_session(user, session, control_token):
             raise PermissionDenied()
         session = apply_fp_delta(session, body.get('target'), int(body.get('amount') or 0), user)
+    elif action in ('shield', 'shield_reset'):
+        if not can_control_session(user, session, control_token):
+            raise PermissionDenied()
+        raw_amount = body.get('amount') or 0
+        try:
+            delta = int(raw_amount)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError('보호막 변경값이 올바르지 않습니다.')
+        if isinstance(raw_amount, bool) or (not isinstance(raw_amount, str) and raw_amount != delta):
+            raise ValueError('보호막 변경값이 올바르지 않습니다.')
+        session = apply_shield_delta(session, body.get('target'), delta, action == 'shield_reset', user)
     elif action == 'fp_reset':
         if not can_control_session(user, session, control_token):
             raise PermissionDenied()

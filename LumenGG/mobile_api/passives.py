@@ -1,6 +1,7 @@
 """Translate existing passive panels into data, without shipping executable code."""
 import copy
 from battlelog.services import _passive_ui, _passive_cards, initial_passive_state_for_character
+from battlelog.shields import SHIELD_KEY
 
 
 def native_passive(character, language='ko'):
@@ -30,7 +31,7 @@ def native_passive(character, language='ko'):
         options['controls'] = [
             {'type': 'toggle' if isinstance(v.get('value'), bool) else 'counter' if 'count' in v else 'text',
              'key': k, 'label': v.get('label', k)}
-            for k, v in initial_passive_state_for_character(character).items() if isinstance(v, dict)
+            for k, v in initial_passive_state_for_character(character).items() if isinstance(v, dict) and k != SHIELD_KEY
         ]
         if not options['controls']:
             options['controls'] = [{'type': 'counter', 'key': str(card['id']), 'label': card['name']} for card in _passive_cards(character, language)]

@@ -58,7 +58,7 @@ def perform_mobile_action(view_token, body, control_token='', user=None):
             return session
         if body.get('expected_version') != session.version:
             raise StaleCalculator()
-        allowed = {'hp', 'fp', 'fp_reset', 'undo', 'timer', 'reset_session', 'sudden_death', 'sudden_turn', 'passive', 'character'}
+        allowed = {'hp', 'fp', 'fp_reset', 'shield', 'shield_reset', 'undo', 'timer', 'reset_session', 'sudden_death', 'sudden_turn', 'passive', 'character'}
         if body.get('action') == 'batch':
             actions = body.get('actions')
             if not isinstance(actions, list) or not 1 <= len(actions) <= 100 or any(not isinstance(a, dict) or a.get('action') not in allowed for a in actions):
