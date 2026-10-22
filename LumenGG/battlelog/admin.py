@@ -13,9 +13,24 @@ from .models import (
     BattleSession,
     BattleSet,
     LumenSimulatorSession,
+    PartyCard,
     RulesetRelease,
     SimulatorAIPolicy,
 )
+
+
+@admin.register(PartyCard)
+class PartyCardAdmin(admin.ModelAdmin):
+    list_display = ['code', 'kind', 'name', 'effect_text', 'updated_at']
+    list_filter = ['kind']
+    search_fields = ['code', 'name', 'effect_text']
+    readonly_fields = ['code', 'kind', 'key', 'effect_box', 'updated_at']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(BattleSession)

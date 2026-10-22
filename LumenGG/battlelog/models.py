@@ -114,9 +114,11 @@ class SimulatorAIPolicy(models.Model):
 class BattleSession(models.Model):
     SESSION_STANDALONE = 'standalone'
     SESSION_TOURNAMENT = 'tournament'
+    SESSION_PARTY = 'party'
     SESSION_TYPE_CHOICES = [
         (SESSION_STANDALONE, '일반 계산기'),
         (SESSION_TOURNAMENT, '대회 매치'),
+        (SESSION_PARTY, '루멘 파티 교전'),
     ]
 
     session_type = models.CharField(max_length=16, choices=SESSION_TYPE_CHOICES, default=SESSION_STANDALONE)
@@ -175,6 +177,73 @@ class BattleSession(models.Model):
 
     def __str__(self):
         return f'{self.get_session_type_display()} #{self.id}: {self.player1_name} vs {self.player2_name}'
+
+
+class PartyCard(models.Model):
+    kind = models.CharField('종류', max_length=8, choices=[('item', '아이템'), ('event', '이벤트')])
+    key = models.SlugField('게임 키', max_length=32)
+    code = models.CharField('카드 번호', max_length=12, unique=True)
+    name = models.CharField('이름', max_length=60)
+    effect_text = models.TextField('카드 효과 문구', max_length=2000)
+    image_path = models.CharField('카드 이미지 경로', max_length=255)
+    effect_box = models.JSONField('설명란 좌표', default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = '루멘 파티 카드'
+        verbose_name_plural = '루멘 파티 카드'
+        ordering = ['code']
+        constraints = [models.UniqueConstraint(fields=['kind', 'key'], name='unique_party_card_kind_key')]
+
+    def __str__(self):
+        return f'{self.code} · {self.name}'
+
+
+class PartyRoom(models.Model):
+    code = models.CharField(max_length=6, unique=True)
+    name = models.CharField(max_length=60, default='루멘 파티')
+    status = models.CharField(max_length=12, default='lobby')
+    version = models.PositiveIntegerField(default=1)
+    document = models.JSONField(default=dict)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class PartyPlayer(models.Model):
+    room = models.ForeignKey(PartyRoom, on_delete=models.CASCADE, related_name='players')
+    seat = models.PositiveSmallIntegerField()
+    token = models.CharField(max_length=64, unique=True)
+    name = models.CharField(max_length=30)
+    character = models.ForeignKey(Character, on_delete=models.PROTECT)
+    is_host = models.BooleanField(default=False)
+    ready = models.BooleanField(default=False)
+    hp = models.IntegerField()
+    max_hp = models.PositiveIntegerField()
+    coins = models.PositiveIntegerField(default=0)
+    crystals = models.PositiveSmallIntegerField(default=0)
+    position = models.PositiveSmallIntegerField(default=0)
+    prepared_fp = models.IntegerField(default=0)
+    preparation_turn = models.PositiveIntegerField(default=0)
+    battle_immune = models.BooleanField(default=False)
+    items = models.JSONField(default=list)
+    public_notes = models.CharField(max_length=500, blank=True, default='')
+
+    class Meta:
+        ordering = ['seat']
+        constraints = [models.UniqueConstraint(fields=['room', 'seat'], name='party_room_seat_unique')]
+
+
+class PartyEncounter(models.Model):
+    room = models.ForeignKey(PartyRoom, on_delete=models.CASCADE, related_name='encounters')
+    session = models.OneToOneField(BattleSession, on_delete=models.CASCADE, related_name='party_encounter')
+    player1 = models.ForeignKey(PartyPlayer, on_delete=models.CASCADE, related_name='encounters_as_p1')
+    player2 = models.ForeignKey(PartyPlayer, on_delete=models.CASCADE, related_name='encounters_as_p2')
+    status = models.CharField(max_length=12, default='active')
+    snapshot = models.JSONField(default=dict)
+    result = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
 
 
 class BattleEvent(models.Model):

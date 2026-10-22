@@ -3,9 +3,17 @@
 {% load language_tags %}
 {% block title %}{{ session.player1_name }} vs {{ session.player2_name }} - {% tr "대전 계산기" %}{% endblock title %}
 {% block body_class %}v2-battle-mode{% endblock body_class %}
+{% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}"><link rel="stylesheet" href="{% static 'v2/calculator-shield.css' %}">{% endblock %}
 {% block content %}
 <section class="v2-battle-page" data-battle-session>
     {% csrf_token %}
+    {% if state.party %}
+    <div class="party-calculator-bar">
+        <a class="v2-button" href="{{ state.party.return_url }}" data-party-return>← 파티로 돌아가기</a>
+        <p>파티 교전 · <strong data-party-exchanges>{{ state.party.exchanges }}/2</strong> 공방 완료<br><span data-party-calculator-help>HP·FP 입력 후 공방 완료를 눌러주세요.</span></p>
+        {% if control_token %}<button class="v2-button v2-button-primary" type="button" data-party-exchange>공방 완료</button>{% endif %}
+    </div>
+    {% endif %}
     <div class="v2-page-head">
         <div>
             <div class="v2-kicker">BATTLE CALCULATOR</div>
@@ -59,7 +67,9 @@
 
         <section class="v2-panel v2-battle-center">
             <div class="v2-battle-timer-top">
-                {% if session.tournament_match %}
+                {% if state.party %}
+                <a class="v2-button" href="{{ state.party.return_url }}" data-party-return>파티 지도</a>
+                {% elif session.tournament_match %}
                 <a class="v2-button" href="{% url "tournament:detail" session.tournament_match.round.tournament.id %}" data-tournament-return>{% tr "대회 복귀" %}</a>
                 {% else %}
                 <a class="v2-button" href="{% url "battlelog:sim" %}" data-battle-back>{% tr "돌아가기" %}</a>
@@ -68,7 +78,7 @@
                     <span data-battle-set-status>{% tr "게임 시간" %}</span>
                     <strong data-battle-round-time-large>--:--</strong>
                 </div>
-                <button class="v2-button v2-danger-button" type="button" data-battle-action="sudden">{% tr "서든 데스" %}</button>
+                {% if not state.party %}<button class="v2-button v2-danger-button" type="button" data-battle-action="sudden">{% tr "서든 데스" %}</button>{% endif %}
             </div>
             <button class="v2-battle-big-timer" type="button" data-battle-action="timer">
                 <span>{% tr "10초 타이머" %}</span>
@@ -92,7 +102,7 @@
             <div class="v2-battle-character-selectors" data-character-selectors></div>
             <div class="v2-battle-history-head" data-history-panel>
                 <strong>{% tr "기록" %}</strong>
-                {% if not session.tournament_match and control_token %}
+                {% if not session.tournament_match and control_token and not state.party %}
                 <button class="v2-button v2-danger-button v2-battle-reset-button" type="button" data-battle-reset>{% tr "초기화" %}</button>
                 {% else %}
                 <span></span>
@@ -149,6 +159,9 @@
         language: "{{ current_language|escapejs }}",
     };
 </script>
+{% block battle_scripts %}
 <script src="{% static "v2/session-history.js" %}"></script>
-<script src="{% static "v2/battle-calculator.js" %}"></script>
+<script src="{% static 'v2/calculator-shield-model.js' %}"></script>
+<script src="{% static "v2/battle-calculator.js" %}?v=20261020-shield1"></script>
+{% endblock battle_scripts %}
 {% endblock content %}

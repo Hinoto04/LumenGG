@@ -185,3 +185,4 @@ LumenGG/staticfiles/
 /mobile/credentials.json
 *.keystore
 *.jks
+/mobile/.temp

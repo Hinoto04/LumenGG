@@ -1,0 +1,249 @@
+[
+  {
+    "key": "hand-annihilation",
+    "label": "패 말살",
+    "effect": "모든 플레이어가 무작위로 패를 3장씩 버린다.",
+    "ids": [
+      2,
+      3,
+      4,
+      8
+    ],
+    "scene": "All FOUR referenced characters sit around a low board-game table and are simultaneously surprised as a magical charcoal-purple gust sweeps cards from ALL of their hands toward a central swirling discard pile. Every character is visibly affected; none is casting the spell or benefiting. Near each character, show a small separated fan of THREE dark-backed playing cards being swept away; card backs have a simple abstract star and no text. Nia reaches with her mechanical gauntlet, Route's goggles and orange hair remain clear, Delphi grips an emptied hand in surprise, Tao clutches her paws worriedly. Faces are expressive, the missing hand of cards is the central story. Use mauve motion swirls and a few paper-shaped sparkles, not flames or shredded gore. Cards are being discarded, not exchanged for new cards. Camera at a readable slightly elevated three-quarter view of the group.",
+    "characters": [
+      {
+        "id": 2,
+        "name": "니아"
+      },
+      {
+        "id": 3,
+        "name": "루트"
+      },
+      {
+        "id": 4,
+        "name": "델피"
+      },
+      {
+        "id": 8,
+        "name": "타오"
+      }
+    ],
+    "references": [
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-2-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-3-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-4-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-8-sd_img.webp"
+    ],
+    "prompt": "Use case: illustration-story. Asset type: a single standalone event-card ART illustration for Lumen Party, matching an existing set of cute anime SD item illustrations. Output landscape 3:2 aspect ratio, target 1536 x 1024 pixels, horizontal composition. This is ONLY the illustration to place in the art window of a physically printed card. NO card mockup, NO frame, NO rounded border, NO title, NO lettering, NO numerals, NO UI, NO watermark, NO speech bubbles. The provided character images are identity reference images, not edit targets. Preserve each character's distinctive face, hair, ears, outfit, accessories and color palette. New dynamic poses and expressive reactions, approximately 2.5 to 3 head-tall chibi/SD figures, polished clean 2D anime linework, crisp cel shading, appealing game illustration, coherent hands and bodies. A lightly painted cream and pastel background supporting the action, opaque across the entire canvas, with simple setting clues rather than detailed scenery. Balanced readable composition at small printed size. Keep faces, ears, hands and important props within a 7 percent safe margin; only atmosphere and secondary effects may extend to edges. One unified scene, not split panels, not a sheet of icons. Friendly comedic party-game tone, no gore, no realistic injury. Give positive events warm joyful lighting and negative events clear but playful tension.\nInput image 1: primary SD identity reference for Nia: mint-green curled twin tails, white forelock, cat ears, gold eyes, white-and-teal outfit and huge grey mechanical gauntlets.\nInput image 2: primary SD identity reference for Route: short orange-red hair, red goggles on the forehead, blue eyes, tan long coat, dark trousers and boots.\nInput image 3: primary SD identity reference for Delphi: long teal hair, oversized black rabbit-ear bow, blue eyes, white mechanic cropped top, loose orange work trousers and grey gloves.\nInput image 4: primary SD identity reference for Tao: pink-and-white fluffy fox ears, pink hair, turquoise eyes, white-and-dark martial-arts outfit with teal accents, pink paw gloves and large pink-white fox tail.\nScene and event: All FOUR referenced characters sit around a low board-game table and are simultaneously surprised as a magical charcoal-purple gust sweeps cards from ALL of their hands toward a central swirling discard pile. Every character is visibly affected; none is casting the spell or benefiting. Near each character, show a small separated fan of THREE dark-backed playing cards being swept away; card backs have a simple abstract star and no text. Nia reaches with her mechanical gauntlet, Route's goggles and orange hair remain clear, Delphi grips an emptied hand in surprise, Tao clutches her paws worriedly. Faces are expressive, the missing hand of cards is the central story. Use mauve motion swirls and a few paper-shaped sparkles, not flames or shredded gore. Cards are being discarded, not exchanged for new cards. Camera at a readable slightly elevated three-quarter view of the group."
+  },
+  {
+    "key": "going-to-be-rich",
+    "refinements": [{"type":"precise-object-edit","prompt":"Use case: precise-object-edit. Input image is the edit target: a landscape 1536x1024 finished Lumen Party event illustration of four happy chibi characters receiving gold coins. Change ONLY the number of visible gold coins. There must be EXACTLY EIGHT COINS in the WHOLE image, with EXACTLY TWO coins TOTAL PER CHARACTER: ONE gold coin in each of their two hands, never two coins in one hand. Nia (mint cat hair, bottom-left) holds ONE coin in her left mechanical gauntlet and ONE coin in her right gauntlet. Route (red hair and goggles, upper-middle) holds ONE coin in each gloved hand. Delphi (teal hair and orange trousers, lower-middle) holds ONE coin in each gloved hand. Tao (pink fox at right) holds ONE coin in each paw. Remove the extra overlapping coins from the reference; redraw each hand's coin as a SINGLE isolated circular gold coin with the same star emblem. No background coins, no new coins anywhere, and no coin stacks. Keep all four characters, exact outfits, faces, poses, hands, framing, setting, confetti, lighting and artistic quality unchanged. Preserve landscape 3:2 aspect ratio and 1536x1024 size. No text or numerals."}],
+    "label": "부자가 될거야",
+    "effect": "모든 플레이어가 2코인씩 얻는다.",
+    "ids": [
+      2,
+      3,
+      4,
+      8
+    ],
+    "scene": "All FOUR referenced characters happily receive a modest coin bonus together, standing in a shallow cheerful group arc. Each character has a clearly readable PAIR of large gold coins, TWO coins per person, held in open hands or floating immediately above their own hands. Nia's gauntlets hold her coins, Route grins, Delphi is delighted, Tao raises her paw-gloved hands. Emphasize four small pairs of coins rather than a gigantic treasure hoard. Gold coins have a simple four-point star emblem, no currency letters. A few golden sparkles and a warm pale amber background celebrate that everyone benefits equally. No single winner, no stealing and no pile of hundreds of coins.",
+    "characters": [
+      {
+        "id": 2,
+        "name": "니아"
+      },
+      {
+        "id": 3,
+        "name": "루트"
+      },
+      {
+        "id": 4,
+        "name": "델피"
+      },
+      {
+        "id": 8,
+        "name": "타오"
+      }
+    ],
+    "references": [
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-2-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-3-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-4-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-8-sd_img.webp"
+    ],
+    "prompt": "Use case: illustration-story. Asset type: a single standalone event-card ART illustration for Lumen Party, matching an existing set of cute anime SD item illustrations. Output landscape 3:2 aspect ratio, target 1536 x 1024 pixels, horizontal composition. This is ONLY the illustration to place in the art window of a physically printed card. NO card mockup, NO frame, NO rounded border, NO title, NO lettering, NO numerals, NO UI, NO watermark, NO speech bubbles. The provided character images are identity reference images, not edit targets. Preserve each character's distinctive face, hair, ears, outfit, accessories and color palette. New dynamic poses and expressive reactions, approximately 2.5 to 3 head-tall chibi/SD figures, polished clean 2D anime linework, crisp cel shading, appealing game illustration, coherent hands and bodies. A lightly painted cream and pastel background supporting the action, opaque across the entire canvas, with simple setting clues rather than detailed scenery. Balanced readable composition at small printed size. Keep faces, ears, hands and important props within a 7 percent safe margin; only atmosphere and secondary effects may extend to edges. One unified scene, not split panels, not a sheet of icons. Friendly comedic party-game tone, no gore, no realistic injury. Give positive events warm joyful lighting and negative events clear but playful tension.\nInput image 1: primary SD identity reference for Nia: mint-green curled twin tails, white forelock, cat ears, gold eyes, white-and-teal outfit and huge grey mechanical gauntlets.\nInput image 2: primary SD identity reference for Route: short orange-red hair, red goggles on the forehead, blue eyes, tan long coat, dark trousers and boots.\nInput image 3: primary SD identity reference for Delphi: long teal hair, oversized black rabbit-ear bow, blue eyes, white mechanic cropped top, loose orange work trousers and grey gloves.\nInput image 4: primary SD identity reference for Tao: pink-and-white fluffy fox ears, pink hair, turquoise eyes, white-and-dark martial-arts outfit with teal accents, pink paw gloves and large pink-white fox tail.\nScene and event: All FOUR referenced characters happily receive a modest coin bonus together, standing in a shallow cheerful group arc. Each character has a clearly readable PAIR of large gold coins, TWO coins per person, held in open hands or floating immediately above their own hands. Nia's gauntlets hold her coins, Route grins, Delphi is delighted, Tao raises her paw-gloved hands. Emphasize four small pairs of coins rather than a gigantic treasure hoard. Gold coins have a simple four-point star emblem, no currency letters. A few golden sparkles and a warm pale amber background celebrate that everyone benefits equally. No single winner, no stealing and no pile of hundreds of coins."
+  },
+  {
+    "key": "sticky-swamp",
+    "label": "끈적한 늪",
+    "effect": "이벤트를 밟은 플레이어는 FP를 2 잃는다.",
+    "ids": [
+      4
+    ],
+    "scene": "Delphi is the ONLY character. Her big black rabbit-ear hair bow, teal hair and orange work trousers are clearly recognizable. She is awkwardly trying to pull one heavy boot free of a small round patch of thick sticky olive-green marsh mud. Comedic worried expression and a little forehead sweat, both feet held by elastic mud strands, one gloved hand reaching outward for balance. Two small faded cyan energy wisps drift away to imply lost fighting energy rather than physical injury. Foreground clearly shows the sticky viscosity and suction around boots; a couple of simple reeds and shallow ripples establish the swamp. No drowning, no pain wounds, no scary monsters, no other character. Cream background with muted moss-green accents, clean small-card silhouette.",
+    "characters": [
+      {
+        "id": 4,
+        "name": "델피"
+      }
+    ],
+    "references": [
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-4-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-4-body_img.webp"
+    ],
+    "prompt": "Use case: illustration-story. Asset type: a single standalone event-card ART illustration for Lumen Party, matching an existing set of cute anime SD item illustrations. Output landscape 3:2 aspect ratio, target 1536 x 1024 pixels, horizontal composition. This is ONLY the illustration to place in the art window of a physically printed card. NO card mockup, NO frame, NO rounded border, NO title, NO lettering, NO numerals, NO UI, NO watermark, NO speech bubbles. The provided character images are identity reference images, not edit targets. Preserve each character's distinctive face, hair, ears, outfit, accessories and color palette. New dynamic poses and expressive reactions, approximately 2.5 to 3 head-tall chibi/SD figures, polished clean 2D anime linework, crisp cel shading, appealing game illustration, coherent hands and bodies. A lightly painted cream and pastel background supporting the action, opaque across the entire canvas, with simple setting clues rather than detailed scenery. Balanced readable composition at small printed size. Keep faces, ears, hands and important props within a 7 percent safe margin; only atmosphere and secondary effects may extend to edges. One unified scene, not split panels, not a sheet of icons. Friendly comedic party-game tone, no gore, no realistic injury. Give positive events warm joyful lighting and negative events clear but playful tension.\nInput image 1: primary SD identity reference for Delphi: long teal hair, oversized black rabbit-ear bow, blue eyes, white mechanic cropped top, loose orange work trousers and grey gloves.\nInput image 2: supporting standing reference for the SAME character's costume and accessories.\nScene and event: Delphi is the ONLY character. Her big black rabbit-ear hair bow, teal hair and orange work trousers are clearly recognizable. She is awkwardly trying to pull one heavy boot free of a small round patch of thick sticky olive-green marsh mud. Comedic worried expression and a little forehead sweat, both feet held by elastic mud strands, one gloved hand reaching outward for balance. Two small faded cyan energy wisps drift away to imply lost fighting energy rather than physical injury. Foreground clearly shows the sticky viscosity and suction around boots; a couple of simple reeds and shallow ripples establish the swamp. No drowning, no pain wounds, no scary monsters, no other character. Cream background with muted moss-green accents, clean small-card silhouette."
+  },
+  {
+    "key": "everyone-hurry",
+    "label": "빨리 빨리",
+    "effect": "모든 플레이어가 다음 주사위를 굴릴 때 2개 굴린다.",
+    "ids": [
+      2,
+      3,
+      4,
+      8
+    ],
+    "scene": "All FOUR referenced characters run forward together in a dynamic horizontal starting-line composition, with Nia's mint twin tails, Route's orange hair and coat, Delphi's teal hair and orange trousers, and Tao's fluffy pink fox tail all distinct. A shared pair of EXACTLY TWO LARGE ivory six-sided DICE tumble above and in front of the entire group; one shows three pips and the other five pips. The pair of dice is the dominant event symbol and applies to the whole running party. Use sweeping warm amber and cool sky-blue speed ribbons to link all four runners. Do not draw one lone hero, do not add extra dice, and do not depict a race winner leaving the others behind. Energetic joyful expressions, full-body SD figures with readable limbs.",
+    "characters": [
+      {
+        "id": 2,
+        "name": "니아"
+      },
+      {
+        "id": 3,
+        "name": "루트"
+      },
+      {
+        "id": 4,
+        "name": "델피"
+      },
+      {
+        "id": 8,
+        "name": "타오"
+      }
+    ],
+    "references": [
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-2-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-3-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-4-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-8-sd_img.webp"
+    ],
+    "prompt": "Use case: illustration-story. Asset type: a single standalone event-card ART illustration for Lumen Party, matching an existing set of cute anime SD item illustrations. Output landscape 3:2 aspect ratio, target 1536 x 1024 pixels, horizontal composition. This is ONLY the illustration to place in the art window of a physically printed card. NO card mockup, NO frame, NO rounded border, NO title, NO lettering, NO numerals, NO UI, NO watermark, NO speech bubbles. The provided character images are identity reference images, not edit targets. Preserve each character's distinctive face, hair, ears, outfit, accessories and color palette. New dynamic poses and expressive reactions, approximately 2.5 to 3 head-tall chibi/SD figures, polished clean 2D anime linework, crisp cel shading, appealing game illustration, coherent hands and bodies. A lightly painted cream and pastel background supporting the action, opaque across the entire canvas, with simple setting clues rather than detailed scenery. Balanced readable composition at small printed size. Keep faces, ears, hands and important props within a 7 percent safe margin; only atmosphere and secondary effects may extend to edges. One unified scene, not split panels, not a sheet of icons. Friendly comedic party-game tone, no gore, no realistic injury. Give positive events warm joyful lighting and negative events clear but playful tension.\nInput image 1: primary SD identity reference for Nia: mint-green curled twin tails, white forelock, cat ears, gold eyes, white-and-teal outfit and huge grey mechanical gauntlets.\nInput image 2: primary SD identity reference for Route: short orange-red hair, red goggles on the forehead, blue eyes, tan long coat, dark trousers and boots.\nInput image 3: primary SD identity reference for Delphi: long teal hair, oversized black rabbit-ear bow, blue eyes, white mechanic cropped top, loose orange work trousers and grey gloves.\nInput image 4: primary SD identity reference for Tao: pink-and-white fluffy fox ears, pink hair, turquoise eyes, white-and-dark martial-arts outfit with teal accents, pink paw gloves and large pink-white fox tail.\nScene and event: All FOUR referenced characters run forward together in a dynamic horizontal starting-line composition, with Nia's mint twin tails, Route's orange hair and coat, Delphi's teal hair and orange trousers, and Tao's fluffy pink fox tail all distinct. A shared pair of EXACTLY TWO LARGE ivory six-sided DICE tumble above and in front of the entire group; one shows three pips and the other five pips. The pair of dice is the dominant event symbol and applies to the whole running party. Use sweeping warm amber and cool sky-blue speed ribbons to link all four runners. Do not draw one lone hero, do not add extra dice, and do not depict a race winner leaving the others behind. Energetic joyful expressions, full-body SD figures with readable limbs."
+  },
+  {
+    "key": "chance",
+    "label": "찬스!",
+    "effect": "이벤트를 밟은 플레이어는 FP를 9 얻는다.",
+    "ids": [
+      11
+    ],
+    "scene": "Rin is the ONLY character. She stands in an exuberant empowered stance, red mechanical gauntlets raised, with her dark-blue hair, orange-red streak, pale horns, turquoise eyes, red sneakers and fighter outfit faithfully preserved. A large radiant four-point golden LUCKY STAR bursts behind her and a generous spiraling ring of golden energy rushes into her gauntlets. Her expression is delighted and fired up, conveying a sudden major gain of combat focus. A few gold star motes orbit her; no coins, no treasure chest, no healing heart, no cards, no numerals. The dramatic warm energy surge is much stronger than an ordinary preparation pose. Pale peach and cream background, dynamic positive event illustration.",
+    "characters": [
+      {
+        "id": 11,
+        "name": "린"
+      }
+    ],
+    "references": [
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-11-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-11-body_img.webp"
+    ],
+    "prompt": "Use case: illustration-story. Asset type: a single standalone event-card ART illustration for Lumen Party, matching an existing set of cute anime SD item illustrations. Output landscape 3:2 aspect ratio, target 1536 x 1024 pixels, horizontal composition. This is ONLY the illustration to place in the art window of a physically printed card. NO card mockup, NO frame, NO rounded border, NO title, NO lettering, NO numerals, NO UI, NO watermark, NO speech bubbles. The provided character images are identity reference images, not edit targets. Preserve each character's distinctive face, hair, ears, outfit, accessories and color palette. New dynamic poses and expressive reactions, approximately 2.5 to 3 head-tall chibi/SD figures, polished clean 2D anime linework, crisp cel shading, appealing game illustration, coherent hands and bodies. A lightly painted cream and pastel background supporting the action, opaque across the entire canvas, with simple setting clues rather than detailed scenery. Balanced readable composition at small printed size. Keep faces, ears, hands and important props within a 7 percent safe margin; only atmosphere and secondary effects may extend to edges. One unified scene, not split panels, not a sheet of icons. Friendly comedic party-game tone, no gore, no realistic injury. Give positive events warm joyful lighting and negative events clear but playful tension.\nInput image 1: primary SD identity reference for Rin: short dark blue hair with red-orange streak, little pale horns, turquoise eyes, black-white-red fighter clothes, red sneakers and oversized red mechanical gauntlets.\nInput image 2: supporting standing reference for the SAME character's costume and accessories.\nScene and event: Rin is the ONLY character. She stands in an exuberant empowered stance, red mechanical gauntlets raised, with her dark-blue hair, orange-red streak, pale horns, turquoise eyes, red sneakers and fighter outfit faithfully preserved. A large radiant four-point golden LUCKY STAR bursts behind her and a generous spiraling ring of golden energy rushes into her gauntlets. Her expression is delighted and fired up, conveying a sudden major gain of combat focus. A few gold star motes orbit her; no coins, no treasure chest, no healing heart, no cards, no numerals. The dramatic warm energy surge is much stronger than an ordinary preparation pose. Pale peach and cream background, dynamic positive event illustration."
+  },
+  {
+    "key": "everyone-go-home",
+    "refinements": [{"type":"precise-object-edit","prompt":"Use case: precise-object-edit. This image is the edit target, a finished landscape 1536x1024 Lumen Party event-card illustration showing four chibi characters at four colored homes around a central plaza. Correct ONLY the direction of the four pale-blue teleport/return arrows. Each arrow must start near the CENTRAL round plaza and point OUTWARD TOWARD its own character and home: upper-left amber Nia home, upper-right cyan Route home, lower-left lavender Delphi home, lower-right mint Tao home. Place the four arrowheads CLOSE TO THE FOUR CHARACTERS/HOMES, not in the center. The center must contain only the four thin arrow tails, with NO inward-pointing arrowheads. Keep all four characters, their exact faces and outfits, their poses, every house, house colors, garden, board layout, framing, background and lighting unchanged. Preserve the same landscape 3:2 canvas size and the existing polished SD anime art style. Do not add rewards, coins, gifts, lettering, labels or new characters."}],
+    "label": "모두 제자리로",
+    "effect": "모든 플레이어는 자신의 거점으로 돌아간다. 거점 효과는 발생하지 않는다.",
+    "ids": [
+      2,
+      3,
+      4,
+      8
+    ],
+    "scene": "All FOUR referenced characters are instantly returned to their OWN four separate home bases on a simplified octagonal party board, shown from a gentle elevated three-quarter angle. Nia arrives beside an amber home, Route beside a cyan home, Delphi beside a lavender home, Tao beside a mint home. Four small simple houses sit around the board, one per character, at well-spaced positions. Four curved pale-blue magical return trails lead outward from the center to the four houses, with each character next to their own destination looking surprised. All four characters and all four home houses are visible and distinct within one unified board scene. Houses are simple flat game-piece shapes without text or numbers. No coins, no gifts, no item drops and no reward sparkles: arriving home causes no home-base reward in this event. Cream background and soft pastel board paths.",
+    "characters": [
+      {
+        "id": 2,
+        "name": "니아"
+      },
+      {
+        "id": 3,
+        "name": "루트"
+      },
+      {
+        "id": 4,
+        "name": "델피"
+      },
+      {
+        "id": 8,
+        "name": "타오"
+      }
+    ],
+    "references": [
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-2-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-3-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-4-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-8-sd_img.webp"
+    ],
+    "prompt": "Use case: illustration-story. Asset type: a single standalone event-card ART illustration for Lumen Party, matching an existing set of cute anime SD item illustrations. Output landscape 3:2 aspect ratio, target 1536 x 1024 pixels, horizontal composition. This is ONLY the illustration to place in the art window of a physically printed card. NO card mockup, NO frame, NO rounded border, NO title, NO lettering, NO numerals, NO UI, NO watermark, NO speech bubbles. The provided character images are identity reference images, not edit targets. Preserve each character's distinctive face, hair, ears, outfit, accessories and color palette. New dynamic poses and expressive reactions, approximately 2.5 to 3 head-tall chibi/SD figures, polished clean 2D anime linework, crisp cel shading, appealing game illustration, coherent hands and bodies. A lightly painted cream and pastel background supporting the action, opaque across the entire canvas, with simple setting clues rather than detailed scenery. Balanced readable composition at small printed size. Keep faces, ears, hands and important props within a 7 percent safe margin; only atmosphere and secondary effects may extend to edges. One unified scene, not split panels, not a sheet of icons. Friendly comedic party-game tone, no gore, no realistic injury. Give positive events warm joyful lighting and negative events clear but playful tension.\nInput image 1: primary SD identity reference for Nia: mint-green curled twin tails, white forelock, cat ears, gold eyes, white-and-teal outfit and huge grey mechanical gauntlets.\nInput image 2: primary SD identity reference for Route: short orange-red hair, red goggles on the forehead, blue eyes, tan long coat, dark trousers and boots.\nInput image 3: primary SD identity reference for Delphi: long teal hair, oversized black rabbit-ear bow, blue eyes, white mechanic cropped top, loose orange work trousers and grey gloves.\nInput image 4: primary SD identity reference for Tao: pink-and-white fluffy fox ears, pink hair, turquoise eyes, white-and-dark martial-arts outfit with teal accents, pink paw gloves and large pink-white fox tail.\nScene and event: All FOUR referenced characters are instantly returned to their OWN four separate home bases on a simplified octagonal party board, shown from a gentle elevated three-quarter angle. Nia arrives beside an amber home, Route beside a cyan home, Delphi beside a lavender home, Tao beside a mint home. Four small simple houses sit around the board, one per character, at well-spaced positions. Four curved pale-blue magical return trails lead outward from the center to the four houses, with each character next to their own destination looking surprised. All four characters and all four home houses are visible and distinct within one unified board scene. Houses are simple flat game-piece shapes without text or numbers. No coins, no gifts, no item drops and no reward sparkles: arriving home causes no home-base reward in this event. Cream background and soft pastel board paths."
+  },
+  {
+    "key": "item-chest",
+    "label": "아이템 상자",
+    "effect": "이벤트를 밟은 플레이어는 아이템 창이 가득 찰 때까지 무작위 아이템을 얻는다.",
+    "ids": [
+      5
+    ],
+    "scene": "Kiss is the ONLY character. Preserve her blonde ponytail, tall yellow-black ear-shaped ornament, black eye mask, yellow eyes, and orange-white-black thief costume. She kneels with a delighted mischievous grin in front of a LARGE OPEN ITEM CHEST overflowing with a varied assortment of clearly readable game items: a rolled bandage, a small healing bottle, one ivory die, a compact shield emitter and a folded little cloak. Some items tumble into an already bulging open satchel beside her, implying her inventory filling up. The chest and assorted item silhouettes are the primary foreground subject. Warm golden light shines from inside the chest; no coins, no weapons, no text, no UI slots, no duplicates of Kiss. Keep the scene charming and uncluttered with only a few large readable items.",
+    "characters": [
+      {
+        "id": 5,
+        "name": "키스"
+      }
+    ],
+    "references": [
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-5-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-5-body_img.webp"
+    ],
+    "prompt": "Use case: illustration-story. Asset type: a single standalone event-card ART illustration for Lumen Party, matching an existing set of cute anime SD item illustrations. Output landscape 3:2 aspect ratio, target 1536 x 1024 pixels, horizontal composition. This is ONLY the illustration to place in the art window of a physically printed card. NO card mockup, NO frame, NO rounded border, NO title, NO lettering, NO numerals, NO UI, NO watermark, NO speech bubbles. The provided character images are identity reference images, not edit targets. Preserve each character's distinctive face, hair, ears, outfit, accessories and color palette. New dynamic poses and expressive reactions, approximately 2.5 to 3 head-tall chibi/SD figures, polished clean 2D anime linework, crisp cel shading, appealing game illustration, coherent hands and bodies. A lightly painted cream and pastel background supporting the action, opaque across the entire canvas, with simple setting clues rather than detailed scenery. Balanced readable composition at small printed size. Keep faces, ears, hands and important props within a 7 percent safe margin; only atmosphere and secondary effects may extend to edges. One unified scene, not split panels, not a sheet of icons. Friendly comedic party-game tone, no gore, no realistic injury. Give positive events warm joyful lighting and negative events clear but playful tension.\nInput image 1: primary SD identity reference for Kiss: blonde high ponytail, tall yellow-black bunny-ear ornament, black eye mask, yellow eyes and black-white-orange thief outfit.\nInput image 2: supporting standing reference for the SAME character's costume and accessories.\nScene and event: Kiss is the ONLY character. Preserve her blonde ponytail, tall yellow-black ear-shaped ornament, black eye mask, yellow eyes, and orange-white-black thief costume. She kneels with a delighted mischievous grin in front of a LARGE OPEN ITEM CHEST overflowing with a varied assortment of clearly readable game items: a rolled bandage, a small healing bottle, one ivory die, a compact shield emitter and a folded little cloak. Some items tumble into an already bulging open satchel beside her, implying her inventory filling up. The chest and assorted item silhouettes are the primary foreground subject. Warm golden light shines from inside the chest; no coins, no weapons, no text, no UI slots, no duplicates of Kiss. Keep the scene charming and uncluttered with only a few large readable items."
+  },
+  {
+    "key": "food-poisoning",
+    "label": "식중독",
+    "effect": "모든 플레이어는 3턴 동안 매 턴 500 데미지를 받는다.",
+    "ids": [
+      2,
+      3,
+      4,
+      8
+    ],
+    "scene": "All FOUR referenced characters sit together after a shared picnic, ALL looking mildly green-faced and queasy, with tired eyes, comedic forehead sweat and hands or paws resting over their stomachs. Their identities and outfits remain distinct: Nia mint cat twin tails and mechanical gloves, Route orange hair and goggles, Delphi teal hair and black rabbit-ear bow plus orange trousers, Tao pink fox ears and fluffy tail. In the foreground, one small shared picnic plate holds a visibly suspicious sandwich with a tiny green wavy smell, establishing food poisoning. Use a few repeating small green wavy discomfort lines around the group to imply a lingering negative status. Keep it funny and suitable for a friendly board game: NO vomiting, no bodily fluids, no gore, no realistic illness detail, no doctor or healing kit, no single unaffected character. A restrained pale sage-green and cream background, readable group composition.",
+    "characters": [
+      {
+        "id": 2,
+        "name": "니아"
+      },
+      {
+        "id": 3,
+        "name": "루트"
+      },
+      {
+        "id": 4,
+        "name": "델피"
+      },
+      {
+        "id": 8,
+        "name": "타오"
+      }
+    ],
+    "references": [
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-2-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-3-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-4-sd_img.webp",
+      "C:\\Hinoto\\LumenGG\\artifacts\\party-items\\references\\character-8-sd_img.webp"
+    ],
+    "prompt": "Use case: illustration-story. Asset type: a single standalone event-card ART illustration for Lumen Party, matching an existing set of cute anime SD item illustrations. Output landscape 3:2 aspect ratio, target 1536 x 1024 pixels, horizontal composition. This is ONLY the illustration to place in the art window of a physically printed card. NO card mockup, NO frame, NO rounded border, NO title, NO lettering, NO numerals, NO UI, NO watermark, NO speech bubbles. The provided character images are identity reference images, not edit targets. Preserve each character's distinctive face, hair, ears, outfit, accessories and color palette. New dynamic poses and expressive reactions, approximately 2.5 to 3 head-tall chibi/SD figures, polished clean 2D anime linework, crisp cel shading, appealing game illustration, coherent hands and bodies. A lightly painted cream and pastel background supporting the action, opaque across the entire canvas, with simple setting clues rather than detailed scenery. Balanced readable composition at small printed size. Keep faces, ears, hands and important props within a 7 percent safe margin; only atmosphere and secondary effects may extend to edges. One unified scene, not split panels, not a sheet of icons. Friendly comedic party-game tone, no gore, no realistic injury. Give positive events warm joyful lighting and negative events clear but playful tension.\nInput image 1: primary SD identity reference for Nia: mint-green curled twin tails, white forelock, cat ears, gold eyes, white-and-teal outfit and huge grey mechanical gauntlets.\nInput image 2: primary SD identity reference for Route: short orange-red hair, red goggles on the forehead, blue eyes, tan long coat, dark trousers and boots.\nInput image 3: primary SD identity reference for Delphi: long teal hair, oversized black rabbit-ear bow, blue eyes, white mechanic cropped top, loose orange work trousers and grey gloves.\nInput image 4: primary SD identity reference for Tao: pink-and-white fluffy fox ears, pink hair, turquoise eyes, white-and-dark martial-arts outfit with teal accents, pink paw gloves and large pink-white fox tail.\nScene and event: All FOUR referenced characters sit together after a shared picnic, ALL looking mildly green-faced and queasy, with tired eyes, comedic forehead sweat and hands or paws resting over their stomachs. Their identities and outfits remain distinct: Nia mint cat twin tails and mechanical gloves, Route orange hair and goggles, Delphi teal hair and black rabbit-ear bow plus orange trousers, Tao pink fox ears and fluffy tail. In the foreground, one small shared picnic plate holds a visibly suspicious sandwich with a tiny green wavy smell, establishing food poisoning. Use a few repeating small green wavy discomfort lines around the group to imply a lingering negative status. Keep it funny and suitable for a friendly board game: NO vomiting, no bodily fluids, no gore, no realistic illness detail, no doctor or healing kit, no single unaffected character. A restrained pale sage-green and cream background, readable group composition."
+  }
+]

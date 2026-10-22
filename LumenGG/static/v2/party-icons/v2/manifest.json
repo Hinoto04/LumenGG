@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "kind": "additional-board-tiles",
+  "mode": "built-in image_gen",
+  "excludedPlayerColors": [
+    "#FFC775",
+    "#72D8ED",
+    "#C9A1FF",
+    "#8CE1BD"
+  ],
+  "transferArrowLayout": {
+    "upper": "right",
+    "lower": "left"
+  },
+  "assets": [
+    {
+      "id": "camp-shared",
+      "name": "공용 거점",
+      "file": "camp-shared.png",
+      "staticUrl": "/static/v2/party-icons/v2/camp-shared.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "transparentExterior": true,
+      "sha256": "5830a5c4fc8cd561a03161e84472965677862f33739f60c847e0bf952453e853"
+    },
+    {
+      "id": "transfer-vermilion",
+      "name": "교체 · 버밀리언",
+      "file": "transfer-vermilion.png",
+      "staticUrl": "/static/v2/party-icons/v2/transfer-vermilion.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "transparentExterior": true,
+      "sha256": "71276ef8d8d9423a68a9fdb47f716819b2a01a609f8bd490cad6805bc36ba125"
+    },
+    {
+      "id": "transfer-magenta",
+      "name": "교체 · 마젠타",
+      "file": "transfer-magenta.png",
+      "staticUrl": "/static/v2/party-icons/v2/transfer-magenta.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "transparentExterior": true,
+      "sha256": "bc7529cf087e4cb8b769feb55d036ce2b379f4d2d026c442693effdc4f4616f0"
+    },
+    {
+      "id": "transfer-cobalt",
+      "name": "교체 · 코발트",
+      "file": "transfer-cobalt.png",
+      "staticUrl": "/static/v2/party-icons/v2/transfer-cobalt.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "transparentExterior": true,
+      "sha256": "74255b958aebcee1622f14703f7524b105736ad1262322371431a8a47f7c0db5"
+    },
+    {
+      "id": "transfer-slate",
+      "name": "교체 · 회청색",
+      "file": "transfer-slate.png",
+      "staticUrl": "/static/v2/party-icons/v2/transfer-slate.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "transparentExterior": true,
+      "sha256": "84ff7772d33a1bad3836ccae2e846a392c29719e11c3cb7033f4dec9bd05beef"
+    }
+  ]
+}

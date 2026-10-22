@@ -1,0 +1,20 @@
+{% extends "base_v2.html" %}
+{% load language_tags static %}
+{% block title %}{% tr "계산기 UI 선택" %} - LumenDB{% endblock %}
+{% block style %}<style>
+.calculator-entry{max-width:760px;margin:4vh auto}.calculator-entry-options{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}.calculator-entry-options a{display:flex;flex-direction:column;justify-content:center;gap:12px;min-height:170px;padding:24px;border:1px solid var(--v2-line);border-radius:14px;color:var(--v2-text);background:var(--v2-panel-bg);text-decoration:none}.calculator-entry-options a:first-child{border-color:var(--v2-accent)}.calculator-entry-options a:last-child{border-color:#7e91c9;background:linear-gradient(135deg,#243453,#151d30);color:#f6f1e8}.calculator-entry-options small{letter-spacing:.15em;opacity:.7}.calculator-entry-options strong{font-size:clamp(17px,3vw,24px)}.calculator-entry-options a:focus-visible{outline:3px solid var(--v2-accent);outline-offset:4px}@media(max-width:480px){.calculator-entry-options{grid-template-columns:1fr}.calculator-entry-options a{min-height:130px}}
+.calculator-entry-options{grid-template-columns:repeat(3,minmax(0,1fr))}.calculator-entry-options a[data-calculator-style='illustrated']{border-color:#7e91c9;background:linear-gradient(135deg,#243453,#151d30);color:#f6f1e8}.calculator-entry-options a[data-calculator-style='clean']{border-color:#8da3bb;background:#162032;color:#e7f0fc}@media(max-width:600px){.calculator-entry-options{grid-template-columns:1fr}}
+</style>{% endblock %}
+{% block content %}
+<section class="calculator-entry">
+    <div class="v2-kicker">BATTLE CALCULATOR</div>
+    <h1 class="v2-title">{% tr "계산기 UI 선택" %}</h1>
+    <p class="v2-subtitle">{{ session.player1_name }} vs {{ session.player2_name }}</p>
+    <div class="calculator-entry-options">
+        <a href="{{ classic_url }}"><small>CLASSIC</small><strong>{% tr "기존 계산기" %}</strong></a>
+        <a href="{{ character_url }}" data-calculator-style="illustrated"><small>CHARACTER ARENA</small><strong>{% tr "캐릭터 UI 계산기" %}</strong></a>
+        <a href="{{ character_url }}" data-calculator-style="clean"><small>CLEAN</small><strong>{% tr "깔끔한 UI 계산기" %}</strong></a>
+    </div>
+</section>
+<script src="{% static 'v2/calculator-appearance-model.js' %}"></script><script src="{% static 'v2/calculator-appearance-entry.js' %}"></script>
+{% endblock %}

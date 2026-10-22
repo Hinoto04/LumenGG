@@ -77,7 +77,7 @@
         </div>
         <div class="v2-table-board-bottom">
             {% if match.can_open_battle %}
-            <a class="v2-button" href="{% url "tournament:battleEntry" tournament.id match.id %}" target="_blank" rel="noopener">{% tr "계산기" %}</a>
+            <a class="v2-button" href="{% url "tournament:battleEntry" tournament.id match.id %}?choose_ui=1" target="_blank" rel="noopener">{% tr "계산기" %}</a>
             {% endif %}
             {% if match.is_bye %}
             <span class="v2-chip">BYE {% tr "승" %}</span>

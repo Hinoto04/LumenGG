@@ -41,7 +41,11 @@
         const role = node.dataset.sessionRole || "";
         if (!kind || !url) return;
 
-        const items = loadItems(kind).filter((item) => item && item.url !== url);
+        const identity = value => {
+            try { const parsed = new URL(value, window.location.origin); return parsed.origin + parsed.pathname; }
+            catch { return value; }
+        };
+        const items = loadItems(kind).filter((item) => item && identity(item.url) !== identity(url));
         items.unshift({
             url,
             title,
@@ -69,7 +73,21 @@
             const meta = document.createElement("small");
             meta.textContent = [item.role, formatDate(item.updatedAt)].filter(Boolean).join(" · ");
             row.append(main, meta);
-            list.appendChild(row);
+            if (kind === "battle" && section.dataset.uiChoiceLabel) {
+                const group = document.createElement("div");
+                group.style.cssText = "display:flex;gap:8px;align-items:stretch";
+                row.style.cssText = "flex:1;min-width:0";
+                const choose = document.createElement("a");
+                choose.className = "v2-button";
+                choose.textContent = "UI";
+                choose.setAttribute("aria-label", section.dataset.uiChoiceLabel);
+                choose.title = section.dataset.uiChoiceLabel;
+                const url = new URL(item.url, window.location.origin);
+                url.searchParams.set("choose_ui", "1");
+                choose.href = url.toString();
+                group.append(row,choose);
+                list.appendChild(group);
+            } else list.appendChild(row);
         });
     }
 

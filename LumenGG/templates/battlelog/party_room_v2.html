@@ -1,0 +1,63 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% block title %}{{ room.name }} · 루멘 파티{% endblock %}
+{% block body_class %}v2-party-mode{% endblock %}
+{% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}"><link rel="stylesheet" href="{% static 'v2/lumen-party-game.css' %}?v=20261019-supplies1"><link rel="stylesheet" href="{% static 'v2/lumen-party-hud.css' %}?v=20261019-supplies1">{% endblock %}
+{% block content %}
+<section class="party-room" data-party-room data-code="{{ room.code }}">
+    {% csrf_token %}
+    <header class="party-room-head">
+        <div class="party-game-brand"><a href="{% url 'battlelog:partyHome' %}" aria-label="파티 목록으로 돌아가기">LUMEN <b>PARTY</b></a><h1>{{ room.name }}</h1></div>
+        <div class="party-round-hud"><p data-party-status></p><small data-party-bonuses></small><div class="party-round-track" data-party-round-track aria-hidden="true"></div></div>
+        <div class="party-room-code"><span>ROOM</span><strong>{{ room.code }}</strong><button class="v2-button" type="button" data-party-share>초대하기 ↗</button></div>
+    </header>
+    <p class="party-error" data-party-error role="alert"></p>
+    <div class="party-connection" data-party-connection role="status">연결 중…</div>
+    <div class="party-test-tools" data-party-test-tools hidden>
+        <label><span>테스트 · 플레이어 전환</span><select data-party-test-seat aria-label="테스트 플레이어 선택"></select></label>
+        <small>선택한 플레이어의 화면과 행동을 체험해요</small>
+    </div>
+    <form class="v2-panel party-form party-join" data-party-join hidden>
+        <h2>내 자리로 참여하기</h2><p>교전하지 않는 동안에도 지도와 공개 상태를 함께 볼 수 있어요.</p>
+        <label>내 이름<input name="name" maxlength="30" required></label>
+        <label>캐릭터<select name="character_id" required>{% for character in characters %}<option value="{{ character.id }}">{{ character.name }} · HP {{ character.hp }}</option>{% endfor %}</select></label>
+        <button class="v2-button v2-button-primary">참여하기</button>
+    </form>
+    <div class="party-layout">
+        <div class="party-map-panel">
+            <div class="party-map" data-party-map aria-label="파티 지도"></div>
+        </div>
+        <nav class="party-map-tools" aria-label="지도 보기 설정">
+            <button type="button" class="party-zoom-control" data-party-camera="out" aria-label="보드 축소" title="축소">−</button>
+            <button type="button" class="party-zoom-control" data-party-camera="in" aria-label="보드 확대" title="확대">+</button>
+            <button type="button" data-party-map-toggle aria-label="전체 지도" title="전체 지도" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h6l6 6h6"/></svg></button>
+        </nav>
+        <section class="party-roster-hud" data-party-players aria-label="이번 라운드 행동 순서"></section>
+        <section class="party-roll-reveal" data-party-roll hidden role="status" aria-live="polite" aria-atomic="true"></section>
+        <aside class="party-action-dock">
+            <section class="party-controls"><div data-party-controls></div></section>
+            <section class="party-battle" data-party-battle hidden></section>
+        </aside>
+        <section class="party-card-preview" data-party-card-preview hidden role="dialog" aria-modal="true" aria-label="카드 미리보기"></section>
+        <section class="party-arrival-choice" data-party-arrival-choice hidden role="dialog" aria-modal="true" aria-label="도착 선택"></section>
+        <section class="party-arrival-choice party-supply-choice" data-party-supply-choice hidden role="dialog" aria-modal="true" aria-label="보급함"></section>
+        <section class="party-event-reveal" data-party-event hidden role="status" aria-live="polite"></section>
+        <section class="party-selection" data-party-selection hidden aria-label="선택한 칸 정보">
+            <button class="party-selection-close" type="button" data-party-selection-close aria-label="칸 정보 닫기">×</button>
+            <img data-party-tile-image alt="">
+            <div><small>SELECTED</small><h2 data-party-tile-title></h2><p data-party-tile-info></p></div>
+        </section>
+        <section class="party-versus" data-party-versus hidden aria-label="교전 선택"></section>
+        <section class="party-item-picker" data-party-item-picker hidden aria-label="아이템 사용"></section>
+        <div class="party-inventory-hud">
+            <section class="party-hand-rack"><div class="party-hand-title"><span>MY ITEMS</span><small>실물 기술 카드는 테이블에서 사용해요</small></div><div data-party-items></div></section>
+        </div>
+        <div class="party-item-drop" data-party-item-drop hidden aria-hidden="true">여기에 놓아 사용</div>
+    </div>
+    <details class="v2-panel party-rules"><summary>이번 파티의 진행 규칙</summary><p>지도는 외순환 40칸·내순환 24칸입니다. 두 순환로 사이의 도로는 없으며 교체 칸에 정확히 도착하면 다른 순환로로 옮길지 선택합니다. 시작 방향은 외곽 시계 방향입니다. 모든 길은 양방향이며 갈림길에서 선택한 방향을 유지합니다. 한 방향 구간은 자동 이동합니다. 주사위를 굴리면 남은 이동으로 지날 수 있는 칸과 경로를 강조합니다. 칸을 누르면 해당 칸으로 이어지는 경로만 선명하게 보입니다. 실제 이동은 갈림길의 선택 화살표로 진행합니다. 일반 칸은 통과할 때 효과가 없으며 정확히 멈춘 칸의 도착 효과만 적용합니다. 상점을 지나치면 자동으로 열리고, 구매하거나 취소한 뒤 남은 이동을 이어갑니다. 공용 거점에서는 누구나 지나칠 때 멈춰 승점을 구매할 수 있습니다. 자기 거점을 지나칠 때는 멈출 수 있고, 멈추기로 선택해야 보상을 받습니다. 3라운드가 지날 때마다 이동력 +1, 5라운드가 지날 때마다 공격자 보너스 FP +1. 라운드 제한은 없습니다. 라운드가 끝나면 현재 FP가 높은 순으로 다음 행동 순서를 정합니다. FP가 같으면 현재 체력이 높은 순, 둘 다 같으면 이전 순서를 유지합니다.</p><p>상대를 지나치거나 같은 칸에 도착하면 교전할 수 있습니다. 거점을 포함한 모든 칸에서 교전할 수 있으며, 한 턴에 여러 번 가능하며, 같은 만남에서 이미 교전한 상대는 제외합니다. 교전마다 최대 두 번의 공방을 진행합니다. 첫 공방에서 한쪽이라도 기절하면 바로 종료합니다. 참가자 한 명이 결과를 제출하면 즉시 반영되며, 이후 다시 교전하거나 남은 이동을 이어갑니다. 준비 칸은 2+공격자 보너스만큼 FP를 얻습니다. 아이템 전투 준비는 FP 4를 얻습니다. 누적 FP는 다음 교전에 사용합니다. 카드와 패는 테이블에서 관리합니다.</p><p>자기 거점 도착: 3코인 + 무작위 아이템 1개. 모든 거점 도착: 코인이 충분하면 승점을 6 / 10 / 15코인에 자동 구매하고, 보상 아이템 3종 중 1개를 선택합니다. 턴당 한 번 구매합니다. 승점 3점를 모은 라운드가 끝나면 우승을 판정합니다. 상점에서 아이템 1개 구매, 아이템은 최대 3개이며 첫 이동 전에만 턴당 1개 사용합니다. 플레이어 기절 시 가해자는 승점 1점과 5코인을 얻습니다. 기절한 다음 자기 턴은 쉬고, 그다음 자기 턴에 현재 위치에서 부활합니다. 부활 HP는 최대 HP의 절반을 100 단위로 올림합니다. 손패를 모두 버리고 부활 HP 기준 최대 손패까지 획득하며 패시브를 초기화합니다. 기술 수련도 손패를 전부 교체하며, 화면에서 교체 완료를 누릅니다. 아이템 13종은 모두 임시 3코인입니다. 투명 망토는 다음 자기 턴까지 전투·아이템 대상으로 선택되지 않으며 효과 보호막은 다음 아이템 피해를 막습니다. 통행 금지는 해당 칸에서 멈추고 제거합니다. 반격 대기 시 상대의 선택 후 원래 턴을 이어갑니다. 초기 코인 0, 턴 시작 코인 +1. 교전에서 준 피해 500당 2코인을 얻습니다. 횡재는 1~3코인을 줍니다. 3라운드마다 HP 800 보급함 3개가 추가로 등장합니다. 만나면 기술 카드를 속도 오름차순으로 사용해 공격하거나 지나갈 수 있고, 보급함을 파괴하면 2코인을 얻습니다. 교전 승패는 기록하지 않으며 승리 코인 보상과 코인 약탈은 없습니다.</p></details>
+    <section class="v2-panel party-log"><h2>테이블 기록</h2><ol data-party-log aria-live="polite"></ol></section>
+</section>
+{{ state|json_script:"party-initial-state" }}
+<script src="{% static 'v2/lumen-party.js' %}?v=20261019-supplies1"></script>
+<script type="module" src="{% static 'v2/lumen-party-3d.js' %}?v=20261019-supplies1"></script>
+{% endblock %}

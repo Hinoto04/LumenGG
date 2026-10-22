@@ -1,0 +1,33 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% block title %}루멘 파티 - LumenDB{% endblock %}
+{% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}">{% endblock %}
+{% block content %}
+<section class="party-home" data-party-home>
+    {% csrf_token %}
+    <div class="party-intro"><span class="party-eyebrow">LUMEN PARTY · OFFLINE PLAY</span>
+        <h1>같은 테이블, 하나의 지도.</h1>
+        <p>카드는 테이블에서. 이동과 공개 정보는 각자의 기기에서.<br>친구와 방을 만들고 최대 두 번의 공방으로 승부하세요.</p>
+        <div class="party-pills"><span>2–4명</span><span>32칸 순환 지도</span><span>교전당 최대 2공방</span><span>로그인 없이 참여</span></div>
+    </div>
+    <div class="party-entry-grid">
+        <form class="v2-panel party-form" data-party-create>
+            <h2>새 파티 만들기</h2>
+            <label>방 이름<input name="room_name" maxlength="60" value="루멘 파티" required></label>
+            <label>내 이름<input name="name" maxlength="30" placeholder="테이블에서 부를 이름" required></label>
+            <label>캐릭터<select name="character_id" required>{% for character in characters %}<option value="{{ character.id }}">{{ character.name }} · HP {{ character.hp }}</option>{% endfor %}</select></label>
+            <p>라운드 제한 없이 진행합니다. 이동력과 공격자 보너스가 라운드에 따라 증가합니다.</p>
+            <button class="v2-button v2-button-primary" type="submit">방 만들기</button>
+        </form>
+        <form class="v2-panel party-form" data-party-enter>
+            <h2>친구의 파티에 참여</h2>
+            <p>방장이 알려준 여섯 자리 코드를 입력하세요. 이전에 참여한 기기라면 내 자리로 복귀합니다.</p>
+            <label>방 코드<input name="code" maxlength="6" minlength="6" placeholder="ABC234" autocomplete="off" autocapitalize="characters" required pattern="[A-Za-z2-9]{6}"></label>
+            <button class="v2-button" type="submit">방으로 이동</button>
+            <div data-party-recent></div>
+        </form>
+    </div>
+    <p class="party-error" data-party-error role="alert"></p>
+</section>
+<script src="{% static 'v2/lumen-party.js' %}"></script>
+{% endblock %}

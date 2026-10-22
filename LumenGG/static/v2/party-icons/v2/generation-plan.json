@@ -1,0 +1,43 @@
+{
+  "mode": "built-in image_gen",
+  "reference": "LumenGG/static/v2/party-icons/v1/camp-1.png",
+  "excludedPlayerColors": [
+    "#FFC775",
+    "#72D8ED",
+    "#C9A1FF",
+    "#8CE1BD"
+  ],
+  "assets": [
+    {
+      "key": "camp-shared",
+      "name": "공용 거점",
+      "color": "#B8B5AE",
+      "prompt": "Use case: stylized-concept. Production raster PNG board-space icon for Lumen Party. ONE icon only on a square transparent canvas. A perfectly flat 2D regular octagon viewed exactly perpendicular, horizontal top and bottom, vertical sides, equal diagonal cuts. Match the reference icon's centered octagonal silhouette, thick dark navy #26334D border, thin ivory inset octagonal keyline, scale and padding. Cute fantasy board-game UI, bold ivory pictogram with dark navy outlines and rounded joins, smooth crisp edges readable at 64 pixels. This is a flat printed tile face, never a physical pedestal. Solid opaque colored fill inside octagon; all exterior genuinely transparent alpha. No perspective, extrusion, cast shadow, bevel, lighting, glow, scenery, texture, words, numbers, watermark or extra icons. Keep flat uniform colors rather than the reference's subtle surface gradients. Output square 1024x1024 or higher. Reference 1 is a STYLE reference and the existing player home icon. Generate the matching SHARED HOME. Replace the amber fill with neutral warm stone gray #B8B5AE. Retain the simple ivory house with pitched roof and chimney, plus the tiny ivory diamond crystal above the roof. Replace player numeral with a tiny clear community pictogram inside the house: three dark-navy round heads above a single short curved shoulder bar, simple shared-users symbol. No player numeral and no ownership color. Keep the large house centered and instantly readable. Only the home, tiny crystal and small users symbol; no arrows."
+    },
+    {
+      "key": "transfer-vermilion",
+      "name": "교체 · 버밀리언",
+      "color": "#D86A4C",
+      "prompt": "Use case: stylized-concept. Production raster PNG board-space icon for Lumen Party. ONE icon only on a square transparent canvas. A perfectly flat 2D regular octagon viewed exactly perpendicular, horizontal top and bottom, vertical sides, equal diagonal cuts. Match the reference icon's centered octagonal silhouette, thick dark navy #26334D border, thin ivory inset octagonal keyline, scale and padding. Cute fantasy board-game UI, bold ivory pictogram with dark navy outlines and rounded joins, smooth crisp edges readable at 64 pixels. This is a flat printed tile face, never a physical pedestal. Solid opaque colored fill inside octagon; all exterior genuinely transparent alpha. No perspective, extrusion, cast shadow, bevel, lighting, glow, scenery, texture, words, numbers, watermark or extra icons. Keep flat uniform colors rather than the reference's subtle surface gradients. Output square 1024x1024 or higher. Reference 1 is a STYLE reference for octagon frame and line weight ONLY. Generate a TRANSFER / SWAP POINT, with tile fill vermilion terracotta #D86A4C, distinct from player amber/cyan/lavender/mint colors. Replace the entire house, crystal and numeral with exactly TWO broad parallel horizontal ONE-WAY block arrows stacked in two rows: UPPER arrow points RIGHT (→), LOWER arrow points LEFT (←). Both arrows have an ivory fill and thick dark navy outline, equal length and shaft width, rounded corners, generous separation; each has exactly one arrowhead. The pair together fills the central 60% of the tile. Straight arrows only, no circular arrows, no vertical arrows, no bidirectional double-headed arrow, no crossing or connecting arrows, no other symbols."
+    },
+    {
+      "key": "transfer-magenta",
+      "name": "교체 · 마젠타",
+      "color": "#B74D87",
+      "prompt": "Use case: stylized-concept. Edit target: reference image 1, the Lumen Party vermilion transfer tile. SINGLE CHANGE ONLY: recolor the interior octagon background from vermilion orange to #B74D87 (교체 · 마젠타). This must be visibly distinct from the four player colors amber #FFC775, cyan #72D8ED, lavender #C9A1FF and mint #8CE1BD. Preserve the exact same square canvas, perfectly planar upright regular octagonal silhouette, transparent exterior alpha, thick dark navy frame, thin ivory octagonal keyline, central TWO ivory arrows and navy outlines. UPPER straight one-way arrow points RIGHT; LOWER straight one-way arrow points LEFT. Preserve both arrows' geometry, spacing, position, proportions and line weights. Keep navy #26334D and ivory unchanged. Maintain reference composition, scale, padding and clean 2D UI style. No words, labels, numbers, scenery, gradients, glow, perspective, shadows, bevels, extrusion or added symbols. Output one square PNG with true transparent exterior, same dimensions as reference."
+    },
+    {
+      "key": "transfer-cobalt",
+      "name": "교체 · 코발트",
+      "color": "#4C68B5",
+      "prompt": "Use case: stylized-concept. Edit target: reference image 1, the Lumen Party vermilion transfer tile. SINGLE CHANGE ONLY: recolor the interior octagon background from vermilion orange to #4C68B5 (교체 · 코발트). This must be visibly distinct from the four player colors amber #FFC775, cyan #72D8ED, lavender #C9A1FF and mint #8CE1BD. Preserve the exact same square canvas, perfectly planar upright regular octagonal silhouette, transparent exterior alpha, thick dark navy frame, thin ivory octagonal keyline, central TWO ivory arrows and navy outlines. UPPER straight one-way arrow points RIGHT; LOWER straight one-way arrow points LEFT. Preserve both arrows' geometry, spacing, position, proportions and line weights. Keep navy #26334D and ivory unchanged. Maintain reference composition, scale, padding and clean 2D UI style. No words, labels, numbers, scenery, gradients, glow, perspective, shadows, bevels, extrusion or added symbols. Output one square PNG with true transparent exterior, same dimensions as reference."
+    },
+    {
+      "key": "transfer-slate",
+      "name": "교체 · 회청색",
+      "color": "#7E8B9B",
+      "prompt": "Use case: stylized-concept. Edit target: reference image 1, the Lumen Party vermilion transfer tile. SINGLE CHANGE ONLY: recolor the interior octagon background from vermilion orange to #7E8B9B (교체 · 회청색). This must be visibly distinct from the four player colors amber #FFC775, cyan #72D8ED, lavender #C9A1FF and mint #8CE1BD. Preserve the exact same square canvas, perfectly planar upright regular octagonal silhouette, transparent exterior alpha, thick dark navy frame, thin ivory octagonal keyline, central TWO ivory arrows and navy outlines. UPPER straight one-way arrow points RIGHT; LOWER straight one-way arrow points LEFT. Preserve both arrows' geometry, spacing, position, proportions and line weights. Keep navy #26334D and ivory unchanged. Maintain reference composition, scale, padding and clean 2D UI style. No words, labels, numbers, scenery, gradients, glow, perspective, shadows, bevels, extrusion or added symbols. Output one square PNG with true transparent exterior, same dimensions as reference."
+    }
+  ],
+  "variantEditTarget": "LumenGG/static/v2/party-icons/v2/transfer-vermilion.png"
+}

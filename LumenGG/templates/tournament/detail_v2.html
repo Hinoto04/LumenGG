@@ -344,7 +344,7 @@
                             </div>
                             <div class="v2-tournament-match-actions">
                             {% if match.can_open_battle %}
-                            <a class="v2-button" href="{% url "tournament:battleEntry" tournament.id match.id %}">{% tr "계산기" %}</a>
+                            <a class="v2-button" href="{% url "tournament:battleEntry" tournament.id match.id %}?choose_ui=1">{% tr "계산기" %}</a>
                             {% if match.battle_summary %}
                             <span class="v2-chip" data-battle-set>
                                 {% if match.battle_summary.sudden_death %}

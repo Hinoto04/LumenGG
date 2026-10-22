@@ -1,0 +1,10 @@
+{% extends "battlelog/session_v2.html" %}
+{% load static %}
+{% block body_class %}v2-battle-mode v2-character-calculator{% endblock %}
+{% block style %}{{ block.super }}<link rel="stylesheet" href="{% static 'v2/calculator-character.css' %}"><link rel="stylesheet" href="{% static 'v2/calculator-appearance.css' %}">{% endblock %}
+{% block battle_scripts %}
+<script src="{% static 'v2/calculator-appearance-model.js' %}"></script>
+<script src="{% static 'v2/calculator-visual-model.js' %}"></script>
+<script src="{% static 'v2/calculator-character.js' %}"></script>
+{{ block.super }}
+{% endblock %}
