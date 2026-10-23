@@ -11,6 +11,9 @@
 {% endblock meta %}
 {% block content %}
 <div id="v2DeckCaptureArea" class="v2-deck-capture-area">
+<section class="v2-panel" data-deck-copy-zone="교체 덱"><h2>교체 덱</h2>
+{% for entry in reserve_cards %}<a href="{% url 'card:detail' entry.card_id %}" data-card-id="{{ entry.card_id }}">{{ entry.card|card_name:current_language }} × {{ entry.count }}</a>{% empty %}<p>교체 카드 없음</p>{% endfor %}
+</section>
 <section class="v2-deck-detail-head v2-panel {% if ultimate_cards %}has-ultimate{% endif %}">
     {% firstof deck.character.body_img deck.character.sd_img deck.character.img as deck_character_image %}
     {% if deck_character_image %}
@@ -22,6 +25,7 @@
                 <a href="{% url "card:character" %}?id={{ deck.character.id }}">{{ deck.character|character_name:current_language }}</a>
             </div>
             <h1 class="v2-title">{{ deck.name }}</h1>
+            <p>특성: {% if deck.trait_card %}{{ deck.trait_card|card_name:current_language }}{% else %}미지정{% endif %} · 적용 규정: {{ deck.regulation_version|default:"기본 규정" }}</p>
         </div>
         <div class="v2-deck-detail-bottom">
             <div class="v2-deck-detail-tags">
@@ -36,6 +40,7 @@
                 <span class="v2-chip">{{ deck.created|date:"Y-m-d" }}</span>
             </div>
             <div class="v2-deck-detail-actions">
+                <a class="v2-button" href="{% url 'deck:export' deck.id %}">덱 파일 저장</a>
                 <button id="displayToggleBtn" class="v2-button" onclick="deckToggle();" type="button">{% tr "텍스트로 보기" %}</button>
                 <button class="v2-button" type="button" onclick="deckCopy()">{% tr "텍스트 덱 복사" %}</button>
                 {% if user.is_authenticated %}

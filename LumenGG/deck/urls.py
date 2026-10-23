@@ -2,10 +2,19 @@ from django.urls import path
 
 from .views import views
 from .views import util_views
+from . import api
+from . import policy_views
+from . import exchange
 
 app_name = 'deck'
 
 urlpatterns = [
+    path('export/<int:id>', exchange.export, name='export'),
+    path('import/v2', exchange.import_deck, name='importV2'),
+    path('regulations/manage', policy_views.manage, name='manageRegulations'),
+    path('options', api.options, name='options'),
+    path('regulations', api.regulations, name='regulations'),
+    path('validate', api.validation, name='validate'),
     path('', views.indexV2, name='index'),
     path('v2/', views.indexV2, name='indexV2'),
     path('legacy/', views.index, name='legacyIndex'),

@@ -1,3 +1,4 @@
+import { PassivePanel } from "./passive-panel";
 import { Image } from "react-native";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
@@ -54,7 +55,11 @@ function SymbolArt({
     <Image
       source={source}
       resizeMode="contain"
-      style={{ width: "100%", height: "100%", opacity: active ? 1 : clean ? 0.65 : 0.5 }}
+      style={{
+        width: "100%",
+        height: "100%",
+        opacity: active ? 1 : clean ? 0.65 : 0.5,
+      }}
       accessibilityElementsHidden
     />
   ) : null;
@@ -871,6 +876,19 @@ export function VisualPassives(props: Props) {
   );
 }
 function VisualPassivesContent(props: Props) {
+  if (
+    props.player.character?.trait_card_id &&
+    !props.player.character.trait_config?.legacy_character_actions
+  )
+    return (
+      <PassivePanel
+        player={props.player}
+        target={props.target}
+        definition={props.player.character.passive || { controls: [] }}
+        disabled={props.disabled}
+        onAction={props.onAction}
+      />
+    );
   if (props.theme === "tao") return <Tao {...props} />;
   if (props.theme === "rita") return <Rita {...props} />;
   const controls = visualDefinition(props.theme).controls;

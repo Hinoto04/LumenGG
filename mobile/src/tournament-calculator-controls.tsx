@@ -1,3 +1,4 @@
+import { GamePreparation } from "./game-preparation";
 import React, { useState } from "react";
 import { Alert, Text, View } from "react-native";
 import { useApp } from "./provider";
@@ -52,12 +53,30 @@ export function TournamentCalculatorControls({
         {t("라운드")} {Math.floor(left / 60)}:
         {String(left % 60).padStart(2, "0")}
       </Text>
-      <Button label="경기 · 세트 결과" onPress={() => setOpen(true)} />
+      <Button
+        label={
+          state.preparation?.status === "editing"
+            ? "게임 준비 · 교체"
+            : "경기 · 세트 결과"
+        }
+        onPress={() => setOpen(true)}
+      />
       <LandscapeModal
         visible={open}
         title={t("경기 · 세트 결과")}
         onClose={() => setOpen(false)}
       >
+        <GamePreparation
+          key={state.tournament?.match_id || "match"}
+          state={state}
+          onAction={onAction}
+          disabled={
+            !connected ||
+            busy ||
+            !state.can_control ||
+            !state.preparation?.can_prepare
+          }
+        />
         <Text style={styles.title}>
           {state.tournament?.name} · R{state.tournament?.round_number} ·{" "}
           {state.tournament?.table}

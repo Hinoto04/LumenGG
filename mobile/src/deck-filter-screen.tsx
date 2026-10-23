@@ -10,8 +10,15 @@ import { FilterChoices, FilterSheet } from "./filter-sheet";
 export interface DeckFilters {
   mode: "mine" | "public";
   character: string;
+  trait?: string;
+  regulation?: string;
 }
-export const defaultDeckFilters: DeckFilters = { mode: "mine", character: "" };
+export const defaultDeckFilters: DeckFilters = {
+  mode: "mine",
+  character: "",
+  trait: "",
+  regulation: "",
+};
 
 export function DeckFilterScreen({
   visible,
@@ -32,7 +39,7 @@ export function DeckFilterScreen({
     null,
   );
   const [message, setMessage] = useState("");
-  const key = `${scope}:${query.trim()}:${draft.character}`;
+  const key = `${scope}:${query.trim()}:${draft.character}:${draft.trait || ""}:${draft.regulation || ""}`;
   useEffect(() => {
     if (visible) setDraft({ ...value });
   }, [visible, value]);
@@ -44,7 +51,7 @@ export function DeckFilterScreen({
     const timer = setTimeout(async () => {
       try {
         const result = await request(
-          `/decks?scope=public&q=${encodeURIComponent(query.trim())}&character_id=${draft.character}`,
+          `/decks?scope=public&q=${encodeURIComponent(query.trim())}&character_id=${draft.character}&trait_card_id=${draft.trait || ""}&regulation_version_id=${draft.regulation || ""}`,
           {},
           false,
         );
@@ -60,9 +67,13 @@ export function DeckFilterScreen({
   }, [visible, draft.mode, key]);
   const count =
     draft.mode === "mine"
-      ? user
-        ? matchingDecks(decks, query, draft.character).length
-        : 0
+      ? matchingDecks(
+          decks,
+          query,
+          draft.character,
+          draft.trait,
+          draft.regulation,
+        ).length
       : preview?.key === key
         ? preview.count
         : null;
@@ -99,13 +110,33 @@ export function DeckFilterScreen({
           })),
         ]}
       />
-      <Notice
-        text={
-          draft.mode === "mine" && !user
-            ? "내 덱을 확인하려면 로그인해주세요."
-            : message
-        }
+      <FilterChoices
+        title="특성"
+        value={draft.trait || ""}
+        onChange={(trait) => setDraft((d) => ({ ...d, trait }))}
+        values={[
+          { key: "", label: t("전체") },
+          ...(catalog?.characters.flatMap((c) => c.traits || []) || []).map(
+            (trait) => ({
+              key: String(trait.id),
+              label: localized(trait, language) || trait.name,
+            }),
+          ),
+        ]}
       />
+      <FilterChoices
+        title="규정"
+        value={draft.regulation || ""}
+        onChange={(regulation) => setDraft((d) => ({ ...d, regulation }))}
+        values={[
+          { key: "", label: t("전체") },
+          ...(catalog?.rules.regulations || []).map((v) => ({
+            key: String(v.id),
+            label: `${v.name} / ${v.version}`,
+          })),
+        ]}
+      />
+      <Notice text={message} />
     </FilterSheet>
   );
 }

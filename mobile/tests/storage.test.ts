@@ -44,6 +44,22 @@ beforeEach(() => {
   configureStorage(async () => adapter, randomUUID);
 });
 afterEach(() => db.close());
+test("v2 deck drafts keep their trait and reserve queue during legacy cleanup", async () => {
+  const deck = {
+    uuid: "modern",
+    schema_version: 2,
+    trait_card_id: 101,
+    reserve_cards: [{ card_id: 102, count: 1 }],
+    cards: [],
+  };
+  await saveDocument("user:1", "deck", "modern", deck);
+  await disableDeckWrites();
+  assert.equal((await pending("user:1")).length, 1);
+  assert.deepEqual(
+    (await documents<any>("user:1", "deck"))[0].reserve_cards,
+    deck.reserve_cards,
+  );
+});
 const snapshot = (
   amount: number,
   results: SyncResponse["results"] = [],

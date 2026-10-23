@@ -326,6 +326,7 @@
     window.characterCalculator={
         suppressMotion(){suppress=true;intents.clear();},
         renderPassives(api){
+            if(api.player.character?.trait_card_id && !api.player.character.trait_config?.legacy_character_actions){passiveApis.delete(api.target);return false;}
             passiveApis.set(api.target,api);
             drawPassives(api);
             return true;

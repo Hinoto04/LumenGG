@@ -74,6 +74,7 @@ class Card(models.Model):
     keyword = models.CharField(blank=True, default='', max_length=255) #이 카드를 찾기 위한 키워드
     search = models.CharField(blank=True, default='', max_length=255) #이 카드가 찾는 관련 카드 키워드
     effect_definition = models.JSONField(default=default_effect_definition, blank=True)
+    trait_config = models.JSONField(default=dict, blank=True)
     effect_revision = models.PositiveIntegerField(default=1)
     effect_updated_at = models.DateTimeField(default=timezone.now)
     

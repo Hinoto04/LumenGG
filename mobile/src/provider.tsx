@@ -40,6 +40,7 @@ interface AppContextValue {
   sync: () => Promise<void>;
   setUser: (u: User | null) => Promise<void>;
   reload: () => Promise<void>;
+  saveDeck: (deck: Deck) => Promise<void>;
   setAmount: (
     id: number,
     n: number | ((current: number) => number),
@@ -279,6 +280,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sync,
         setUser,
         reload,
+        saveDeck: async (deck) => {
+          editEpoch.current++;
+          await saveDocument(scopeRef.current, "deck", deck.uuid, {
+            ...deck,
+            schema_version: 2,
+          });
+          await reload();
+          void sync();
+        },
         setAmount,
         t,
         signOut: async () => {

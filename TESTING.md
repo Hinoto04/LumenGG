@@ -11,6 +11,8 @@ For a zero-dependency local regression run, use the in-memory SQLite profile:
 
 This runs the existing simulator suite, the automatic engine suite, and the
 card/localization regression suites used by the full-project baseline.
+It also rebuilds and reviews all 29 CB02 originals from their captured source
+texts and checks recovery of their English/Japanese translations.
 Pass Django test labels when a narrower run is useful:
 
 ```powershell
@@ -108,6 +110,15 @@ The seed records a SHA-256 digest of the card text, detail text, and complete
 linked-Q&A contents. Publication also fails if that digest is stale or any
 linked source is missing from `source_refs`; toggle review off and on after
 rechecking a changed source to record a fresh approval digest.
+
+CB02 English/Japanese text, keywords, and search terms are captured in
+`common/localization_batches/cb02_20261023.json`. Migration
+`common.0021_cb02_localization` fills missing catalog and legacy translation
+fields. Migration `common.0022_cb02_reprint_localization` resolves reprints
+through their collection pack and copies reviewed catalog values into empty
+legacy fields. `fill_missing_localization` also runs both recovery steps for
+cards imported after the migrations. It preserves existing edits and skips fields whose Korean
+source has changed. See `docs/CB02_CATALOG_COMPLETION.md` for the pack audit.
 
 For card-by-card review, open `Cards`, filter `자동 효과 검토` to `미검토`,
 and open the first card. The change page shows a compact `자동 효과 검수 요약`

@@ -1,3 +1,4 @@
+import { deckIssues } from "./deck-rules";
 import type {
   Action,
   Card,
@@ -10,7 +11,13 @@ import type {
   CalcState,
 } from "./types";
 import { passiveActive } from "./calculator-display";
-import { applyHealthDelta, shieldAmount, setShield, supportsShield, MAX_SHIELD_DELTA } from "./calculator-shield";
+import {
+  applyHealthDelta,
+  shieldAmount,
+  setShield,
+  supportsShield,
+  MAX_SHIELD_DELTA,
+} from "./calculator-shield";
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
@@ -37,6 +44,11 @@ export function deckError(deck: Deck, catalog: Catalog): string | null {
   if (!deck.name.trim()) return "덱 이름을 입력해주세요.";
   if (!catalog.characters.some((c) => c.id === deck.character_id))
     return "캐릭터를 선택해주세요.";
+  if (deck.schema_version === 2)
+    return (
+      deckIssues(deck, catalog, "draft").find((i) => i.severity === "error")
+        ?.message || null
+    );
   let main = 0,
     hand = 0,
     ultimate = 0;
@@ -221,6 +233,8 @@ export function newCalculator(
     passive_state: clone(c.initial_passive_state),
     character: {
       id: c.id,
+      trait_card_id: (c as any).selected_trait_id,
+      trait_config: (c as any).selected_trait_config,
       name: localized(c, language),
       img: c.img,
       color: c.color,
@@ -272,13 +286,31 @@ export function reduceCalculator(
       break;
     case "shield":
     case "shield_reset":
-      if (!player || !supportsShield(player) || (action.action === "shield" && (!Number.isSafeInteger(amount) || !amount || Math.abs(amount) > MAX_SHIELD_DELTA))) return state;
+      if (
+        !player ||
+        !supportsShield(player) ||
+        (action.action === "shield" &&
+          (!Number.isSafeInteger(amount) ||
+            !amount ||
+            Math.abs(amount) > MAX_SHIELD_DELTA))
+      )
+        return state;
       {
         const before = shieldAmount(player);
-        setShield(player, action.action === "shield_reset" ? 0 : before + amount);
+        setShield(
+          player,
+          action.action === "shield_reset" ? 0 : before + amount,
+        );
         event.type = "passive";
         event.amount = shieldAmount(player) - before;
-        event.payload = { key: "finf_shield", label: "보호막", value: shieldAmount(player), before_state: { value: before }, after_state: { value: shieldAmount(player) }, reset: action.action === "shield_reset" };
+        event.payload = {
+          key: "finf_shield",
+          label: "보호막",
+          value: shieldAmount(player),
+          before_state: { value: before },
+          after_state: { value: shieldAmount(player) },
+          reset: action.action === "shield_reset",
+        };
       }
       break;
     case "fp":
@@ -296,6 +328,21 @@ export function reduceCalculator(
       }
       break;
     case "passive":
+      if (player?.character?.trait_card_id) {
+        const definition = player.character.passive || {};
+        const controls = [
+          ...(definition.controls || []),
+          ...(definition.badges || []),
+          ...(definition.latchedStatuses || []),
+        ];
+        const keys = new Set([
+          "memo",
+          String(player.character.trait_card_id),
+          ...Object.keys(player.character.initial_passive_state || {}),
+          ...controls.flatMap((c: any) => [c.key, ...(c.resetKeys || [])]),
+        ]);
+        if (!keys.has(action.key || "memo")) return state;
+      }
       if (player && action.key) {
         const control = (player.character?.passive?.controls || []).find(
           (c: any) => c.key === action.key,
@@ -339,7 +386,8 @@ export function reduceCalculator(
         next.players[prior.target as "p1" | "p2"].hp = prior.hp_before;
         const restored = Number(prior.payload?.shield_absorbed || 0);
         const restoredPlayer = next.players[prior.target as "p1" | "p2"];
-        if (restored && supportsShield(restoredPlayer)) setShield(restoredPlayer, shieldAmount(restoredPlayer) + restored);
+        if (restored && supportsShield(restoredPlayer))
+          setShield(restoredPlayer, shieldAmount(restoredPlayer) + restored);
         event.payload = { shield_restored: restored };
         event.hp_after = prior.hp_before;
         prior.undone = true;

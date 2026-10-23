@@ -30,7 +30,7 @@ from .spec import (
 CARD_RUNTIME_FIELDS = (
     'id', 'code', 'name', 'type', 'text', 'detail_text', 'frame', 'damage', 'pos', 'body',
     'special', 'hit', 'guard', 'counter', 'g_top', 'g_mid', 'g_bot',
-    'ultimate', 'character_id', 'keyword', 'hiddenKeyword', 'search',
+    'ultimate', 'character_id', 'keyword', 'hiddenKeyword', 'search', 'trait_config',
 )
 EXPECTED_CARD_COUNT = 455
 
@@ -369,6 +369,7 @@ def build_ruleset_snapshot(cards=None, characters=None):
     character_snapshots = {}
     for character in characters:
         payload = _character_snapshot(character)
+        payload['base_deck_rules'] = (character.datas or {}).get('base_deck_rules', {})
         configured = ((character.datas or {}).get('automatic_deck_rules') or {})
         deck_rules = merge_deck_rules(
             configured,

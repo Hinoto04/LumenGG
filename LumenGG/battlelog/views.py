@@ -79,6 +79,7 @@ def sim(req):
             player1_character,
             player2_character,
             req.user,
+            trait_ids=[int(req.POST.get('player1_trait_card_id') or 0), int(req.POST.get('player2_trait_card_id') or 0)] if req.POST.get('schema_version') == '2' else None,
         )
         url = reverse('battlelog:sessionControl', kwargs={'view_token': session.view_token, 'control_token': session.control_token})
         return redirect(calculator_url(url, req.POST.get('ui')))
@@ -90,7 +91,9 @@ def simulatorStart(req):
     language = get_language(req)
     automatic_release = automatic_mode_release()
     active_policy = active_ai_policy() if automatic_release else None
+    from deck.regulations import accessible_versions
     context = {
+        'regulation_versions': accessible_versions(req.user),
         'errors': [],
         'automatic_release': automatic_release,
         'ai_policy': ai_policy_payload(active_policy) if active_policy else None,
@@ -117,12 +120,22 @@ def simulatorStart(req):
                     else LumenSimulatorSession.CONTROLLER_HUMAN
                 )
                 try:
+                    from deck.traits import trait_choices
+                    for selected_deck in (player1_deck, player2_deck):
+                        if not selected_deck.trait_card_id and trait_choices(selected_deck.character_id).count() > 1:
+                            raise ValueError('덱 작성 화면에서 사용할 특성을 선택해주세요.')
+                    regulation_version = None
+                    if req.POST.get('regulation_version_id'):
+                        regulation_version = accessible_versions(req.user).filter(pk=req.POST['regulation_version_id']).first()
+                        if not regulation_version:
+                            raise ValueError('선택할 수 없는 규정입니다.')
                     session = create_simulator_session(
                         req.POST.get('player1_name', ''),
                         req.POST.get('player2_name', ''),
                         player1_deck,
                         player2_deck,
                         mode=requested_mode,
+                        regulation_version=regulation_version,
                         player2_controller=player2_controller,
                         ready_timeout_seconds=req.POST.get(
                             'ready_timeout_seconds', '30',
@@ -425,6 +438,23 @@ def simulatorAction(req, view_token):
         'ok': True,
         'state': serialize_simulator_session(session, seat, seat_token, language=get_language(req), include_events=False),
     })
+
+
+@require_POST
+def simulatorPreparation(req, view_token):
+    from .preparation_services import perform_simulator_preparation
+    session = _get_simulator_session(view_token)
+    body = _json_body(req)
+    try:
+        session = perform_simulator_preparation(session, body)
+        if (session.document or {}).get('preparation', {}).get('status') == 'playing':
+            session = advance_ai_session(session)
+    except PermissionDenied:
+        return JsonResponse({'ok': False, 'code': 'preparation_forbidden', 'error': '준비 권한이 없습니다.'}, status=403)
+    except (ValueError, TypeError, KeyError) as exc:
+        return JsonResponse({'ok': False, 'code': 'preparation_invalid', 'error': str(exc)}, status=400)
+    broadcast_simulator_session(session)
+    return JsonResponse({'ok': True, 'state': serialize_simulator_session(session, body.get('seat', ''), body.get('seat_token', ''), language=get_language(req), include_events=False)})
 
 
 @require_POST

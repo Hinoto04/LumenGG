@@ -10,6 +10,7 @@ from deck.models import Deck
 
 
 class Tournament(models.Model):
+    regulation_version = models.ForeignKey('deck.RegulationVersion', null=True, blank=True, on_delete=models.PROTECT)
     FORMAT_SWISS = 'swiss'
     FORMAT_ELIMINATION = 'elimination'
     FORMAT_HYBRID = 'hybrid'
@@ -88,6 +89,11 @@ class Tournament(models.Model):
         ]
 
     def save(self, *args, **kwargs):
+        if self.pk:
+            old = type(self).objects.filter(pk=self.pk).values('status', 'regulation_version_id').first()
+            if old and old['status'] != self.STATUS_REGISTRATION and old['regulation_version_id'] != self.regulation_version_id:
+                from django.core.exceptions import ValidationError
+                raise ValidationError('시작한 대회의 규정은 변경할 수 없습니다.')
         join_code_changed = False
         if self.visibility == self.VISIBILITY_UNLISTED and not self.join_code:
             alphabet = string.ascii_uppercase + string.digits
@@ -137,6 +143,8 @@ class TournamentParticipant(models.Model):
 
 
 class TournamentDeckSubmission(models.Model):
+    snapshot = models.JSONField(default=dict, blank=True)
+    validation = models.JSONField(default=dict, blank=True)
     participant = models.ForeignKey(TournamentParticipant, on_delete=models.CASCADE, related_name='deck_submissions')
     deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name='tournament_submissions')
     slot = models.PositiveSmallIntegerField(default=1)
@@ -151,6 +159,14 @@ class TournamentDeckSubmission(models.Model):
 
     def __str__(self):
         return f'{self.participant.name} #{self.slot} - {self.deck.name}'
+
+    def save(self, *args, **kwargs):
+        if not self.snapshot and self.deck_id:
+            from deck.validation import snapshot_deck
+            self.snapshot = snapshot_deck(self.deck, self.participant.tournament.regulation_version)
+            if kwargs.get('update_fields') is not None:
+                kwargs['update_fields'] = set(kwargs['update_fields']) | {'snapshot'}
+        return super().save(*args, **kwargs)
 
 
 class TournamentRound(models.Model):

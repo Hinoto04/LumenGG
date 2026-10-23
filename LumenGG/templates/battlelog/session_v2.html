@@ -5,6 +5,7 @@
 {% block body_class %}v2-battle-mode{% endblock body_class %}
 {% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}"><link rel="stylesheet" href="{% static 'v2/calculator-shield.css' %}">{% endblock %}
 {% block content %}
+{% include "battlelog/_preparation.html" %}
 <section class="v2-battle-page" data-battle-session>
     {% csrf_token %}
     {% if state.party %}
@@ -160,6 +161,8 @@
     };
 </script>
 {% block battle_scripts %}
+<script src="{% static 'v2/calculator-trait-model.js' %}"></script>
+<script src="{% static 'v2/trait-controls.js' %}"></script>
 <script src="{% static "v2/session-history.js" %}"></script>
 <script src="{% static 'v2/calculator-shield-model.js' %}"></script>
 <script src="{% static 'v2/calculator-passive-input-model.js' %}"></script>

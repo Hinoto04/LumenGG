@@ -17,6 +17,7 @@
 <form action="{% url "tournament:edit" tournament.id %}" method="post" class="v2-panel v2-admin-form v2-tournament-form">
     {% csrf_token %}
     {{ form.non_field_errors }}
+    <div class="v2-admin-field"><label for="{{ form.regulation_version.id_for_label }}">적용 규정</label>{{ form.regulation_version.errors }}{{ form.regulation_version }} <a href="{% url 'deck:manageRegulations' %}">규정 작성·복사</a></div>
     <div class="v2-admin-grid v2-tournament-create-grid">
         <div class="v2-admin-field v2-admin-wide">
             <label for="{{ form.name.id_for_label }}">{{ form.name.label|ui:current_language }}</label>

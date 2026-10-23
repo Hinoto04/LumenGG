@@ -1,0 +1,15 @@
+{% load static %}
+<style>
+[data-game-preparation]{position:fixed;top:10px;left:10px;z-index:8500;max-width:calc(100vw - 20px);padding:12px;border:1px solid #667588;border-radius:12px;background:#15202e;color:#f0f3f7;box-shadow:0 10px 40px #0009}
+[data-game-preparation][hidden]{display:none!important}
+[data-game-preparation][open]{top:4vh;left:50%;transform:translateX(-50%);width:min(960px,92vw);max-height:92vh;overflow:auto}
+[data-game-preparation] summary{cursor:pointer;font-weight:700;min-height:28px}
+[data-game-preparation] table{width:100%;border-collapse:collapse;margin:12px 0}
+[data-game-preparation] td,[data-game-preparation] th{padding:6px;border-bottom:1px solid #425063;text-align:left}
+[data-game-preparation] input,[data-game-preparation] select{color:#f0f3f7;background:#202e40;padding:8px;border:1px solid #667588;border-radius:6px}
+</style>
+<details data-game-preparation hidden>
+    <summary>게임 준비 · 교체 덱</summary><p data-preparation-status role="status" aria-live="polite"></p>
+    <div data-preparation-editors style="overflow-x:auto"></div>
+</details>
+<script src="{% static 'v2/game-preparation.js' %}" defer></script>

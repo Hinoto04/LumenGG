@@ -4,6 +4,8 @@ import { calculatorTheme } from "./calculator-ui";
 export const SHIELD_KEY = "finf_shield";
 export const MAX_SHIELD_DELTA = 50000;
 export function supportsShield(player: Pick<Player, "character">): boolean {
+  if (player.character?.trait_card_id)
+    return !!player.character.trait_config?.supports_shield;
   return (
     calculatorTheme(player.character).theme_key === "finf" ||
     player.character?.name === "핀프"
@@ -13,9 +15,7 @@ export function shieldAmount(player: Player): number {
   if (!supportsShield(player)) return 0;
   const entry = player.passive_state?.[SHIELD_KEY];
   const raw = Number(entry?.value ?? entry?.count ?? 0);
-  return Number.isFinite(raw)
-    ? Math.max(0, Math.trunc(raw))
-    : 0;
+  return Number.isFinite(raw) ? Math.max(0, Math.trunc(raw)) : 0;
 }
 export function setShield(player: Player, value: number): void {
   player.passive_state ||= {};

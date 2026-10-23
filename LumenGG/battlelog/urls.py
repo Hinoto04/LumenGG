@@ -5,6 +5,7 @@ from . import views, party_views
 app_name = 'battlelog'
 
 urlpatterns = [
+    path('simulator/<str:view_token>/preparation/', views.simulatorPreparation, name='simulatorPreparation'),
     path('party/', party_views.party_home, name='partyHome'),
     path('party/create/', party_views.party_create, name='partyCreate'),
     path('party/board/', party_views.party_board, name='partyBoard'),

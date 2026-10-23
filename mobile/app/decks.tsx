@@ -21,7 +21,7 @@ export default function Decks() {
     ...defaultDeckFilters,
   });
   const [filterVisible, setFilterVisible] = useState(false);
-  const { mode, character } = filters;
+  const { mode, character, trait = "", regulation = "" } = filters;
   const [query, setQuery] = useState(""),
     [results, setResults] = useState<Deck[]>([]),
     [nextPage, setNextPage] = useState<number | null>(null),
@@ -36,7 +36,7 @@ export default function Decks() {
     setMessage("");
     setBusy(false);
     if (mode !== "public") return;
-    const cacheKey = `public-decks:${scope}:${query.trim()}:${character}`;
+    const cacheKey = `public-decks:${scope}:${query.trim()}:${character}:${trait}:${regulation}`;
     setBusy(true);
     const timer = setTimeout(async () => {
       try {
@@ -44,7 +44,7 @@ export default function Decks() {
         if (ticket !== generation.current) return;
         setResults(cached);
         const page = await request(
-          `/decks?scope=public&q=${encodeURIComponent(query.trim())}&character_id=${character}`,
+          `/decks?scope=public&q=${encodeURIComponent(query.trim())}&character_id=${character}&trait_card_id=${trait}&regulation_version_id=${regulation}`,
           {},
           false,
         );
@@ -62,12 +62,10 @@ export default function Decks() {
       clearTimeout(timer);
       generation.current++;
     };
-  }, [mode, query, character, scope, retry]);
+  }, [mode, query, character, trait, regulation, scope, retry]);
   const data =
     mode === "mine"
-      ? user
-        ? matchingDecks(decks, query, character).reverse()
-        : []
+      ? matchingDecks(decks, query, character, trait, regulation).reverse()
       : results;
   async function more() {
     if (!nextPage || busy) return;
@@ -75,7 +73,7 @@ export default function Decks() {
     setBusy(true);
     try {
       const page = await request(
-        `/decks?scope=public&q=${encodeURIComponent(query.trim())}&character_id=${character}&page=${nextPage}`,
+        `/decks?scope=public&q=${encodeURIComponent(query.trim())}&character_id=${character}&trait_card_id=${trait}&regulation_version_id=${regulation}&page=${nextPage}`,
         {},
         false,
       );
@@ -87,7 +85,7 @@ export default function Decks() {
       setNextPage(page.next_page);
       setMessage("");
       await setPreference(
-        `public-decks:${scope}:${query.trim()}:${character}`,
+        `public-decks:${scope}:${query.trim()}:${character}:${trait}:${regulation}`,
         merged,
       );
     } catch (err) {
@@ -98,6 +96,7 @@ export default function Decks() {
   }
   return (
     <View style={styles.screen}>
+      <Button label="덱 만들기" onPress={() => router.push("/deck-editor")} />
       <Input
         value={query}
         onChangeText={setQuery}

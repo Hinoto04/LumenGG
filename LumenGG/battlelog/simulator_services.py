@@ -30,6 +30,7 @@ from common.localization import (
 from deck.models import CardInDeck, Deck
 
 from .models import LumenSimulatorSession
+from .preparation import preparation_view
 from .game.card_identity import is_passive_card, normalize_passive_card
 from .presence import simulator_presence_counts
 from .services import (
@@ -213,6 +214,9 @@ def _player_display_name(side, name, character):
 
 def _player_skeleton(side, name, deck):
     character = deck.character
+    if deck.schema_version >= 2 and deck.trait_card_id:
+        from deck.traits import setup_character
+        character = setup_character(character, deck.trait_card)
     initial_hp = initial_hp_for_character(character)
     return {
         'name': _player_display_name(side, name, character),
@@ -220,6 +224,8 @@ def _player_skeleton(side, name, deck):
         'deck_name': deck.name,
         'character': {
             'id': character.id,
+            'trait_card_id': getattr(character, 'trait_card_id', None),
+            'trait_config': getattr(character, 'trait_config', {}),
             'name': character.name,
             'img': character.body_img or character.sd_img or character.img,
             'icon_img': character.icon_img,
@@ -244,6 +250,8 @@ def _add_deck_cards_to_player(player, side, deck):
         .order_by('id')
         .distinct()
     )
+    if deck.schema_version >= 2 or deck.trait_card_id:
+        passive_cards = passive_cards.filter(pk=deck.trait_card_id)
     for index, card in enumerate(passive_cards, start=1):
         player['zones']['passive'].append(
             _card_payload(card, side, f'{side}-passive-{index}', face_up=True)
@@ -343,6 +351,7 @@ def create_simulator_session(
     player2_controller='human',
     ready_timeout_seconds=30,
     effect_timeout_seconds=60,
+    regulation_version=None,
 ):
     controllers = {player1_controller, player2_controller}
     if not controllers <= {LumenSimulatorSession.CONTROLLER_HUMAN, LumenSimulatorSession.CONTROLLER_AI}:
@@ -353,6 +362,22 @@ def create_simulator_session(
         player1_name = 'Lumen AI'
     if player2_controller == LumenSimulatorSession.CONTROLLER_AI and not player2_name:
         player2_name = 'Lumen AI'
+    # Schema-1 sandbox fixtures keep their historical PS normalization.
+    # The public start view requires an explicit choice for ambiguous decks.
+    modern = bool(player1_deck.trait_card_id or player2_deck.trait_card_id or player1_deck.schema_version >= 2 or player2_deck.schema_version >= 2 or regulation_version is not None)
+    preparation = None
+    if modern:
+        from deck.validation import snapshot_deck, validate
+        from .preparation import create_preparation
+        if regulation_version is None and player1_deck.regulation_version_id and player2_deck.regulation_version_id and player1_deck.regulation_version_id != player2_deck.regulation_version_id:
+            raise ValueError('양쪽 덱에 공통으로 적용할 규정을 선택해주세요.')
+        regulation_version = regulation_version or player1_deck.regulation_version or player2_deck.regulation_version
+        registrations = {'p1': snapshot_deck(player1_deck, regulation_version), 'p2': snapshot_deck(player2_deck, regulation_version)}
+        for snapshot in registrations.values():
+            report = validate(snapshot)
+            if not report['is_valid']:
+                raise ValueError('; '.join(i['message'] for i in report['issues'] if i['severity'] == 'error'))
+        preparation = create_preparation(registrations, ai_sides=[s for s, c in [('p1', player1_controller), ('p2', player2_controller)] if c == 'ai'])
     initial_state = _initial_state(player1_name, player2_name, player1_deck, player2_deck)
     ruleset_release = None
     ai_policy = None
@@ -371,18 +396,26 @@ def create_simulator_session(
         ruleset_release = automatic_mode_release()
         if not ruleset_release:
             raise ValueError('검증된 전체 카드 규칙 릴리스가 없어 자동 모드를 시작할 수 없습니다.')
-        ensure_automatic_decks(
-            player1_deck, player2_deck, ruleset=ruleset_release.snapshot,
-        )
-        document = initialize_automatic_document(
-            initial_state,
-            ruleset_release,
-            seed=f'{view_token}:{ruleset_release.content_hash}',
-            settings=automatic_session_settings(
-                ready_timeout_seconds=ready_timeout_seconds,
-                effect_timeout_seconds=effect_timeout_seconds,
-            ),
-        )
+        if not preparation:
+            ensure_automatic_decks(player1_deck, player2_deck, ruleset=ruleset_release.snapshot)
+        else:
+            for side in ('p1', 'p2'):
+                if preparation['players'][side]['ready']:
+                    report = validate(preparation['players'][side]['registered'], stage='setup', ruleset=ruleset_release.snapshot)
+                    if not report['is_valid']:
+                        raise ValueError('AI 기본 덱의 시작 배치를 확인해주세요.')
+        if preparation:
+            document = {'initial_state': copy.deepcopy(initial_state), 'state': copy.deepcopy(initial_state), 'events': [], 'pending_settings': automatic_session_settings(ready_timeout_seconds=ready_timeout_seconds, effect_timeout_seconds=effect_timeout_seconds)}
+        else:
+            document = initialize_automatic_document(
+                initial_state,
+                ruleset_release,
+                seed=f'{view_token}:{ruleset_release.content_hash}',
+                settings=automatic_session_settings(
+                    ready_timeout_seconds=ready_timeout_seconds,
+                    effect_timeout_seconds=effect_timeout_seconds,
+                ),
+            )
         if LumenSimulatorSession.CONTROLLER_AI in controllers:
             ai_policy = active_ai_policy()
             if not ai_policy:
@@ -395,6 +428,11 @@ def create_simulator_session(
             'state': copy.deepcopy(initial_state),
             'events': [],
         }
+    if preparation:
+        document['preparation'] = preparation
+        for player in document['state']['players'].values():
+            player.update(hp=0, initial_hp=0, passive_state={}, zones={zone: [] for zone in ZONES})
+        document['initial_state'] = copy.deepcopy(document['state'])
     session = LumenSimulatorSession.objects.create(
         view_token=view_token,
         player1_token=_unique_token('player1_token'),
@@ -409,7 +447,7 @@ def create_simulator_session(
         document=document,
         expires_at=simulator_session_expires_at(),
     )
-    if LumenSimulatorSession.CONTROLLER_AI in controllers:
+    if LumenSimulatorSession.CONTROLLER_AI in controllers and not preparation:
         session = advance_ai_session(session)
     return session
 
@@ -759,6 +797,9 @@ def _character_name(state, side):
 
 
 def _require_character(state, side, *names):
+    selected = state['players'][side].get('character') or {}
+    if selected.get('trait_card_id') and not selected.get('trait_config', {}).get('legacy_character_actions'):
+        raise PermissionDenied()
     character_name = _character_name(state, side).casefold()
     if not character_name or not any(str(name).casefold() in character_name for name in names):
         raise PermissionDenied()
@@ -1378,6 +1419,13 @@ def _apply_passive(state, payload):
     player = state['players'][target]
     passive_state = player.setdefault('passive_state', {})
     key = str(payload.get('key') or 'memo')[:80]
+    selected = player.get('character') or {}
+    if selected.get('trait_card_id'):
+        from types import SimpleNamespace
+        from deck.traits import setup_character, allowed_passive_keys
+        character = setup_character(SimpleNamespace(id=selected['id'], name=selected['name'], datas={}), SimpleNamespace(id=selected['trait_card_id'], trait_config=selected.get('trait_config', {})))
+        if key not in allowed_passive_keys(character):
+            raise ValueError('선택한 특성에서 사용할 수 없는 기능입니다.')
     current = dict(passive_state.get(key, {}))
     delta = int(payload.get('delta') or 0)
     if delta:
@@ -1802,6 +1850,8 @@ def perform_simulator_action(session, body):
         if locked.mode != LumenSimulatorSession.MODE_MANUAL:
             raise ValueError('자동 모드에서는 수동 action을 사용할 수 없습니다.')
         document = _document(locked)
+        if document.get('preparation', {}).get('status') == 'editing':
+            raise ValueError('양쪽 플레이어의 게임 준비가 필요합니다.')
         events = list(document.get('events') or [])
 
         if action == 'undo':
@@ -1942,6 +1992,11 @@ def _with_serialized_hand_limits(state):
         if character_id:
             try:
                 character = Character.objects.get(id=character_id)
+                if (player.get('character') or {}).get('trait_card_id'):
+                    from types import SimpleNamespace
+                    from deck.traits import setup_character
+                    info = player['character']
+                    character = setup_character(character, SimpleNamespace(id=info['trait_card_id'], trait_config=info.get('trait_config', {})))
                 hand_limit = hand_limit_for_hp(character, player.get('hp'))
             except Exception:
                 hand_limit = None
@@ -2071,6 +2126,10 @@ def _localize_filtered_state(state, language):
         if character:
             if language != DEFAULT_LANGUAGE:
                 character_payload['name'] = translated_character_field(character, language, 'name')
+            if character_payload.get('trait_card_id'):
+                from types import SimpleNamespace
+                from deck.traits import setup_character
+                character = setup_character(character, SimpleNamespace(id=character_payload['trait_card_id'], trait_config=character_payload.get('trait_config', {})))
             character_payload['passive_ui'] = _passive_ui(character, language, context='simulator')
 
         for key, entry in (player.get('passive_state') or {}).items():
@@ -2315,6 +2374,7 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
             })
     payload = {
         'id': session.id,
+        'preparation': preparation_view(document.get('preparation'), role),
         'version': session.version,
         'mode': session.mode,
         'controllers': {
@@ -2355,6 +2415,7 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
             == LumenSimulatorSession.CONTROLLER_HUMAN
             and session.mode == LumenSimulatorSession.MODE_MANUAL
             and not simulator_session_is_expired(session)
+            and document.get('preparation', {}).get('status') != 'editing'
         ),
         'can_submit_commands': (
             role in PLAYER_SIDES
@@ -2364,6 +2425,7 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
                 else session.player2_controller
             ) == LumenSimulatorSession.CONTROLLER_HUMAN
             and not simulator_session_is_expired(session)
+            and document.get('preparation', {}).get('status') != 'editing'
         ),
         'is_expired': simulator_session_is_expired(session),
         'view_url': reverse('battlelog:simulatorView', kwargs={'view_token': session.view_token}),
@@ -2387,7 +2449,7 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
             for index, event in enumerate(limited_events)
         ]
         payload['event_limit'] = _event_limit(event_limit)
-    if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
+    if session.mode == LumenSimulatorSession.MODE_AUTOMATIC and document.get('preparation', {}).get('status') != 'editing':
         from .automatic_services import (
             _ruleset,
             automatic_observation,

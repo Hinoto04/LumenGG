@@ -10,8 +10,10 @@ class MobileMigrationTests(TransactionTestCase):
         before=[('deck','0013_alter_deck_version'),('collection','0010_collectioncard_character_item_type')]
         try:
             executor.migrate(before)
-            state_targets=[node for node in latest if node[0] not in {'deck','collection'}]+before
-            apps=executor.loader.project_state(state_targets).apps
+            # Cross-app descendants are also unapplied when rolling deck back.
+            # Use the applied graph instead of reintroducing them via leaf targets.
+            executor = MigrationExecutor(connection)
+            apps=executor.loader.project_state(list(executor.loader.applied_migrations)).apps
             User=apps.get_model('auth','User')
             Character=apps.get_model('card','Character')
             Card=apps.get_model('card','Card')

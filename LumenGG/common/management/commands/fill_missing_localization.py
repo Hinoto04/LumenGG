@@ -2,6 +2,7 @@ import copy
 import re
 import unicodedata
 
+from django.apps import apps
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -12,6 +13,8 @@ from common.localization_batches.batch_20260817 import (
     TRANSLATIONS as REVIEW_BATCH_TRANSLATIONS,
     normalize_semantic_card_tokens,
 )
+from common.localization_batches.batch_cb02_20261023 import restore_missing_translations
+from common.localization_batches.batch_cb02_reprints_20261023 import restore_missing_pack_translations
 
 
 HANGUL_RE = re.compile(r'[가-힣]')
@@ -393,6 +396,8 @@ class Command(BaseCommand):
         stats = {'translated': 0, 'needs_review': 0, 'skipped': 0, 'normalized': 0}
 
         with transaction.atomic():
+            stats['translated'] += restore_missing_translations(apps)
+            stats['translated'] += restore_missing_pack_translations(apps)
             self.ensure_manual_sources()
             self.normalize_empty_sources(stats)
             lookup = self.translation_lookup()

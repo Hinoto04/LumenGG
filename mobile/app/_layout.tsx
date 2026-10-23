@@ -78,6 +78,8 @@ function Navigation() {
       />
       <Stack.Screen name="card/[id]" options={{ title: "LumenDB" }} />
       <Stack.Screen name="qna/[id]" options={{ title: "Q&A" }} />
+      <Stack.Screen name="regulations" options={{title: "대회 규정"}} />
+      <Stack.Screen name="deck-editor" options={{title: "덱 작성"}} />
       <Stack.Screen name="deck/[id]" options={{ title: t("덱") }} />
       <Stack.Screen
         name="settings"

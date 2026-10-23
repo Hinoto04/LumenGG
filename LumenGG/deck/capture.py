@@ -76,7 +76,18 @@ def generate_deck_capture(deck):
     list_h = get_zone_height(len(main_entries), CARD_W, CARD_H)
     hand_h = get_zone_height(len(hand_entries), CARD_W, CARD_H)
     board_h = list_h + GAP + hand_h
-    total_h = PAGE_PAD + HEADER_H + GAP + board_h + PAGE_PAD + 34
+    reserve_entries = [row for row in deck.reserve_entries.select_related('card') for _ in range(row.count)]
+    trait_entries = []
+    if deck.trait_card_id:
+        from types import SimpleNamespace
+        trait_entries = [SimpleNamespace(card=deck.trait_card, card_id=deck.trait_card_id)]
+    extra_zones = []
+    if trait_entries:
+        extra_zones.append(('특성 · ' + str(deck.regulation_version or '기본 규정'), trait_entries))
+    if reserve_entries:
+        extra_zones.append(('교체 덱', reserve_entries))
+    extra_h = sum(GAP + get_zone_height(len(entries), CARD_W, CARD_H) for _, entries in extra_zones)
+    total_h = PAGE_PAD + HEADER_H + GAP + board_h + extra_h + PAGE_PAD + 34
 
     canvas = Image.new('RGB', (CANVAS_W, total_h), COLORS['bg'])
     draw = ImageDraw.Draw(canvas)
@@ -133,6 +144,11 @@ def generate_deck_capture(deck):
         unreleased_codes,
     )
 
+    extra_y = board_y + board_h + GAP
+    for title, entries in extra_zones:
+        height = get_zone_height(len(entries), CARD_W, CARD_H)
+        draw_zone(canvas, draw, (PAGE_PAD, extra_y, PAGE_PAD + BOARD_W, extra_y + height), title, f'{len(entries)}장', entries, CARD_W, CARD_H, CARD_COLS, image_cache, fonts, unreleased_codes)
+        extra_y += height + GAP
     footer = 'LumenDB Deck Capture'
     draw.text((PAGE_PAD, total_h - PAGE_PAD), footer, fill=COLORS['faint'], font=fonts['footer'])
     canvas.save(output_path, 'PNG', optimize=True)
@@ -187,6 +203,9 @@ def get_capture_signature(deck, cards, likecount):
             str(cid.side),
             str(cid.card.ultimate),
         ])
+    parts.extend([str(deck.trait_card_id), str(deck.regulation_version_id), str(deck.trait_card.name if deck.trait_card_id else '')])
+    for row in deck.reserve_entries.select_related('card'):
+        parts.extend([str(row.card_id), str(row.count), row.card.name, row.card.img_mid or row.card.img or ''])
     raw = '\n'.join(parts).encode('utf-8', errors='ignore')
     return hashlib.sha256(raw).hexdigest()[:16]
 

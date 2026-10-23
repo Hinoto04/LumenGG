@@ -157,7 +157,7 @@ class MobileApiTests(TestCase):
         self.assertEqual(CatalogRelease.objects.get(active=True).pk,first.pk)
 
     def test_manifest_compatibility_etag_and_anonymous_download(self):
-        release,_=publish_catalog()
+        release,_=publish_catalog(schema_version=1)
         anonymous=APIClient()
         result=anonymous.get('/api/mobile/v1/catalog/manifest')
         self.assertEqual(result.status_code,200)

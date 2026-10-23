@@ -42,6 +42,28 @@ export function deckSections(deck: Deck, catalog: Catalog | null) {
         });
     });
   }
+  if (deck.trait_card_id)
+    sections.push({
+      title: "특성",
+      tiles: [
+        {
+          card_id: deck.trait_card_id,
+          card: cards.get(deck.trait_card_id),
+          key: `trait:${deck.trait_card_id}`,
+        },
+      ],
+    });
+  if (deck.reserve_cards?.length)
+    sections.push({
+      title: "교체 덱",
+      tiles: deck.reserve_cards.flatMap((e) =>
+        Array.from({ length: e.count }, (_, i) => ({
+          card_id: e.card_id,
+          card: cards.get(e.card_id),
+          key: `reserve:${e.card_id}:${i}`,
+        })),
+      ),
+    });
   return sections;
 }
 
@@ -49,13 +71,17 @@ export function matchingDecks(
   decks: Deck[],
   query: string,
   character: string = "",
+  trait: string = "",
+  regulation: string = "",
 ) {
   const needle = normalizeSearch(query);
   return decks.filter(
     (d) =>
       !d.deleted &&
-      !!d.id &&
+      (!!d.id || d.schema_version === 2) &&
       (!character || String(d.character_id) === character) &&
+      (!trait || String(d.trait_card_id) === trait) &&
+      (!regulation || String(d.regulation_version_id) === regulation) &&
       (!needle ||
         normalizeSearch(
           [d.name, d.keyword, d.tags, d.author?.username || ""].join(" "),

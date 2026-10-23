@@ -127,11 +127,12 @@ function syncSearchCharacter(pruneCards = false) {
 }
 
 function canAddCard(card, zone) {
+    if (window.deckExtensions && !isUltimateCard(card)) return true;
     if (isUltimateCard(card) && countUltimateEntries() >= 1) {
         alert(t("maxUltimate", "얼티밋 카드는 1장까지만 넣을 수 있습니다."));
         return false;
     }
-    if (zone === "hand" && countEntries("hand") >= 5) {
+    if (!window.deckExtensions && zone === "hand" && countEntries("hand") >= 5) {
         alert(t("maxHand", "손패 매수는 최대 5장입니다."));
         return false;
     }
@@ -169,7 +170,7 @@ function moveEntry(entryId, zone) {
             : t("specialSideOnly", "특수 타입 카드는 사이드 덱에만 넣을 수 있습니다."));
         return;
     }
-    if (zone === "hand" && countEntries("hand") >= 5) {
+    if (!window.deckExtensions && zone === "hand" && countEntries("hand") >= 5) {
         alert(t("maxHand", "손패 매수는 최대 5장입니다."));
         return;
     }
@@ -423,6 +424,7 @@ function makeDeckCard(entry) {
     tile.className = "v2-mobile-builder-card";
     if (isUltimateCard(card)) tile.classList.add("is-ultimate");
     tile.dataset.entryId = entry.entryId;
+    tile.dataset.cardId = entry.pk;
 
     const image = document.createElement("img");
     image.src = card.img_sm || card.img || "";
@@ -466,6 +468,7 @@ function makeDeckCard(entry) {
 }
 
 function renderDeck() {
+    queueMicrotask(() => window.deckExtensions?.changed());
     Object.values(zoneElements).forEach((element) => {
         if (element) element.replaceChildren();
     });
@@ -540,6 +543,7 @@ function searchCards() {
     if (!form) return;
     syncSearchCharacter(false);
     const params = new URLSearchParams(new FormData(form));
+    window.deckExtensions?.includeForeign() && params.set("all_cards", "1");
     fetch(`${config.createSearchUrl}?${params.toString()}`)
         .then((response) => response.json())
         .then((cards) => {
@@ -570,7 +574,7 @@ function aggregateDeck() {
 function submitDeck() {
     const form = document.getElementById("submitForm");
     if (!form) return;
-    if (countDeckSizeEntries() > maxDeckSize) {
+    if (!window.deckExtensions && countDeckSizeEntries() > maxDeckSize) {
         alert(t("maxDeckSize", "덱 매수는 최대 {count}장입니다.", { count: maxDeckSize }));
         return;
     }
@@ -582,6 +586,7 @@ function submitDeck() {
     payload.description = payload.description || "";
     payload.keyword = payload.keyword || "";
     payload.deck = aggregateDeck();
+    if (window.deckExtensions) { try { Object.assign(payload, window.deckExtensions.fields()); } catch (error) { alert(error.message); return; } }
 
     fetch(form.action, {
         method: "POST",
@@ -642,7 +647,7 @@ function selectInitialCharacter() {
 
 function setupEvents() {
     document.querySelectorAll('select[name="char"], input[name="char"]').forEach((input) => {
-        input.addEventListener("change", () => syncSearchCharacter(true));
+        input.addEventListener("change", () => syncSearchCharacter(false));
     });
     document.getElementById("v2DeckSearchButton")?.addEventListener("click", searchCards);
     document.getElementById("v2DeckSubmit")?.addEventListener("click", submitDeck);

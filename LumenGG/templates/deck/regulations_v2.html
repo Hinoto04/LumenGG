@@ -1,0 +1,10 @@
+{% extends 'base_v2.html' %}
+{% block title %}대회 규정 - LumenDB{% endblock %}
+{% block content %}
+<section class="v2-panel"><h1>대회 규정</h1>
+<p>규정은 새 버전으로 게시됩니다. 시작한 대회에는 기존 버전이 유지됩니다.</p>
+<ul>{% for version in versions %}<li>{{ version }} · <a href="?copy={{ version.id }}">{% if version.regulation.owner_id == user.id %}새 버전 작성{% else %}내 규정으로 복사{% endif %}</a></li>{% endfor %}</ul>
+<a href="{% url 'deck:manageRegulations' %}">새 규정 작성</a>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button class="v2-button v2-button-primary" type="submit">규정 게시</button></form>
+</section>
+{% endblock %}

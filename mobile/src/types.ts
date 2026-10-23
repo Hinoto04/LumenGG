@@ -1,6 +1,46 @@
 export type Language = "ko" | "en" | "ja";
 export type Localized = Record<Language, Record<string, any>>;
+export interface RegulationVersion {
+  id: number;
+  regulation_id?: number;
+  name: string;
+  version: string;
+  owner_id?: number | null;
+  rules: {
+    bans: { card_ids: number[]; scope: "registered" | "active" }[];
+    combinations: { card_ids: number[]; scope: "registered" | "active" }[];
+    reserve_limit: number;
+    technique_swap_limit: number;
+    trait_swap_limit: number;
+    ultimate_swap_limit: number;
+    reserve_public: boolean;
+    swaps_public: boolean;
+  };
+}
+export interface TraitOption {
+  id: number;
+  name: string;
+  code?: string;
+  img?: string;
+  trait_config: Record<string, any>;
+  deck_rules: Record<string, any>;
+  initial_hp: number;
+  hand_table: Record<string, number>;
+  initial_passive_state: Record<string, PassiveValue>;
+  localized: Localized;
+}
+export interface ValidationIssue {
+  code: string;
+  severity: "error" | "warning";
+  card_ids: number[];
+  message: string;
+}
 export interface Card {
+  original_name?: string;
+  setup_rules?: Record<string, any>;
+  deck_limit?: number;
+  token_key?: string;
+  character_key?: string;
   id: number;
   code: string | null;
   character_id: number;
@@ -33,6 +73,8 @@ export interface CalculatorTheme {
   emblem?: string;
 }
 export interface Character {
+  traits?: TraitOption[];
+  base_deck_rules?: Record<string, any>;
   id: number;
   img: string;
   img_sm: string;
@@ -72,6 +114,7 @@ export interface Qna {
   search?: string;
 }
 export interface Rules {
+  regulations?: RegulationVersion[];
   max_deck_sizes: Record<string, number>;
   copy_limits: Record<string, number>;
   min_deck_size: number;
@@ -80,6 +123,7 @@ export interface Rules {
   ui: Record<Language, Record<string, string>>;
 }
 export interface Catalog {
+  schema_version?: number;
   cards: Card[];
   characters: Character[];
   packs: Pack[];
@@ -96,6 +140,15 @@ export interface DeckEntry {
   name?: string;
 }
 export interface Deck {
+  regulation?: RegulationVersion | null;
+  imported_regulation?: RegulationVersion;
+  snapshot_catalog?: Record<string, any>;
+  validation?: { is_valid?: boolean | null; issues?: ValidationIssue[] };
+  schema_version?: number;
+  trait_card_id?: number | null;
+  regulation_version_id?: number | null;
+  regulation_rules?: RegulationVersion["rules"];
+  reserve_cards?: { card_id: number; count: number }[];
   uuid: string;
   id?: number;
   name: string;
@@ -111,6 +164,7 @@ export interface Deck {
   author?: User;
 }
 export interface Operation {
+  schema_version?: number;
   operation_id: string;
   entity: "deck" | "collection";
   entity_id: string | number;
@@ -190,6 +244,7 @@ export interface Player {
   character: any;
 }
 export interface CalcState {
+  preparation?: any;
   type?: string;
   tournament?: {
     id: number | null;
@@ -256,6 +311,11 @@ export interface Action {
   passive_action?: string;
   enabled?: boolean;
   character_id?: number;
+  preparation_version?: number;
+  preparation_action?: string;
+  request_id?: string;
+  submission_id?: number;
+  active?: any;
   actions?: Action[];
   action_id?: string;
   expected_version?: number;

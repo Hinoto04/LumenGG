@@ -1,8 +1,50 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 import uuid
 
 from card.models import Character, Card
+
+
+class Regulation(models.Model):
+    name = models.CharField(max_length=120)
+    owner = models.ForeignKey(User, null=True, blank=True, on_delete=models.PROTECT, related_name='regulations')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+
+class RegulationVersion(models.Model):
+    regulation = models.ForeignKey(Regulation, on_delete=models.PROTECT, related_name='versions')
+    version = models.CharField(max_length=64)
+    effective_date = models.DateField(null=True, blank=True)
+    source = models.URLField(blank=True)
+    rules = models.JSONField(default=dict)
+    published_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['regulation', 'version'], name='unique_regulation_version')]
+
+    def __str__(self):
+        return f'{self.regulation.name} / {self.version}'
+
+    def save(self, *args, **kwargs):
+        from .regulations import normalize_regulation_rules
+        self.rules = normalize_regulation_rules(self.rules)
+        self.full_clean()
+        ids = {pk for key in ('bans', 'combinations') for row in self.rules[key] for pk in row['card_ids']}
+        if ids and Card.objects.filter(pk__in=ids).count() != len(ids):
+            raise ValidationError('존재하지 않는 금지·제한 카드가 있습니다.')
+        if self.pk:
+            original = type(self).objects.get(pk=self.pk)
+            fields = ('regulation_id', 'version', 'effective_date', 'source', 'rules')
+            if any(getattr(original, key) != getattr(self, key) for key in fields):
+                raise ValidationError('게시된 규정은 변경할 수 없습니다. 새 버전을 게시해주세요.')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('사용 기록 보존을 위해 게시된 규정은 삭제할 수 없습니다.')
 
 # Create your models here.
 def is_forced_side_card(card):
@@ -23,6 +65,9 @@ class Deck(models.Model):
     mobile_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='decks')
     character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='decks')
+    trait_card = models.ForeignKey(Card, null=True, blank=True, on_delete=models.PROTECT, related_name='trait_decks')
+    regulation_version = models.ForeignKey(RegulationVersion, null=True, blank=True, on_delete=models.PROTECT, related_name='decks')
+    schema_version = models.PositiveSmallIntegerField(default=1)
     card = models.ManyToManyField(Card, through="CardInDeck")
     version = models.CharField(max_length=20, default='LMI')
     keyword = models.CharField(max_length=255, default='', blank=True)
@@ -67,6 +112,18 @@ class CardInDeck(models.Model):
     
     def __str__(self):
         return f"{self.deck.name} : {self.card.name} × {self.count}"
+
+
+class ReserveCardInDeck(models.Model):
+    deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name='reserve_entries')
+    card = models.ForeignKey(Card, on_delete=models.PROTECT)
+    count = models.PositiveSmallIntegerField(default=1)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['deck', 'card'], name='unique_deck_reserve_card'),
+            models.CheckConstraint(condition=models.Q(count__gt=0), name='positive_deck_reserve_count'),
+        ]
 
 class DeckLike(models.Model):
     deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name='deck_like')

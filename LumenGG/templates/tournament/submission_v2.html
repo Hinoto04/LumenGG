@@ -1,0 +1,8 @@
+{% extends 'base_v2.html' %}
+{% block content %}<section class="v2-panel"><h1>{{ submission.snapshot.name|default:submission.deck.name }}</h1>
+<p>{{ tournament.name }} · {{ submission.participant.name }} · 제출 #{{ submission.slot }}</p>
+<p>대회 당시 판정: {% if submission.validation.is_valid == True %}적합{% elif submission.validation.is_valid == False %}위반{% else %}미검사{% endif %}</p>
+{% for issue in submission.validation.issues %}<p>{{ issue.message }}</p>{% endfor %}
+<form method="get"><label>다른 규정으로 확인 <select name="regulation_version_id">{% for version in versions %}<option value="{{ version.id }}">{{ version }}</option>{% endfor %}</select></label><button class="v2-button">검사</button></form>
+{% if current_report %}<p>선택한 규정: {% if current_report.is_valid %}적합{% else %}위반{% endif %}</p>{% for issue in current_report.issues %}<p>{{ issue.message }}</p>{% endfor %}{% endif %}
+</section>{% for section in sections %}<section class="v2-panel"><h2>{{ section.title }}</h2><div style="display:flex;flex-wrap:wrap;gap:12px">{% for card in section.cards %}<figure style="width:140px;margin:0">{% if card.img_sm %}<img src="{{ card.img_sm }}" alt="{{ card.name }}" style="width:100%">{% endif %}<figcaption>{{ card.name }} × {{ card.count }}<br>{{ card.code }}</figcaption></figure>{% endfor %}</div></section>{% endfor %}{% endblock %}

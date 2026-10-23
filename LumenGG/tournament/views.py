@@ -243,7 +243,7 @@ def indexV2(req):
 @login_required(login_url='common:login', redirect_field_name='next')
 def createV2(req):
     if req.method == 'POST':
-        form = TournamentForm(req.POST, language=get_language(req))
+        form = TournamentForm(req.POST, language=get_language(req), user=req.user)
         if form.is_valid():
             tournament = form.save(commit=False)
             tournament.organizer = req.user
@@ -251,7 +251,7 @@ def createV2(req):
             messages.success(req, '대회를 생성했습니다.')
             return redirect('tournament:detail', id=tournament.id)
     else:
-        form = TournamentForm(initial={'event_date': timezone.now()}, language=get_language(req))
+        form = TournamentForm(initial={'event_date': timezone.now()}, language=get_language(req), user=req.user)
     return render(req, 'tournament/create_v2.html', {'form': form})
 
 
@@ -262,13 +262,17 @@ def editV2(req, id):
         raise PermissionDenied()
 
     if req.method == 'POST':
-        form = TournamentForm(req.POST, instance=tournament, language=get_language(req))
+        form = TournamentForm(req.POST, instance=tournament, language=get_language(req), user=req.user)
         if form.is_valid():
             form.save()
+            from .services import revalidate_submissions
+            errors = revalidate_submissions(tournament)
+            if errors:
+                messages.warning(req, '규정에 맞지 않는 제출 덱이 있습니다: ' + '; '.join(errors))
             messages.success(req, '대회 설정을 저장했습니다.')
             return redirect('tournament:detail', id=tournament.id)
     else:
-        form = TournamentForm(instance=tournament, language=get_language(req))
+        form = TournamentForm(instance=tournament, language=get_language(req), user=req.user)
     return render(req, 'tournament/edit_v2.html', {'form': form, 'tournament': tournament})
 
 
@@ -715,8 +719,9 @@ def joinV2(req, id):
             entry.dropped = False
             entry.save()
             TournamentDeckSubmission.objects.filter(participant=entry).delete()
+            from deck.validation import snapshot_deck
             TournamentDeckSubmission.objects.bulk_create([
-                TournamentDeckSubmission(participant=entry, deck=deck, slot=index)
+                TournamentDeckSubmission(participant=entry, deck=deck, slot=index, snapshot=snapshot_deck(deck, tournament.regulation_version))
                 for index, deck in enumerate(prepared_decks, start=1)
             ])
         if copied_deck_count:

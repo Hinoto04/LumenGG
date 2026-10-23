@@ -23,12 +23,17 @@ def digest(value):
 
 
 def deck_payload(deck):
+    from deck.regulations import version_payload
     return {
         'id': deck.id, 'uuid': str(deck.mobile_id), 'name': deck.name,
         'character_id': deck.character_id, 'description': deck.description,
         'keyword': deck.keyword, 'tags': deck.tags, 'visibility': deck.visibility,
         'deleted': deck.deleted, 'locked': is_deck_locked_by_tournament(deck),
-        'version': deck.version,
+        'version': deck.version, 'schema_version': deck.schema_version,
+        'trait_card_id': deck.trait_card_id, 'regulation_version_id': deck.regulation_version_id,
+        'regulation_rules': deck.regulation_version.rules if deck.regulation_version_id else None,
+        'regulation': version_payload(deck.regulation_version) if deck.regulation_version_id else None,
+        'reserve_cards': [{'card_id': c.card_id, 'count': c.count} for c in deck.reserve_entries.all()],
         'author': {'id': deck.author_id, 'username': deck.author.username},
         'cards': [{'card_id': c.card_id, 'count': c.count, 'hand': c.hand, 'side': c.side} for c in deck.cids.all()],
     }
@@ -54,6 +59,8 @@ def _deck_operation(user, operation):
     except (ValueError, KeyError, TypeError, AttributeError):
         raise ValidationError('A valid deck UUID is required.')
     deck = Deck.objects.select_for_update().filter(author=user, mobile_id=mobile_id).first()
+    if deck and deck.schema_version >= 2 and operation.get('schema_version', (operation.get('data') or {}).get('schema_version')) != 2:
+        raise ValidationError('이 덱을 수정하려면 최신 앱을 사용해주세요.')
     if deck and is_deck_locked_by_tournament(deck):
         raise ValidationError('This deck is locked. Your local draft has been kept.')
     if operation.get('action') == 'delete':
@@ -90,7 +97,7 @@ def _deck_operation(user, operation):
     normalized, error = merge_deck_entries(normalized)
     if error:
         raise ValidationError(error)
-    error = validate_submitted_deck_size(normalized, character_id)
+    error = validate_submitted_deck_size(normalized, character_id) if data.get('schema_version') != 2 else None
     if error:
         raise ValidationError(error)
     visibility = data.get('visibility', Deck.VISIBILITY_PRIVATE)
@@ -113,6 +120,12 @@ def _deck_operation(user, operation):
     deck.deleted = False
     deck.save()
     replace_deck_cards(deck, normalized)
+    from deck.extensions import apply_extensions
+    from django.core.exceptions import ValidationError as ModelValidationError
+    try:
+        apply_extensions(deck, data, user)
+    except ModelValidationError as exc:
+        raise ValidationError(exc.messages) from exc
     return {'uuid': str(deck.mobile_id), 'id': deck.pk}
 
 

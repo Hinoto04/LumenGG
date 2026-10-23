@@ -141,7 +141,7 @@ def calculators(request):
     for key in ('player1_character', 'player2_character'):
         characters.append(get_object_or_404(Character, pk=request.data.get(key)))
     session = create_standalone_session(str(request.data.get('player1_name', ''))[:60], str(request.data.get('player2_name', ''))[:60],
-                                        *characters, user=request.user)
+                                        *characters, user=request.user, trait_ids=[request.data.get('player1_trait_card_id'), request.data.get('player2_trait_card_id')] if request.data.get('schema_version') == 2 else None)
     return Response({'view_token': session.view_token, 'control_token': session.control_token,
                      'state': mobile_state(session, session.control_token, language(request))}, status=201)
 

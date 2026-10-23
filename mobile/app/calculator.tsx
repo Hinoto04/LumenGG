@@ -38,6 +38,7 @@ import {
   projectPassiveInputs,
 } from "../src/calculator-passive-queue";
 import { styles, Button, Input, Choices, Notice, colors } from "../src/ui";
+import { characterWithTrait } from "../src/deck-rules";
 import { TournamentCalculatorControls } from "../src/tournament-calculator-controls";
 
 export default function Calculator() {
@@ -62,6 +63,8 @@ export default function Calculator() {
     [now, setNow] = useState(Date.now()),
     [settings, setSettings] = useState(false),
     [ready, setReady] = useState(false);
+  const [p1Trait, setP1Trait] = useState(""),
+    [p2Trait, setP2Trait] = useState("");
   const [pendingHp, setPendingHp] = useState<PendingHp>({ p1: 0, p2: 0 });
   const [pendingFp, setPendingFp] = useState<PendingHp>({ p1: 0, p2: 0 });
   const [pendingShield, setPendingShield] = useState<PendingHp>({
@@ -205,6 +208,7 @@ export default function Calculator() {
       }
     } catch (err) {
       setError(userMessage(err));
+      if (value.action === "preparation") throw err;
     } finally {
       if (sharedAction) {
         sharedBusy.current = false;
@@ -310,13 +314,28 @@ export default function Calculator() {
   }
   function selected() {
     const a = catalog?.characters.find(
-        (c) => String(c.id) === (p1 || String(catalog.characters[0]?.id)),
+        (c) =>
+          String(c.id) ===
+          (p1 ||
+            String(
+              catalog.characters.find((c) => c.traits?.length)?.id ||
+                catalog.characters[0]?.id,
+            )),
       ),
       b = catalog?.characters.find(
-        (c) => String(c.id) === (p2 || String(catalog.characters[0]?.id)),
+        (c) =>
+          String(c.id) ===
+          (p2 ||
+            String(
+              catalog.characters.find((c) => c.traits?.length)?.id ||
+                catalog.characters[0]?.id,
+            )),
       );
     if (!a || !b) throw new Error("캐릭터를 선택해주세요.");
-    return [a, b] as const;
+    return [
+      characterWithTrait(a, Number(p1Trait) || null),
+      characterWithTrait(b, Number(p2Trait) || null),
+    ] as const;
   }
   async function create(sharedMode: boolean) {
     try {
@@ -330,6 +349,9 @@ export default function Calculator() {
           {
             method: "POST",
             body: JSON.stringify({
+              schema_version: 2,
+              player1_trait_card_id: (a as any).selected_trait_id,
+              player2_trait_card_id: (b as any).selected_trait_id,
               player1_character: a.id,
               player2_character: b.id,
             }),
@@ -359,6 +381,7 @@ export default function Calculator() {
     }
   }
   const disabled =
+    state?.preparation?.status === "editing" ||
     busy ||
     !state?.can_control ||
     (mode === "shared" && (!connected || !online)) ||
@@ -503,19 +526,75 @@ export default function Calculator() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.title}>{t("플레이어1")}</Text>
                 <CharacterStrip
-                  value={p1 || String(catalog?.characters[0]?.id || "")}
-                  onChange={setP1}
+                  value={
+                    p1 ||
+                    String(
+                      catalog?.characters.find((c) => c.traits?.length)?.id ||
+                        catalog?.characters[0]?.id ||
+                        "",
+                    )
+                  }
+                  onChange={(id) => {
+                    setP1(id);
+                    setP1Trait("");
+                  }}
                   values={choices}
                   label={t("플레이어1")}
+                />
+                <Choices
+                  value={p1Trait}
+                  onChange={setP1Trait}
+                  values={(
+                    catalog?.characters.find(
+                      (c) =>
+                        String(c.id) ===
+                        (p1 ||
+                          String(
+                            catalog.characters.find((c) => c.traits?.length)
+                              ?.id || catalog.characters[0]?.id,
+                          )),
+                    )?.traits || []
+                  ).map((t) => ({
+                    key: String(t.id),
+                    label: localized(t, language) || t.name,
+                  }))}
                 />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.title}>{t("플레이어2")}</Text>
                 <CharacterStrip
-                  value={p2 || String(catalog?.characters[0]?.id || "")}
-                  onChange={setP2}
+                  value={
+                    p2 ||
+                    String(
+                      catalog?.characters.find((c) => c.traits?.length)?.id ||
+                        catalog?.characters[0]?.id ||
+                        "",
+                    )
+                  }
+                  onChange={(id) => {
+                    setP2(id);
+                    setP2Trait("");
+                  }}
                   values={choices}
                   label={t("플레이어2")}
+                />
+                <Choices
+                  value={p2Trait}
+                  onChange={setP2Trait}
+                  values={(
+                    catalog?.characters.find(
+                      (c) =>
+                        String(c.id) ===
+                        (p2 ||
+                          String(
+                            catalog.characters.find((c) => c.traits?.length)
+                              ?.id || catalog.characters[0]?.id,
+                          )),
+                    )?.traits || []
+                  ).map((t) => ({
+                    key: String(t.id),
+                    label: localized(t, language) || t.name,
+                  }))}
                 />
               </View>
             </View>

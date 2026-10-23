@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { View, Text, ScrollView, Pressable, Share } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import type { Deck } from "../../src/types";
 import { useApp } from "../../src/provider";
+import { deckIssues } from "../../src/deck-rules";
 import { localized } from "../../src/core";
 import {
   deckColumns,
@@ -23,7 +24,11 @@ import {
 } from "../../src/ui";
 
 export default function DeckDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, submission } = useLocalSearchParams<{
+    id: string;
+    submission?: string;
+  }>();
+  const [checkRegulation, setCheckRegulation] = useState("");
   const { catalog, language, decks, scope, user, t } = useApp();
   const [loaded, setLoaded] = useState<{
       scope: string;
@@ -49,7 +54,9 @@ export default function DeckDetail() {
     ? null
     : loaded?.scope === scope && loaded.id === id
       ? loaded.deck
-      : own;
+      : submission
+        ? undefined
+        : own;
   useEffect(() => {
     let live = true;
     setLoaded(null);
@@ -58,13 +65,13 @@ export default function DeckDetail() {
     if (!/^\d+$/.test(id || "")) return;
     setBusy(true);
     (async () => {
-      const key = `deck-view:${scope}:${id}`;
+      const key = `deck-view:${scope}:${id}:${submission || ""}`;
       try {
         const cached = await preference<Deck | null>(key, null);
         if (!live) return;
         if (cached) setLoaded({ scope, id, deck: cached });
         const next: Deck = await request(
-          `/decks/${id}`,
+          submission ? `/submitted-decks/${submission}` : `/decks/${id}`,
           {},
           !!user,
           false,
@@ -88,7 +95,7 @@ export default function DeckDetail() {
     return () => {
       live = false;
     };
-  }, [id, scope, retry]);
+  }, [id, submission, scope, retry]);
   if (!deck)
     return (
       <View style={styles.screen}>
@@ -102,6 +109,29 @@ export default function DeckDetail() {
         />
       </View>
     );
+  const displayCatalog =
+    catalog && deck.snapshot_catalog
+      ? {
+          ...catalog,
+          cards: Object.values(deck.snapshot_catalog).map((c: any) => ({
+            ...c,
+            localized: { ko: { name: c.name, text: c.text } },
+          })),
+        }
+      : catalog;
+  const checked =
+    checkRegulation && catalog
+      ? deckIssues(
+          {
+            ...deck,
+            regulation_version_id: Number(checkRegulation),
+            regulation_rules: catalog.rules.regulations?.find(
+              (v) => v.id === Number(checkRegulation),
+            )?.rules,
+          },
+          catalog,
+        )
+      : null;
   const character = catalog?.characters.find((c) => c.id === deck.character_id);
   const columns = deckColumns[size],
     gap = 4,
@@ -120,6 +150,69 @@ export default function DeckDetail() {
         {character ? localized(character, language) : ""} · {t(deck.visibility)}
       </Text>
       <Notice text={message} />
+      {!!submission && (
+        <Notice
+          text={`대회 당시 판정: ${deck.validation?.is_valid === true ? "적합" : deck.validation?.is_valid === false ? "위반" : "미검사"}`}
+        />
+      )}
+      <Choices
+        value={checkRegulation}
+        onChange={setCheckRegulation}
+        values={[
+          { key: "", label: "다른 규정으로 확인" },
+          ...(catalog?.rules.regulations || []).map((v) => ({
+            key: String(v.id),
+            label: `${v.name} / ${v.version}`,
+          })),
+        ]}
+      />
+      {!!checked &&
+        (checked.length ? (
+          checked.map((i, n) => <Notice key={n} text={i.message} />)
+        ) : (
+          <Notice text="선택한 규정에 적합한 구성입니다." />
+        ))}
+      <View style={styles.row}>
+        {!!own && !deck.locked && (
+          <Button
+            label="덱 수정"
+            onPress={() =>
+              router.push({
+                pathname: "/deck-editor",
+                params: { id: deck.uuid },
+              })
+            }
+          />
+        )}
+        <Button
+          label="덱 코드 공유"
+          onPress={() => {
+            void Share.share({
+              message: JSON.stringify({
+                ...deck,
+                schema_version: 2,
+                id: undefined,
+                uuid: undefined,
+                author: undefined,
+                locked: undefined,
+              }),
+            });
+          }}
+        />
+        <Button
+          label="복사해서 편집"
+          onPress={() =>
+            router.push({
+              pathname: "/deck-editor",
+              params: {
+                copy: submission
+                  ? `submission:${submission}`
+                  : String(deck.id || deck.uuid),
+              },
+            })
+          }
+        />
+      </View>
       <View style={{ marginTop: 16 }}>
         <Choices
           value={size}
@@ -136,7 +229,7 @@ export default function DeckDetail() {
         />
       </View>
       <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-        {deckSections(deck, catalog).map((section) => (
+        {deckSections(deck, displayCatalog).map((section) => (
           <View key={section.title} style={{ marginBottom: 22 }}>
             <View style={[styles.row, { marginBottom: 10 }]}>
               <Text style={[styles.title, { marginBottom: 0, fontSize: 18 }]}>

@@ -12,6 +12,7 @@ class Command(BaseCommand):
     help = 'Publish validated mobile catalogs; --watch polls every 60 seconds.'
 
     def add_arguments(self, parser):
+        parser.add_argument('--schema-version', type=int, choices=[1, 2], default=2)
         parser.add_argument('--watch', action='store_true')
         parser.add_argument('--activate', help='Reactivate a previously published immutable version.')
 
@@ -23,7 +24,7 @@ class Command(BaseCommand):
             if not release or not (Path(settings.MOBILE_CATALOG_ROOT) / release.filename).is_file():
                 raise CommandError('Release or its database file does not exist.')
             with transaction.atomic():
-                CatalogRelease.objects.filter(active=True).update(active=False)
+                CatalogRelease.objects.filter(active=True, schema_version=release.schema_version).update(active=False)
                 release.active = True
                 release.save(update_fields=['active'])
             self.stdout.write('Activated ' + release.version + '; stop the watcher until the source is corrected.')
@@ -37,7 +38,7 @@ class Command(BaseCommand):
                 started = time.monotonic()
                 close_old_connections()
                 try:
-                    release, changed = publish_catalog()
+                    release, changed = publish_catalog(schema_version=options['schema_version'])
                     self.stdout.write(('Published ' if changed else 'Unchanged ') + release.version)
                 except Exception as exc:
                     if not options['watch']:

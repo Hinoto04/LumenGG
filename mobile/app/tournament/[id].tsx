@@ -159,7 +159,10 @@ export default function MyTournament() {
                     onPress={() =>
                       router.push({
                         pathname: "/deck/[id]",
-                        params: { id: String(d.id) },
+                        params: {
+                          id: String(d.id),
+                          submission: String(d.submission_id),
+                        },
                       })
                     }
                   />

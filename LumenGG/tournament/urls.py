@@ -1,10 +1,11 @@
 from django.urls import path
 
-from . import views
+from . import views, submission_views
 
 app_name = 'tournament'
 
 urlpatterns = [
+    path('<int:id>/submissions/<int:submission_id>/', submission_views.detail, name='submission'),
     path('', views.indexV2, name='index'),
     path('create/', views.createV2, name='create'),
     path('deck-search/', views.deckSearchV2, name='deckSearch'),

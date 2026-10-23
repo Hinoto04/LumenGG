@@ -4,8 +4,10 @@ param(
     [string[]]$TestLabel = @(
         'battlelog.tests',
         'battlelog.test_automatic_engine',
+        'battlelog.test_cb02_catalog',
         'card.tests',
-        'common.tests'
+        'common.tests',
+        'common.test_cb02_localization'
     )
 )
 

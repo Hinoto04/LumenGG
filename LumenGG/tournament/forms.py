@@ -33,6 +33,7 @@ class TournamentForm(forms.ModelForm):
         model = Tournament
         fields = [
             'name',
+            'regulation_version',
             'event_date',
             'venue',
             'format',
@@ -86,9 +87,20 @@ class TournamentForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'rows': 5}),
         }
 
-    def __init__(self, *args, language=None, **kwargs):
+    def __init__(self, *args, language=None, user=None, **kwargs):
         self.language = language
+        self.request_user = user
         super().__init__(*args, **kwargs)
+        from deck.regulations import accessible_versions
+        self.fields['regulation_version'].queryset = accessible_versions(user)
+        self.fields['regulation_version'].label = ui_text('적용 규정', language)
+        if self.instance.pk and self.instance.status != Tournament.STATUS_REGISTRATION:
+            self.fields['regulation_version'].disabled = True
+            from deck.models import RegulationVersion
+            self.fields['regulation_version'].queryset = RegulationVersion.objects.filter(pk=self.instance.regulation_version_id)
+        if not self.instance.pk and user is not None:
+            from deck.models import RegulationVersion
+            self.fields['regulation_version'].initial = RegulationVersion.objects.filter(regulation__owner__isnull=True).order_by('id').first()
         if not self.is_bound:
             event_date = self.initial.get('event_date') or getattr(self.instance, 'event_date', None)
             if event_date:
@@ -102,6 +114,13 @@ class TournamentForm(forms.ModelForm):
                 field.required = False
             if getattr(field, 'choices', None):
                 field.choices = _translated_choices(field.choices, language)
+
+    def clean_regulation_version(self):
+        value = self.cleaned_data.get('regulation_version')
+        if not value and not self.instance.pk and self.request_user:
+            from deck.models import RegulationVersion
+            return RegulationVersion.objects.filter(regulation__owner__isnull=True).order_by('id').first()
+        return value
 
     def clean_decklist_required_count(self):
         value = self.cleaned_data['decklist_required_count']
@@ -244,6 +263,12 @@ class TournamentJoinForm(forms.ModelForm):
         deck_ids = [deck.id for deck in decks]
         if len(deck_ids) != len(set(deck_ids)):
             raise forms.ValidationError(ui_text('같은 덱을 중복 제출할 수 없습니다.', self.language))
+        from deck.validation import snapshot_deck, validate
+        for index, deck in enumerate(decks, start=1):
+            if self.tournament.regulation_version_id or deck.schema_version >= 2:
+                report = validate(snapshot_deck(deck, self.tournament.regulation_version))
+                if not report['is_valid']:
+                    self.add_error(f'deck_{index}', forms.ValidationError('; '.join(i['message'] for i in report['issues'] if i['severity'] == 'error')))
         return cleaned_data
 
     def submitted_decks(self):

@@ -242,8 +242,8 @@
                                 <div class="v2-tournament-deck-list">
                                     {% for submission in row.deck_submissions %}
                                     {% if submission.can_view %}
-                                    <a href="{% url "deck:detail" submission.deck.id %}">#{{ submission.slot }} {{ submission.deck.name }}</a>
-                                    <span>{{ submission.deck.character|character_name:current_language }}</span>
+                                    <a href="{% url "tournament:submission" tournament.id submission.id %}">#{{ submission.slot }} {{ submission.deck.name }}</a>
+                                    <span>{{ submission.deck.character|character_name:current_language }} · {% if submission.validation.is_valid == False %}편성 위반{% elif submission.validation.is_valid == True %}적합{% else %}미검사{% endif %}</span>
                                     {% else %}
                                     <span>#{{ submission.slot }} {% tr "비공개 덱" %}</span>
                                     {% endif %}
@@ -412,8 +412,8 @@
                     <div class="v2-tournament-deck-list">
                         {% for submission in row.deck_submissions %}
                         {% if submission.can_view %}
-                        <a href="{% url "deck:detail" submission.deck.id %}">#{{ submission.slot }} {{ submission.deck.name }}</a>
-                        <span>{{ submission.deck.character|character_name:current_language }}</span>
+                        <a href="{% url "tournament:submission" tournament.id submission.id %}">#{{ submission.slot }} {{ submission.deck.name }}</a>
+                        <span>{{ submission.deck.character|character_name:current_language }} · {% if submission.validation.is_valid == False %}편성 위반{% elif submission.validation.is_valid == True %}적합{% else %}미검사{% endif %}</span>
                         {% else %}
                         <span>#{{ submission.slot }} {% tr "비공개 덱" %}</span>
                         {% endif %}

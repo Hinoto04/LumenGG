@@ -428,14 +428,17 @@
         holder.classList.toggle('has-shield-controls', shields.supportsShield(player));
         const passiveUi = player.character ? player.character.passive_ui || {} : {};
         if (window.characterCalculator) {
-            const frame = JSON.stringify([player.character?.id, player.character?.calculator_ui?.theme_key, player.hp, player.fp, player.passive_state, state.can_control, state.is_expired]);
+            const frame = JSON.stringify([player.character?.id, player.character?.trait_card_id, player.character?.calculator_ui?.theme_key, player.hp, player.fp, player.passive_state, state.can_control, state.is_expired]);
             if (characterPassiveFrames.get(target) === frame) return;
             characterPassiveFrames.set(target, frame);
         }
         if (window.characterCalculator?.renderPassives) {
-            window.characterCalculator.renderPassives(makePassiveApi(target, holder, {}));
-            renderShieldControls(target, holder);
-            return;
+            const handled = window.characterCalculator.renderPassives(makePassiveApi(target, holder, {}));
+            if (handled !== false) { renderShieldControls(target, holder); return; }
+        }
+        if (player.character?.trait_card_id && !player.character.trait_config?.legacy_character_actions && window.renderTraitControls) {
+            window.renderTraitControls(makePassiveApi(target, holder, passiveUi.options));
+            renderShieldControls(target, holder); return;
         }
         const scrollTop = holder.scrollTop;
         holder.replaceChildren();
@@ -550,6 +553,7 @@
     }
 
     function renderState() {
+        window.dispatchEvent(new CustomEvent("lumen-calculator-state", {detail: state}));
         if (state.party) {
             if (!lastPartyCompleted && state.party.completed && config.controlToken) {
                 window.setTimeout(() => location.assign(state.party.return_url), 0);

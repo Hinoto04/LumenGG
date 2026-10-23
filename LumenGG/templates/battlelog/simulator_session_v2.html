@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="{% static "v2/lumen-simulator-automatic.css" %}">
 {% endblock style %}
 {% block content %}
+{% include "battlelog/_preparation.html" %}
 <section class="v2-sim-page" data-lumen-simulator>
     {% csrf_token %}
     <div class="v2-page-head v2-sim-head">

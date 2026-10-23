@@ -8638,6 +8638,9 @@ class AutomaticGameEngine:
             ((self.ruleset.get('characters') or {}).get(str(player_character_id)) or {})
             .get('deck_rules') or {}
         )
+        player = (self.state.get('players') or {}).get(owner) or {}
+        if 'deck_rules' in player:
+            character_rules = player['deck_rules']
         imported = character_rules.get('other_character_cards') or {}
         released = (
             (self.ruleset.get('cards') or {}).get(str(card.get('code') or '')) or {}

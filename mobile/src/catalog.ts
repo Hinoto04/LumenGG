@@ -32,7 +32,7 @@ export async function readCatalog(name: string): Promise<Catalog> {
     const version = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM metadata WHERE key='release_version'",
     );
-    if (schema?.value !== "1" || !version)
+    if (!["1", "2"].includes(schema?.value || "") || !version)
       throw new Error("Unsupported catalog schema.");
     const rows = await db.getAllAsync<{
       kind: string;
@@ -50,6 +50,7 @@ export async function readCatalog(name: string): Promise<Catalog> {
       throw new Error("Incomplete catalog.");
     return {
       version: version.value,
+      schema_version: Number(schema?.value),
       cards: groups.card,
       characters: groups.character,
       packs: groups.pack || [],
@@ -100,12 +101,12 @@ export async function updateCatalog(force = false): Promise<Catalog | null> {
     if (!force && Date.now() - last < 300000) return null;
     await setPreference("catalog-checked", Date.now());
     const manifest: Manifest = await request(
-      "/catalog/manifest?client_version=1.0.0&schema_version=1",
+      "/catalog/manifest?client_version=1.1.0&schema_version=2",
       {},
       false,
     );
     if (
-      manifest.schema_version !== 1 ||
+      manifest.schema_version !== 2 ||
       !/^\d{8}T\d{6}-[a-f0-9]{12}$/.test(manifest.release_version) ||
       !/^[a-f0-9]{64}$/.test(manifest.sha256)
     )

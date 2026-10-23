@@ -33,10 +33,10 @@ from .sync import digest
 
 logger = logging.getLogger(__name__)
 LANGUAGES = ('ko', 'en', 'ja')
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
-def read_snapshot():
+def read_snapshot(schema_version=SCHEMA_VERSION):
     # Admin edits happen in another process; clear this publisher's cached
     # translations on every scan, including bulk/import updates.
     clear_localization_cache()
@@ -56,6 +56,15 @@ def read_snapshot():
                     'initial_passive_state': initial_passive_state_for_character(character),
                     'localized': {lang: {**{key: translated_character_field(character, lang, key) for key in ('name', 'description', 'group')},
                                          'passive': native_passive(character, lang)} for lang in LANGUAGES}}
+            if schema_version >= 2:
+                from deck.traits import trait_choices, setup_character
+                data['base_deck_rules'] = (character.datas or {}).get('base_deck_rules', {})
+                data['traits'] = []
+                for trait in trait_choices(character.pk):
+                    resolved = setup_character(character, trait)
+                    data['traits'].append({'id': trait.pk, 'name': trait.name, 'code': trait.code, 'img': trait.img_sm or trait.img, 'trait_config': trait.trait_config, 'deck_rules': (trait.effect_definition or {}).get('deck_rules', {}),
+                        'initial_hp': initial_hp_for_character(resolved), 'hand_table': character_hand_table(resolved), 'initial_passive_state': initial_passive_state_for_character(resolved),
+                        'localized': {lang: {'name': translated_card_field(trait, lang, 'name'), 'passive': native_passive(resolved, lang)} for lang in LANGUAGES}})
             rows.append(('character', character.pk, data, ''))
         card_fields = ('code', 'character_id', 'frame', 'damage', 'pos', 'body', 'hit', 'guard', 'counter', 'special',
                        'g_top', 'g_mid', 'g_bot', 'type', 'ultimate', 'img', 'img_mid', 'img_sm')
@@ -63,6 +72,9 @@ def read_snapshot():
         for card in cards:
             data = {'id': card.pk, **{key: getattr(card, key) for key in card_fields},
                     'localized': {lang: {key: translated_card_field(card, lang, key) for key in localized_fields} for lang in LANGUAGES}}
+            if schema_version >= 2:
+                definition = card.effect_definition or {}
+                data.update(original_name=card.name, setup_rules=definition.get('deck_rules_when_included', {}), deck_limit=definition.get('deck_limit'), token_key=definition.get('token_key'), character_key=card.character.localization_key)
             rows.append(('card', card.pk, data, '\n'.join(normalize_search_text(v) for v in card_search_values(card))))
             relations.append(('card', card.pk, 'character', card.character_id))
         for pack in packs:
@@ -83,6 +95,11 @@ def read_snapshot():
         rules = {'max_deck_sizes': {str(c.pk): get_max_deck_size(c.pk) for c in characters},
                  'min_deck_size': 5, 'max_hand': 5, 'max_ultimate': 1, 'copy_limits': limits,
                  'ui': {lang: javascript_i18n(lang) for lang in LANGUAGES}}
+        if schema_version >= 2:
+            from deck.models import RegulationVersion
+            from deck.regulations import version_payload
+            rules['schema_version'] = 2
+            rules['regulations'] = [version_payload(v) for v in RegulationVersion.objects.filter(regulation__owner__isnull=True).select_related('regulation')]
         rows.append(('rules', 1, rules, ''))
     keys = {(kind, pk) for kind, pk, _data, _search in rows}
     for a, b, c, d in relations:
@@ -152,10 +169,12 @@ def image_asset(url, root):
     return filename
 
 
-def publish_catalog():
+def publish_catalog(schema_version=SCHEMA_VERSION):
+    if schema_version not in (1, 2):
+        raise ValueError("Unsupported catalog schema.")
     root = Path(settings.MOBILE_CATALOG_ROOT)
     root.mkdir(parents=True, exist_ok=True)
-    rows, relations = read_snapshot()
+    rows, relations = read_snapshot(schema_version)
     resolved = {}
     for _kind, _pk, data, _search in rows:
         for key in ('img', 'img_mid', 'img_sm', 'image'):
@@ -168,7 +187,7 @@ def publish_catalog():
             if resolved[url]:
                 data[key] = '/api/mobile/v1/catalog/images/' + resolved[url]
     source_hash = digest([rows, relations])
-    current = CatalogRelease.objects.filter(active=True).first()
+    current = CatalogRelease.objects.filter(active=True, schema_version=schema_version).first()
     if current and current.source_hash == source_hash:
         return current, False
     version = timezone.now().strftime('%Y%m%dT%H%M%S') + '-' + uuid.uuid4().hex[:12]
@@ -187,7 +206,7 @@ def publish_catalog():
                 CREATE INDEX entries_kind ON entries(kind);
                 CREATE INDEX relation_target ON relations(target_kind,target_id);
             ''')
-            db.executemany('INSERT INTO metadata VALUES (?,?)', [('schema_version', '1'), ('release_version', version)])
+            db.executemany('INSERT INTO metadata VALUES (?,?)', [('schema_version', str(schema_version)), ('release_version', version)])
             db.executemany('INSERT INTO entries VALUES (?,?,?,?)', [(k, i, json.dumps(d, ensure_ascii=False, separators=(',', ':')), s) for k, i, d, s in rows])
             db.executemany('INSERT INTO relations VALUES (?,?,?,?)', relations)
             if db.execute('PRAGMA integrity_check').fetchone()[0] != 'ok' or db.execute('PRAGMA foreign_key_check').fetchone():
@@ -197,9 +216,9 @@ def publish_catalog():
         sha256 = hashlib.sha256(content).hexdigest()
         os.replace(temporary, root / filename)
         with transaction.atomic():
-            CatalogRelease.objects.filter(active=True).update(active=False)
+            CatalogRelease.objects.filter(active=True, schema_version=schema_version).update(active=False)
             release = CatalogRelease.objects.create(version=version, source_hash=source_hash, sha256=sha256,
-                                                    size_bytes=len(content), filename=filename, active=True)
+                                                    size_bytes=len(content), filename=filename, active=True, schema_version=schema_version, min_client_version='1.1.0' if schema_version >= 2 else '1.0.0')
         logger.info('mobile_catalog_published version=%s size=%s', version, len(content))
         return release, True
     finally:

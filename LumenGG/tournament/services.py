@@ -1,3 +1,4 @@
+import copy
 from django.db import transaction
 from django.utils import timezone
 
@@ -59,6 +60,8 @@ def copy_deck_for_tournament_submission(deck, user, tournament):
         )
         for card_in_deck in CardInDeck.objects.filter(deck=deck)
     ])
+    from deck.extensions import copy_extensions
+    copy_extensions(deck, copied_deck)
     return copied_deck
 
 
@@ -615,6 +618,9 @@ def _create_round_unlocked(
     if not pairs:
         raise ValueError('새 라운드를 만들 수 있는 매칭 대상이 없습니다.')
 
+    issues = revalidate_submissions(tournament, require_all=True)
+    if issues:
+        raise ValueError('제출 덱을 확인해주세요: ' + '; '.join(issues))
     lock_submitted_decks(tournament)
 
     round_obj = TournamentRound.objects.create(
@@ -690,3 +696,30 @@ def set_match_result(match, winner_value, player1_score, player2_score):
         match.winner = match.player2
     else:
         raise ValueError('승자를 선택해주세요.')
+
+
+def revalidate_submissions(tournament, *, require_all=False):
+    from deck.validation import snapshot_deck, validate
+    errors = []
+    modern = bool(tournament.regulation_version_id)
+    for participant in tournament.participants.filter(dropped=False):
+        submissions = list(participant.deck_submissions.select_related('deck__character', 'deck__trait_card', 'deck__regulation_version'))
+        if require_all and tournament.require_decklist and len(submissions) != tournament.decklist_required_count:
+            errors.append(f'{participant.name}: 제출 덱 수를 확인해주세요.')
+        for submission in submissions:
+            if not submission.snapshot:
+                submission.snapshot = snapshot_deck(submission.deck, tournament.regulation_version)
+            snapshot = copy.deepcopy(submission.snapshot)
+            if tournament.regulation_version_id:
+                snapshot['regulation_version_id'] = tournament.regulation_version_id
+                snapshot['regulation_rules'] = copy.deepcopy(tournament.regulation_version.rules)
+            if tournament.require_decklist and (modern or submission.deck.schema_version >= 2):
+                result = validate(snapshot, stage='registration')
+                submission.validation = result
+                if not result['is_valid']:
+                    errors.append(f'{participant.name} #{submission.slot}: ' + '; '.join(i['message'] for i in result['issues'] if i['severity'] == 'error'))
+            else:
+                submission.validation = {'stage': 'registration', 'issues': [], 'is_valid': None}
+            submission.snapshot = snapshot
+            submission.save(update_fields=['snapshot', 'validation'])
+    return errors

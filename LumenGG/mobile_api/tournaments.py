@@ -58,7 +58,7 @@ def detail(request, tournament_id):
         'id': tournament.id, 'name': tournament.name, 'description': tournament.description,
         'status': tournament.status, 'format': tournament.format, 'venue': tournament.venue,
         'event_date': tournament.event_date.isoformat(), 'participant_name': participant.name, 'dropped': participant.dropped,
-        'decks': [{'id': s.deck_id, 'slot': s.slot, 'name': s.deck.name} for s in submissions],
+        'decks': [{'id': s.deck_id, 'submission_id': s.pk, 'slot': s.slot, 'name': s.snapshot.get('name', s.deck.name), 'validation': s.validation} for s in submissions],
         'matches': [match_payload(m, request.user) for m in my_matches(request.user).filter(round__tournament=tournament).order_by('-round__number', 'table_no')],
     })
 

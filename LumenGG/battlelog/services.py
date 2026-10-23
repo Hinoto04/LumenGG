@@ -43,6 +43,7 @@ from .event_buffer import (
     record_battle_event,
 )
 from .models import BattleEvent, BattleSession, BattleSet
+from .calculator_preparation import resolved_character
 from .presence import battle_presence_counts
 from .shields import SHIELD_KEY, MAX_SHIELD_DELTA, supports_shield, shield_amount, with_shield
 
@@ -116,6 +117,10 @@ def character_hand_table(character):
 
 
 def initial_hp_for_character(character):
+    if character and hasattr(character, 'trait_card_id'):
+        configured = character.trait_config.get('initial_hp')
+        if isinstance(configured, int) and not isinstance(configured, bool) and configured > 0:
+            return configured
     table = character_hand_table(character)
     return max(table.keys()) if table else 5000
 
@@ -158,7 +163,7 @@ def initial_passive_state_for_character(character):
                 entry['label'] = label
             state.setdefault(key, entry)
 
-    if '요한' in (character.name or '') and 'foresight_counter' not in state:
+    if '요한' in (character.name or '') and 'foresight_counter' not in state and (not hasattr(character, 'trait_card_id') or character.trait_config.get('legacy_character_actions')):
         state['foresight_counter'] = {
             'count': YOHAN_INITIAL_FORESIGHT_COUNT,
             'label': '예지 카운터',
@@ -189,8 +194,12 @@ def _session_token_pair():
 
 
 def _set_player_character(session, target, character):
-    initial_hp = initial_hp_for_character(character)
-    passive_state = initial_passive_state_for_character(character)
+    effective = character
+    prefix = 'player1' if target == 'p1' else 'player2'
+    if getattr(session, prefix + '_character_id', None) == (character.id if character else None) and (session.preparation or {}):
+        effective = resolved_character(session, target)
+    initial_hp = initial_hp_for_character(effective)
+    passive_state = initial_passive_state_for_character(effective)
     if target == BattleEvent.TARGET_PLAYER1:
         session.player1_character = character
         session.player1_initial_hp = initial_hp
@@ -309,7 +318,7 @@ def can_add_extra_time(user, session):
     return is_tournament_operator(user, session.tournament_match.round.tournament)
 
 
-def create_standalone_session(player1_name, player2_name, player1_character, player2_character, user=None):
+def create_standalone_session(player1_name, player2_name, player1_character, player2_character, user=None, *, trait_ids=None):
     view_token, control_token = _session_token_pair()
     session = BattleSession(
         session_type=BattleSession.SESSION_STANDALONE,
@@ -322,6 +331,9 @@ def create_standalone_session(player1_name, player2_name, player1_character, pla
     )
     _set_player_character(session, BattleEvent.TARGET_PLAYER1, player1_character)
     _set_player_character(session, BattleEvent.TARGET_PLAYER2, player2_character)
+    if trait_ids is not None:
+        from .calculator_preparation import set_standalone_traits
+        set_standalone_traits(session, trait_ids)
     session.save()
     ensure_current_set(session)
     record_battle_event(
@@ -434,6 +446,8 @@ def get_or_create_tournament_session(match, user=None):
             'updated_at',
         ])
         ensure_current_set(session)
+        from .calculator_preparation import initialize_tournament_preparation
+        initialize_tournament_preparation(session)
     return session
 
 
@@ -455,12 +469,12 @@ def ensure_tournament_sessions_for_round(round_obj):
 
 
 def is_tournament_operator(user, tournament):
-    return user.is_authenticated and (user == tournament.organizer or user.is_staff)
+    return bool(user and user.is_authenticated and (user == tournament.organizer or user.is_staff))
 
 
 def is_match_player(user, match):
     return (
-        user.is_authenticated
+        bool(user and user.is_authenticated)
         and (
             match.player1.user_id == user.id
             or (match.player2_id and match.player2.user_id == user.id)
@@ -518,7 +532,7 @@ def can_toggle_sudden_death(user, session, control_token=''):
 
 
 def can_choose_character(user, session, target, control_token=''):
-    if session.session_type == BattleSession.SESSION_PARTY:
+    if session.session_type == BattleSession.SESSION_PARTY or (session.preparation or {}).get('players') or (session.preparation or {}).get('traits'):
         return False
     if not can_control_session(user, session, control_token):
         return False
@@ -590,6 +604,8 @@ def _localize_passive_ui_options(value, language):
 
 
 def character_options_for_session(session, user=None, control_token='', language=DEFAULT_LANGUAGE):
+    if (session.preparation or {}).get('players'):
+        return {side: {'can_choose': False, 'options': []} for side in ('p1', 'p2')}
     language = normalize_language(language)
 
     def option_payload(character):
@@ -636,7 +652,7 @@ def _passive_cards(character, language=DEFAULT_LANGUAGE):
     if not character:
         return []
     cards = (
-        Card.objects.filter(character=character, type='특성')
+        (Card.objects.filter(pk=character.trait_card_id) if hasattr(character, 'trait_card_id') else Card.objects.filter(character=character, type='특성'))
         .prefetch_related('translations')
         .order_by('id')
     )
@@ -736,7 +752,7 @@ def _passive_ui(character, language=DEFAULT_LANGUAGE, context='battle'):
     if not character:
         return {}
     language = normalize_language(language)
-    datas = translated_character_datas(character, language)
+    datas = copy.deepcopy(character.datas or {}) if hasattr(character, 'trait_card_id') else translated_character_datas(character, language)
     battle_calculator = datas.get('battle_calculator') if isinstance(datas.get('battle_calculator'), dict) else {}
     battle_calculator_camel = datas.get('battleCalculator') if isinstance(datas.get('battleCalculator'), dict) else {}
     battle = datas.get('battle') if isinstance(datas.get('battle'), dict) else {}
@@ -813,6 +829,8 @@ def _character_payload(character, hp, language=DEFAULT_LANGUAGE):
     from .calculator_ui import character_calculator_ui
     return {
         'id': character.id,
+        'trait_card_id': getattr(character, 'trait_card_id', None),
+        'trait_config': getattr(character, 'trait_config', {}),
         'name': translated_character_field(character, language, 'name'),
         'img': character.body_img or character.sd_img or character.img,
         'icon_img': character.icon_img,
@@ -889,6 +907,7 @@ def serialize_session(session, user=None, control_token='', include_events=True,
     data = {
         'id': session.id,
         'version': session.version,
+        'preparation': __import__('battlelog.calculator_preparation', fromlist=['payload']).payload(session, user, control_token),
         'presence': battle_presence_counts(session.view_token),
         'type': session.session_type,
         'party': ({
@@ -916,7 +935,7 @@ def serialize_session(session, user=None, control_token='', include_events=True,
                 'fp': session.player1_fp,
                 'initial_hp': session.player1_initial_hp,
                 'passive_state': session.player1_passive_state,
-                'character': _character_payload(session.player1_character, session.player1_hp, language),
+                'character': _character_payload(None if (session.preparation or {}).get('status') == 'editing' else resolved_character(session, 'p1'), session.player1_hp, language),
             },
             'p2': {
                 'name': session.player2_name,
@@ -924,7 +943,7 @@ def serialize_session(session, user=None, control_token='', include_events=True,
                 'fp': session.player2_fp,
                 'initial_hp': session.player2_initial_hp,
                 'passive_state': session.player2_passive_state,
-                'character': _character_payload(session.player2_character, session.player2_hp, language),
+                'character': _character_payload(None if (session.preparation or {}).get('status') == 'editing' else resolved_character(session, 'p2'), session.player2_hp, language),
             },
         },
         'timer': {
@@ -1067,7 +1086,7 @@ def apply_hp_delta(session, target, amount, user=None):
         field = 'player1_hp' if target == BattleEvent.TARGET_PLAYER1 else 'player2_hp'
         prefix = 'player1' if target == BattleEvent.TARGET_PLAYER1 else 'player2'
         state_field = prefix + '_passive_state'
-        shield_before = shield_amount(getattr(locked, state_field)) if supports_shield(getattr(locked, prefix + '_character')) else 0
+        shield_before = shield_amount(getattr(locked, state_field)) if supports_shield(resolved_character(locked, target)) else 0
         absorbed = min(shield_before, -amount) if amount < 0 else 0
         before = getattr(locked, field)
         after = before + amount + absorbed
@@ -1099,7 +1118,7 @@ def apply_shield_delta(session, target, amount=0, reset=False, user=None):
     with transaction.atomic():
         locked = BattleSession.objects.select_for_update().get(id=session.id)
         prefix = 'player1' if target == BattleEvent.TARGET_PLAYER1 else 'player2'
-        if not supports_shield(getattr(locked, prefix + '_character')):
+        if not supports_shield(resolved_character(locked, target)):
             raise ValueError('보호막은 핀프만 사용할 수 있습니다.')
         field = prefix + '_passive_state'
         before = shield_amount(getattr(locked, field))
@@ -1196,7 +1215,7 @@ def undo_last_hp_event(session, user=None):
         changed = [field, 'updated_at']
         prefix = 'player1' if target == BattleEvent.TARGET_PLAYER1 else 'player2'
         restored = shield_payload.get('shield_absorbed', 0)
-        if restored and supports_shield(getattr(locked, prefix + '_character')):
+        if restored and supports_shield(resolved_character(locked, target)):
             state_field = prefix + '_passive_state'
             setattr(locked, state_field, with_shield(getattr(locked, state_field), shield_amount(getattr(locked, state_field)) + restored))
             changed.append(state_field)
@@ -1248,8 +1267,8 @@ def set_sudden_death(session, enabled, user=None):
             locked.player2_hp = 1000
             locked.player1_fp = 0
             locked.player2_fp = 0
-            locked.player1_passive_state = initial_passive_state_for_character(locked.player1_character)
-            locked.player2_passive_state = initial_passive_state_for_character(locked.player2_character)
+            locked.player1_passive_state = initial_passive_state_for_character(resolved_character(locked, 'p1'))
+            locked.player2_passive_state = initial_passive_state_for_character(resolved_character(locked, 'p2'))
             locked.timer_started_at = None
             locked.timer_duration_seconds = 10
             locked.save(update_fields=[
@@ -1421,6 +1440,12 @@ def _start_next_set(session, user=None):
         'sudden_death_turns_remaining',
         'updated_at',
     ])
+    if (session.preparation or {}).get('players'):
+        from .preparation import next_preparation
+        session.preparation = next_preparation(session.preparation)
+        session.player1_hp = session.player2_hp = 0
+        session.player1_passive_state = session.player2_passive_state = {}
+        session.save()
     next_set = ensure_current_set(session)
     record_battle_event(
         session,
@@ -1543,6 +1568,11 @@ def update_passive(session, target, card_id=None, delta=0, note='', key='', valu
         state_field = 'player1_passive_state' if target == BattleEvent.TARGET_PLAYER1 else 'player2_passive_state'
         state = getattr(locked, state_field) or {}
         key = str(key or card_id or 'memo')[:80]
+        selected = resolved_character(locked, target)
+        if selected and hasattr(selected, 'trait_card_id'):
+            from deck.traits import allowed_passive_keys
+            if key not in allowed_passive_keys(selected):
+                raise ValueError('선택한 특성에서 사용할 수 없는 기능입니다.')
         if key == SHIELD_KEY:
             raise ValueError('보호막 버튼을 사용해주세요.')
         current = dict(state.get(key, {}))
@@ -1634,6 +1664,11 @@ def _perform_single_session_action(session, body, user=None, control_token=''):
             from .party_services import complete_exchange
             return complete_exchange(session, body)
 
+    if (session.preparation or {}).get('status') == 'editing' and action != 'preparation':
+        raise ValueError('게임 준비를 완료해주세요.')
+    if action == 'preparation':
+        from .calculator_preparation import perform
+        return perform(session, body, user)
     if action == 'hp':
         if not can_control_session(user, session, control_token):
             raise PermissionDenied()

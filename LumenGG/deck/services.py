@@ -90,6 +90,8 @@ def normalize_submitted_deck(deck_data):
         except (AttributeError, TypeError, ValueError):
             return None, '덱 데이터가 올바르지 않습니다.'
         
+        if count < 0 or hand < 0 or side < 0:
+            return None, '카드 수량은 음수가 될 수 없습니다.'
         if count <= 0:
             continue
         

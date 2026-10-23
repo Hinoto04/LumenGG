@@ -1,0 +1,6 @@
+{% extends 'base_v2.html' %}
+{% block content %}<section class="v2-panel"><h1>덱 가져오기</h1>
+<p role="alert">{{ error }}</p><form method="post" enctype="multipart/form-data">{% csrf_token %}
+<label>덱 파일 <input type="file" name="file" accept="application/json,.json"></label>
+<label>또는 덱 코드 붙여넣기 <textarea name="payload" rows="8" style="width:100%"></textarea></label>
+<button class="v2-button" type="submit">내 덱으로 가져오기</button></form></section>{% endblock %}

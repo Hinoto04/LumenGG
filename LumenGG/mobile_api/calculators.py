@@ -45,7 +45,8 @@ def mobile_state(session, control_token='', language='ko', user=None):
         character = getattr(session, field)
         if character and state['players'][target]['character']:
             state['players'][target]['character'].pop('passive_ui', None)
-            state['players'][target]['character']['passive'] = native_passive(character, language)
+            from battlelog.calculator_preparation import resolved_character
+            state['players'][target]['character']['passive'] = native_passive(resolved_character(session, target), language)
     return state
 
 
@@ -83,7 +84,7 @@ def perform_mobile_action(view_token, body, control_token='', user=None):
             raise PermissionDenied('A control token is required.')
         if body.get('expected_version') != session.version:
             raise StaleCalculator()
-        allowed = {'hp', 'fp', 'fp_reset', 'shield', 'shield_reset', 'undo', 'timer', 'reset_session', 'sudden_death', 'sudden_turn', 'passive', 'character', 'party_exchange'}
+        allowed = {'hp', 'fp', 'fp_reset', 'shield', 'shield_reset', 'undo', 'timer', 'reset_session', 'sudden_death', 'sudden_turn', 'passive', 'character', 'party_exchange', 'preparation'}
         if tournament:
             allowed = (allowed - {'reset_session', 'party_exchange'}) | {'report_set'}
         if body.get('action') == 'batch':

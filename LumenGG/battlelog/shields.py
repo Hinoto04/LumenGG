@@ -6,6 +6,8 @@ MAX_SHIELD_DELTA = 50000
 
 
 def supports_shield(character):
+    if character and hasattr(character, 'trait_card_id'):
+        return bool(character.trait_config.get('supports_shield'))
     return bool(character and character.name == '핀프')
 
 

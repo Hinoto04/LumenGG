@@ -1,0 +1,1387 @@
+[
+  {
+    "snapshot": {
+      "code": "CB02-AT-001",
+      "name": "야나르타쉬",
+      "ruby": "",
+      "text": "브레이크 존에 캐릭터 마크 종류가 9개 이상일 경우에만 사용할 수 있다. \r\n상대는 이 기술을 회피 및 상쇄할 수 없다. \r\n①콤보 시, 이 기술은 속도를 무시하고 3콤보에 사용할 수 있다. \r\n②사용 후, 이 기술을 브레이크한다. 그 후, 배틀 페이즈를 종료한다.",
+      "detail_text": "",
+      "keyword": "얼티밋/회피 불가/상쇄 불가/속도 무시/브레이크/이득기/",
+      "hiddenKeyword": "비둘기/999/구구구/아모르파티/야나르땃쥐/야나도땃쥐/야나두땃쥐/",
+      "search": "",
+      "type": "공격",
+      "frame": 9,
+      "damage": 900,
+      "pos": "중단",
+      "body": "",
+      "hit": "9",
+      "guard": "9",
+      "counter": "9",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": true,
+      "character_id": 15
+    },
+    "qna_ids": [
+      686,
+      687,
+      688,
+      689,
+      690
+    ],
+    "translations": {
+      "en": {
+        "name": "Yanartaş",
+        "ruby": "",
+        "text": "This Technique can only be used if there are 9 or more types of character marks in the Break Zone.\nYour opponent cannot dodge or clash with this Technique.\n①On combo, this Technique can be used as the 3rd Combo, ignoring Speed.\n②After use, break this Technique. Then end the Battle Phase.",
+        "detail_text": "",
+        "keyword": "Ultimate/Cannot Dodge/Cannot Clash/Ignore Speed/Break/Advantage/",
+        "hiddenKeyword": "Yanartaş/yanartaş/999/",
+        "search": ""
+      },
+      "ja": {
+        "name": "ヤナルタシュ",
+        "ruby": "",
+        "text": "この技はブレイクゾーンにキャラクターマークの種類が9種類以上ある場合にのみ使用できる。\n相手はこの技を回避および相殺できない。\n①コンボ時、この技は速度を無視して3コンボ目に使用できる。\n②使用後、この技をブレイクする。その後、バトルフェイズを終了する。",
+        "detail_text": "",
+        "keyword": "アルティメット/回避不可/相殺不可/速度無視/ブレイク/有利技/",
+        "hiddenKeyword": "ヤナルタシュ/999/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-002",
+      "name": "섭리의 궤",
+      "ruby": "",
+      "text": "루멘 존의 이 기술은 다른 기술의 효과를 받지 않는다.\r\n이 기술을 덱에 편성할 경우, 특수 기술은 [[character:chimera]]의 기술만 편성할 수 있다. \r\n게임 시작 시, 사이드 덱에서 루멘 존에 배치한다. \r\n①이 기술이 루멘 존에 있는 동안 이하의 효과를 적용한다. \r\n- 자신의 기술이 브레이크 될 때마다 리스트에서 1장을 획득할 수 있다. 이 효과는 콤보 타임 중에는 적용하지 않는다. \r\n-패  매수 상한이 1장 늘어난다.",
+      "detail_text": "",
+      "keyword": "개전/카드 획득/효과 면역/",
+      "hiddenKeyword": "섭리의궤/다키마쿠라/",
+      "search": "",
+      "type": "특수",
+      "frame": null,
+      "damage": null,
+      "pos": null,
+      "body": "",
+      "hit": "0",
+      "guard": "0",
+      "counter": "0",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 15
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Arc of Providence",
+        "ruby": "",
+        "text": "This Technique in the Lumen Zone is unaffected by other Techniques' effects.\nIf you include this Technique in your deck, the only Special Techniques you can include are <[[character:chimera]]> Techniques.\nAt the start of the game, place this from the Side Deck into the Lumen Zone.\n①While this Technique is in the Lumen Zone, apply the following effects.\n-Each time one of your Techniques is broken, you may gain 1 card from the List. This effect does not apply during Combo Time.\n-Your hand size limit increases by 1.",
+        "detail_text": "",
+        "keyword": "Gain Card/Effect Immunity/",
+        "hiddenKeyword": "ArcofProvidence/arcofprovidence/",
+        "search": ""
+      },
+      "ja": {
+        "name": "摂理の軌",
+        "ruby": "",
+        "text": "ルーメンゾーンのこの技は他の技の効果を受けない。\nこの技をデッキに編成する場合、特殊技は[[character:chimera]]の技のみ編成できる。\nゲーム開始時、サイドデッキからルーメンゾーンに配置する。\n①この技がルーメンゾーンにある間、以下の効果を適用する。\n-自分の技がブレイクされるたび、リストから1枚獲得できる。この効果はコンボタイム中には適用しない。\n-手札枚数上限が1枚増える。",
+        "detail_text": "",
+        "keyword": "カード獲得/効果耐性/",
+        "hiddenKeyword": "摂理の軌/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-003",
+      "name": "손날치기",
+      "ruby": "",
+      "text": "①콤보 시, 이 기술은 원하는 속도로 사용할 수 있다.",
+      "detail_text": "",
+      "keyword": "콤보 변속/",
+      "hiddenKeyword": "대머리/",
+      "search": "",
+      "type": "공격",
+      "frame": 5,
+      "damage": 400,
+      "pos": "상단",
+      "body": "손",
+      "hit": "2",
+      "guard": "-2",
+      "counter": "2",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 14
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Knifehand Strike",
+        "ruby": "",
+        "text": "①On combo, this Technique can be used at any Speed.",
+        "detail_text": "",
+        "keyword": "Combo Shift/",
+        "hiddenKeyword": "KnifehandStrike/knifehandstrike/",
+        "search": ""
+      },
+      "ja": {
+        "name": "手刀打ち",
+        "ruby": "",
+        "text": "①コンボ時、この技は望む速度として使用できる。",
+        "detail_text": "",
+        "keyword": "コンボ変速/",
+        "hiddenKeyword": "手刀打ち/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-004",
+      "name": "손돌바람",
+      "ruby": "",
+      "text": "①캐치 및 콤보 시, 이번 턴 리커버리 페이즈에 1FP를 얻는다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 6,
+      "damage": 400,
+      "pos": "상단",
+      "body": "손",
+      "hit": "2",
+      "guard": "-6",
+      "counter": "4",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 14
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Sondol Wind",
+        "ruby": "",
+        "text": "①On catch or combo, during this turn's Recovery Phase, gain 1 FP.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "ソンドル風",
+        "ruby": "",
+        "text": "①キャッチまたはコンボ時、このターンのリカバリーフェイズに1FPを得る。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-005",
+      "name": "하단차기",
+      "ruby": "",
+      "text": "①캐치 시, <4속도>로 사용할 수 있다. \r\n그 경우, 이 기술의 히트 판정을 <+0>으로 변경한다.",
+      "detail_text": "",
+      "keyword": "캐치 변속/판정 변경/",
+      "hiddenKeyword": "와사바리/",
+      "search": "",
+      "type": "공격",
+      "frame": 7,
+      "damage": 300,
+      "pos": "하단",
+      "body": "발",
+      "hit": "2",
+      "guard": "-4",
+      "counter": "3",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 14
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Low Kick",
+        "ruby": "",
+        "text": "①On catch, this Technique can be used at Speed 4.\nIn that case, change this Technique's hit judgment to <+0>.",
+        "detail_text": "",
+        "keyword": "Catch Shift/Judgment Change/",
+        "hiddenKeyword": "LowKick/lowkick/",
+        "search": ""
+      },
+      "ja": {
+        "name": "下段蹴り",
+        "ruby": "",
+        "text": "①キャッチ時、速度4として使用できる。\nその場合、この技のヒット判定を〈+0〉に変更する。",
+        "detail_text": "",
+        "keyword": "キャッチ変速/判定変更/",
+        "hiddenKeyword": "下段蹴り/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-006",
+      "name": "태선비격",
+      "ruby": "",
+      "text": "①캐치 시, 이 기술의 히트 판정을 <콤보>로 변경한다.\r\n그 후, 콤보 타임 종료 시 이 기술을 사이드 덱으로 보낸다.",
+      "detail_text": "",
+      "keyword": "판정 변경/콤보 시동기/",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 8,
+      "damage": 400,
+      "pos": "중단",
+      "body": "손",
+      "hit": "4",
+      "guard": "-7",
+      "counter": "5",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 14
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Great Immortal Secret Strike",
+        "ruby": "",
+        "text": "①On catch, change this Technique's hit judgment to <Combo>.\nThen, at the end of Combo Time, send this Technique to the Side Deck.",
+        "detail_text": "",
+        "keyword": "Judgment Change/Combo Starter/",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "太仙秘撃",
+        "ruby": "",
+        "text": "①キャッチ時、この技のヒット判定を〈コンボ〉に変更する。\nその後、コンボタイム終了時、この技をサイドデッキに送る。",
+        "detail_text": "",
+        "keyword": "判定変更/コンボ始動/",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-007",
+      "name": "설풍비무",
+      "ruby": "",
+      "text": "이 기술은 <8속도 이하> 기술만 회피할 수 있다.",
+      "detail_text": "",
+      "keyword": "콤보 시동기/하단 회피/",
+      "hiddenKeyword": "뿌뿌대공/",
+      "search": "",
+      "type": "공격",
+      "frame": 9,
+      "damage": 400,
+      "pos": "하단",
+      "body": null,
+      "hit": "콤보",
+      "guard": "-8",
+      "counter": "6",
+      "special": "하단 회피",
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 14
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Snowwind Flying Dance",
+        "ruby": "",
+        "text": "This Technique can only dodge Techniques with Speed 8 or lower.",
+        "detail_text": "",
+        "keyword": "Combo Starter/Low Dodge/",
+        "hiddenKeyword": "SnowwindFlyingDance/snowwindflyingdance/",
+        "search": ""
+      },
+      "ja": {
+        "name": "雪風飛舞",
+        "ruby": "",
+        "text": "この技は速度8以下の技のみ回避できる。",
+        "detail_text": "",
+        "keyword": "コンボ始動/下段回避/",
+        "hiddenKeyword": "雪風飛舞/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-008",
+      "name": "오목눈이! 돌진!",
+      "ruby": "",
+      "text": "상대는 이 기술을 특수 판정으로 회피 및 상쇄할 수 없다.",
+      "detail_text": "",
+      "keyword": "회피 불가/상쇄 불가/",
+      "hiddenKeyword": "오목눈이!돌진!/오목눈이돌진/",
+      "search": "",
+      "type": "공격",
+      "frame": 10,
+      "damage": 500,
+      "pos": "중단",
+      "body": "",
+      "hit": "콤보",
+      "guard": "-8",
+      "counter": "콤보",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 14
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Longtail! Charge!",
+        "ruby": "",
+        "text": "Your opponent cannot use special judgments to dodge or clash with this Technique.",
+        "detail_text": "",
+        "keyword": "Cannot Dodge/Cannot Clash/",
+        "hiddenKeyword": "Longtail!Charge!/LongtailCharge/longtailcharge/",
+        "search": ""
+      },
+      "ja": {
+        "name": "エナガ！突進！",
+        "ruby": "",
+        "text": "相手はこの技を特殊判定で回避および相殺できない。",
+        "detail_text": "",
+        "keyword": "回避不可/相殺不可/",
+        "hiddenKeyword": "エナガ!突進!/エナガ突進/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-009",
+      "name": "오목눈이! 폭격!",
+      "ruby": "",
+      "text": "이 기술은 500데미지 이하 기술만 상쇄할 수 있다. \r\n①상쇄 시, <8속도 이하>기술로 캐치할 수 있다.",
+      "detail_text": "",
+      "keyword": "상단 상쇄/효과 캐치/",
+      "hiddenKeyword": "오목눈이!폭격!/오목눈이폭격/",
+      "search": "",
+      "type": "공격",
+      "frame": 11,
+      "damage": 400,
+      "pos": "상단",
+      "body": "",
+      "hit": "5",
+      "guard": "-5",
+      "counter": "5",
+      "special": "상단 상쇄",
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 14
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Longtail! Bombard!",
+        "ruby": "",
+        "text": "This Technique can only clash with Techniques with 500 damage or lower.\n①On clash, you may catch with a <Speed 8 or lower> Technique.",
+        "detail_text": "",
+        "keyword": "High Clash/Effect Catch/",
+        "hiddenKeyword": "Longtail!Bombard!/LongtailBombard/longtailbombard/",
+        "search": ""
+      },
+      "ja": {
+        "name": "エナガ！爆撃！",
+        "ruby": "",
+        "text": "この技は500ダメージ以下の技のみ相殺できる。\n①相殺時、〈速度8以下〉の技でキャッチできる。",
+        "detail_text": "",
+        "keyword": "上段相殺/効果キャッチ/",
+        "hiddenKeyword": "エナガ!爆撃!/エナガ爆撃/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-010",
+      "name": "바둑눈이 집합!",
+      "ruby": "",
+      "text": "①히트 시, 이 기술을 브레이크할 수 있다.\r\n그 경우, 리스트에서 <8속도 이하 기술>로 캐치할 수 있다.",
+      "detail_text": "",
+      "keyword": "브레이크/효과 캐치/",
+      "hiddenKeyword": "바둑눈이집합!/드가자/",
+      "search": "",
+      "type": "공격",
+      "frame": 12,
+      "damage": 400,
+      "pos": "하단",
+      "body": "발",
+      "hit": "4",
+      "guard": "-8",
+      "counter": "5",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 14
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Baduknuni, Assemble!",
+        "ruby": "",
+        "text": "①On hit, you may break this Technique.\nIn that case, you may catch from the List with a <Speed 8 or lower> Technique.",
+        "detail_text": "",
+        "keyword": "Break/Effect Catch/",
+        "hiddenKeyword": "Baduknuni,Assemble!/BaduknuniAssemble/baduknuniassemble/",
+        "search": ""
+      },
+      "ja": {
+        "name": "バドゥクヌニ集合！",
+        "ruby": "",
+        "text": "①ヒット時、この技をブレイクできる。\nその場合、リストから〈速度8以下〉の技でキャッチできる。",
+        "detail_text": "",
+        "keyword": "ブレイク/効果キャッチ/",
+        "hiddenKeyword": "バドゥクヌニ集合!/バドゥクヌニ集合/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-011",
+      "name": "오몽! 갈!!!",
+      "ruby": "",
+      "text": "①히트/카운터/콤보 시, 리스트에서 기술 1장을 브레이크할 수 있다.\r\n그 경우, 이 기술 데미지+100",
+      "detail_text": "",
+      "keyword": "브레이크/",
+      "hiddenKeyword": "오몽!갈!/오몽갈/",
+      "search": "",
+      "type": "공격",
+      "frame": 13,
+      "damage": 500,
+      "pos": "중단",
+      "body": "",
+      "hit": "5",
+      "guard": "-5",
+      "counter": "5",
+      "special": "중단 상쇄",
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 14
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Omong! Katsu!!!",
+        "ruby": "",
+        "text": "①On hit/counter/combo, you may break 1 Technique from the List.\nIn that case, this Technique's damage +100.",
+        "detail_text": "",
+        "keyword": "Break/",
+        "hiddenKeyword": "Omong!Katsu!!!/OmongKatsu/omongkatsu/",
+        "search": ""
+      },
+      "ja": {
+        "name": "オモン！喝！！！",
+        "ruby": "",
+        "text": "①ヒット/カウンター/コンボ時、リストから技1枚をブレイクできる。\nその場合、この技のダメージ+100。",
+        "detail_text": "",
+        "keyword": "ブレイク/",
+        "hiddenKeyword": "オモン!喝!!!/オモン喝/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-012",
+      "name": "프렌즈 실드",
+      "ruby": "",
+      "text": "①방어 시, 패 2장을 버린다.\r\n②상쇄 시, 상대 공격의 히트 판정이 <콤보>일 경우 그 판정을 <+6>으로 변경 한다.\r\n③사용 후, 이 기술을 리스트로 보내고 다음 턴 종료 시까지 패로 가져올 수 없다.",
+      "detail_text": "",
+      "keyword": "판정 변경/안티 콤보/",
+      "hiddenKeyword": "프렌즈실드/고기방패/",
+      "search": "",
+      "type": "수비",
+      "frame": null,
+      "damage": null,
+      "pos": null,
+      "body": "",
+      "hit": "0",
+      "guard": "0",
+      "counter": "0",
+      "special": null,
+      "g_top": "방어",
+      "g_mid": "상쇄",
+      "g_bot": "방어",
+      "ultimate": false,
+      "character_id": 14
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Friends Shield",
+        "ruby": "",
+        "text": "①On guard, discard 2 cards from your hand.\n②On clash, if your opponent's Attack Technique's hit judgment is <Combo>, change that judgment to <+6>.\n③After use, send this Technique to the List, and until the end of next turn, it cannot be added to your hand.",
+        "detail_text": "",
+        "keyword": "Judgment Change/Anti-Combo/",
+        "hiddenKeyword": "FriendsShield/friendsshield/",
+        "search": ""
+      },
+      "ja": {
+        "name": "フレンズ・シールド",
+        "ruby": "",
+        "text": "①ガード時、手札2枚を捨てる。\n②相殺時、相手の攻撃技のヒット判定が〈コンボ〉の場合、その判定を〈+6〉に変更する。\n③使用後、この技をリストに送り、次のターン終了時まで手札に加えることはできない。",
+        "detail_text": "",
+        "keyword": "判定変更/アンチコンボ/",
+        "hiddenKeyword": "フレンズ・シールド/フレンズシールド/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-015",
+      "name": "볼트 스톰프",
+      "ruby": "",
+      "text": "이 기술은 <8속도 이하>기술만 상쇄할 수 있다.",
+      "detail_text": "“이 기술은 <8속도 이하> 기술만 상쇄한다.”: 유발되는 타이밍 없이, 상시 적용되는 기능입니다. \"전투 판정\" 단계 중, \"상쇄 확인\" 시에 참고합니다.",
+      "keyword": "하단 상쇄/",
+      "hiddenKeyword": "볼트스톰프/",
+      "search": "",
+      "type": "공격",
+      "frame": 7,
+      "damage": 500,
+      "pos": "하단",
+      "body": "발",
+      "hit": "3",
+      "guard": "-7",
+      "counter": "4",
+      "special": "하단 상쇄",
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 3
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Volt Stomp",
+        "ruby": "",
+        "text": "This Technique can only clash with Techniques with Speed 8 or lower.",
+        "detail_text": "\"This Technique can only clash with Techniques with Speed 8 or lower.\": A function that is always applied without a trigger timing. Refer to it during \"Clash check\" in the \"Combat judgment\" step.",
+        "keyword": "Low Clash/",
+        "hiddenKeyword": "VoltStomp/voltstomp/",
+        "search": ""
+      },
+      "ja": {
+        "name": "ボルト・ストンプ",
+        "ruby": "",
+        "text": "この技は速度8以下の技のみ相殺できる。",
+        "detail_text": "「この技は速度8以下の技のみ相殺できる。」: 発動するタイミングなしに、常時適用される機能です。「戦闘判定」ステップ中の「相殺確認」時に参照します。",
+        "keyword": "下段相殺/",
+        "hiddenKeyword": "ボルト・ストンプ/ボルトストンプ/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-026",
+      "name": "템포 드 두",
+      "ruby": "",
+      "text": "①1턴에 1번 콤보 시, [[token:hidden_bond]]카운터가 있을 경우 배틀 존의 이 기술을 다른 <[[character:viola]]> 기술 뒤에 속도를 무시하고 이을 수 있다. \r\n②이 기술이 한 턴에 두 번 이상 사용되었을 경우, 이 기술은 데미지 보정을 적용하지 않는다.",
+      "detail_text": "",
+      "keyword": "콤보 시동기/은연/속도 무시/보정 무시/비올라 홀수 속도/",
+      "hiddenKeyword": "템포드두/두대/",
+      "search": "",
+      "type": "공격",
+      "frame": 11,
+      "damage": 300,
+      "pos": "하단",
+      "body": "발",
+      "hit": "8",
+      "guard": "-8",
+      "counter": "콤보",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 7
+    },
+    "qna_ids": [
+      679,
+      685
+    ],
+    "translations": {
+      "en": {
+        "name": "Tempo de Deux",
+        "ruby": "",
+        "text": "①Once per turn during combo, if you have a [[token:hidden_bond]] Counter, you may chain this Technique in the Battle Zone after another <[[character:viola]]> Technique, ignoring Speed.\n②If this Technique was used two or more times in one turn, damage scaling does not apply to this Technique.",
+        "detail_text": "",
+        "keyword": "Combo Starter/Hidden Bond/Ignore Speed/Ignore Scaling/Viola Odd Speed/",
+        "hiddenKeyword": "TempodeDeux/tempodedeux/",
+        "search": ""
+      },
+      "ja": {
+        "name": "テンポ・ド・ドゥ",
+        "ruby": "",
+        "text": "①1ターンに1回、コンボ時、[[token:hidden_bond]]カウンターがある場合、バトルゾーンのこの技を他の［[[character:viola]]］技の後に、速度を無視してつなげることができる。\n②この技が1ターンに2回以上使用されていた場合、この技にはダメージ補正を適用しない。",
+        "detail_text": "",
+        "keyword": "コンボ始動/隠縁/速度無視/補正無視/ヴィオラ奇数速度/",
+        "hiddenKeyword": "テンポ・ド・ドゥ/テンポドドゥ/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-029",
+      "name": "시크릿 대거",
+      "ruby": "",
+      "text": "①히트/카운터/콤보 시, 이하의 효과 중 하나를 적용할 수 있다. \r\n-루멘 존의 [[token:dagger]]토큰 2장을 브레이크하고 상대에게 100데미지를 2번 준다. \r\n-패 혹은 리스트의 [[card:AWL-AT-009]]를 사이드 덱으로 보내고 상대에게 500 데미지를 준다.",
+      "detail_text": "",
+      "keyword": "단검/효과 대미지/",
+      "hiddenKeyword": "시크릿대거/",
+      "search": "사일런트 대거/검은 깃털/",
+      "type": "공격",
+      "frame": 11,
+      "damage": 400,
+      "pos": "하단",
+      "body": "",
+      "hit": "5",
+      "guard": "-7",
+      "counter": "5",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 10
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Secret Dagger",
+        "ruby": "",
+        "text": "①On hit/counter/combo, you may apply one of the following effects.\n-Break 2 [[token:dagger]] Tokens in the Lumen Zone and deal 100 damage to your opponent 2 times.\n-Send [[card:AWL-AT-009]] from your hand or List to the Side Deck and deal 500 damage to your opponent.",
+        "detail_text": "",
+        "keyword": "Dagger/Effect Damage/",
+        "hiddenKeyword": "SecretDagger/secretdagger/",
+        "search": "Silent Dagger/Black Feather/"
+      },
+      "ja": {
+        "name": "シークレット・ダガー",
+        "ruby": "",
+        "text": "①ヒット/カウンター/コンボ時、以下の効果から1つを適用できる。\n-ルーメンゾーンの[[token:dagger]]トークン2枚をブレイクし、相手に100ダメージを2回与える。\n-手札またはリストの[[card:AWL-AT-009]]をサイドデッキに送り、相手に500ダメージを与える。",
+        "detail_text": "",
+        "keyword": "短剣/効果ダメージ/",
+        "hiddenKeyword": "シークレット・ダガー/シークレットダガー/",
+        "search": "サイレント・ダガー/黒い羽根/"
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-030",
+      "name": "리퍼 사이드",
+      "ruby": "",
+      "text": "①히트 및 카운터 시, 루멘 존의 [[token:dagger]]토큰 2장을 브레이크할 수 있다. \r\n그 경우, 이하의 효과 중 하나를 적용한다. \r\n - 이 기술의 히트 및 카운터 판정을 <콤보>로 변경한다. \r\n - 상대 기술의 히트 판정을 <+0>으로 변경한다.",
+      "detail_text": "",
+      "keyword": "상단 상쇄/판정 변경/콤보 시동기/안티 콤보/",
+      "hiddenKeyword": "리퍼사이드/",
+      "search": "검은 깃털/",
+      "type": "공격",
+      "frame": 11,
+      "damage": 500,
+      "pos": "상단",
+      "body": "",
+      "hit": "7",
+      "guard": "-7",
+      "counter": "7",
+      "special": "상단 상쇄",
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 10
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Reaper Scythe",
+        "ruby": "",
+        "text": "①On hit or counter, you may break 2 [[token:dagger]] Tokens in the Lumen Zone.\nIn that case, apply one of the following effects.\n-Change this Technique's hit and counter judgments to <Combo>.\n-Change your opponent's Technique's hit judgment to <+0>.",
+        "detail_text": "",
+        "keyword": "High Clash/Judgment Change/Combo Starter/Anti-Combo/",
+        "hiddenKeyword": "ReaperScythe/reaperscythe/",
+        "search": "Black Feather/"
+      },
+      "ja": {
+        "name": "リーパー・サイズ",
+        "ruby": "",
+        "text": "①ヒットまたはカウンター時、ルーメンゾーンの[[token:dagger]]トークン2枚をブレイクできる。\nその場合、以下の効果から1つを適用する。\n-この技のヒットおよびカウンター判定を〈コンボ〉に変更する。\n-相手の技のヒット判定を〈+0〉に変更する。",
+        "detail_text": "",
+        "keyword": "上段相殺/判定変更/コンボ始動/アンチコンボ/",
+        "hiddenKeyword": "リーパー・サイズ/リーパーサイズ/",
+        "search": "黒い羽根/"
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-032",
+      "name": "섬천각",
+      "ruby": "스카이스플릿킥",
+      "text": "①[[state:yin]]: 히트 및 카운터 시, 1FP를 얻는다.\r\n②상대 회피 시, 상대는 2FP를 얻는다.",
+      "detail_text": "",
+      "keyword": "음/타오 홀수 기술/",
+      "hiddenKeyword": "섬천격/",
+      "search": "「팔괘엔진」/",
+      "type": "공격",
+      "frame": 7,
+      "damage": 300,
+      "pos": "하단",
+      "body": "발",
+      "hit": "3",
+      "guard": "-7",
+      "counter": "4",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 8
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Sky Split Kick",
+        "ruby": "Sky Split Kick",
+        "text": "①[[state:yin]]: On hit or counter, gain 1 FP.\r\n②When your opponent dodges, your opponent gains 2 FP.",
+        "detail_text": "",
+        "keyword": "Yin/Tao Odd Technique/",
+        "hiddenKeyword": "SkySplitKick/skysplitkick/",
+        "search": "「Bagua Engine」/"
+      },
+      "ja": {
+        "name": "閃天脚",
+        "ruby": "スカイスプリットキック",
+        "text": "①[[state:yin]]：ヒットおよびカウンター時、自分は1FPを得る。\n②相手が回避した時、相手は2FPを得る。",
+        "detail_text": "",
+        "keyword": "陰/タオ奇数技/",
+        "hiddenKeyword": "閃天脚/",
+        "search": "「八卦エンジン」/"
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-033",
+      "name": "광륜격",
+      "ruby": "헤일로아츠",
+      "text": "① [[state:yang]]: 사용 시, 이 기술의 히트 판정을 <콤보>로 변경한다.",
+      "detail_text": "",
+      "keyword": "콤보 시동기/판정 변경/양/타오 짝수 기술/",
+      "hiddenKeyword": "헤일로아츠/",
+      "search": "「팔괘엔진」/",
+      "type": "공격",
+      "frame": 8,
+      "damage": 300,
+      "pos": "중단",
+      "body": "손",
+      "hit": "4",
+      "guard": "-7",
+      "counter": "콤보",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 8
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Halo Arts",
+        "ruby": "Halo Arts",
+        "text": "①[[state:yang]]: On use, change this Technique's hit judgment to <Combo>.",
+        "detail_text": "",
+        "keyword": "Combo Starter/Judgment Change/Yang/Tao Even Technique/",
+        "hiddenKeyword": "HaloArts/haloarts/",
+        "search": "「Bagua Engine」/"
+      },
+      "ja": {
+        "name": "光輪撃",
+        "ruby": "ヘイローアーツ",
+        "text": "①[[state:yang]]：使用時、この技のヒット判定を〈コンボ〉に変更する。",
+        "detail_text": "",
+        "keyword": "コンボ始動/判定変更/陽/タオ偶数技/",
+        "hiddenKeyword": "光輪撃/",
+        "search": "「八卦エンジン」/"
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-035",
+      "name": "슈팅스타",
+      "ruby": "",
+      "text": "①[[state:saintess]]: 방어 및 상쇄 시, 패의 이 기술을 공개할 수 있다. \r\n그 경우, 이 기술로 캐치한다.\r\n②히트 및 카운터 시, 이번 턴 겟 페이즈를 스킵할 수 있다.\r\n그 경우, 2FP를 얻는다.\r\n③사용 후, 이번 턴 [[state:saintess]] 효과가 있는 기술만 사용할 수 있다.",
+      "detail_text": "",
+      "keyword": "성녀/효과 캐치/",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 8,
+      "damage": 200,
+      "pos": "상단",
+      "body": "",
+      "hit": "3",
+      "guard": "-3",
+      "counter": "9",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 9
+    },
+    "qna_ids": [
+      384,
+      406,
+      641,
+      677,
+      678
+    ],
+    "translations": {
+      "en": {
+        "name": "Shooting Star",
+        "ruby": "",
+        "text": "①[[state:saintess]]: On guard or clash, you may reveal this Technique from your hand.\nIf you do, Catch with this Technique.\n②On hit or counter, you may skip this turn's Get Phase.\nIf you do, gain 2 FP.\n③After use, for the rest of this turn you can only use Techniques with the [[state:saintess]] effect.",
+        "detail_text": "",
+        "keyword": "Saintess/Effect Catch/",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "シューティングスター",
+        "ruby": "",
+        "text": "①[[state:saintess]]: ガードおよび相殺時、手札のこの技を公開できる。\nその場合、この技でキャッチする。\n②ヒットおよびカウンター時、このターンのゲットフェイズをスキップできる。\nその場合、2FPを得る。\n③使用後、このターン中[[state:saintess]]効果がある技のみ使用できる。",
+        "detail_text": "",
+        "keyword": "聖女/効果キャッチ/",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-036",
+      "name": "몰아치는 규율",
+      "ruby": "",
+      "text": "①[[state:guardian]]: 상대는 이 기술을 회피할 수 없다. \r\n②사용 후, [[state:saintess]] 효과가 있는 기술을 버릴 수 있다. \r\n그 경우, 이번 턴 자신의 겟 페이즈를 스킵하고 상대는 캐치할 수 없다.",
+      "detail_text": "",
+      "keyword": "가디언/회피 불가/",
+      "hiddenKeyword": "몰아차는규율/",
+      "search": "성녀/",
+      "type": "공격",
+      "frame": 12,
+      "damage": 500,
+      "pos": "상단",
+      "body": "손",
+      "hit": "5",
+      "guard": "-7",
+      "counter": "7",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 9
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Raging Discipline",
+        "ruby": "",
+        "text": "①[[state:guardian]]: Your opponent cannot dodge this Technique.\n②After use, you may discard a Technique with the [[state:saintess]] effect.\nIf you do, skip this turn's Get Phase, and your opponent cannot Catch.",
+        "detail_text": "",
+        "keyword": "Guardian/Cannot Dodge/",
+        "hiddenKeyword": "RagingDiscipline/ragingdiscipline/",
+        "search": "Saintess/"
+      },
+      "ja": {
+        "name": "荒れ狂う規律",
+        "ruby": "",
+        "text": "①[[state:guardian]]: 相手はこの技を回避できない。\n②使用後、[[state:saintess]]効果がある技を捨てることができる。\nその場合、このターンの自分のゲットフェイズをスキップし、相手はキャッチできない。",
+        "detail_text": "",
+        "keyword": "ガーディアン/回避不可/",
+        "hiddenKeyword": "荒れ狂う規律/",
+        "search": "聖女/"
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-038",
+      "name": "나찰파쇄열권",
+      "ruby": "",
+      "text": "①판정 전, 브레이크 존에 <[[character:rin]]> 기술 2장당 이 기술의 속도가 1 빨라진다. (최대 6장까지) \r\n②카운터 시, 이번 턴 이하의 효과를 적용한다. \r\n-브레이크 존에서 <8속도 이하 [[character:rin]] 기술>을 2장까지 콤보에 사용할 수 있다. \r\n-콤보 타임 종료 시, 배틀 존의 모든 기술을 브레이크한다.",
+      "detail_text": "",
+      "keyword": "브레이크/속도 변경/",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 10,
+      "damage": 500,
+      "pos": "중단",
+      "body": "손",
+      "hit": "3",
+      "guard": "-9",
+      "counter": "콤보",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 11
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Rakshasa Shattering Fist",
+        "ruby": "",
+        "text": "①Before judgment, for every 2 <[[character:rin]]> Techniques in your Break Zone, this Technique's Speed becomes 1 faster. (Count up to 6 cards)\n②On counter, apply the following effects this turn.\n-You may use up to 2 <Speed 8 or lower [[character:rin]] Techniques> from your Break Zone in combos.\n-At the end of Combo Time, break all Techniques in the Battle Zone.",
+        "detail_text": "",
+        "keyword": "Break/Speed Change/",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "羅刹破砕烈拳",
+        "ruby": "",
+        "text": "①判定前、ブレイクゾーンの<[[character:rin]]> 技2枚につき、この技の速度が1速くなる。（最大6枚まで）\n②カウンター時、このターン、以下の効果を適用する。\n-ブレイクゾーンから〈速度8以下 [[character:rin]] 技〉を2枚までコンボに使用できる。\n-コンボタイム終了時、バトルゾーンのすべての技をブレイクする。",
+        "detail_text": "",
+        "keyword": "ブレイク/速度変更/",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-039",
+      "name": "분쇄염각",
+      "ruby": "",
+      "text": "①콤보 시, 패와 리스트의 <[[character:rin]]> 기술을 3장까지 브레이크할 수 있다.",
+      "detail_text": "",
+      "keyword": "브레이크/",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 7,
+      "damage": 500,
+      "pos": "하단",
+      "body": "발",
+      "hit": "3",
+      "guard": "-5",
+      "counter": "3",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 11
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Crushing Flame Kick",
+        "ruby": "",
+        "text": "①During combo, you may break up to 3 <[[character:rin]]> Techniques from your hand and List.",
+        "detail_text": "",
+        "keyword": "Break/",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "粉砕炎脚",
+        "ruby": "",
+        "text": "①コンボ時、自分の手札およびリストの<[[character:rin]]> 技を3枚までブレイクできる。",
+        "detail_text": "",
+        "keyword": "ブレイク/",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-040",
+      "name": "오더: 카르키노스",
+      "ruby": "",
+      "text": "게임 시작 시, 사이드 덱에서 루멘 존에 배치한다.\r\n① [[state:disaster_one]]: 이 기술이 루멘 존에 있는 동안, <[[character:yohann]]> 기술의 효과로 상대 패를 골라 홀수 혹은 짝수를 선언한 경우 이하의 효과를 적용한다.\r\n-맞힐 경우, 상대에게 100데미지를 준다.\r\n-틀릴 경우, 자신은 100데미지를 받는다.\r\n②리커버리 페이즈 시, 상대 혹은 자신의 체력이 2000 이하일 경우 이 기술을 브레이크한다.",
+      "detail_text": "",
+      "keyword": "개전/디제스터 원/효과 대미지/",
+      "hiddenKeyword": "오더카르키노스/오더:칼키노스/오더칼키노스/오더 카르키노스/오더 칼키노스/",
+      "search": "판도라 박스/",
+      "type": "특수",
+      "frame": null,
+      "damage": null,
+      "pos": null,
+      "body": null,
+      "hit": "0",
+      "guard": "0",
+      "counter": "0",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 12
+    },
+    "qna_ids": [
+      693
+    ],
+    "translations": {
+      "en": {
+        "name": "Order: Karkinos",
+        "ruby": "",
+        "text": "At the start of the game, place this from the Side Deck into the Lumen Zone.\n①[[state:disaster_one]]: While this Technique is in the Lumen Zone, when you choose a card from your opponent's hand and declare odd or even with a <[[character:yohann]]> Technique's effect, apply the following effects.\n-If correct, deal 100 damage to your opponent.\n-If wrong, you take 100 damage.\n②During the Recovery Phase, if either player's HP is 2000 or lower, break this Technique.",
+        "detail_text": "",
+        "keyword": "Disaster One/Effect Damage/",
+        "hiddenKeyword": "Order:Karkinos/OrderKarkinos/orderkarkinos/",
+        "search": "Pandora's Box/"
+      },
+      "ja": {
+        "name": "オーダー：カルキノス",
+        "ruby": "",
+        "text": "ゲーム開始時、サイドデッキからルーメンゾーンに配置する。\n①[[state:disaster_one]]：この技がルーメンゾーンにある間、<[[character:yohann]]> 技の効果で相手の手札を選んで奇数または偶数を宣言した場合、以下の効果を適用する。\n-当てた場合、相手に100ダメージを与える。\n-外した場合、自分は100ダメージを受ける。\n②リカバリーフェイズ時、相手または自分の体力が2000以下の場合、この技をブレイクする。",
+        "detail_text": "",
+        "keyword": "ディザスター・ワン/効果ダメージ/",
+        "hiddenKeyword": "オーダー:カルキノス/オーダーカルキノス/",
+        "search": "パンドラボックス/"
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-041",
+      "name": "오더 : 트로이아 히포스",
+      "ruby": "",
+      "text": "① [[state:disaster_one]]: 사용 시, 상대 패 1장을 골라 홀수 혹은 짝수를 선언하고 고른 카드의 속도를 서로 확인할 수 있다.\r\n맞힐 경우, 이 기술 데미지+200. 그 후, 상대 패를 모두 뒷면으로 하고 다시 이 효과를 사용할 수 있다. (최대 +1000) \r\n틀릴 경우, 이 기술 데미지를 400으로 변경한다.",
+      "detail_text": "",
+      "keyword": "디제스터 원/",
+      "hiddenKeyword": "오더:트로이아히포스/오더트로이아히포스/오더 트로이아히포스/ 오더 트로이아 히포스/아키라 드리프트/",
+      "search": "판도라 박스/",
+      "type": "공격",
+      "frame": 13,
+      "damage": 400,
+      "pos": "중단",
+      "body": "",
+      "hit": "5",
+      "guard": "-5",
+      "counter": "8",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 12
+    },
+    "qna_ids": [
+      693,
+      694
+    ],
+    "translations": {
+      "en": {
+        "name": "Order: Troia Hippos",
+        "ruby": "",
+        "text": "①[[state:disaster_one]]: On use, you may choose 1 card from your opponent's hand, declare odd or even, and both players may check the chosen card's Speed.\nIf correct, this Technique's damage +200. Then, turn all cards in your opponent's hand face down and you may use this effect again. (Maximum +1000)\nIf wrong, change this Technique's damage to 400.",
+        "detail_text": "",
+        "keyword": "Disaster One/",
+        "hiddenKeyword": "Order:TroiaHippos/OrderTroiaHippos/ordertroiahippos/",
+        "search": "Pandora's Box/"
+      },
+      "ja": {
+        "name": "オーダー：トロイア・ヒッポス",
+        "ruby": "",
+        "text": "①[[state:disaster_one]]：使用時、相手の手札1枚を選んで奇数または偶数を宣言し、選んだカードの速度をお互いに確認できる。\n当てた場合、この技のダメージ+200。その後、相手の手札をすべて裏向きにし、再びこの効果を使用できる。（最大+1000）\n外した場合、この技のダメージを400に変更する。",
+        "detail_text": "",
+        "keyword": "ディザスター・ワン/",
+        "hiddenKeyword": "オーダー:トロイア・ヒッポス/オーダートロイアヒッポス/",
+        "search": "パンドラボックス/"
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-042",
+      "name": "오더 : 필리아다",
+      "ruby": "",
+      "text": "① [[state:disaster_one]]: 카운터 시, 상대 패 1장을 골라 홀수 혹은 짝수를 선언하고 고른 카드의 속도를 서로 확인할 수 있다. \r\n맞힐 경우, 상대의 FP를 상대 공격 기술의 가드 판정으로 조정한다\r\n틀릴 경우, 이 기술 데미지-200",
+      "detail_text": "",
+      "keyword": "디제스터 원/",
+      "hiddenKeyword": "오더:필리아다/오더필리아다/오더 필리아다/팔리아다/킹스맨/우산총/",
+      "search": "판도라 박스/",
+      "type": "공격",
+      "frame": 7,
+      "damage": 500,
+      "pos": "중단",
+      "body": "",
+      "hit": "2",
+      "guard": "-5",
+      "counter": "2",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 12
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Order: Philiada",
+        "ruby": "",
+        "text": "①[[state:disaster_one]]: On counter, you may choose 1 card from your opponent's hand, declare odd or even, and both players may check the chosen card's Speed.\nIf correct, set your opponent's FP to the guard judgment value of the Technique your opponent used.\nIf wrong, this Technique's damage -200.",
+        "detail_text": "",
+        "keyword": "Disaster One/",
+        "hiddenKeyword": "Order:Philiada/OrderPhiliada/orderphiliada/",
+        "search": "Pandora's Box/"
+      },
+      "ja": {
+        "name": "オーダー：フィリアダ",
+        "ruby": "",
+        "text": "①[[state:disaster_one]]：カウンター時、相手の手札1枚を選んで奇数または偶数を宣言し、選んだカードの速度をお互いに確認できる。\n当てた場合、相手のFPを相手が使用した技のガード判定の数値にする。\n外した場合、この技のダメージ-200。",
+        "detail_text": "",
+        "keyword": "ディザスター・ワン/",
+        "hiddenKeyword": "オーダー:フィリアダ/オーダーフィリアダ/",
+        "search": "パンドラボックス/"
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-043",
+      "name": "아틀리에 오브 페인",
+      "ruby": "",
+      "text": "게임 시작 시, 사이드 덱에서 루멘 존에 배치한다. \r\n①배틀 페이즈 종료 시, 상대보다 FP가 4 이상 유리할 경우 체력 200을 지불할 수 있다. \r\n그 경우, 이번 턴 <[[character:ezebel]]> 기술을 사용했다면 1FP를 얻는다. \r\n②리커버리 페이즈 시, 루멘 존의 거미토큰이 8장 이상일 경우 자신의 체력 400을 회복하고 이 기술을 브레이크한다.",
+      "detail_text": "",
+      "keyword": "개전/체력 지불/체력 회복/",
+      "hiddenKeyword": "아틀리에오브페인/아오페/아오지/",
+      "search": "거미/",
+      "type": "특수",
+      "frame": null,
+      "damage": null,
+      "pos": null,
+      "body": "",
+      "hit": "0",
+      "guard": "0",
+      "counter": "0",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 13
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Atelier of Pain",
+        "ruby": "",
+        "text": "At the start of the game, place this from your Side Deck into the Lumen Zone.\n①At the end of the Battle Phase, if you have an FP advantage of 4 or more over your opponent, you may pay 200 HP.\nIf you do, if you used an <[[character:ezebel]]> Technique this turn, gain 1 FP.\n②During the Recovery Phase, if there are 8 or more Spider Tokens in the Lumen Zone, recover 400 HP and break this Technique.",
+        "detail_text": "",
+        "keyword": "Pay HP/HP Recovery/",
+        "hiddenKeyword": "AtelierofPain/atelierofpain/",
+        "search": "Spider/"
+      },
+      "ja": {
+        "name": "アトリエ・オブ・ペイン",
+        "ruby": "",
+        "text": "ゲーム開始時、サイドデッキからルーメンゾーンに配置する。\n①バトルフェイズ終了時、相手よりFPが4以上有利な場合、HP200を支払うことができる。\nその場合、このターン<[[character:ezebel]]> 技を使用していたなら、1FPを得る。\n②リカバリーフェイズ時、ルーメンゾーンの蜘蛛トークンが8個以上の場合、HP400を回復し、この技をブレイクする。",
+        "detail_text": "",
+        "keyword": "HP支払い/HP回復/",
+        "hiddenKeyword": "アトリエ・オブ・ペイン/アトリエオブペイン/",
+        "search": "蜘蛛/"
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-044",
+      "name": "데드 폴 램",
+      "ruby": "",
+      "text": "① 판정 전, 루멘 존의 [[token:spider]] 토큰이 8장 이상일 경우 상대 기술의 속도가 3 느려진다. \r\n② 히트/카운터/콤보 시, 리스트에서 기술 1장을 브레이크할 수 있다. 그 경우, 체력 400을 회복한다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 8,
+      "damage": 400,
+      "pos": "상단",
+      "body": "잔향",
+      "hit": "4",
+      "guard": "-5",
+      "counter": "6",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 13
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Deadfall Ram",
+        "ruby": "",
+        "text": "①Before judgment, if there are 8 or more [[token:spider]] Tokens in the Lumen Zone, your opponent's Technique's Speed becomes 3 slower.\n②On hit/counter/combo, you may break 1 Technique from your List. If you do, recover 400 HP.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "DeadfallRam/deadfallram/",
+        "search": ""
+      },
+      "ja": {
+        "name": "デッドフォール・ラム",
+        "ruby": "",
+        "text": "①判定前、ルーメンゾーンの[[token:spider]]トークンが8個以上の場合、相手の技の速度が3遅くなる。\n②ヒット/カウンター/コンボ時、自分のリストの技1枚をブレイクできる。その場合、HP400を回復する。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "デッドフォール・ラム/デッドフォールラム/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-AT-045",
+      "name": "레드 미스트",
+      "ruby": "",
+      "text": "이 기술은 루멘 존에 [[token:spider]] 토큰이 있어야만 사용할 수 있다. \r\n①판정 전, 자신의 체력이 2500 이하일 경우 상대 기술의 속도가 1 느려진다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 5,
+      "damage": 100,
+      "pos": "중단",
+      "body": "잔향",
+      "hit": "3",
+      "guard": "-6",
+      "counter": "3",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 13
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Red Mist",
+        "ruby": "",
+        "text": "This Technique can only be used if there is a [[token:spider]] Token in the Lumen Zone.\n①Before judgment, if your HP is 2500 or lower, your opponent's Technique's Speed becomes 1 slower.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "RedMist/redmist/",
+        "search": ""
+      },
+      "ja": {
+        "name": "レッド・ミスト",
+        "ruby": "",
+        "text": "この技はルーメンゾーンに[[token:spider]]トークンがある場合のみ使用できる。\n①判定前、自分のHPが2500以下の場合、相手の技の速度が1遅くなる。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "レッド・ミスト/レッドミスト/",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB02-PS-001",
+      "name": "하요트 하 코데쉬",
+      "ruby": "",
+      "text": "[[character:chimera]]는 덱에 기술을 10장 추가로 편성한다.\r\n[[character:chimera]]는 다른 캐릭터 마크의 얼티밋을 제외한 공격 기술을 덱에 넣을 수 있다.\r\n그 경우, 이하의 규칙을 따른다.(중립 마크는 적용하지 않는다.)\r\n-해당 기술은 <[[character:chimera]]> 기술로도 취급한다.\r\n-해당 기술의 효과를 무효로 한다.\r\n-해당 기술은 사용 후, 브레이크한다.\r\n-다른 캐릭터 마크의 기술은 각 3장까지만 넣을 수 있다.",
+      "detail_text": "",
+      "keyword": "브레이크/",
+      "hiddenKeyword": "하요트하코데쉬/",
+      "search": "",
+      "type": "특성",
+      "frame": null,
+      "damage": null,
+      "pos": null,
+      "body": "",
+      "hit": "0",
+      "guard": "0",
+      "counter": "0",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 15
+    },
+    "qna_ids": [
+      688
+    ],
+    "translations": {
+      "en": {
+        "name": "Hayoth HaKodesh",
+        "ruby": "",
+        "text": "[[character:chimera]] includes 10 additional Techniques in the deck.\n[[character:chimera]] can include Attack Techniques from other character marks, except Ultimates, in the deck.\nIn that case, follow the rules below. (This does not apply to Neutral marks.)\n-Those Techniques are also treated as <[[character:chimera]]> Techniques.\n-Those Techniques' effects are nullified.\n-Those Techniques are broken after use.\n-Up to 3 Techniques from each other character mark can be included.",
+        "detail_text": "",
+        "keyword": "Break/",
+        "hiddenKeyword": "HayothHaKodesh/hayothhakodesh/",
+        "search": ""
+      },
+      "ja": {
+        "name": "ハヨット・ハ・コデシュ",
+        "ruby": "",
+        "text": "[[character:chimera]]はデッキに技を10枚追加で編成する。\n[[character:chimera]]は他のキャラクターマークのアルティメットを除く攻撃技をデッキに入れることができる。\nその場合、以下のルールに従う。（ニュートラルマークには適用しない。）\n-その技は<[[character:chimera]]> 技としても扱う。\n-その技の効果を無効にする。\n-その技は使用後、ブレイクする。\n-他のキャラクターマークの技はそれぞれ3枚までしか入れることができない。",
+        "detail_text": "",
+        "keyword": "ブレイク/",
+        "hiddenKeyword": "ハヨット・ハ・コデシュ/ハヨットハコデシュ/",
+        "search": ""
+      }
+    }
+  }
+]

@@ -112,6 +112,9 @@ class SimulatorAIPolicy(models.Model):
 
 
 class BattleSession(models.Model):
+    preparation = models.JSONField(default=dict, blank=True)
+    player1_trait_card = models.ForeignKey('card.Card', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    player2_trait_card = models.ForeignKey('card.Card', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
     SESSION_STANDALONE = 'standalone'
     SESSION_TOURNAMENT = 'tournament'
     SESSION_PARTY = 'party'
@@ -313,6 +316,7 @@ class BattleEvent(models.Model):
 
 
 class BattleSet(models.Model):
+    setup_snapshot = models.JSONField(default=dict, blank=True)
     STATUS_RUNNING = 'running'
     STATUS_FINISHED = 'finished'
     STATUS_CHOICES = [

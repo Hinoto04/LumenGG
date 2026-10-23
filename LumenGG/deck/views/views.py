@@ -107,7 +107,11 @@ def index(req, template_name='deck/list.html'):
             Prefetch('cids', queryset=ultimate_cards, to_attr='ultimate_cards')
         )
         
-    data = data.filter(cardcount__gte=15)
+    for field in ('trait_card_id', 'regulation_version_id'):
+        value = req.GET.get(field)
+        if value and value.isdigit():
+            data = data.filter(**{field: int(value)})
+    data = data.filter(Q(cardcount__gte=15) | Q(author=req.user) if req.user.is_authenticated else Q(cardcount__gte=15))
     
     if sort == 'version':
         data = data.order_by('-version', '-created')
@@ -123,6 +127,8 @@ def index(req, template_name='deck/list.html'):
     context = {
         'form': form,
         'decks': page_data,
+        'trait_filter': req.GET.get('trait_card_id', ''),
+        'regulation_filter': req.GET.get('regulation_version_id', ''),
     }
     return render(req, template_name, context=context)
 
@@ -180,6 +186,7 @@ def detail(req, id=0, template_name='deck/detail.html'):
         'liked': liked,
         'bookmarked': bookmarked,
         'deck_tournament_locked': deck_tournament_locked,
+        'reserve_cards': deck.reserve_entries.select_related('card'),
     }
     return render(req, template_name, context=context)
 
@@ -226,6 +233,8 @@ def copy_deck_instance(deck, user):
             )
             for card_in_deck in CardInDeck.objects.filter(deck=deck)
         ])
+        from deck.extensions import copy_extensions
+        copy_extensions(deck, copied_deck)
     return copied_deck
 
 def _copy(req, id=0, update_route='deck:update'):
@@ -287,6 +296,43 @@ from deck.services import (
 )
 
 
+def deck_validation_response(view):
+    from functools import wraps
+    from django.core.exceptions import ValidationError
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        try:
+            return view(*args, **kwargs)
+        except ValidationError as exc:
+            return JsonResponse({'status': 200, 'msg': '; '.join(exc.messages)}, status=400)
+    return wrapped
+
+
+def _deck_body(request):
+    from django.core.exceptions import ValidationError
+    try:
+        data = json.loads(request.body)
+    except (ValueError, UnicodeError) as exc:
+        raise ValidationError('덱 데이터가 올바르지 않습니다.') from exc
+    if not isinstance(data, dict) or not isinstance(data.get('deck'), list):
+        raise ValidationError('카드 목록이 올바르지 않습니다.')
+    if any(not isinstance(row, list) or len(row) != 2 or not isinstance(row[1], dict) for row in data['deck']):
+        raise ValidationError('카드 항목이 올바르지 않습니다.')
+    for key, maximum in [('name', 255), ('description', 100000), ('keyword', 255)]:
+        value = data.get(key, '')
+        if not isinstance(value, str) or len(value) > maximum:
+            raise ValidationError('덱 정보가 올바르지 않습니다.')
+        data[key] = value
+    try:
+        character_id = int(data.get('char'))
+    except (ValueError, TypeError) as exc:
+        raise ValidationError('캐릭터를 선택해주세요.') from exc
+    if not Character.objects.filter(pk=character_id).exists():
+        raise ValidationError('캐릭터를 찾을 수 없습니다.')
+    return data
+
+
+@deck_validation_response
 def _create(req, template_name='deck/create.html', detail_route='deck:detail'):
     if req.method == "GET":
         form = DeckMakeForm(language=get_language(req))
@@ -299,7 +345,7 @@ def _create(req, template_name='deck/create.html', detail_route='deck:detail'):
             'selected_character_id': form.fields['char'].initial,
         })
     else:
-        data = json.loads(req.body)
+        data = _deck_body(req)
         errorContent = { 'status': 200 }
         if not ('char' in data.keys()) or not ('name' in data.keys()) or not ('deck' in data.keys()):
             errorContent['msg'] =  '형식이 올바르지 못합니다.'
@@ -315,7 +361,7 @@ def _create(req, template_name='deck/create.html', detail_route='deck:detail'):
         if error_msg:
             errorContent['msg'] = error_msg
             return JsonResponse(errorContent)
-        error_msg = validate_submitted_deck_size(normalized_deck, data['char'])
+        error_msg = validate_submitted_deck_size(normalized_deck, data['char']) if data.get('schema_version') != 2 else None
         if error_msg:
             errorContent['msg'] = error_msg
             return JsonResponse(errorContent)
@@ -336,6 +382,8 @@ def _create(req, template_name='deck/create.html', detail_route='deck:detail'):
                 )
                 newDeck.save()
                 CardInDeck.objects.bulk_create(build_card_in_deck(newDeck, normalized_deck))
+                from deck.extensions import apply_extensions
+                apply_extensions(newDeck, data, req.user)
         except:
             errorContent['msg'] =  '올바르지 않은 데이터가 있습니다.'
             return JsonResponse(errorContent)
@@ -389,7 +437,8 @@ def createSearch(req):
         )
     elif char != '':
         c.add(Q(character__id=int(char)), c.OR)
-    q.add(c, q.AND)
+    if req.GET.get('all_cards') != '1':
+        q.add(c, q.AND)
     if framenum != '':
         if frametype == '일치': q.add(Q(frame=int(framenum)), q.AND)
         if frametype == '이상': q.add(Q(frame__gte=int(framenum)), q.AND)
@@ -445,6 +494,7 @@ def get_initial_cards_for_language(card_in_deck, language):
         cards[key]['side'] += cid.side
     return list(cards.values())
 
+@deck_validation_response
 def _update(req, id=0, template_name='deck/update.html', detail_route='deck:detail'):
     try:
         deck = Deck.objects.get(id=id)
@@ -460,6 +510,11 @@ def _update(req, id=0, template_name='deck/update.html', detail_route='deck:deta
     if is_deck_locked_by_tournament(deck):
         return render(req, 'error.html', context={'error':'진행 중이거나 종료된 대회에 제출된 덱은 수정하실 수 없습니다.'})
     
+    if req.method != 'GET':
+        incoming = _deck_body(req)
+        if deck.schema_version >= 2 and incoming.get('schema_version') != 2:
+            return JsonResponse({'status': 200, 'msg': '최신 덱 작성기를 사용해주세요.'}, status=400)
+
     if req.method == "GET":
         form = DeckMakeForm(instance=deck, language=get_language(req))
         cid = CardInDeck.objects.filter(deck=deck).select_related('card', 'card__character')
@@ -474,7 +529,7 @@ def _update(req, id=0, template_name='deck/update.html', detail_route='deck:deta
                      'initial_cards': get_initial_cards_for_language(cid, get_language(req)),
                      'is_update': True})
     else:
-        data = json.loads(req.body)
+        data = _deck_body(req)
         errorContent = { 'status': 200 }
         if not ('char' in data.keys()) or not ('name' in data.keys()) or not ('deck' in data.keys()):
             errorContent['msg'] =  '형식이 올바르지 못합니다.'
@@ -490,7 +545,7 @@ def _update(req, id=0, template_name='deck/update.html', detail_route='deck:deta
         if error_msg:
             errorContent['msg'] = error_msg
             return JsonResponse(errorContent)
-        error_msg = validate_submitted_deck_size(normalized_deck, data['char'])
+        error_msg = validate_submitted_deck_size(normalized_deck, data['char']) if data.get('schema_version') != 2 else None
         if error_msg:
             errorContent['msg'] = error_msg
             return JsonResponse(errorContent)
@@ -505,6 +560,8 @@ def _update(req, id=0, template_name='deck/update.html', detail_route='deck:deta
             deck.description = data['description']
             deck.save()
             replace_deck_cards(deck, normalized_deck)
+            from deck.extensions import apply_extensions
+            apply_extensions(deck, data, req.user)
         
         content = {
             'status': 100,

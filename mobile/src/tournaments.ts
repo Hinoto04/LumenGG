@@ -42,7 +42,7 @@ export interface TournamentMatch {
 export interface TournamentDetail extends TournamentSummary {
   description: string;
   matches: TournamentMatch[];
-  decks: { id: number; slot: number; name: string }[];
+  decks: { id: number; submission_id: number; slot: number; name: string }[];
 }
 export const tournamentStatus: Record<string, string> = {
   registration: "참가 접수",

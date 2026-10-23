@@ -81,6 +81,7 @@ export async function saveDocument(
   action: "upsert" | "delete" = "upsert",
 ) {
   const operation: Operation = {
+    schema_version: entity === "deck" ? data?.schema_version || 1 : 2,
     operation_id: randomUUID(),
     entity,
     entity_id: entity === "collection" ? Number(id) : id,
@@ -254,10 +255,12 @@ export function disableDeckWrites() {
   return write((db) =>
     db.withExclusiveTransactionAsync(async (tx) => {
       await tx.runAsync(`INSERT OR REPLACE INTO documents(scope,entity,id,data,revision,dirty,error)
-      SELECT scope,'legacy_deck',id,data,revision,0,error FROM documents WHERE entity='deck' AND dirty=1`);
-      await tx.runAsync("DELETE FROM queue WHERE entity='deck'");
+      SELECT scope,'legacy_deck',id,data,revision,0,error FROM documents WHERE entity='deck' AND dirty=1 AND COALESCE(json_extract(data,'$.schema_version'),1)<2`);
       await tx.runAsync(
-        "DELETE FROM documents WHERE entity='deck' AND dirty=1",
+        "DELETE FROM queue WHERE entity='deck' AND COALESCE(json_extract(operation,'$.schema_version'),1)<2",
+      );
+      await tx.runAsync(
+        "DELETE FROM documents WHERE entity='deck' AND dirty=1 AND COALESCE(json_extract(data,'$.schema_version'),1)<2",
       );
     }),
   );

@@ -24,6 +24,7 @@
         {% csrf_token %}
         <div class="v2-battle-start-grid">
             <div class="v2-admin-field">
+                <label>공통 적용 규정 <select name="regulation_version_id"><option value="">덱에 지정한 규정</option>{% for version in regulation_versions %}<option value="{{ version.id }}">{{ version }}</option>{% endfor %}</select></label>
                 <label for="simulator_mode">{% tr "진행 모드" %}</label>
                 <select id="simulator_mode" name="mode">
                     <option value="manual"{% if mode != "automatic" %} selected{% endif %}>{% tr "수동 모드" %}</option>

@@ -192,6 +192,7 @@ class CardAdmin(admin.ModelAdmin):
         ('기본 수치', {'fields': ('frame', 'damage', 'pos', 'body', 'special', 'hit', 'guard', 'counter', 'g_top', 'g_mid', 'g_bot')}),
         ('카드 원문과 재정', {'fields': ('text', 'detail_text', 'related_qna_summary')}),
         ('자동 효과 검수 요약', {'fields': ('effect_review_summary',)}),
+        ('특성별 계산기·준비 설정', {'classes': ('collapse',), 'fields': ('trait_config',)}),
         ('자동 효과 정의 편집', {'classes': ('collapse',), 'fields': ('effect_definition', 'effect_revision', 'effect_updated_at')}),
         ('이미지와 검색', {'classes': ('collapse',), 'fields': ('img', 'img_mid', 'img_sm', 'hiddenKeyword', 'keyword', 'search')}),
     )
