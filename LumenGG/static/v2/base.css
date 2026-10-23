@@ -2410,7 +2410,39 @@ body.v2-card-edition-open {
 }
 
 .v2-deck-search-row {
-    grid-template-columns: minmax(220px, 1fr) minmax(112px, 132px) minmax(140px, 180px) repeat(3, auto);
+    grid-template-columns: minmax(220px, 1fr) minmax(112px, 132px) minmax(140px, 180px) minmax(140px, 180px) auto;
+}
+
+.v2-deck-search-row > [data-trait-filter-field],
+.v2-deck-search-row > [data-trait-filter-field] select {
+    width: 100%;
+}
+
+.v2-deck-search-select {
+    display: grid;
+    gap: 4px;
+}
+
+.v2-deck-search-select > span {
+    color: var(--v2-muted);
+    font-size: .76rem;
+    font-weight: 800;
+}
+
+.v2-deck-search-character-filter {
+    min-width: 0;
+}
+
+.v2-deck-search-character-filter > strong {
+    display: block;
+    margin-bottom: -18px;
+    color: var(--v2-muted);
+    font-size: .84rem;
+    font-weight: 800;
+}
+
+.v2-deck-search-character-filter .v2-deck-character-picker {
+    padding-bottom: 38px;
 }
 
 .v2-deck-filter-grid {

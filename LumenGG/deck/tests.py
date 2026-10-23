@@ -1,7 +1,9 @@
 from django.contrib.auth.models import User
+from django.apps import apps
 from django.test import TestCase
 from django.urls import reverse
 from datetime import date
+import importlib
 
 from card.models import Card, Character
 from common.models import SiteSettings
@@ -70,15 +72,18 @@ class DeckBuilderV2Tests(TestCase):
         self.assertEqual(item['effective_date'], '2026-12-01')
         self.assertNotIn('기본 규정', [item['name'] for item in response.json()['versions']])
 
-    def test_character_page_uses_generated_minyeongi_icon(self):
+    def test_character_page_uses_minyeongi_character_icon(self):
         from collection.models import Pack
         pack = Pack.objects.create(name='CB03', code='CB03', released=date(2026, 1, 1))
-        Character.objects.create(name='미녕이', localization_key='minyeongi', color='#ffffff', datas={}, pack=pack)
+        Character.objects.create(
+            name='미녕이', localization_key='minyeongi', color='#ffffff', datas={}, pack=pack,
+            icon_img='https://images.example/CharacterIcon/CB03.webp',
+        )
 
         response = self.client.get(reverse('card:character'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '/static/character/minyeongi-icon.png')
+        self.assertContains(response, 'https://images.example/CharacterIcon/CB03.webp')
 
     def test_mobile_builder_has_scroll_picker_and_reserve_zone(self):
         response = self.client.get(reverse('deck:createMobile'))
@@ -93,8 +98,78 @@ class DeckBuilderV2Tests(TestCase):
         response = self.client.get(reverse('deck:index'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'class="v2-search-row v2-deck-search-row"')
+        self.assertContains(response, 'id="v2DeckSearchCharacterPicker"')
+        self.assertContains(response, 'type="checkbox" name="char"')
+        self.assertContains(response, 'data-trait-filter-field hidden')
         self.assertContains(response, 'data-trait-filter')
+        self.assertContains(response, 'data-regulation-filter')
+        self.assertContains(response, '<option value="">전체</option>', count=2, html=True)
+        self.assertNotContains(response, '>통계<')
+        self.assertNotContains(response, 'id="v2FilterToggle"')
         self.assertNotContains(response, reverse('deck:importV2'))
+
+    def test_deck_search_trait_filter_appears_after_character_and_defaults_to_all(self):
+        first_trait = Card.objects.create(
+            name='첫 특성', code='TST-PS-101', character=self.character, type='특성',
+        )
+        second_trait = Card.objects.create(
+            name='둘째 특성', code='TST-PS-102', character=self.character, type='특성',
+        )
+        first_deck = Deck.objects.create(
+            name='첫 특성 덱', author=self.user, character=self.character, trait_card=first_trait,
+        )
+        second_deck = Deck.objects.create(
+            name='둘째 특성 덱', author=self.user, character=self.character, trait_card=second_trait,
+        )
+
+        all_traits = self.client.get(reverse('deck:index'), {'char': self.character.pk})
+        self.assertNotContains(all_traits, 'data-trait-filter-field hidden')
+        self.assertContains(all_traits, first_deck.name)
+        self.assertContains(all_traits, second_deck.name)
+
+        one_trait = self.client.get(reverse('deck:index'), {
+            'char': self.character.pk,
+            'trait_card_id': first_trait.pk,
+        })
+        self.assertContains(one_trait, first_deck.name)
+        self.assertNotContains(one_trait, second_deck.name)
+
+    def test_deck_search_filters_unrestricted_and_named_regulations(self):
+        regulation = Regulation.objects.create(name='검색 금제')
+        version = RegulationVersion.objects.create(
+            regulation=regulation,
+            version='1',
+            rules={},
+        )
+        unrestricted = Deck.objects.create(
+            name='Unrestricted result', author=self.user, character=self.character,
+        )
+        regulated = Deck.objects.create(
+            name='Regulated result', author=self.user, character=self.character,
+            regulation_version=version,
+        )
+
+        response = self.client.get(reverse('deck:index'), {'regulation_version_id': 'unrestricted'})
+        self.assertContains(response, unrestricted.name)
+        self.assertNotContains(response, regulated.name)
+
+        response = self.client.get(reverse('deck:index'), {'regulation_version_id': version.pk})
+        self.assertNotContains(response, unrestricted.name)
+        self.assertContains(response, regulated.name)
+
+    def test_basic_regulation_data_migration_converts_decks_to_unrestricted(self):
+        regulation = Regulation.objects.create(name='기본 규정')
+        version = RegulationVersion.objects.create(regulation=regulation, version='1', rules={})
+        deck = Deck.objects.create(
+            name='기본 규정 덱', author=self.user, character=self.character,
+            regulation_version=version,
+        )
+        migration = importlib.import_module('deck.migrations.0017_unrestrict_basic_regulation_decks')
+
+        migration.unrestrict_basic_regulation_decks(apps, None)
+
+        deck.refresh_from_db()
+        self.assertIsNone(deck.regulation_version_id)
 
     def test_detail_places_reserve_zone_in_deck_board(self):
         character = Character.objects.first()

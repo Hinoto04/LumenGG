@@ -16,7 +16,7 @@ def _localize_character_field(field, language):
 class DeckSearchForm(forms.Form):
     char = forms.ModelMultipleChoiceField(
         label = "캐릭터",
-        queryset = Character.objects.order_by('name'),
+        queryset = Character.objects.exclude(name='세츠메이').order_by('pack__released', 'id'),
         widget = forms.CheckboxSelectMultiple(attrs = {'class': '검색체크 flex-wrap'}),
         required = False,
     )
@@ -36,7 +36,8 @@ class DeckSearchForm(forms.Form):
             ('version', '버전순'),
             ('like', '좋아요순'),
         ],
-        initial = 'recent', 
+        initial = 'recent',
+        required = False,
         widget = forms.Select(attrs={'class': 'btn border 배경색1'})
     )
 

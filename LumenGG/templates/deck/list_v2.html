@@ -19,19 +19,43 @@
 </section>
 
 <form action="{% url "deck:index" %}" method="get" class="v2-panel v2-search-panel">
+    <style>
+        #v2DeckSearchCharacterPicker {
+            grid-template-columns: repeat({{ search_character_picker_columns }}, var(--size));
+        }
+        #v2DeckSearchCharacterPicker .v2-deck-character-option:nth-child({{ search_character_picker_stagger }}n-1) {
+            grid-column: 2 / span 2;
+        }
+    </style>
+    <div class="v2-deck-search-character-filter">
+        <strong>{% tr "캐릭터" %}</strong>
+        <div class="v2-deck-character-picker-wrap">
+            <div id="v2DeckSearchCharacterPicker" class="v2-deck-character-picker" role="group" aria-label="{% tr "캐릭터" %}">
+                {% for character in search_characters %}
+                {% firstof character.icon_img character.sd_img character.img as character_picker_image %}
+                <label class="v2-deck-character-option" style="--character-color: {{ character.color|default:'#5bbeb0' }};" title="{{ character|character_name:current_language }}">
+                    <input type="checkbox" name="char" value="{{ character.id }}" aria-label="{{ character|character_name:current_language }}" {% if character.id in selected_character_ids %}checked{% endif %}>
+                    {% if character_picker_image %}<img class="v2-deck-character-portrait" src="{{ character_picker_image }}" alt="">{% endif %}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
     <div class="v2-search-row v2-deck-search-row">
         {{ form.keyword }}
         {{ form.sort }}
-        <select name="trait_card_id" data-trait-filter aria-label="특성 필터"><option value="">전체 특성</option></select>
-        <a class="v2-button" href="{% url "stat:index" %}">{% tr "통계" %}</a>
-        <button class="v2-button" type="button" id="v2FilterToggle">{% tr "캐릭터" %}</button>
+        <label class="v2-deck-search-select" data-trait-filter-field {% if not selected_character_ids %}hidden{% endif %}>
+            <span>{% tr "특성" %}</span>
+            <select name="trait_card_id" data-trait-filter data-selected-trait="{{ trait_filter }}" data-all-label="{% tr "전체" %}" aria-label="특성 필터"><option value="">{% tr "전체" %}</option></select>
+        </label>
+        <label class="v2-deck-search-select">
+            <span>{% tr "금제" %}</span>
+            <select name="regulation_version_id" data-regulation-filter data-selected-regulation="{{ regulation_filter }}" aria-label="금제 필터">
+                <option value="">{% tr "전체" %}</option>
+                <option value="unrestricted" {% if regulation_filter == "unrestricted" %}selected{% endif %}>{% tr "무금제" %}</option>
+            </select>
+        </label>
         <button class="v2-button v2-button-primary" type="submit">{% tr "검색" %}</button>
-    </div>
-    <div class="v2-filter-grid v2-deck-filter-grid" id="v2FilterGrid">
-        <div class="v2-filter-box v2-filter-wide">
-            <label for="id_char">{% tr "캐릭터" %}</label>
-            {{ form.char }}
-        </div>
     </div>
 </form>
 
@@ -94,5 +118,5 @@
 </ul>
 
 <script src="{% static "v2/card-list.js" %}"></script>
-<script>fetch('/deck/options').then(r=>r.json()).then(data=>{const select=document.querySelector('[data-trait-filter]');for(const row of data.traits){const option=document.createElement('option');option.value=row.id;option.textContent=row.name;select.append(option);}select.value='{{ trait_filter|escapejs }}';}).catch(()=>{});</script>
+<script src="{% static "v2/deck-list.js" %}" data-options-url="{% url "deck:options" %}?lang={{ current_language }}"></script>
 {% endblock content %}

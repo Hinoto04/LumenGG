@@ -68,7 +68,7 @@ def index(req, template_name='deck/list.html'):
     else:
         char = form.cleaned_data['char']
         keyword = form.cleaned_data['keyword']
-        sort = form.cleaned_data['sort']
+        sort = form.cleaned_data['sort'] or 'recent'
     
     q = Q(deleted=False)
     if char: q.add(Q(character__in=char), q.AND)
@@ -108,10 +108,27 @@ def index(req, template_name='deck/list.html'):
             Prefetch('cids', queryset=ultimate_cards, to_attr='ultimate_cards')
         )
         
-    for field in ('trait_card_id', 'regulation_version_id'):
-        value = req.GET.get(field)
-        if value and value.isdigit():
-            data = data.filter(**{field: int(value)})
+    trait_filter = req.GET.get('trait_card_id', '')
+    selected_character_ids = {character.pk for character in char} if char else set()
+    if selected_character_ids and trait_filter.isdigit():
+        trait = Card.objects.filter(
+            pk=int(trait_filter),
+            character_id__in=selected_character_ids,
+        ).filter(Q(type='특성') | Q(code__icontains='PS')).first()
+        if trait:
+            data = data.filter(trait_card_id=trait.pk)
+        else:
+            trait_filter = ''
+    else:
+        trait_filter = ''
+
+    regulation_filter = req.GET.get('regulation_version_id', '')
+    if regulation_filter == 'unrestricted':
+        data = data.filter(regulation_version__isnull=True)
+    elif regulation_filter.isdigit():
+        data = data.filter(regulation_version_id=int(regulation_filter))
+    else:
+        regulation_filter = ''
     data = data.filter(Q(cardcount__gte=15) | Q(author=req.user) if req.user.is_authenticated else Q(cardcount__gte=15))
     
     if sort == 'version':
@@ -125,11 +142,17 @@ def index(req, template_name='deck/list.html'):
     paginator = Paginator(data, per_page)
     page_data = paginator.get_page(page)
     
+    search_characters = list(form.fields['char'].queryset.prefetch_related('translations'))
+
     context = {
         'form': form,
         'decks': page_data,
-        'trait_filter': req.GET.get('trait_card_id', ''),
-        'regulation_filter': req.GET.get('regulation_version_id', ''),
+        'trait_filter': trait_filter,
+        'regulation_filter': regulation_filter,
+        'search_characters': search_characters,
+        'selected_character_ids': selected_character_ids,
+        'search_character_picker_columns': len(search_characters) + 1,
+        'search_character_picker_stagger': math.ceil(len(search_characters) / 2) + 2,
     }
     return render(req, template_name, context=context)
 
