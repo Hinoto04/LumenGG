@@ -26,14 +26,15 @@
 <form action="{% if is_update %}{% url "deck:update" deck.id %}{% else %}{% url "deck:create" %}{% endif %}" method="post" id="submitForm" class="v2-panel v2-admin-form v2-deck-builder-form">
     {% csrf_token %}
     <div class="v2-admin-field">
-        <label for="id_char">{% tr "캐릭터" %}</label>
-        {{ form.char }}
+        <label>{% tr "캐릭터" %}</label>
+        {% include "deck/_character_picker.html" %}
     </div>
     <div class="v2-admin-grid v2-admin-grid-deck-meta">
         <div class="v2-admin-field">
             <label for="{{ form.name.id_for_label }}">{% tr "덱 이름" %}</label>
             {{ form.name }}
         </div>
+        {% include "deck/_extensions.html" with deck_extensions_inline=True %}
         <div class="v2-admin-field">
             <label for="{{ form.visibility.id_for_label }}">{% tr "공개 범위" %}</label>
             {{ form.visibility }}
@@ -50,7 +51,6 @@
         {{ form.description }}
     </div>
 </form>
-{% include "deck/_extensions.html" %}
 
 <section class="v2-deck-builder-layout">
     <div class="v2-panel v2-deck-search-panel">
@@ -95,6 +95,7 @@
             <span>{% tr "전체" %} <strong id="CardCount">0</strong></span>
             <span>{% tr "손패" %} <strong id="HandCount">0</strong></span>
             <span>{% tr "사이드" %} <strong id="SideCount">0</strong></span>
+            <span data-reserve-zone hidden>{% tr "교체 덱" %} <strong id="ReserveCount">0</strong></span>
         </div>
         <div class="v2-deck-builder-zones">
             <section class="v2-deck-builder-zone" data-zone="list">
@@ -118,6 +119,13 @@
                 </div>
                 <div class="v2-deck-builder-card-grid" id="v2ZoneSide"></div>
             </section>
+            <section class="v2-deck-builder-zone" data-zone="reserve" data-reserve-zone hidden>
+                <div class="v2-deck-builder-section-head">
+                    <h2>{% tr "교체 덱" %}</h2>
+                    <span id="v2ReserveZoneCount">0</span>
+                </div>
+                <div class="v2-deck-builder-card-grid" id="v2ZoneReserve"></div>
+            </section>
         </div>
     </div>
 </section>
@@ -132,6 +140,7 @@
             list: "{% tr "리스트" %}",
             hand: "{% tr "손패" %}",
             side: "{% tr "사이드" %}",
+            reserve: "{% tr "교체 덱" %}",
             openDescription: "{% tr "덱 설명 열기" %}",
             closeDescription: "{% tr "덱 설명 닫기" %}",
             maxDeckSize: "{% tr "덱 매수는 최대 {count}장입니다." %}",
@@ -144,6 +153,6 @@
         }
     };
 </script>
-<script src="{% static "v2/deck-builder.js" %}?v=20260602-kimera-shared"></script>
+<script src="{% static "v2/deck-builder.js" %}?v=20261024-reserve-toggle"></script>
 <script src="{% static "deck/deckCardLink.js" %}?v=20260601-summernote-guard"></script>
 {% endblock content %}

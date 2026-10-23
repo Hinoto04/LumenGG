@@ -1,6 +1,7 @@
 {% extends "base_v2.html" %}
 {% load static %}
 {% load deck_tags %}
+{% load language_tags %}
 {% block title %}{{ target.username }}님의 프로필 - LumenDB V2{% endblock title %}
 {% block legacy_href %}{% url "common:legacyUserpage" target.id %}{% endblock legacy_href %}
 {% block content %}
@@ -68,12 +69,16 @@
             </div>
             <div class="v2-deck-main">
                 <div class="v2-deck-kicker-line">
-                    <a href="{% url "card:character" %}?id={{ deck.character.id }}">{{ deck.character.name }}</a>
-                    {% if deck.ultimate_cards %}
+                    <a href="{% url "card:character" %}?id={{ deck.character.id }}">{{ deck.character|character_name:current_language }}</a>
                     <span class="v2-deck-dot">/</span>
+                    <span>{% if deck.trait_card %}{{ deck.trait_card|card_name:current_language }}{% else %}{% tr "미지정" %}{% endif %}</span>
+                    <span class="v2-deck-dot">/</span>
+                    {% if deck.ultimate_cards %}
                     {% for cid in deck.ultimate_cards %}
-                    <span>{{ cid.card.name }}</span>{% if not forloop.last %}<span class="v2-deck-dot">,</span>{% endif %}
+                    <span>{{ cid.card|card_name:current_language }}</span>{% if not forloop.last %}<span class="v2-deck-dot">,</span>{% endif %}
                     {% endfor %}
+                    {% else %}
+                    <span>{% tr "미지정" %}</span>
                     {% endif %}
                 </div>
                 <div class="v2-deck-title-row">

@@ -3,9 +3,10 @@
 {% load language_tags %}
 {% block title %}{% tr "대전 계산기" %} - LumenDB{% endblock title %}
 {% block style %}<style>
-.v2-calculator-ui-choice{display:flex;flex-wrap:wrap;gap:12px;padding:14px;margin:0 0 20px;border:1px solid var(--v2-line);border-radius:10px}
-.v2-calculator-ui-choice legend{padding:0 6px;font-weight:700}
-.v2-calculator-ui-choice label{display:flex;align-items:center;gap:8px;min-height:44px;padding:6px 14px;border:1px solid var(--v2-line);border-radius:8px;cursor:pointer}
+.v2-calculator-ui-choice{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px;margin:0 0 20px;border:1px solid var(--v2-line);border-radius:10px}
+.v2-calculator-ui-choice legend{grid-column:1/-1;padding:0 6px;font-weight:700}
+.v2-calculator-ui-choice label{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;min-height:44px;padding:6px 14px;border:1px solid var(--v2-line);border-radius:8px;text-align:center;cursor:pointer}
+.v2-calculator-ui-choice input[type="radio"]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .v2-calculator-ui-choice label:has(input:checked){border-color:var(--v2-accent);background:color-mix(in srgb,var(--v2-accent) 12%,transparent)}
 </style>{% endblock %}
 {% block content %}

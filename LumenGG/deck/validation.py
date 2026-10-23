@@ -28,7 +28,7 @@ def snapshot_deck(deck, regulation=None):
             'cards': [{'card_id': e.card_id, 'count': e.count, 'hand': e.hand, 'side': e.side} for e in entries],
             'reserve_cards': [{'card_id': e.card_id, 'count': e.count} for e in reserve],
             'catalog': cards, 'regulation_version_id': version.pk if version else None,
-            'regulation_rules': copy.deepcopy(version.rules if version else DEFAULT_RULES)}
+            'regulation_rules': copy.deepcopy(version.rules) if version else None}
 
 
 def baseline(snapshot):
@@ -58,7 +58,7 @@ def snapshot_candidate(data, user):
     return {'schema_version': 2, 'character_id': character.pk, 'character': {'id': character.pk, 'name': character.name, 'datas': character.datas},
             'trait_card_id': data.get('trait_card_id'), 'cards': entries, 'reserve_cards': reserve,
             'catalog': {str(pk): card_snapshot(card) for pk, card in cards.items()},
-            'regulation_version_id': version.pk if version else None, 'regulation_rules': version.rules if version else DEFAULT_RULES}
+            'regulation_version_id': version.pk if version else None, 'regulation_rules': version.rules if version else None}
 
 
 def validate(snapshot, *, stage='registration', active=None, ruleset=None):
@@ -68,6 +68,7 @@ def validate(snapshot, *, stage='registration', active=None, ruleset=None):
     def issue(code, message, ids=(), *, severity='error'):
         issues.append({'code': code, 'severity': severity, 'card_ids': list(ids), 'message': message})
     catalog = snapshot.get('catalog') or {}
+    unrestricted = snapshot.get('regulation_rules') is None
     policy = {**DEFAULT_RULES, **(snapshot.get('regulation_rules') or {})}
     current = active if active is not None else baseline(snapshot)
     if not isinstance(current, dict) or current.get('character_id') != snapshot.get('character_id'):
@@ -117,7 +118,7 @@ def validate(snapshot, *, stage='registration', active=None, ruleset=None):
     active_counts = used.copy()
     if trait_id:
         active_counts[trait_id] += 1
-    if sum(reserve.values()) > policy['reserve_limit']:
+    if not unrestricted and sum(reserve.values()) > policy['reserve_limit']:
         issue('reserve_limit', f'교체 덱 등록 한도를 초과했습니다. ({sum(reserve.values())}/{policy["reserve_limit"]})', reserve)
     for pk, n in active_counts.items():
         if ruleset and str((catalog.get(str(pk)) or {}).get('code') or '') not in ruleset.get('cards', {}):
@@ -127,30 +128,32 @@ def validate(snapshot, *, stage='registration', active=None, ruleset=None):
     for pk in used:
         if is_passive_card(catalog[str(pk)]):
             issue('trait_in_techniques', '특성은 기술 카드 구성에 넣을 수 없습니다.', [pk])
-    for pk in reserve:
-        card = catalog[str(pk)]
-        if is_passive_card(card) and card['character_id'] != snapshot['character_id']:
-            issue('foreign_trait', '같은 캐릭터의 특성만 등록할 수 있습니다.', [pk])
-        elif not is_passive_card(card) and not any(k in (card.get('type') or '') for k in ('공격', '수비', '특수')):
-            issue('invalid_reserve_type', '교체 덱에 등록할 수 없는 카드입니다.', [pk])
+    if not unrestricted:
+        for pk in reserve:
+            card = catalog[str(pk)]
+            if is_passive_card(card) and card['character_id'] != snapshot['character_id']:
+                issue('foreign_trait', '같은 캐릭터의 특성만 등록할 수 있습니다.', [pk])
+            elif not is_passive_card(card) and not any(k in (card.get('type') or '') for k in ('공격', '수비', '특수')):
+                issue('invalid_reserve_type', '교체 덱에 등록할 수 없는 카드입니다.', [pk])
     def techniques(counter):
         return Counter({pk: n for pk, n in counter.items() if not (catalog[str(pk)].get('ultimate') or is_passive_card(catalog[str(pk)]))})
     old_tech, new_tech = techniques(base), techniques(used)
     swap_counts = {'technique': max(sum((new_tech - old_tech).values()), sum((old_tech - new_tech).values())),
                    'trait': int(trait_id != base_trait),
                    'ultimate': int({pk: n for pk, n in base.items() if catalog[str(pk)].get('ultimate')} != {pk: n for pk, n in used.items() if catalog[str(pk)].get('ultimate')})}
-    if stage in ('replacement', 'setup'):
+    if not unrestricted and stage in ('replacement', 'setup'):
         for kind, count in swap_counts.items():
             if count > policy[f'{kind}_swap_limit']:
                 issue(f'{kind}_swap_limit', f'{kind}: 교체 한도를 초과했습니다. ({count}/{policy[f"{kind}_swap_limit"]})')
-    for key, code in (('bans', 'banned_card'), ('combinations', 'restricted_combination')):
-        for rule in policy[key]:
-            pool = registered if rule.get('scope', 'registered') == 'registered' else active_counts
-            matched = [pk for pk in rule['card_ids'] if pool[pk] > 0]
-            if matched and (key == 'bans' or len(matched) == len(rule['card_ids'])):
-                names = ' + '.join((catalog.get(str(pk)) or {}).get('name', str(pk)) for pk in matched)
-                issue(code, f'{"금지 카드" if key == "bans" else "제한 조합"}: {names}', matched)
-    if not any(i['code'] in ('invalid_count', 'unknown_card', 'invalid_entry', 'invalid_entries', 'invalid_placement') for i in issues):
+    if not unrestricted:
+        for key, code in (('bans', 'banned_card'), ('combinations', 'restricted_combination')):
+            for rule in policy[key]:
+                pool = registered if rule.get('scope', 'registered') == 'registered' else active_counts
+                matched = [pk for pk in rule['card_ids'] if pool[pk] > 0]
+                if matched and (key == 'bans' or len(matched) == len(rule['card_ids'])):
+                    names = ' + '.join((catalog.get(str(pk)) or {}).get('name', str(pk)) for pk in matched)
+                    issue(code, f'{"금지 카드" if key == "bans" else "제한 조합"}: {names}', matched)
+    if not unrestricted and not any(i['code'] in ('invalid_count', 'unknown_card', 'invalid_entry', 'invalid_entries', 'invalid_placement') for i in issues):
         from .game_validation import validate_automatic_deck
         character = SimpleNamespace(**snapshot['character'])
         trait = SimpleNamespace(**catalog[str(trait_id)]) if str(trait_id) in catalog else None

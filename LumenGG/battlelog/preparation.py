@@ -93,7 +93,7 @@ def preparation_view(preparation, side='viewer', *, operator=False):
         if target == side or operator:
             row.update(registered=copy.deepcopy(player['registered']), active=copy.deepcopy(player['active']))
         elif preparation['status'] == 'playing':
-            policy = (player.get('registered') or {}).get('regulation_rules', {})
+            policy = (player.get('registered') or {}).get('regulation_rules') or {}
             if policy.get('reserve_public'):
                 row['reserve_cards'] = copy.deepcopy(player['registered']['reserve_cards'])
             if policy.get('swaps_public'):

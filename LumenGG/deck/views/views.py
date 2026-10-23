@@ -22,6 +22,7 @@ from statistic.models import CSDeck
 from common.models import SiteSettings
 
 import json
+import math
 
 MOBILE_UA_KEYWORDS = (
     'android',
@@ -94,7 +95,7 @@ def index(req, template_name='deck/list.html'):
         cnt=Count('id')
     ).values('cnt')
     
-    data = Deck.objects.filter(q).select_related('author', 'character').annotate(
+    data = Deck.objects.filter(q).select_related('author', 'character', 'trait_card').annotate(
         cardcount=Count('cids', distinct=True),
         likecount=Subquery(like_subquery, output_field=models.IntegerField()),
         )
@@ -137,7 +138,12 @@ def indexV2(req):
 
 def detail(req, id=0, template_name='deck/detail.html'):
     try:
-        deck = Deck.objects.get(id=id)
+        deck = Deck.objects.select_related(
+            'author',
+            'character',
+            'trait_card',
+            'regulation_version__regulation',
+        ).get(id=id)
     except Deck.DoesNotExist:
         raise Http404()
     
@@ -163,6 +169,8 @@ def detail(req, id=0, template_name='deck/detail.html'):
     main_list_count = sum(max(card.count - card.hand - card.side, 0) for card in main_cards)
     hand_count = sum(card.hand for card in hands)
     side_count = sum(card.side for card in sides)
+    reserve_cards = deck.reserve_entries.select_related('card').order_by('card__name')
+    reserve_count = sum(entry.count for entry in reserve_cards)
     if req.user.is_authenticated:
         liked = DeckLike.objects.filter(deck=deck, author=req.user, like=True).exists()
         bookmarked = DeckLike.objects.filter(deck=deck, author=req.user, bookmark=True).exists()
@@ -181,12 +189,13 @@ def detail(req, id=0, template_name='deck/detail.html'):
         'main_list_count': main_list_count,
         'hand_count': hand_count,
         'side_count': side_count,
+        'reserve_count': reserve_count,
         'likecount': likecount,
         'bookmarkcount': bookmarkcount,
         'liked': liked,
         'bookmarked': bookmarked,
         'deck_tournament_locked': deck_tournament_locked,
-        'reserve_cards': deck.reserve_entries.select_related('card'),
+        'reserve_cards': reserve_cards,
     }
     return render(req, template_name, context=context)
 
@@ -337,12 +346,15 @@ def _create(req, template_name='deck/create.html', detail_route='deck:detail'):
     if req.method == "GET":
         form = DeckMakeForm(language=get_language(req))
         exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
+        character_count = form.fields['char'].queryset.count()
         return render(req, template_name, context={
             'form': form,
             'exceptList': exceptList,
             'initial_cards': [],
             'is_update': False,
             'selected_character_id': form.fields['char'].initial,
+            'character_picker_columns': character_count + 1,
+            'character_picker_stagger': math.ceil(character_count / 2) + 2,
         })
     else:
         data = _deck_body(req)
@@ -519,12 +531,15 @@ def _update(req, id=0, template_name='deck/update.html', detail_route='deck:deta
         form = DeckMakeForm(instance=deck, language=get_language(req))
         cid = CardInDeck.objects.filter(deck=deck).select_related('card', 'card__character')
         exceptList = str(SiteSettings.objects.get(name='갯수예외처리카드').setting)
+        character_count = form.fields['char'].queryset.count()
         return render(req, template_name, context=
                     {'form': form, 
                      'cid': cid, 
                      'char': deck.character.name, 
                      'deck': deck,
                      'selected_character_id': deck.character_id,
+                     'character_picker_columns': character_count + 1,
+                     'character_picker_stagger': math.ceil(character_count / 2) + 2,
                      'exceptList': exceptList,
                      'initial_cards': get_initial_cards_for_language(cid, get_language(req)),
                      'is_update': True})

@@ -1,0 +1,20 @@
+{% load language_tags %}
+<style>
+    #v2DeckCharacterPicker {
+        grid-template-columns: repeat({{ character_picker_columns }}, var(--size));
+    }
+    #v2DeckCharacterPicker .v2-deck-character-option:nth-child({{ character_picker_stagger }}n-1) {
+        grid-column: 2 / span 2;
+    }
+</style>
+<div class="v2-deck-character-picker-wrap">
+    <div id="v2DeckCharacterPicker" class="v2-deck-character-picker" role="radiogroup" aria-label="{% tr "캐릭터" %}">
+        {% for character in form.char.field.queryset %}
+        {% firstof character.icon_img character.sd_img character.img as character_picker_image %}
+        <label class="v2-deck-character-option" style="--character-color: {{ character.color|default:'#5bbeb0' }};" title="{{ character|character_name:current_language }}">
+            <input type="radio" name="char" value="{{ character.id }}" aria-label="{{ character|character_name:current_language }}" {% if selected_character_id == character.id %}checked{% endif %} required>
+            {% if character_picker_image %}<img class="v2-deck-character-portrait" src="{{ character_picker_image }}" alt="">{% endif %}
+        </label>
+        {% endfor %}
+    </div>
+</div>

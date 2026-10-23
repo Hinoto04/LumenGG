@@ -1,19 +1,17 @@
-{% load static %}
-<link rel="stylesheet" href="{% static 'v2/deck-extensions.css' %}">
-<section class="v2-panel v2-deck-extensions" data-deck-extensions data-deck-id="{{ deck.id|default:'' }}">
+{% load static language_tags %}
+<link rel="stylesheet" href="{% static 'v2/deck-extensions.css' %}?v=20261024-inline-settings">
+<section class="v2-panel v2-deck-extensions{% if deck_extensions_inline %} is-inline{% endif %}" data-deck-extensions data-deck-id="{{ deck.id|default:'' }}">
     <div class="v2-deck-extension-fields">
         <label>특성 <select data-trait-select aria-label="사용할 특성"></select></label>
-        <label>적용 규정 <select data-regulation-select aria-label="적용 규정"></select></label>
+        <label>{% tr "금제" %} <select data-regulation-select aria-label="{% tr '금제' %}"><option value="">{% tr "무금제" %}</option></select></label>
+        <label class="v2-deck-reserve-toggle">
+            <input type="checkbox" data-reserve-toggle>
+            <span>
+                <strong>{% tr "교체 덱 사용" %}</strong>
+                <small>{% tr "활성화하면 교체 덱 영역과 교체 버튼이 표시됩니다. 끄면 작성 중인 교체 카드가 제거됩니다." %}</small>
+            </span>
+        </label>
     </div>
-    <a class="v2-button" href="{% url 'deck:manageRegulations' %}" target="_blank" rel="noopener">규정 작성·복사</a>
-    <h2>교체 덱 <span data-reserve-count>0</span>장</h2>
-    <p>게임에 사용할 기술 카드 구성 밖에 등록하는 교체 후보입니다.</p>
-    <div class="v2-reserve-picker">
-        <input type="search" data-reserve-search placeholder="교체 카드 검색" aria-label="교체 카드 검색">
-        <select data-reserve-picker aria-label="추가할 교체 카드"></select>
-        <button class="v2-button" type="button" data-reserve-add>추가</button>
-    </div>
-    <ul data-reserve-list></ul>
     <div role="status" aria-live="polite" data-deck-diagnostics></div>
 </section>
-<script src="{% static 'v2/deck-extensions.js' %}" defer></script>
+<script src="{% static 'v2/deck-extensions.js' %}?v=20261024-regulation-options" defer></script>

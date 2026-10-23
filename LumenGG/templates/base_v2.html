@@ -38,7 +38,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="{% static "v2/base.css" %}">
+    <link rel="stylesheet" href="{% static "v2/base.css" %}?v=20261024-inline-deck-settings-2">
     <script defer src="{% static "theme.js" %}"></script>
     <script defer src="{% static "v2/navigation.js" %}"></script>
     {% block style %}{% endblock style %}
@@ -64,7 +64,6 @@
                 <a href="{% url "deck:index" %}">{% tr "덱" %}</a>
                 <a href="{% url "tournament:index" %}">{% tr "대회" %}</a>
                 <a href="{% url "battlelog:sim" %}">{% tr "계산기" %}</a>
-                <a href="{% url "battlelog:partyHome" %}">{% tr "루멘 파티" %}</a>
                 <a href="{% url "battlelog:simulatorStart" %}">{% tr "시뮬레이터" %}</a>
                 {% comment %} <a href="{% url "rules:index" %}">{% tr "룰북" %}</a> {% endcomment %}
                 <a href="{% url "collection:index" %}">{% tr "컬렉션" %}</a>

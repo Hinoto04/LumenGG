@@ -13,25 +13,30 @@ const zoneLabels = {
     list: t("list", "리스트"),
     hand: t("hand", "손패"),
     side: t("side", "사이드"),
+    reserve: t("reserve", "교체 덱"),
 };
 
 const mobileZoneButtonLabels = {
     list: "L",
     hand: "H",
     side: "S",
+    reserve: "R",
 };
 
 const zoneElements = {
     list: document.getElementById("v2ZoneList"),
     hand: document.getElementById("v2ZoneHand"),
     side: document.getElementById("v2ZoneSide"),
+    reserve: document.getElementById("v2ZoneReserve"),
 };
 
 const zoneCountElements = {
     list: document.getElementById("v2ListCount"),
     hand: document.getElementById("v2HandZoneCount"),
     side: document.getElementById("v2SideZoneCount"),
+    reserve: document.getElementById("v2ReserveZoneCount"),
 };
+const reserveToggle = document.querySelector("[data-reserve-toggle]");
 
 const exceptList = config.exceptList || {};
 const cardStore = new Map();
@@ -40,6 +45,7 @@ let nextEntryId = 1;
 let maxDeckSize = 21;
 let dragState = null;
 let suppressClickUntil = 0;
+let searchResultCards = [];
 const LONG_PRESS_DRAG_DELAY = 300;
 const LONG_PRESS_MOVE_TOLERANCE = 10;
 const KIMERA_CHARACTER_ID = "15";
@@ -71,9 +77,33 @@ function getDefaultZone(card) {
 }
 
 function getAllowedZones(card) {
-    if (isUltimateCard(card)) return ["list"];
-    if (isForcedSideCard(card)) return ["side"];
-    return ["list", "hand", "side"];
+    let zones;
+    if (isUltimateCard(card)) zones = ["list"];
+    else if (isForcedSideCard(card)) zones = ["side"];
+    else zones = ["list", "hand", "side"];
+    if (isReserveEnabled()) zones.push("reserve");
+    return zones;
+}
+
+function isReserveEnabled() {
+    return !!reserveToggle?.checked;
+}
+
+function syncReserveVisibility() {
+    document.querySelectorAll("[data-reserve-zone]").forEach((element) => {
+        element.hidden = !isReserveEnabled();
+    });
+}
+
+function handleReserveToggle() {
+    if (!isReserveEnabled()) {
+        for (let index = deckEntries.length - 1; index >= 0; index--) {
+            if (deckEntries[index].zone === "reserve") deckEntries.splice(index, 1);
+        }
+    }
+    syncReserveVisibility();
+    renderDeck();
+    renderSearchResults(searchResultCards);
 }
 
 function countEntries(zone = null) {
@@ -83,16 +113,20 @@ function countEntries(zone = null) {
 function countDeckSizeEntries(zone = null) {
     return deckEntries.filter((entry) => {
         if (zone && entry.zone !== zone) return false;
+        if (entry.zone === "reserve") return zone === "reserve";
         return !isUltimateCard(cardStore.get(String(entry.pk)));
     }).length;
 }
 
-function countCard(pk) {
-    return deckEntries.filter((entry) => String(entry.pk) === String(pk)).length;
+function countCard(pk, zone) {
+    const reservePool = zone === "reserve";
+    return deckEntries.filter((entry) => (
+        String(entry.pk) === String(pk) && (entry.zone === "reserve") === reservePool
+    )).length;
 }
 
 function countUltimateEntries() {
-    return deckEntries.filter((entry) => isUltimateCard(cardStore.get(String(entry.pk)))).length;
+    return deckEntries.filter((entry) => entry.zone !== "reserve" && isUltimateCard(cardStore.get(String(entry.pk)))).length;
 }
 
 function getSelectedCharacterId() {
@@ -127,8 +161,8 @@ function syncSearchCharacter(pruneCards = false) {
 }
 
 function canAddCard(card, zone) {
-    if (window.deckExtensions && !isUltimateCard(card)) return true;
-    if (isUltimateCard(card) && countUltimateEntries() >= 1) {
+    if (window.deckExtensions && (!isUltimateCard(card) || zone === "reserve")) return true;
+    if (zone !== "reserve" && isUltimateCard(card) && countUltimateEntries() >= 1) {
         alert(t("maxUltimate", "얼티밋 카드는 1장까지만 넣을 수 있습니다."));
         return false;
     }
@@ -137,7 +171,7 @@ function canAddCard(card, zone) {
         return false;
     }
 
-    const cardCount = countCard(card.pk);
+    const cardCount = countCard(card.pk, zone);
     if (cardCount === 0) return true;
 
     const limit = exceptList[String(card.pk)];
@@ -170,6 +204,7 @@ function moveEntry(entryId, zone) {
             : t("specialSideOnly", "특수 타입 카드는 사이드 덱에만 넣을 수 있습니다."));
         return;
     }
+    if (entry.zone === "reserve" && zone !== "reserve" && !canAddCard(card, zone)) return;
     if (!window.deckExtensions && zone === "hand" && countEntries("hand") >= 5) {
         alert(t("maxHand", "손패 매수는 최대 5장입니다."));
         return;
@@ -442,26 +477,15 @@ function makeDeckCard(entry) {
 
     const controls = document.createElement("div");
     controls.className = "v2-mobile-card-actions";
-    if (isUltimateCard(card)) {
-        const badge = document.createElement("span");
-        badge.className = "v2-mobile-card-badge";
-        badge.textContent = t("ultimate", "얼티밋");
-        controls.appendChild(badge);
-    } else if (isForcedSideCard(card)) {
-        const badge = document.createElement("span");
-        badge.className = "v2-mobile-card-badge";
-        badge.textContent = zoneLabels.side;
-        controls.appendChild(badge);
-    } else {
-        Object.keys(zoneLabels).forEach((zone) => {
-            if (zone === entry.zone) return;
-            const button = document.createElement("button");
-            button.type = "button";
-            button.textContent = mobileZoneButtonLabels[zone];
-            button.addEventListener("click", () => moveEntry(entry.entryId, zone));
-            controls.appendChild(button);
-        });
-    }
+    getAllowedZones(card).forEach((zone) => {
+        if (zone === entry.zone) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = mobileZoneButtonLabels[zone];
+        if (zone === "reserve") button.classList.add("is-reserve-action");
+        button.addEventListener("click", () => moveEntry(entry.entryId, zone));
+        controls.appendChild(button);
+    });
     tile.appendChild(controls);
     bindPointerDrag(tile, () => ({ type: "entry", entryId: entry.entryId }));
     return tile;
@@ -507,6 +531,7 @@ function makeSearchCard(card) {
         const button = document.createElement("button");
         button.type = "button";
         button.textContent = zoneLabels[zone];
+        if (zone === "reserve") button.classList.add("is-reserve-action");
         button.addEventListener("click", (event) => {
             event.stopPropagation();
             addCard(card, zone);
@@ -531,6 +556,7 @@ function makeSearchCard(card) {
 function renderSearchResults(cards) {
     const results = document.getElementById("v2DeckSearchResults");
     if (!results) return;
+    searchResultCards = cards;
     results.replaceChildren();
     cards.forEach((card) => {
         cardStore.set(String(card.pk), card);
@@ -555,6 +581,7 @@ function searchCards() {
 function aggregateDeck() {
     const aggregate = {};
     deckEntries.forEach((entry) => {
+        if (entry.zone === "reserve") return;
         if (!aggregate[entry.pk]) {
             aggregate[entry.pk] = { count: 0, hand: 0, side: 0 };
         }
@@ -569,6 +596,38 @@ function aggregateDeck() {
         }
     });
     return Object.keys(aggregate).map((pk) => [pk, aggregate[pk]]);
+}
+
+function aggregateReserve() {
+    if (!isReserveEnabled()) return [];
+    const aggregate = {};
+    deckEntries.forEach((entry) => {
+        if (entry.zone !== "reserve") return;
+        aggregate[entry.pk] = (aggregate[entry.pk] || 0) + 1;
+    });
+    return Object.entries(aggregate).map(([cardId, count]) => ({ card_id: Number(cardId), count }));
+}
+
+function loadReserve(rows, candidates) {
+    candidates.forEach((candidate) => {
+        const card = {
+            ...candidate,
+            pk: candidate.pk || candidate.id,
+            character: candidate.character ?? candidate.character_id,
+        };
+        cardStore.set(String(card.pk), card);
+    });
+    if (rows.some((row) => Number(row.count || 0) > 0) && reserveToggle) {
+        reserveToggle.checked = true;
+        syncReserveVisibility();
+    }
+    rows.forEach((row) => {
+        if (!cardStore.has(String(row.card_id))) return;
+        for (let index = 0; index < Number(row.count || 0); index++) {
+            addInitialEntry(row.card_id, "reserve");
+        }
+    });
+    renderDeck();
 }
 
 function submitDeck() {
@@ -651,6 +710,7 @@ function setupEvents() {
     });
     document.getElementById("v2DeckSearchButton")?.addEventListener("click", searchCards);
     document.getElementById("v2DeckSubmit")?.addEventListener("click", submitDeck);
+    reserveToggle?.addEventListener("change", handleReserveToggle);
     document.getElementById("v2DeckSearchForm")?.addEventListener("submit", (event) => {
         event.preventDefault();
         searchCards();
@@ -687,8 +747,10 @@ function closeDeckMetaModal() {
 }
 
 selectInitialCharacter();
+syncReserveVisibility();
 syncSearchCharacter(false);
 loadInitialDeck();
 setupEvents();
 renderDeck();
 window.deckSubmit = submitDeck;
+window.deckBuilderReserve = { fields: aggregateReserve, load: loadReserve, isEnabled: isReserveEnabled };

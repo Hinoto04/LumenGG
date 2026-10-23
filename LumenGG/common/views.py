@@ -133,7 +133,7 @@ def profile(req, id=0, template_name='common/userpage.html'):
         decks = Deck.objects.filter(author=target, deleted=False)
     else:
         decks = Deck.objects.filter(author=target, visibility=Deck.VISIBILITY_PUBLIC, deleted=False)
-    decks = decks.select_related('author', 'character').annotate(likecount = Count('deck_like', filter=Q(deck_like__like=True))).order_by('-created')
+    decks = decks.select_related('author', 'character', 'trait_card').annotate(likecount = Count('deck_like', filter=Q(deck_like__like=True))).order_by('-created')
     if template_name == 'common/userpage_v2.html':
         ultimate_cards = CardInDeck.objects.select_related('card').filter(
             card__ultimate=True

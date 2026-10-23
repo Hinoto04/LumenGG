@@ -16,7 +16,7 @@ from .models import CardInDeck, DeckLike
 
 
 CAPTURE_TTL_SECONDS = 6 * 60 * 60
-CAPTURE_LAYOUT_VERSION = '20260510-font-weight-v1'
+CAPTURE_LAYOUT_VERSION = '20261023-character-trait-ultimate-v1'
 
 CANVAS_W = 1400
 PAGE_PAD = 32
@@ -77,13 +77,7 @@ def generate_deck_capture(deck):
     hand_h = get_zone_height(len(hand_entries), CARD_W, CARD_H)
     board_h = list_h + GAP + hand_h
     reserve_entries = [row for row in deck.reserve_entries.select_related('card') for _ in range(row.count)]
-    trait_entries = []
-    if deck.trait_card_id:
-        from types import SimpleNamespace
-        trait_entries = [SimpleNamespace(card=deck.trait_card, card_id=deck.trait_card_id)]
     extra_zones = []
-    if trait_entries:
-        extra_zones.append(('특성 · ' + str(deck.regulation_version or '기본 규정'), trait_entries))
     if reserve_entries:
         extra_zones.append(('교체 덱', reserve_entries))
     extra_h = sum(GAP + get_zone_height(len(entries), CARD_W, CARD_H) for _, entries in extra_zones)
@@ -253,7 +247,17 @@ def draw_header(canvas, draw, deck, likecount, ultimate_entries, image_cache, fo
         if character_img:
             paste_faint_character(canvas, character_img, character_x, y0 + 10, HEADER_CHARACTER_W if ultimate_entries else 360, HEADER_H - 20)
 
-    draw.text((content_x, content_y), deck.character.name, fill=COLORS['accent'], font=fonts['kicker'])
+    trait_name = deck.trait_card.name if deck.trait_card_id else '미지정'
+    ultimate_name = ', '.join(entry.card.name for entry in ultimate_entries) or '미지정'
+    draw_text_ellipsis(
+        draw,
+        f'{deck.character.name} / {trait_name} / {ultimate_name}',
+        content_x,
+        content_y,
+        text_max_w,
+        fonts['kicker'],
+        COLORS['accent'],
+    )
     title_y = content_y + 34
     draw_wrapped_text(draw, deck.name, content_x, title_y, text_max_w, fonts['title'], COLORS['text'], line_gap=4, max_lines=2)
 

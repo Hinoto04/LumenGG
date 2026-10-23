@@ -58,10 +58,10 @@ class DeckMakeForm(forms.ModelForm):
     )
     char = forms.ModelChoiceField(
         label = "캐릭터",
-        queryset = Character.objects.order_by('name'),
+        queryset = Character.objects.exclude(name='세츠메이').order_by('name'),
         widget = forms.RadioSelect(attrs = {'class': '검색체크 flex-wrap charSelect'}),
         required = False,
-        initial = 1,
+        initial = None,
     )
     keyword = forms.CharField(
         label = "태그",

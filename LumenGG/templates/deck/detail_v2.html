@@ -11,9 +11,6 @@
 {% endblock meta %}
 {% block content %}
 <div id="v2DeckCaptureArea" class="v2-deck-capture-area">
-<section class="v2-panel" data-deck-copy-zone="교체 덱"><h2>교체 덱</h2>
-{% for entry in reserve_cards %}<a href="{% url 'card:detail' entry.card_id %}" data-card-id="{{ entry.card_id }}">{{ entry.card|card_name:current_language }} × {{ entry.count }}</a>{% empty %}<p>교체 카드 없음</p>{% endfor %}
-</section>
 <section class="v2-deck-detail-head v2-panel {% if ultimate_cards %}has-ultimate{% endif %}">
     {% firstof deck.character.body_img deck.character.sd_img deck.character.img as deck_character_image %}
     {% if deck_character_image %}
@@ -23,9 +20,14 @@
         <div class="v2-deck-detail-title">
             <div class="v2-kicker">
                 <a href="{% url "card:character" %}?id={{ deck.character.id }}">{{ deck.character|character_name:current_language }}</a>
+                <span class="v2-deck-dot">/</span>
+                <span>{% if deck.trait_card %}{{ deck.trait_card|card_name:current_language }}{% else %}{% tr "미지정" %}{% endif %}</span>
+                <span class="v2-deck-dot">/</span>
+                {% for card in ultimate_cards %}
+                <span>{{ card.card|card_name:current_language }}</span>{% if not forloop.last %}<span class="v2-deck-dot">,</span>{% endif %}
+                {% empty %}<span>{% tr "미지정" %}</span>{% endfor %}
             </div>
             <h1 class="v2-title">{{ deck.name }}</h1>
-            <p>특성: {% if deck.trait_card %}{{ deck.trait_card|card_name:current_language }}{% else %}미지정{% endif %} · 적용 규정: {{ deck.regulation_version|default:"기본 규정" }}</p>
         </div>
         <div class="v2-deck-detail-bottom">
             <div class="v2-deck-detail-tags">
@@ -35,6 +37,7 @@
             <div class="v2-chip-row">
                 <span class="v2-chip">{% tr "추천" %} {{ likecount }}</span>
                 <span class="v2-chip">ver. {{ deck.version }}</span>
+                <span class="v2-chip">{% tr "금제" %} · {% if deck.regulation_version %}{{ deck.regulation_version.regulation.name }}{% else %}{% tr "무금제" %}{% endif %}</span>
                 <span class="v2-chip">{{ deck.get_visibility_display|ui:current_language }}</span>
                 <a class="v2-chip" href="{% url "common:userpage" deck.author.id %}">{{ deck.author.username }}</a>
                 <span class="v2-chip">{{ deck.created|date:"Y-m-d" }}</span>
@@ -81,7 +84,7 @@
 </section>
 
 <section class="v2-section" id="ImageDisplay">
-    <div class="v2-deck-board" id="ImageDeck">
+    <div class="v2-deck-board {% if reserve_count %}has-reserve{% endif %}" id="ImageDeck">
         <div class="v2-deck-zone v2-deck-zone-list" id="List">
             <div class="v2-deck-zone-head">
                 <h2>{% tr "리스트" %}</h2>
@@ -118,6 +121,27 @@
                 {% endfor %}
             </div>
         </div>
+        {% if reserve_count %}
+        <div class="v2-deck-zone v2-deck-zone-reserve" id="Reserve">
+            <div class="v2-deck-zone-head">
+                <h2>{% tr "교체 덱" %}</h2>
+                <span>{{ reserve_count }}{% tr "장" %}</span>
+            </div>
+            <div class="v2-deck-reserve-grid">
+                {% for entry in reserve_cards %}
+                {% for _ in entry.count|times %}
+                <div class="v2-deck-image-tile v2-deck-reserve-item imgBox">
+                    <a href="{% url "card:detail" entry.card.id %}">
+                        <img class="cardImg" src="{{ entry.card.img_mid|default:entry.card.img }}" alt="{{ entry.card|card_name:current_language }}">
+                    </a>
+                </div>
+                {% endfor %}
+                {% empty %}
+                <p class="v2-deck-zone-empty">{% tr "교체 카드 없음" %}</p>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         <div class="v2-deck-zone v2-deck-zone-side" id="Side">
             <div class="v2-deck-zone-head">
                 <h2>{% tr "사이드" %}</h2>
@@ -167,6 +191,20 @@
                     </tbody>
                 </table>
             </div>
+            {% if reserve_count %}
+            <div class="v2-text-panel">
+                <h2 class="v2-section-title">{% tr "교체 덱" %}</h2>
+                <table class="v2-deck-text-table" data-deck-copy-zone="교체 덱">
+                    <tbody>
+                        {% for entry in reserve_cards %}
+                        {% for _ in entry.count|times %}
+                        <tr><th><a href="{% url "card:detail" entry.card.id %}">{{ entry.card|card_name:current_language }}</a></th></tr>
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
             <div class="v2-text-panel">
                 <h2 class="v2-section-title">{% tr "사이드" %}</h2>
                 <table class="v2-deck-text-table" data-deck-copy-zone="사이드">
@@ -219,6 +257,6 @@
         captureDefault: "{% tr "덱 캡쳐" %}"
     };
 </script>
-<script src="{% static "deck/detail.js" %}?v=20260520-i18n"></script>
+<script src="{% static "deck/detail.js" %}?v=20261024-reserve-layout"></script>
 <script src="{% static "imgloading.js" %}"></script>
 {% endblock content %}

@@ -19,7 +19,7 @@ def detail(request, id, submission_id):
         return [{**catalog[str(row['card_id'])], 'count': row['count']} for row in rows if str(row['card_id']) in catalog]
     trait = catalog.get(str(snapshot.get('trait_card_id')))
     sections = [{'title': '등록 특성', 'cards': [{**trait, 'count': 1}] if trait else []}, {'title': '등록 기본 구성', 'cards': entries(snapshot['cards'])}]
-    if can_private or snapshot.get('regulation_rules', {}).get('reserve_public'):
+    if can_private or (snapshot.get('regulation_rules') or {}).get('reserve_public'):
         sections.append({'title': '등록 교체 덱', 'cards': entries(snapshot['reserve_cards'])})
     versions = accessible_versions(request.user)
     current_report = None

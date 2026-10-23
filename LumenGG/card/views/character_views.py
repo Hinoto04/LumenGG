@@ -4,6 +4,7 @@ from django.db.models import Q, F
 from ..models import Card, Character, CharacterComment
 from collection.models import CollectionCard
 from django.forms.models import model_to_dict
+from django.templatetags.static import static
 from django.utils import timezone
 from django.core import serializers
 from ..forms import CharacterCommentForm
@@ -18,7 +19,10 @@ import json, math
 
 def index(req, template_name='character/index.html'):
     id = req.GET.get('id', '2')
-    chars = Character.objects.filter(Q(pack__released__lte=timezone.now())).prefetch_related('translations').order_by('pack__released')
+    chars = list(Character.objects.filter(Q(pack__released__lte=timezone.now())).prefetch_related('translations').order_by('pack__released'))
+    for character in chars:
+        if character.localization_key == 'minyeongi' or character.name == '미녕이':
+            character.icon_img = static('character/minyeongi-icon.png')
     charnum = len(chars)+1
     charnum2 = math.ceil(len(chars)/2)+2
     form = CharacterCommentForm()

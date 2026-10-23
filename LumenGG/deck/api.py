@@ -1,7 +1,9 @@
 import copy
+import datetime
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction, IntegrityError
-from django.db.models import Q
+from django.db.models import DateField, Min, Q, Value
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.authentication import SessionAuthentication
@@ -52,7 +54,13 @@ def regulations(request):
 def options(request):
     from common.language import translated_card_field, normalize_language
     language = normalize_language(request.query_params.get('lang', 'ko'))
-    cards = Card.objects.filter(Q(type='특성') | Q(code__icontains='PS')).prefetch_related('translations')
+    cards = Card.objects.filter(Q(type='특성') | Q(code__icontains='PS')).annotate(
+        earliest_release=Coalesce(
+            Min('collection_card__pack__released'),
+            Value(datetime.date.max),
+            output_field=DateField(),
+        ),
+    ).prefetch_related('translations').order_by('character_id', 'earliest_release', 'id')
     selected = {}
     if request.query_params.get('deck_id') and not request.query_params['deck_id'].isdigit():
         raise ValidationError('덱 번호가 올바르지 않습니다.')
@@ -63,13 +71,15 @@ def options(request):
             raise PermissionDenied()
         selected = {'trait_card_id': deck.trait_card_id, 'regulation_version_id': deck.regulation_version_id,
                     'reserve_cards': [{'card_id': e.card_id, 'count': e.count} for e in deck.reserve_entries.all()]}
-    versions = list(accessible_versions(request.user))
-    if selected.get('regulation_version_id') and not any(v.pk == selected['regulation_version_id'] for v in versions):
+    versions = list(accessible_versions(request.user).exclude(regulation__name='기본 규정'))
+    if (selected.get('regulation_version_id') and deck.regulation_version.regulation.name != '기본 규정'
+            and not any(v.pk == selected['regulation_version_id'] for v in versions)):
         versions.append(deck.regulation_version)
     return Response({'traits': [{'id': c.pk, 'character_id': c.character_id, 'name': translated_card_field(c, language, 'name'), 'code': c.code, 'img': c.img_sm or c.img,
                                 'trait_config': c.trait_config, 'deck_rules': (c.effect_definition or {}).get('deck_rules', {})} for c in cards],
                      'selected': selected,
-                     'reserve_candidates': [{'id': c.pk, 'name': translated_card_field(c, language, 'name'), 'code': c.code, 'character_id': c.character_id, 'type': c.type, 'ultimate': c.ultimate} for c in Card.objects.exclude(type='토큰').prefetch_related('translations')],
+                     'reserve_candidates': [{'id': c.pk, 'name': translated_card_field(c, language, 'name'), 'code': c.code, 'character_id': c.character_id, 'type': c.type,
+                                             'ultimate': c.ultimate, 'frame': c.frame, 'img': c.img, 'img_sm': c.img_sm} for c in Card.objects.exclude(type='토큰').prefetch_related('translations')],
                      'versions': [version_payload(v) for v in versions]})
 
 

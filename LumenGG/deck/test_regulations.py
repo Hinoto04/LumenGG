@@ -64,6 +64,13 @@ class RegulationTests(TestCase):
         self.assertTrue(validate(snap, stage='draft')['is_valid'])
         self.assertFalse(validate(snap)['is_valid'])
 
+    def test_unrestricted_deck_skips_composition_and_reserve_limits(self):
+        ReserveCardInDeck.objects.create(deck=self.deck, card=self.cards[20])
+        snap = snapshot_deck(self.deck)
+        snap['cards'] = snap['cards'][:3]
+        self.assertIsNone(snap['regulation_rules'])
+        self.assertTrue(validate(snap)['is_valid'])
+
     def test_immutable_policy_and_explicit_swap_limits(self):
         regulation = Regulation.objects.create(name='Local', owner=self.user)
         with self.assertRaises(ValidationError):

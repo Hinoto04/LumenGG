@@ -5,7 +5,6 @@
 {% block title %}{% tr "덱 검색" %} - LumenDB V2{% endblock title %}
 {% block legacy_href %}{% url "deck:legacyIndex" %}{% endblock legacy_href %}
 {% block content %}
-<div class="v2-panel"><a class="v2-button" href="{% url 'deck:importV2' %}">덱 가져오기</a> <a class="v2-button" href="{% url 'deck:manageRegulations' %}">규정 작성·복사</a></div>
 <section class="v2-page-head">
     <div>
         <div class="v2-kicker">USER DECKS</div>
@@ -24,7 +23,6 @@
         {{ form.keyword }}
         {{ form.sort }}
         <select name="trait_card_id" data-trait-filter aria-label="특성 필터"><option value="">전체 특성</option></select>
-        <select name="regulation_version_id" data-regulation-filter aria-label="규정 필터"><option value="">전체 규정</option></select>
         <a class="v2-button" href="{% url "stat:index" %}">{% tr "통계" %}</a>
         <button class="v2-button" type="button" id="v2FilterToggle">{% tr "캐릭터" %}</button>
         <button class="v2-button v2-button-primary" type="submit">{% tr "검색" %}</button>
@@ -50,14 +48,17 @@
         <div class="v2-deck-main">
             <div class="v2-deck-kicker-line">
                 <a href="{% url "card:character" %}?id={{ deck.character.id }}">{{ deck.character|character_name:current_language }}</a>
-                {% if deck.ultimate_cards %}
                 <span class="v2-deck-dot">/</span>
+                <span>{% if deck.trait_card %}{{ deck.trait_card|card_name:current_language }}{% else %}{% tr "미지정" %}{% endif %}</span>
+                <span class="v2-deck-dot">/</span>
+                {% if deck.ultimate_cards %}
                 {% for cid in deck.ultimate_cards %}
                 <span>{{ cid.card|card_name:current_language }}</span>{% if not forloop.last %}<span class="v2-deck-dot">,</span>{% endif %}
                 {% endfor %}
+                {% else %}
+                <span>{% tr "미지정" %}</span>
                 {% endif %}
             </div>
-            <div>특성: {{ deck.trait_card.name|default:"미지정" }} · {{ deck.regulation_version|default:"기본 규정" }}</div>
             <div class="v2-deck-title-row">
                 <a class="v2-deck-title" href="{% url "deck:detail" deck.id %}">{{ deck.name }}</a>
                 <span class="v2-deck-version">{{ deck.version }}</span>
@@ -93,5 +94,5 @@
 </ul>
 
 <script src="{% static "v2/card-list.js" %}"></script>
-<script>fetch('/deck/options').then(r=>r.json()).then(data=>{for(const [selector,rows,current] of [['[data-trait-filter]',data.traits,'{{ trait_filter|escapejs }}'],['[data-regulation-filter]',data.versions,'{{ regulation_filter|escapejs }}']]){const select=document.querySelector(selector);for(const row of rows){const option=document.createElement('option');option.value=row.id;option.textContent=row.name+(row.version?' / '+row.version:'');select.append(option);}select.value=current;}}).catch(()=>{});</script>
+<script>fetch('/deck/options').then(r=>r.json()).then(data=>{const select=document.querySelector('[data-trait-filter]');for(const row of data.traits){const option=document.createElement('option');option.value=row.id;option.textContent=row.name;select.append(option);}select.value='{{ trait_filter|escapejs }}';}).catch(()=>{});</script>
 {% endblock content %}

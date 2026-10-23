@@ -190,3 +190,5 @@ LumenGG/staticfiles/
 # Local previews, generated image/PDF exports, and browser profiles
 /output/
 /tmp/
+.codex-remote-attachments/01a166e3-a58c-7aa2-b325-84fc1d0a7d9e/3bb09e4b-af0c-4f23-9e42-c4e717a03cfa/1-1000055213.jpg
+/.codex-remote-attachments

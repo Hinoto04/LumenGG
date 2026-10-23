@@ -65,7 +65,8 @@ function deckCopy() {
         "리스트": 1,
         "손패": 2,
         "사이드": 3,
-        "얼티밋 카드": 4,
+        "교체 덱": 4,
+        "얼티밋 카드": 5,
     };
     const copyZones = Array.from(document.querySelectorAll("[data-deck-copy-zone]")).sort((a, b) => {
         return (copyZoneOrder[a.dataset.deckCopyZone] || 99) - (copyZoneOrder[b.dataset.deckCopyZone] || 99);

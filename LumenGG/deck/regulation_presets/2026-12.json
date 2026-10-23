@@ -1,0 +1,69 @@
+{
+  "name": "26.12 금제",
+  "version": "1",
+  "effective_date": "2026-12-01",
+  "source": "",
+  "notes": "사용자가 제공한 밸런스 조정 안내 이미지. 2026년 12월 공인 대회부터 적용. 에라타 제외. 시행일은 적용 월의 첫날로 기록한다. 택1 묶음은 모든 두 카드 조합의 동시 편성 금지로 변환한다.",
+  "scope": "registered",
+  "banned_cards": [
+    {"code": "LMI-AT-027", "name": "라이트닝 라스"}
+  ],
+  "choose_one_groups": [
+    {"label": "니아", "cards": [
+      {"code": "AWL-AT-013", "name": "레피! 스크류!"},
+      {"code": "ST1-007", "name": "라이! 레피! 봄버!"}
+    ]},
+    {"label": "루트", "cards": [
+      {"code": "ST2-010", "name": "차징 배리어"},
+      {"code": "UNC-AT-016", "name": "파워풀 스윕"}
+    ]},
+    {"label": "키스", "cards": [
+      {"code": "ST4-005", "name": "시프 기믹"},
+      {"code": "ST4-010", "name": "래빗 일루젼"},
+      {"code": "CB01-AT-015", "name": "광증의 매드니스"},
+      {"code": "ST1-018", "name": "세츠메이 킥"}
+    ]},
+    {"label": "델피 1", "cards": [
+      {"code": "ST3-007", "name": "델드밀"},
+      {"code": "ST3-002", "name": "스트레이트 킥"},
+      {"code": "ST3-006", "name": "리펜지 어퍼"}
+    ]},
+    {"label": "델피 2", "cards": [
+      {"code": "UNC-AT-021", "name": "템페스트 플립"},
+      {"code": "ST3-010", "name": "파키 디펜스"},
+      {"code": "ST3-004", "name": "록 암바"}
+    ]},
+    {"label": "키메라", "cards": [
+      {"code": "AWL-AT-038", "name": "제트 라이징"},
+      {"code": "UNC-AT-021", "name": "템페스트 플립"},
+      {"code": "ST1-009", "name": "라이! 레피! 로켓!"}
+    ]},
+    {"label": "울프 1", "cards": [
+      {"code": "AWL-AT-038", "name": "제트 라이징"},
+      {"code": "ST5-009", "name": "체이싱 팽"},
+      {"code": "AWL-AT-051", "name": "스플릿 커터"}
+    ]},
+    {"label": "울프 2", "cards": [
+      {"code": "AWL-AT-048", "name": "로우킥"},
+      {"code": "AWL-AT-039", "name": "컷다운"}
+    ]},
+    {"label": "울프 3", "cards": [
+      {"code": "DFR-AT-019", "name": "처형의 밤"},
+      {"code": "LMI-AT-028", "name": "레이 바즈라"},
+      {"code": "AWL-AT-053", "name": "프라이 엔드"}
+    ]},
+    {"label": "비올라 1", "cards": [
+      {"code": "CB02-AT-026", "name": "템포 드 두"},
+      {"code": "UNC-AT-037", "name": "나이트메어 주테"}
+    ]},
+    {"label": "비올라 2", "cards": [
+      {"code": "RFS-AT-035", "name": "프렐류드"},
+      {"code": "ST6-009", "name": "페인 프리즌"}
+    ]},
+    {"label": "미녕이", "cards": [
+      {"code": "CB03-AT-003", "name": "달빛펀치"},
+      {"code": "CB03-AT-008", "name": "달빛암바"},
+      {"code": "CB03-AT-009", "name": "콩콩러시"}
+    ]}
+  ]
+}

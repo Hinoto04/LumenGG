@@ -59,7 +59,7 @@
       [...pool.keys()].filter(pk => isTrait(catalog[pk])).forEach(pk => { const o = el('option', catalog[pk].name); o.value = pk; trait.append(o); });
       trait.value = row.active.trait_card_id || ''; trait.disabled = row.ready; trait.addEventListener('change', () => dirty = true);
       section.append(el('label', '특성 '), trait);
-      const rules = snapshot.regulation_rules;
+      const rules = snapshot.regulation_rules || {technique_swap_limit: '∞', trait_swap_limit: '∞', ultimate_swap_limit: '∞'};
       section.append(el('p', `교체 한도 · 기술 ${rules.technique_swap_limit}장 / 특성 ${rules.trait_swap_limit}회 / 얼티밋 ${rules.ultimate_swap_limit}회`));
       const table = el('table'), head = el('tr'); ['카드', '등록 수량', '사용', '시작 패', '사이드'].forEach(t => head.append(el('th', t))); table.append(head);
       [...pool.entries()].filter(([pk]) => !isTrait(catalog[pk])).forEach(([pk, maximum]) => {
