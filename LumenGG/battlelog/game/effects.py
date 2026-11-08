@@ -2070,6 +2070,18 @@ class EffectResolver:
             )
         elif op == 'grant_catch':
             where = copy.deepcopy(effect.get('where') or {})
+            if effect.get('selection_key'):
+                # Restrict the granted Catch to the card chosen earlier in
+                # this effect (for example a randomly selected face-down
+                # card).  No candidate means no Catch is granted.
+                selected_ids = [
+                    str(item)
+                    for item in context.get(str(effect.get('selection_key'))) or []
+                    if item
+                ]
+                if not selected_ids:
+                    return
+                where['instance_id'] = selected_ids[0]
             if effect.get('source_only') and context.get('source_card_instance_id'):
                 where['instance_id'] = context.get('source_card_instance_id')
             if effect.get('source_attached') and context.get('source_card_instance_id'):

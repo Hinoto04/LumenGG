@@ -31395,19 +31395,108 @@ def _review_unc_at_026_definition(definition, card_snapshot, extra_root):
     )
 
 
-def _unc_at_027_card(code, owner, instance_id, frame):
+def _unc_at_027_card(code, owner, instance_id, frame, *, card_type='공격'):
     card = _card(code, owner, instance_id)
     card.update({
-        'type': '공격', 'frame': frame, 'damage': 300,
+        'type': card_type, 'frame': frame,
+        'damage': 300 if card_type == '공격' else None,
         'face_up': True,
     })
     return card
 
 
+def _unc_at_027_expected_effects():
+    """Errata text of Secret Time (UNC-AT-027 / CB04-AT-016)."""
+    placed_key = 'unc_at_027_placed_cards'
+    random_key = 'unc_at_027_random_catch_card'
+    place_where = {'is_technique': True, 'frame_gte': 1, 'frame_lte': 8}
+    place_selector = {
+        'kind': 'card', 'player': {'controller': True},
+        'zones': ['hand', 'list'], 'min': 3, 'max': 3,
+        'where': copy.deepcopy(place_where),
+        'as_operation': 'move_card', 'to_zone': 'lumen',
+    }
+    return [
+        {
+            'op': 'conditional',
+            'condition': {
+                'op': 'gte',
+                'left': {
+                    'op': 'add',
+                    'values': [
+                        {
+                            'op': 'zone_count',
+                            'player': {'controller': True},
+                            'zone': zone, 'where': copy.deepcopy(place_where),
+                        }
+                        for zone in ('hand', 'list')
+                    ],
+                },
+                'right': 3,
+            },
+            'then': [{
+                'op': 'choose_effect', 'player': {'controller': True},
+                'prompt': (
+                    '패나 리스트의 8속도 이하 기술 3장을 루멘 존에 '
+                    '뒷면으로 배치하시겠습니까?'
+                ),
+                'optional': True,
+                'options': [{
+                    'id': 'place', 'label': '3장 뒷면 배치',
+                    'selector_available': copy.deepcopy(place_selector),
+                    'effects': [{
+                        'op': 'request_choice',
+                        'player': {'controller': True},
+                        'prompt': (
+                            '루멘 존에 뒷면으로 배치할 8속도 이하 '
+                            '기술 3장을 선택하세요.'
+                        ),
+                        'selector': copy.deepcopy(place_selector),
+                        'selection_key': placed_key, 'default': [],
+                        'then': [
+                            {
+                                'op': 'move_card', 'selection_key': placed_key,
+                                'to_zone': 'lumen', 'face_up': False,
+                            },
+                            {'op': 'hide', 'selection_key': placed_key},
+                        ],
+                    }],
+                }],
+            }],
+            'else': [],
+        },
+        {
+            'op': 'random_select',
+            'selector': {
+                'kind': 'card', 'player': {'controller': True},
+                'zones': ['lumen'], 'min': 0, 'max': 1,
+                'where': {'face_up': False},
+            },
+            'count': 1, 'selection_key': random_key,
+            'visibility': 'private',
+        },
+        {
+            'op': 'conditional',
+            'condition': {
+                'op': 'gte',
+                'left': {
+                    'op': 'selection_count', 'selection_key': random_key,
+                },
+                'right': 1,
+            },
+            'then': [{
+                'op': 'grant_catch', 'player': {'controller': True},
+                'allow_zones': ['lumen'], 'selection_key': random_key,
+                'where': {'face_up': False},
+            }],
+            'else': [],
+        },
+    ]
+
+
 def _unc_at_027_engine(
-    definition, card_snapshot, owner, *, source_zone='battle',
-    hand_speeds=(), secret_speed=None, numbered_effects_negated=False,
-    secret_return_blocked=False, ability_ids=None,
+    definition, card_snapshot, owner, *, hand=(), listed=(),
+    hidden=(), numbered_effects_negated=False, seed_suffix='',
 ):
     other = 'p2' if owner == 'p1' else 'p1'
     source = _sandbox_source_snapshot(card_snapshot)
@@ -31424,64 +31513,49 @@ def _unc_at_027_engine(
         'REVIEW-SECRET-TIME-OPPONENT', other,
         f'{other}-secret-time-opponent',
     )
-    hand = [
-        _unc_at_027_card(
-            f'REVIEW-SECRET-HAND-{owner}-{index}', owner,
-            f'{owner}-secret-hand-{index}', frame,
-        )
-        for index, frame in enumerate(hand_speeds)
-    ]
-    secret = None
-    if secret_speed is not None:
-        secret = _unc_at_027_card(
-            f'REVIEW-SECRET-HIDDEN-{owner}', other,
-            f'{owner}-secret-hidden', secret_speed,
-        )
-        secret.update({
-            'face_up': False,
-            'secret_time_host': source['instance_id'],
-            'non_technique_while_face_down': True,
-            'effects_negated': True,
-        })
-        if secret_return_blocked:
-            secret['move_to_hand_blocked_until'] = 'turn'
-    runtime_definition = copy.deepcopy(definition)
-    if ability_ids is not None:
-        wanted = set(ability_ids)
-        runtime_definition['abilities'] = [
-            copy.deepcopy(ability)
-            for ability in definition.get('abilities') or []
-            if ability.get('id') in wanted
-        ]
-    state = _state(source, opposing, owner, source_zone=source_zone)
-    state['phase'] = 'lumen' if source_zone == 'lumen' else 'battle'
-    state['players'][owner]['zones']['hand'] = copy.deepcopy(hand)
-    if secret:
-        state['players'][other]['zones']['lumen'].append(copy.deepcopy(secret))
+
+    def build(zone, specs):
+        cards = []
+        for index, spec in enumerate(specs):
+            frame, card_type = spec if isinstance(spec, tuple) else (spec, '공격')
+            cards.append(_unc_at_027_card(
+                f'REVIEW-SECRET-{zone.upper()}-{owner}-{index}', owner,
+                f'{owner}-secret-{zone}-{index}', frame, card_type=card_type,
+            ))
+        return cards
+
+    hand_cards = build('hand', hand)
+    list_cards = build('list', listed)
+    hidden_cards = build('hidden', hidden)
+    for card in hidden_cards:
+        card['face_up'] = False
+    state = _state(source, opposing, owner)
+    state['players'][owner]['zones']['hand'] = copy.deepcopy(hand_cards)
+    state['players'][owner]['zones']['list'] = copy.deepcopy(list_cards)
+    state['players'][owner]['zones']['lumen'] = copy.deepcopy(hidden_cards)
     no_effect = _st1_001_no_effect_definition()
     cards = {
         source['code']: {
             **copy.deepcopy(source),
-            'effect_definition': runtime_definition,
+            'effect_definition': copy.deepcopy(definition),
         },
         opposing['code']: {
             **copy.deepcopy(opposing), 'effect_definition': no_effect,
         },
     }
-    for card in [*hand, *([secret] if secret else [])]:
+    for card in [*hand_cards, *list_cards, *hidden_cards]:
         cards[card['code']] = {
             **copy.deepcopy(card), 'effect_definition': no_effect,
         }
     engine = AutomaticGameEngine(
         state, {'version': AUTOMATIC_SCENARIO_VERSION, 'cards': cards},
         seed=(
-            f'secret-time-review:{owner}:{source_zone}:{hand_speeds}:'
-            f'{secret_speed}:{numbered_effects_negated}:'
-            f'{secret_return_blocked}:{ability_ids}'
+            f'secret-time-errata-review:{owner}:{hand}:{listed}:{hidden}:'
+            f'{numbered_effects_negated}:{seed_suffix}'
         ),
         now=datetime(2026, 6, 1, tzinfo=timezone.utc),
     )
-    return engine, source, opposing, hand, secret
+    return engine, source, opposing
 
 
 def _unc_at_027_submit(engine, role, selected):
@@ -31493,16 +31567,17 @@ def _unc_at_027_submit(engine, role, selected):
     return decision
 
 
-def _run_unc_at_027_setup_scenario(
-    definition, card_snapshot, owner, *, hand_speeds=(5, 6, 7),
+def _run_unc_at_027_scenario(
+    definition, card_snapshot, owner, *, hand=(5, 6, 7), listed=(8,),
+    hidden=(), place=True, pick=('hand-0', 'hand-1', 'list-0'),
     damage_received=0, event_type='after_judgment',
-    numbered_effects_negated=False,
+    numbered_effects_negated=False, seed_suffix='',
 ):
     other = 'p2' if owner == 'p1' else 'p1'
-    engine, source, opposing, hand, _secret = _unc_at_027_engine(
-        definition, card_snapshot, owner, hand_speeds=hand_speeds,
-        numbered_effects_negated=numbered_effects_negated,
-        ability_ids=['unc-at-027-n1'],
+    engine, source, opposing = _unc_at_027_engine(
+        definition, card_snapshot, owner, hand=hand, listed=listed,
+        hidden=hidden, numbered_effects_negated=numbered_effects_negated,
+        seed_suffix=seed_suffix,
     )
     engine._fire(event_type, {
         'controller': owner, 'event_controller': owner,
@@ -31513,184 +31588,74 @@ def _run_unc_at_027_setup_scenario(
         'source_only_event': True,
     })
     decisions = []
-    first = copy.deepcopy(engine.engine_state.get('pending_decision'))
-    if first:
+    branch = copy.deepcopy(engine.engine_state.get('pending_decision'))
+    if branch and branch.get('kind') == 'effect_branch':
         decisions.append({
-            'owner': first.get('owner'), 'kind': first.get('kind'),
+            'owner': branch.get('owner'), 'kind': branch.get('kind'),
             'option_ids': [
-                option.get('id') for option in first.get('options') or []
+                option.get('id') for option in branch.get('options') or []
             ],
         })
-        chosen = [card['instance_id'] for card in hand[:3]]
-        _unc_at_027_submit(engine, owner, chosen)
-        second = copy.deepcopy(engine.engine_state.get('pending_decision'))
-        if second:
-            decisions.append({
-                'owner': second.get('owner'), 'kind': second.get('kind'),
-                'option_ids': [
-                    option.get('id') for option in second.get('options') or []
-                ],
-            })
-            _unc_at_027_submit(engine, other, [chosen[1]])
-    source_location = engine._find_location(source['instance_id'])
-    selected_id = hand[1]['instance_id'] if len(hand) >= 2 else None
-    selected_location = engine._find_location(selected_id) if selected_id else None
-    selected_card = selected_location[3] if selected_location else None
+        _unc_at_027_submit(engine, owner, ['place'] if place else [])
+    choice = copy.deepcopy(engine.engine_state.get('pending_decision'))
+    if choice and choice.get('kind') == 'effect_choice':
+        decisions.append({
+            'owner': choice.get('owner'), 'kind': choice.get('kind'),
+            'option_ids': sorted(
+                str(option.get('id')) for option in choice.get('options') or []
+            ),
+        })
+        _unc_at_027_submit(
+            engine, owner, [f'{owner}-secret-{item}' for item in pick],
+        )
+    lumen = engine.state['players'][owner]['zones']['lumen']
+    hidden_ids = sorted(
+        card['instance_id'] for card in lumen if card.get('face_up') is False
+    )
+    granted = [
+        copy.deepcopy(catch)
+        for catch in engine.engine_state.get('granted_catches') or []
+        if catch.get('owner') == owner
+    ]
+    catch_ids = []
+    caught_id = None
+    caught_zone = None
+    hp_before = int(engine.state['players'][other]['hp'])
+    if granted:
+        engine.engine_state['battle'] = {owner: {}, other: {}}
+        engine._open_catch_or_cleanup()
+        catch_actions = [
+            action for action in engine.legal_actions(owner)
+            if action.get('type') == 'play_catch_card'
+        ]
+        catch_ids = sorted(
+            str(action['payload']['card_instance_id'])
+            for action in catch_actions
+        )
+        if catch_actions:
+            action = catch_actions[0]
+            caught_id = str(action['payload']['card_instance_id'])
+            engine.submit_action(
+                owner, action['action_id'], {},
+                command_id=f'secret-time-review-catch-{owner}',
+            )
+            location = engine._find_location(caught_id)
+            caught_zone = location[1] if location else None
     return {
         'decisions': decisions,
-        'source_zone': source_location[1] if source_location else None,
-        'secret_zone': selected_location[1] if selected_location else None,
-        'secret_owner': selected_card.get('owner') if selected_card else None,
-        'secret_face_up': selected_card.get('face_up') if selected_card else None,
-        'secret_host': (
-            selected_card.get('secret_time_host') if selected_card else None
-        ),
+        'hidden_ids': hidden_ids,
+        'granted_where': [catch.get('where') for catch in granted],
+        'granted_zones': [catch.get('allow_zones') for catch in granted],
+        'catch_ids': catch_ids,
+        'caught_id': caught_id,
+        'caught_zone': caught_zone,
+        'catch_damage': hp_before - int(engine.state['players'][other]['hp']),
         'resolved': any(
             event.get('type') == 'effect_resolved'
             and (event.get('payload') or {}).get('ability_id')
             == 'unc-at-027-n1'
             for event in engine.events
         ),
-        'pending': bool(engine.engine_state.get('pending_decision')),
-    }
-
-
-def _run_unc_at_027_guess_scenario(
-    definition, card_snapshot, owner, *, secret_speed=7, guess=7,
-    branch=None, source_zone='lumen', event_type='phase_start',
-    numbered_effects_negated=False, secret_return_blocked=False,
-):
-    other = 'p2' if owner == 'p1' else 'p1'
-    engine, source, _opposing, hand, secret = _unc_at_027_engine(
-        definition, card_snapshot, owner, source_zone=source_zone,
-        hand_speeds=(5, 6, 8), secret_speed=secret_speed,
-        numbered_effects_negated=numbered_effects_negated,
-        secret_return_blocked=secret_return_blocked,
-        ability_ids=['unc-at-027-secret-guess'],
-    )
-    engine._fire(event_type, {'phase': 'lumen'})
-    decisions = []
-    amount = copy.deepcopy(engine.engine_state.get('pending_decision'))
-    if amount:
-        decisions.append({
-            'owner': amount.get('owner'), 'kind': amount.get('kind'),
-        })
-        _unc_at_027_submit(engine, other, [str(guess)])
-    branch_decision = copy.deepcopy(engine.engine_state.get('pending_decision'))
-    if branch_decision and branch_decision.get('kind') == 'effect_branch':
-        decisions.append({
-            'owner': branch_decision.get('owner'),
-            'kind': branch_decision.get('kind'),
-        })
-        if branch:
-            _unc_at_027_submit(engine, owner, [branch])
-    if branch == 'replace':
-        showcase = copy.deepcopy(engine.engine_state.get('pending_decision'))
-        if showcase:
-            decisions.append({
-                'owner': showcase.get('owner'), 'kind': showcase.get('kind'),
-            })
-            chosen = [card['instance_id'] for card in hand]
-            _unc_at_027_submit(engine, owner, chosen)
-            choose_secret = copy.deepcopy(
-                engine.engine_state.get('pending_decision'),
-            )
-            if choose_secret:
-                decisions.append({
-                    'owner': choose_secret.get('owner'),
-                    'kind': choose_secret.get('kind'),
-                })
-                _unc_at_027_submit(engine, other, [chosen[0]])
-    source_location = engine._find_location(source['instance_id'])
-    secret_location = engine._find_location(secret['instance_id'])
-    live_secret = secret_location[3] if secret_location else None
-    hosted_hidden = [
-        card
-        for card in engine.state['players'][other]['zones']['lumen']
-        if card.get('secret_time_host') == source['instance_id']
-        and card.get('face_up') is False
-    ]
-    return {
-        'decisions': decisions,
-        'source_zone': source_location[1] if source_location else None,
-        'secret_zone': secret_location[1] if secret_location else None,
-        'secret_owner': live_secret.get('owner') if live_secret else None,
-        'hosted_hidden_count': len(hosted_hidden),
-        'opponent_hp': int(engine.state['players'][other]['hp']),
-        'damage_amounts': [
-            (event.get('payload') or {}).get('amount')
-            for event in engine.events
-            if event.get('type') == 'damage_dealt'
-        ],
-        'resolved': any(
-            event.get('type') == 'effect_resolved'
-            and (event.get('payload') or {}).get('ability_id')
-            == 'unc-at-027-secret-guess'
-            for event in engine.events
-        ),
-        'pending': bool(engine.engine_state.get('pending_decision')),
-    }
-
-
-def _unc_at_027_distinct_hand_ids(engine, owner):
-    selected = []
-    frames = set()
-    for card in engine.state['players'][owner]['zones']['hand']:
-        frame = card.get('frame')
-        if frame is None or frame in frames:
-            continue
-        frames.add(frame)
-        selected.append(card['instance_id'])
-        if len(selected) == 3:
-            break
-    return selected
-
-
-def _run_unc_at_027_limit_scenario(
-    definition, card_snapshot, owner, *, attempts=4,
-    numbered_effects_negated=False,
-):
-    other = 'p2' if owner == 'p1' else 'p1'
-    engine, source, _opposing, _hand, _secret = _unc_at_027_engine(
-        definition, card_snapshot, owner, source_zone='lumen',
-        hand_speeds=(5, 6, 7), secret_speed=8,
-        numbered_effects_negated=numbered_effects_negated,
-        ability_ids=['unc-at-027-secret-guess'],
-    )
-    completed = 0
-    for index in range(attempts):
-        engine.state['turn'] = index + 1
-        engine._reset_usage('turn')
-        engine._fire('phase_start', {'phase': 'lumen'})
-        decision = engine.engine_state.get('pending_decision') or {}
-        if decision.get('kind') != 'effect_amount':
-            break
-        _unc_at_027_submit(engine, other, ['1'])
-        branch = engine.engine_state.get('pending_decision') or {}
-        if branch.get('kind') != 'effect_branch':
-            break
-        _unc_at_027_submit(engine, owner, ['replace'])
-        chosen = _unc_at_027_distinct_hand_ids(engine, owner)
-        if len(chosen) != 3:
-            break
-        _unc_at_027_submit(engine, owner, chosen)
-        choose_secret = engine.engine_state.get('pending_decision') or {}
-        if choose_secret.get('kind') != 'effect_choice':
-            break
-        _unc_at_027_submit(engine, other, [chosen[0]])
-        completed += 1
-    damage_amounts = [
-        (event.get('payload') or {}).get('amount')
-        for event in engine.events if event.get('type') == 'damage_dealt'
-    ]
-    counts = engine.engine_state.get('effect_damage_counts') or {}
-    return {
-        'completed_attempts': completed,
-        'damage_amounts': damage_amounts,
-        'opponent_hp': int(engine.state['players'][other]['hp']),
-        'recorded_counts': sorted(counts.values()),
-        'source_zone': engine._find_location(source['instance_id'])[1],
-        'pending': bool(engine.engine_state.get('pending_decision')),
     }
 
 
@@ -31698,169 +31663,7 @@ def _review_unc_at_027_definition(definition, card_snapshot, extra_root):
     if str((card_snapshot or {}).get('code') or '') != 'UNC-AT-027':
         return None
     abilities = definition.get('abilities') or []
-    by_id = {ability.get('id'): ability for ability in abilities}
-    setup = by_id.get('unc-at-027-n1')
-    limit = by_id.get('unc-at-027-n2')
-    guess = by_id.get('unc-at-027-secret-guess')
-    qna_ids = [59, 67, 111, 112, 113, 349, 350, 351, 353, 354, 544]
-    showcased_key = 'unc_at_027_showcased'
-    secret_key = 'unc_at_027_secret_card'
-    guess_key = 'unc_at_027_speed_guess'
-    moved_key = 'unc_at_027_secret_moved'
-    returned_key = 'unc_at_027_secret_returned'
-    distinct_condition = {
-        'op': 'gte',
-        'left': {
-            'op': 'zone_distinct_count', 'player': {'controller': True},
-            'zone': 'hand', 'field': 'frame',
-        },
-        'right': 3,
-    }
-    success_condition = lambda key: {
-        'op': 'gte',
-        'left': {'op': 'selection_count', 'selection_key': key},
-        'right': 1,
-    }
-
-    def setup_effects(*, move_source):
-        after_move = [{'op': 'hide', 'selection_key': secret_key}]
-        if move_source:
-            after_move.append({
-                'op': 'move_card',
-                'card_instance_id': {
-                    'path': 'context.source_card_instance_id',
-                },
-                'to_zone': 'lumen',
-            })
-        return [{
-            'op': 'request_choice', 'player': {'controller': True},
-            'prompt': '서로 속도가 다른 자신의 패 3장을 공개하세요.',
-            'selector': {
-                'kind': 'card', 'player': {'controller': True},
-                'zones': ['hand'], 'min': 3, 'max': 3,
-                'distinct_by': 'frame',
-            },
-            'selection_key': showcased_key, 'default': [],
-            'then': [
-                {'op': 'reveal', 'selection_key': showcased_key},
-                {
-                    'op': 'request_choice', 'player': {'opponent': True},
-                    'prompt': '상대 루멘 존에 뒷면으로 배치할 카드를 선택하세요.',
-                    'selector': {
-                        'kind': 'card', 'player': {'controller': True},
-                        'zones': ['hand'], 'min': 1, 'max': 1,
-                        'selection_key': showcased_key,
-                        'as_operation': 'move_card', 'to_zone': 'lumen',
-                    },
-                    'selection_key': secret_key, 'default': [],
-                    'then': [
-                        {'op': 'hide', 'selection_key': showcased_key},
-                        {
-                            'op': 'move_card', 'selection_key': secret_key,
-                            'to_zone': 'lumen', 'face_up': False,
-                            'to_player': {'opponent': True},
-                            'set_flags': {
-                                'secret_time_host': {
-                                    'path': 'context.source_card_instance_id',
-                                },
-                                'non_technique_while_face_down': True,
-                                'effects_negated': True,
-                            },
-                            'result_key': moved_key,
-                        },
-                        {
-                            'op': 'conditional',
-                            'condition': success_condition(moved_key),
-                            'then': after_move, 'else': [],
-                        },
-                    ],
-                },
-            ],
-        }]
-
-    secret_selector = {
-        'kind': 'card', 'player': {'opponent': True},
-        'zones': ['lumen'], 'min': 0, 'max': 1,
-        'where': {
-            'secret_time_host': {
-                'path': 'context.source_card_instance_id',
-            },
-            'face_up': False,
-        },
-    }
-    replace_or_break = {
-        'op': 'choose_effect', 'player': {'controller': True},
-        'prompt': '새 비밀 카드를 배치하거나 시크릿 타임을 브레이크하세요.',
-        'default': 'break',
-        'options': [
-            {
-                'id': 'replace', 'label': '새 카드 배치',
-                'condition': distinct_condition,
-                'effects': setup_effects(move_source=False),
-            },
-            {
-                'id': 'break', 'label': '시크릿 타임 브레이크',
-                'effects': [{
-                    'op': 'break_card',
-                    'card_instance_id': {
-                        'path': 'context.source_card_instance_id',
-                    },
-                }],
-            },
-        ],
-    }
-    expected_guess_effects = [
-        {
-            'op': 'capture_selection', 'selector': secret_selector,
-            'selection_key': secret_key,
-        },
-        {
-            'op': 'request_amount', 'player': {'opponent': True},
-            'prompt': '뒷면 카드의 속도를 선언하세요.',
-            'min': 1, 'max': 100,
-            'values': [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 100],
-            'selection_key': guess_key, 'default': 1,
-            'then': [{
-                'op': 'conditional',
-                'condition': {
-                    'op': 'equals',
-                    'left': {
-                        'op': 'selected_value', 'selection_key': guess_key,
-                    },
-                    'right': {
-                        'op': 'selected_card_field',
-                        'selection_key': secret_key, 'field': 'frame',
-                    },
-                },
-                'then': [
-                    {
-                        'op': 'break_card',
-                        'card_instance_id': {
-                            'path': 'context.source_card_instance_id',
-                        },
-                    },
-                    {'op': 'break_card', 'selection_key': secret_key},
-                ],
-                'else': [
-                    {
-                        'op': 'deal_damage',
-                        'player': {'opponent': True}, 'amount': 300,
-                    },
-                    {
-                        'op': 'move_card', 'selection_key': secret_key,
-                        'to_zone': 'hand',
-                        'to_player': {'controller': True},
-                        'result_key': returned_key,
-                    },
-                    {
-                        'op': 'conditional',
-                        'condition': success_condition(returned_key),
-                        'then': [replace_or_break], 'else': [],
-                    },
-                ],
-            }],
-        },
-    ]
+    setup = abilities[0] if len(abilities) == 1 else None
     expected_source = {
         'code': 'UNC-AT-027', 'name': '시크릿 타임',
         'type': '수비', 'ultimate': False,
@@ -31870,211 +31673,142 @@ def _review_unc_at_027_definition(definition, card_snapshot, extra_root):
     }
     snapshot = card_snapshot or {}
     valid = bool(
-        extra_root == {'effect_damage_limit'} and len(abilities) == 3
+        not extra_root and setup
         and {key: snapshot.get(key) for key in expected_source}
         == expected_source
-        and sorted((definition.get('source_refs') or {}).get('qna_ids') or [])
-        == qna_ids
-        and (definition.get('source_refs') or {}).get('detail_text') is True
-        and all(
-            sorted((ability.get('source_refs') or {}).get('qna_ids') or [])
-            == qna_ids
-            and (ability.get('source_refs') or {}).get('detail_text') is True
-            for ability in abilities
-        )
-        and definition.get('effect_damage_limit')
-        == {'opponent': 3, 'scope': 'game'}
-        and setup and setup.get('mode') == 'mandatory'
+        and setup.get('id') == 'unc-at-027-n1'
+        and setup.get('mode') == 'mandatory'
         and setup.get('trigger') == {'event': 'after_judgment'}
         and setup.get('condition') == {
-            'op': 'all', 'conditions': [
-                {
-                    'op': 'equals',
-                    'left': 'context.controller_damage_received', 'right': 0,
-                },
-                distinct_condition,
-            ],
+            'op': 'equals',
+            'left': 'context.controller_damage_received', 'right': 0,
         }
-        and setup.get('limit') == {
-            'scope': 'turn', 'max': 1, 'key': 'unc-at-027-n1:usage',
-        }
-        and setup.get('effects') == setup_effects(move_source=True)
-        and limit and limit.get('mode') == 'mandatory'
-        and limit.get('trigger') == {'event': 'use'}
-        and limit.get('effects') == [{
-            'op': 'static_rule', 'rules': ['effect_damage_limit'],
-        }]
-        and guess and guess.get('mode') == 'mandatory'
-        and guess.get('active_zones') == ['lumen']
-        and guess.get('trigger') == {'event': 'phase_start'}
-        and guess.get('limit') == {
-            'scope': 'turn', 'max': 1,
-            'key': 'unc-at-027-secret-guess',
-        }
-        and guess.get('condition') == {
-            'op': 'all', 'conditions': [
-                {'op': 'phase_is', 'phase': 'lumen'},
-                {
-                    'op': 'zone_count', 'player': {'opponent': True},
-                    'zone': 'lumen', 'min': 1,
-                    'where': secret_selector['where'],
-                },
-            ],
-        }
-        and guess.get('effects') == expected_guess_effects
+        and not setup.get('limit')
+        and setup.get('active_zones') in (None, ['battle'])
+        and setup.get('effects') == _unc_at_027_expected_effects()
     )
     if not valid:
         return DefinitionReview(
             False, False, [AbilityReview(
                 'unc-at-027', False,
                 reason=(
-                    '시크릿 타임의 서로 다른 속도 선택·비밀 카드 소유권·'
-                    '실제 이동 성공 분기·속도 선언 또는 3회 피해 상한 정의가 '
-                    '일치하지 않습니다.'
+                    '시크릿 타임(에라타)의 무피해 조건·8속도 이하 기술 3장 '
+                    '뒷면 배치·무작위 뒷면 카드 캐치 정의가 일치하지 않습니다.'
                 ),
             )],
             'UNC-AT-027 전용 정의 검증에 실패했습니다.',
             method=AUTOMATIC_SCENARIO_VERSION,
         )
 
-    setup_scenarios = []
-    for spec in (
-        ('owner-p1-opponent-selects-hidden-card', 'p1', (5, 6, 7), 0, 'after_judgment', False, True),
-        ('owner-p2-opponent-selects-hidden-card', 'p2', (5, 8, 11), 0, 'after_judgment', False, True),
-        ('qna-113-only-two-distinct-speeds-do-not-resolve', 'p1', (5, 5, 7), 0, 'after_judgment', False, False),
-        ('damage-received-does-not-resolve', 'p2', (5, 6, 7), 100, 'after_judgment', False, False),
-        ('wrong-event-does-not-resolve', 'p1', (5, 6, 7), 0, 'use', False, False),
-        ('numbered-negation-does-not-resolve', 'p2', (5, 6, 7), 0, 'after_judgment', True, False),
-    ):
-        name, owner, speeds, received, event_type, negated, expected = spec
-        kwargs = {
-            'hand_speeds': speeds, 'damage_received': received,
-            'event_type': event_type,
-            'numbered_effects_negated': negated,
-        }
-        first = _run_unc_at_027_setup_scenario(
-            definition, snapshot, owner, **kwargs,
-        )
-        second = _run_unc_at_027_setup_scenario(
-            definition, snapshot, owner, **kwargs,
-        )
-        deterministic = _canonical(first) == _canonical(second)
-        placement_ok = (
-            first['source_zone'] == 'lumen'
-            and first['secret_zone'] == 'lumen'
-            and first['secret_owner'] == owner
-            and first['secret_face_up'] is False
-            and first['secret_host'] == f'{owner}-secret-time'
-            and [item['owner'] for item in first['decisions']] == [
-                owner, 'p2' if owner == 'p1' else 'p1',
-            ]
-        ) if expected else (
-            first['source_zone'] == 'battle' and not first['decisions']
-        )
-        setup_scenarios.append({
-            'name': name,
-            'passed': bool(
-                deterministic and first['resolved'] is expected
-                and placement_ok and not first['pending']
-            ),
-            'deterministic': deterministic, **first,
-        })
-    setup_review = AbilityReview(
-        setup['id'], all(item['passed'] for item in setup_scenarios),
-        setup_scenarios,
-        '' if all(item['passed'] for item in setup_scenarios)
-        else '초기 비밀 카드 공개·상대 선택·실제 이동 검증에 실패했습니다.',
-    )
-
-    limit_scenarios = []
-    for name, owner, attempts, negated, expected_completed, expected_damage in (
-        ('owner-p1-four-misses-deal-only-three-times', 'p1', 4, False, 4, [300, 300, 300]),
-        ('owner-p2-four-misses-deal-only-three-times', 'p2', 4, False, 4, [300, 300, 300]),
-        ('three-misses-reach-exact-game-limit', 'p1', 3, False, 3, [300, 300, 300]),
-        ('numbered-negation-prevents-secret-time-damage', 'p2', 1, True, 0, []),
-    ):
-        kwargs = {
-            'attempts': attempts, 'numbered_effects_negated': negated,
-        }
-        first = _run_unc_at_027_limit_scenario(
-            definition, snapshot, owner, **kwargs,
-        )
-        second = _run_unc_at_027_limit_scenario(
-            definition, snapshot, owner, **kwargs,
-        )
-        deterministic = _canonical(first) == _canonical(second)
-        limit_scenarios.append({
-            'name': name,
-            'passed': bool(
-                deterministic
-                and first['completed_attempts'] == expected_completed
-                and first['damage_amounts'] == expected_damage
-                and first['opponent_hp'] == 4000 - sum(expected_damage)
-                and not first['pending']
-            ),
-            'deterministic': deterministic, **first,
-        })
-    limit_review = AbilityReview(
-        limit['id'], all(item['passed'] for item in limit_scenarios),
-        limit_scenarios,
-        '' if all(item['passed'] for item in limit_scenarios)
-        else '게임당 상대 효과 피해 3회 상한 검증에 실패했습니다.',
-    )
-
-    guess_scenarios = []
-    for spec in (
-        ('owner-p1-correct-guess-breaks-both', 'p1', 7, 7, None, 'lumen', 'phase_start', False, False, 'break', 'break', 4000, 0, True),
-        ('owner-p2-correct-guess-breaks-both', 'p2', 8, 8, None, 'lumen', 'phase_start', False, False, 'break', 'break', 4000, 0, True),
-        ('wrong-guess-break-branch-damages-and-breaks-source', 'p1', 7, 5, 'break', 'lumen', 'phase_start', False, False, 'break', 'hand', 3700, 0, True),
-        ('wrong-guess-replace-branch-installs-new-secret', 'p2', 7, 5, 'replace', 'lumen', 'phase_start', False, False, 'lumen', 'hand', 3700, 1, True),
-        ('failed-return-does-not-open-followup-branch', 'p1', 7, 5, None, 'lumen', 'phase_start', False, True, 'lumen', 'lumen', 3700, 1, True),
-        ('qna-111-source-outside-lumen-leaves-old-secret', 'p2', 7, 7, None, 'list', 'phase_start', False, False, 'list', 'lumen', 4000, 1, False),
-        ('wrong-phase-event-does-not-open-quiz', 'p1', 7, 7, None, 'lumen', 'use', False, False, 'lumen', 'lumen', 4000, 1, False),
-        ('numbered-negation-does-not-open-quiz', 'p2', 7, 7, None, 'lumen', 'phase_start', True, False, 'lumen', 'lumen', 4000, 1, False),
-    ):
+    placed_names = ('hand-0', 'hand-1', 'list-0')
+    specs = (
+        # name, owner, scenario kwargs, expectation
         (
-            name, owner, secret_speed, guess_value, branch, source_zone,
-            event_type, negated, return_blocked, expected_source_zone,
-            expected_secret_zone, expected_hp, expected_hidden, resolved,
-        ) = spec
-        kwargs = {
-            'secret_speed': secret_speed, 'guess': guess_value,
-            'branch': branch, 'source_zone': source_zone,
-            'event_type': event_type,
-            'numbered_effects_negated': negated,
-            'secret_return_blocked': return_blocked,
-        }
-        first = _run_unc_at_027_guess_scenario(
+            'owner-p1-places-three-from-hand-and-list-then-catches',
+            'p1', {}, 'placed',
+        ),
+        (
+            'owner-p2-places-three-from-hand-and-list-then-catches',
+            'p2', {}, 'placed',
+        ),
+        (
+            'another-seed-places-and-catches-one-random-hidden-card',
+            'p1', {'seed_suffix': 'alternate'}, 'placed',
+        ),
+        (
+            'declined-placement-still-catches-existing-hidden-card',
+            'p2', {'hidden': (6,), 'place': False}, 'existing',
+        ),
+        (
+            'speed-nine-and-defense-are-not-placeable', 'p1',
+            {'hand': (9, 5, (None, '수비')), 'listed': (6,), 'pick': ()},
+            'nothing',
+        ),
+        (
+            'no-hidden-card-grants-no-catch', 'p2',
+            {'hand': (5,), 'listed': (), 'pick': ()}, 'nothing',
+        ),
+        (
+            'damage-received-does-not-resolve', 'p1',
+            {'damage_received': 100, 'hidden': (6,)}, 'inactive',
+        ),
+        (
+            'wrong-event-does-not-resolve', 'p2',
+            {'event_type': 'use', 'hidden': (6,)}, 'inactive',
+        ),
+        (
+            'numbered-negation-does-not-resolve', 'p1',
+            {'numbered_effects_negated': True, 'hidden': (6,)}, 'inactive',
+        ),
+    )
+    scenarios = []
+    for name, owner, kwargs, expectation in specs:
+        first = _run_unc_at_027_scenario(
             definition, snapshot, owner, **kwargs,
         )
-        second = _run_unc_at_027_guess_scenario(
+        second = _run_unc_at_027_scenario(
             definition, snapshot, owner, **kwargs,
         )
         deterministic = _canonical(first) == _canonical(second)
-        guess_scenarios.append({
-            'name': name,
-            'passed': bool(
-                deterministic and first['source_zone'] == expected_source_zone
-                and first['secret_zone'] == expected_secret_zone
-                and first['opponent_hp'] == expected_hp
-                and first['hosted_hidden_count'] == expected_hidden
-                and first['resolved'] is resolved and not first['pending']
-            ),
+        placed_ids = sorted(
+            f'{owner}-secret-{item}' for item in placed_names
+        )
+        single_catch = bool(
+            len(first['granted_where']) == 1
+            and first['granted_zones'] == [['lumen']]
+            and len(first['catch_ids']) == 1
+            and first['granted_where'][0].get('instance_id')
+            == first['catch_ids'][0] == first['caught_id']
+            and first['caught_zone'] not in {None, 'lumen'}
+            and first['catch_damage'] == 300
+        )
+        if expectation == 'placed':
+            passed = bool(
+                first['resolved'] and single_catch
+                and first['hidden_ids'] == placed_ids
+                and first['caught_id'] in placed_ids
+                and [item['kind'] for item in first['decisions']]
+                == ['effect_branch', 'effect_choice']
+                and all(
+                    item['owner'] == owner for item in first['decisions']
+                )
+                and first['decisions'][1]['option_ids'] == sorted([
+                    f'{owner}-secret-hand-0', f'{owner}-secret-hand-1',
+                    f'{owner}-secret-hand-2', f'{owner}-secret-list-0',
+                ])
+            )
+        elif expectation == 'existing':
+            passed = bool(
+                first['resolved'] and single_catch
+                and [item['kind'] for item in first['decisions']]
+                == ['effect_branch']
+                and first['caught_id'] == f'{owner}-secret-hidden-0'
+            )
+        elif expectation == 'nothing':
+            passed = bool(
+                first['resolved'] and not first['decisions']
+                and not first['hidden_ids'] and not first['granted_where']
+            )
+        else:
+            passed = bool(
+                not first['resolved'] and not first['decisions']
+                and not first['granted_where']
+            )
+        scenarios.append({
+            'name': name, 'passed': bool(deterministic and passed),
             'deterministic': deterministic, **first,
         })
-    guess_review = AbilityReview(
-        guess['id'], all(item['passed'] for item in guess_scenarios),
-        guess_scenarios,
-        '' if all(item['passed'] for item in guess_scenarios)
-        else '비밀 속도 정답·오답·회수 성공 후속 분기 검증에 실패했습니다.',
-    )
-    reviews = [setup_review, limit_review, guess_review]
-    passed = all(
-        review.passed and len(review.scenarios) >= 3 for review in reviews
+    passed = all(item['passed'] for item in scenarios)
+    review = AbilityReview(
+        'unc-at-027-n1', passed, scenarios,
+        '' if passed else (
+            '에라타 시크릿 타임의 뒷면 배치·무작위 캐치 시나리오 검증에 '
+            '실패했습니다.'
+        ),
     )
     return DefinitionReview(
-        passed, False, reviews,
-        '' if passed else '시크릿 타임의 카드별 Q&A 시나리오 검증에 실패했습니다.',
+        passed, False, [review],
+        '' if passed else '시크릿 타임의 카드별 시나리오 검증에 실패했습니다.',
         method=AUTOMATIC_SCENARIO_VERSION,
     )
 

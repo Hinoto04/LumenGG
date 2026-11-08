@@ -21134,45 +21134,114 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         for rule in definition.get('combo_rules') or []:
             rule['numbered_effect'] = True
     if normalized_code == 'UNC-AT-027':
-        by_id = {ability.get('id'): ability for ability in abilities}
-        showcased_key = 'unc_at_027_showcased'
-        secret_key = 'unc_at_027_secret_card'
-        guess_key = 'unc_at_027_speed_guess'
-        secret_moved_key = 'unc_at_027_secret_moved'
-        secret_returned_key = 'unc_at_027_secret_returned'
-        distinct_hand_condition = {
-            'op': 'gte',
-            'left': {
-                'op': 'zone_distinct_count', 'player': {'controller': True},
-                'zone': 'hand', 'field': 'frame',
-            },
-            'right': 3,
+        # Errata (CB04-AT-016 reprint): after judgment, if no damage was
+        # received, optionally place three <speed 8 or less> Techniques from
+        # hand/list face down in the own Lumen Zone, then optionally Catch with
+        # one random face-down card of the own Lumen Zone.  Open rule points
+        # are tracked in AUTOMATIC_EFFECT_RULE_QUESTIONS_KO.txt.
+        placed_key = 'unc_at_027_placed_cards'
+        random_key = 'unc_at_027_random_catch_card'
+        place_where = {'is_technique': True, 'frame_gte': 1, 'frame_lte': 8}
+        place_selector = {
+            'kind': 'card', 'player': {'controller': True},
+            'zones': ['hand', 'list'], 'min': 3, 'max': 3,
+            'where': copy.deepcopy(place_where),
+            'as_operation': 'move_card', 'to_zone': 'lumen',
         }
-
-        def secret_time_setup(*, move_source):
-            after_move = [{'op': 'hide', 'selection_key': secret_key}]
-            if move_source:
-                after_move.append({
-                    'op': 'move_card',
-                    'card_instance_id': {
-                        'path': 'context.source_card_instance_id',
-                    },
-                    'to_zone': 'lumen',
-                })
-            final_effects = [
-                {'op': 'hide', 'selection_key': showcased_key},
+        initial = next(
+            (
+                ability for ability in abilities
+                if ability.get('id') == 'unc-at-027-n1'
+            ),
+            None,
+        )
+        source_refs = copy.deepcopy(
+            (initial or {}).get('source_refs')
+            or definition.get('source_refs') or {},
+        )
+        abilities[:] = [{
+            'id': 'unc-at-027-n1',
+            'label': (initial or {}).get('label')
+            or '판정 후, 데미지를 받지 않았다면 이하의 효과를 적용한다.',
+            'kind': 'effect', 'mode': 'mandatory',
+            'timing': 'after_judgment', 'visibility': 'public',
+            'source_refs': source_refs,
+            'draft': True, 'draft_compiled': True,
+            **(
+                {'draft_text': initial['draft_text']}
+                if (initial or {}).get('draft_text') else {}
+            ),
+            'trigger': {'event': 'after_judgment'},
+            'condition': {
+                'op': 'equals',
+                'left': 'context.controller_damage_received', 'right': 0,
+            },
+            'effects': [
                 {
-                    'op': 'move_card', 'selection_key': secret_key,
-                    'to_zone': 'lumen', 'to_player': {'opponent': True},
-                    'face_up': False,
-                    'set_flags': {
-                        'secret_time_host': {
-                            'path': 'context.source_card_instance_id',
+                    'op': 'conditional',
+                    'condition': {
+                        'op': 'gte',
+                        'left': {
+                            'op': 'add',
+                            'values': [
+                                {
+                                    'op': 'zone_count',
+                                    'player': {'controller': True},
+                                    'zone': zone,
+                                    'where': copy.deepcopy(place_where),
+                                }
+                                for zone in ('hand', 'list')
+                            ],
                         },
-                        'non_technique_while_face_down': True,
-                        'effects_negated': True,
+                        'right': 3,
                     },
-                    'result_key': secret_moved_key,
+                    'then': [{
+                        'op': 'choose_effect',
+                        'player': {'controller': True},
+                        'prompt': (
+                            '패나 리스트의 8속도 이하 기술 3장을 루멘 존에 '
+                            '뒷면으로 배치하시겠습니까?'
+                        ),
+                        'optional': True,
+                        'options': [{
+                            'id': 'place', 'label': '3장 뒷면 배치',
+                            'selector_available': copy.deepcopy(
+                                place_selector,
+                            ),
+                            'effects': [{
+                                'op': 'request_choice',
+                                'player': {'controller': True},
+                                'prompt': (
+                                    '루멘 존에 뒷면으로 배치할 8속도 이하 '
+                                    '기술 3장을 선택하세요.'
+                                ),
+                                'selector': copy.deepcopy(place_selector),
+                                'selection_key': placed_key, 'default': [],
+                                'then': [
+                                    {
+                                        'op': 'move_card',
+                                        'selection_key': placed_key,
+                                        'to_zone': 'lumen', 'face_up': False,
+                                    },
+                                    {
+                                        'op': 'hide',
+                                        'selection_key': placed_key,
+                                    },
+                                ],
+                            }],
+                        }],
+                    }],
+                    'else': [],
+                },
+                {
+                    'op': 'random_select',
+                    'selector': {
+                        'kind': 'card', 'player': {'controller': True},
+                        'zones': ['lumen'], 'min': 0, 'max': 1,
+                        'where': {'face_up': False},
+                    },
+                    'count': 1, 'selection_key': random_key,
+                    'visibility': 'private',
                 },
                 {
                     'op': 'conditional',
@@ -21180,166 +21249,22 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                         'op': 'gte',
                         'left': {
                             'op': 'selection_count',
-                            'selection_key': secret_moved_key,
+                            'selection_key': random_key,
                         },
                         'right': 1,
                     },
-                    'then': after_move, 'else': [],
-                },
-            ]
-            return [{
-                'op': 'request_choice', 'player': {'controller': True},
-                'prompt': '서로 속도가 다른 자신의 패 3장을 공개하세요.',
-                'selector': {
-                    'kind': 'card', 'player': {'controller': True},
-                    'zones': ['hand'], 'min': 3, 'max': 3,
-                    'distinct_by': 'frame',
-                },
-                'selection_key': showcased_key, 'default': [],
-                'then': [
-                    {'op': 'reveal', 'selection_key': showcased_key},
-                    {
-                        'op': 'request_choice', 'player': {'opponent': True},
-                        'prompt': '상대 루멘 존에 뒷면으로 배치할 카드를 선택하세요.',
-                        'selector': {
-                            'kind': 'card', 'player': {'controller': True},
-                            'zones': ['hand'], 'min': 1, 'max': 1,
-                            'selection_key': showcased_key,
-                            'as_operation': 'move_card', 'to_zone': 'lumen',
-                        },
-                        'selection_key': secret_key, 'default': [],
-                        'then': final_effects,
-                    },
-                ],
-            }]
-
-        initial = by_id.get('unc-at-027-n1')
-        if initial:
-            initial.update({
-                'mode': 'mandatory', 'draft_compiled': True,
-                'condition': _combine_conditions(
-                    initial.get('condition'), distinct_hand_condition,
-                ),
-                'effects': secret_time_setup(move_source=True),
-            })
-            source_refs = copy.deepcopy(initial.get('source_refs') or {})
-        else:
-            source_refs = copy.deepcopy(definition.get('source_refs') or {})
-
-        secret_selector = {
-            'kind': 'card', 'player': {'opponent': True},
-            'zones': ['lumen'], 'min': 0, 'max': 1,
-            'where': {
-                'secret_time_host': {
-                    'path': 'context.source_card_instance_id',
-                },
-                'face_up': False,
-            },
-        }
-        replace_or_break = {
-            'op': 'choose_effect', 'player': {'controller': True},
-            'prompt': '새 비밀 카드를 배치하거나 시크릿 타임을 브레이크하세요.',
-            'default': 'break',
-            'options': [
-                {
-                    'id': 'replace', 'label': '새 카드 배치',
-                    'condition': distinct_hand_condition,
-                    'effects': secret_time_setup(move_source=False),
-                },
-                {
-                    'id': 'break', 'label': '시크릿 타임 브레이크',
-                    'effects': [{
-                        'op': 'break_card',
-                        'card_instance_id': {
-                            'path': 'context.source_card_instance_id',
-                        },
-                    }],
-                },
-            ],
-        }
-        abilities.append({
-            'id': 'unc-at-027-secret-guess',
-            'label': '루멘 페이즈 비밀 속도 선언',
-            'kind': 'effect', 'mode': 'mandatory', 'timing': 'function',
-            'visibility': 'public', 'source_refs': source_refs,
-            'draft': True, 'draft_compiled': True,
-            'active_zones': ['lumen'],
-            'trigger': {'event': 'phase_start'},
-            'limit': {
-                'scope': 'turn', 'max': 1,
-                'key': 'unc-at-027-secret-guess',
-            },
-            'condition': {
-                'op': 'all',
-                'conditions': [
-                    {'op': 'phase_is', 'phase': 'lumen'},
-                    {
-                        'op': 'zone_count', 'player': {'opponent': True},
-                        'zone': 'lumen', 'min': 1, 'where': secret_selector['where'],
-                    },
-                ],
-            },
-            'effects': [
-                {
-                    'op': 'capture_selection', 'selector': secret_selector,
-                    'selection_key': secret_key,
-                },
-                {
-                    'op': 'request_amount', 'player': {'opponent': True},
-                    'prompt': '뒷면 카드의 속도를 선언하세요.',
-                    'min': 1, 'max': 100,
-                    'values': [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 100],
-                    'selection_key': guess_key, 'default': 1,
                     'then': [{
-                        'op': 'conditional',
-                        'condition': {
-                            'op': 'equals',
-                            'left': {
-                                'op': 'selected_value',
-                                'selection_key': guess_key,
-                            },
-                            'right': {
-                                'op': 'selected_card_field',
-                                'selection_key': secret_key, 'field': 'frame',
-                            },
-                        },
-                        'then': [
-                            {
-                                'op': 'break_card',
-                                'card_instance_id': {
-                                    'path': 'context.source_card_instance_id',
-                                },
-                            },
-                            {'op': 'break_card', 'selection_key': secret_key},
-                        ],
-                        'else': [
-                            {
-                                'op': 'deal_damage',
-                                'player': {'opponent': True}, 'amount': 300,
-                            },
-                            {
-                                'op': 'move_card', 'selection_key': secret_key,
-                                'to_zone': 'hand',
-                                'to_player': {'controller': True},
-                                'result_key': secret_returned_key,
-                            },
-                            {
-                                'op': 'conditional',
-                                'condition': {
-                                    'op': 'gte',
-                                    'left': {
-                                        'op': 'selection_count',
-                                        'selection_key': secret_returned_key,
-                                    },
-                                    'right': 1,
-                                },
-                                'then': [replace_or_break], 'else': [],
-                            },
-                        ],
+                        'op': 'grant_catch', 'player': {'controller': True},
+                        'allow_zones': ['lumen'],
+                        'selection_key': random_key,
+                        'where': {'face_up': False},
                     }],
+                    'else': [],
                 },
             ],
-        })
+        }]
+        definition.pop('effect_damage_limit', None)
+        definition.pop('catch_rules', None)
     if normalized_code == 'UNC-AT-028':
         by_id = {ability.get('id'): ability for ability in abilities}
         normal_break = by_id.get('unc-at-028-n2')
