@@ -1,4 +1,5 @@
 import copy
+from collections import Counter
 import json
 import hashlib
 import importlib
@@ -1941,6 +1942,50 @@ class AutomaticEngineTests(SimpleTestCase):
 
         self.assertEqual(decision.action['card']['instance_id'], 'progressing')
 
+    def test_ai_samples_among_close_cards_with_score_weights(self):
+        best = attack('best', 'p1', damage=500, frame=4)
+        close = attack('close', 'p1', damage=500, frame=5)
+        third = attack('third', 'p1', damage=500, frame=6)
+        weak = attack('weak', 'p1', damage=100, frame=11)
+        engine = self.make_engine([best, close, third, weak], [])
+        self.enter_ready(engine)
+        observation = engine.observe('p1')
+
+        picks = Counter(
+            choose_action(observation, 'p1', seed=f'variety-{index}').action['card']['instance_id']
+            for index in range(300)
+        )
+
+        # 약한 카드는 후보에서 빠지고, 가까운 카드들은 점수 순서대로 섞여 나온다.
+        self.assertNotIn('weak', picks)
+        self.assertGreater(picks['close'], 0)
+        self.assertGreater(picks['third'], 0)
+        self.assertGreater(picks['best'], picks['close'])
+        self.assertGreater(picks['close'], picks['third'])
+
+    def test_ai_card_sampling_is_reproducible_and_can_be_greedy(self):
+        best = attack('best', 'p1', damage=500, frame=4)
+        close = attack('close', 'p1', damage=500, frame=5)
+        third = attack('third', 'p1', damage=500, frame=6)
+        engine = self.make_engine([best, close, third], [])
+        self.enter_ready(engine)
+        observation = engine.observe('p1')
+
+        first = choose_action(observation, 'p1', seed='same-seed')
+        again = choose_action(observation, 'p1', seed='same-seed')
+        greedy = {
+            choose_action(observation, 'p1', seed=f'g-{index}', temperature=0).action['card']['instance_id']
+            for index in range(30)
+        }
+        top_two = {
+            choose_action(observation, 'p1', seed=f't-{index}', top_k=2).action['card']['instance_id']
+            for index in range(100)
+        }
+
+        self.assertEqual(first.action['action_id'], again.action['action_id'])
+        self.assertEqual(greedy, {'best'})
+        self.assertEqual(top_two, {'best', 'close'})
+
     def test_policy_self_play_completes_through_public_engine_api(self):
         state = base_state()
         cards = []
@@ -2053,7 +2098,8 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertGreater(metrics['score'], 0.5)
         self.assertEqual(
             (metrics['wins'], metrics['losses'], metrics['draws']),
-            (7, 5, 8),
+            # 카드 후보 가중 랜덤 도입 후 스냅샷. 같은 시드면 재현된다.
+            (17, 3, 0),
         )
 
     def test_training_command_uses_non_conflicting_policy_version_option(self):

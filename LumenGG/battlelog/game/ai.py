@@ -1,6 +1,8 @@
 """Deterministic policies that consume only the public engine contract."""
 
 import hashlib
+import math
+import random
 from dataclasses import dataclass
 
 
@@ -37,6 +39,21 @@ DEFAULT_POLICY_WEIGHTS = {
 }
 
 AUTONOMOUS_ACTION_EXCLUSIONS = {'request_rewind', 'pause_clock', 'concede'}
+
+# Actions that put a specific card on the table. Only these are sampled; the
+# progress/system buttons (pass, resume clock, decline ...) stay argmax so the
+# AI never randomly skips a phase or stalls the clock.
+CARD_ACTION_TYPES = {
+    'ready_card', 'select_get_card', 'select_ultimate', 'play_catch_card',
+    'play_combo_card', 'play_combo_pair', 'play_combo_sequence',
+    'select_combo_first', 'select_combo_followup',
+}
+# Shortlist: at most SHORTLIST_SIZE card actions whose score is within
+# SHORTLIST_MARGIN of the best card. One of them is drawn with softmax
+# weights exp((score - best) / SAMPLING_TEMPERATURE).
+SHORTLIST_SIZE = 3
+SHORTLIST_MARGIN = 2.5
+SAMPLING_TEMPERATURE = 0.75
 
 
 @dataclass(frozen=True)
@@ -130,8 +147,23 @@ def _decision_selections(observation, action):
     return {'selected': preferred[:minimum]}
 
 
-def choose_action(observation, role, *, weights=None, seed='ai'):
-    """Choose one legal action from a role-filtered observation."""
+def choose_action(
+    observation,
+    role,
+    *,
+    weights=None,
+    seed='ai',
+    top_k=None,
+    margin=None,
+    temperature=None,
+):
+    """Choose one legal action from a role-filtered observation.
+
+    Non-card actions are picked greedily. When the best action plays a card,
+    the AI shortlists the few strongest card actions and draws one with
+    score-weighted randomness so it does not repeat the same line every game.
+    ``temperature=0`` restores the fully greedy choice.
+    """
     legal = list(observation.get('legal_actions') or [])
     if not legal:
         return None
@@ -151,16 +183,60 @@ def choose_action(observation, role, *, weights=None, seed='ai'):
     if rewind_decline:
         candidates = rewind_decline
     ranked = sorted(
-        candidates,
-        key=lambda action: (
-            score_action(observation, role, action, weights),
-            _stable_tiebreak(seed, role, action),
+        (
+            (score_action(observation, role, action, weights), action)
+            for action in candidates
         ),
+        key=lambda item: (item[0], _stable_tiebreak(seed, role, item[1])),
         reverse=True,
     )
-    action = ranked[0]
+    score, action = ranked[0]
+    if action.get('type') in CARD_ACTION_TYPES:
+        score, action = _sample_card_action(
+            ranked,
+            seed=seed,
+            role=role,
+            top_k=SHORTLIST_SIZE if top_k is None else top_k,
+            margin=SHORTLIST_MARGIN if margin is None else margin,
+            temperature=SAMPLING_TEMPERATURE if temperature is None else temperature,
+        )
     return AIDecision(
         action=action,
         selections=_decision_selections(observation, action),
-        score=score_action(observation, role, action, weights),
+        score=score,
     )
+
+
+def card_shortlist(ranked, *, top_k=SHORTLIST_SIZE, margin=SHORTLIST_MARGIN):
+    """Return the strongest card actions from a (score, action) ranking."""
+    cards = [item for item in ranked if item[1].get('type') in CARD_ACTION_TYPES]
+    if not cards:
+        return []
+    best = cards[0][0]
+    return [item for item in cards if item[0] >= best - margin][:max(1, int(top_k))]
+
+
+def shortlist_weights(shortlist, *, temperature=SAMPLING_TEMPERATURE):
+    """Softmax probabilities for a shortlist, highest score first."""
+    if not shortlist:
+        return []
+    if temperature <= 0:
+        return [1.0] + [0.0] * (len(shortlist) - 1)
+    best = shortlist[0][0]
+    raw = [math.exp((score - best) / temperature) for score, _action in shortlist]
+    total = sum(raw)
+    return [value / total for value in raw]
+
+
+def _sample_card_action(ranked, *, seed, role, top_k, margin, temperature):
+    shortlist = card_shortlist(ranked, top_k=top_k, margin=margin)
+    if len(shortlist) <= 1:
+        return shortlist[0] if shortlist else ranked[0]
+    probabilities = shortlist_weights(shortlist, temperature=temperature)
+    # Seeded per decision point: replays of the same seed are reproducible,
+    # while each session/version draws independently.
+    key = ':'.join(
+        [str(seed), role, *sorted(str(item[1].get('action_id')) for item in shortlist)]
+    )
+    rng = random.Random(hashlib.sha256(key.encode()).hexdigest())
+    return rng.choices(shortlist, weights=probabilities, k=1)[0]
