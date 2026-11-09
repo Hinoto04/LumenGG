@@ -31707,8 +31707,12 @@ def _review_unc_at_027_definition(definition, card_snapshot, extra_root):
     snapshot = card_snapshot or {}
     valid = bool(
         not extra_root and setup
-        and {key: snapshot.get(key) for key in expected_source}
-        == expected_source
+        and {
+            # The catalog stores an empty body as either '' or None.
+            key: (snapshot.get(key) or '') if key == 'body'
+            else snapshot.get(key)
+            for key in expected_source
+        } == expected_source
         and setup.get('id') == 'unc-at-027-n1'
         and setup.get('mode') == 'mandatory'
         and setup.get('trigger') == {'event': 'after_judgment'}

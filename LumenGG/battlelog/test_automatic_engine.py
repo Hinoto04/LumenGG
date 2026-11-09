@@ -29353,6 +29353,11 @@ class AutomaticEngineTests(SimpleTestCase):
             definition, card_has_text=True,
             card_snapshot={**snapshot, 'type': '공격'},
         ).passed)
+        # The live catalog stores this card's empty body as None.
+        self.assertTrue(review_automatic_definition(
+            definition, card_has_text=True,
+            card_snapshot={**snapshot, 'body': None},
+        ).passed)
         self.assertEqual(
             validate_effect_definition(definition, card_has_text=True), [],
         )
