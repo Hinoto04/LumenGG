@@ -2094,6 +2094,7 @@ class EffectResolver:
                 'max_speed': effect.get('max_speed'),
                 'source': context.get('source_card_instance_id'),
                 'damage_bonus': effect.get('damage_bonus', 0),
+                **({'random_pick': True} if effect.get('random_pick') else {}),
                 'return_source_to_hand': bool(effect.get('return_source_to_hand')),
                 'break_after_use': bool(effect.get('break_after_use')),
                 'break_source_after_use': bool(effect.get('break_source_after_use')),

@@ -31406,13 +31406,25 @@ def _unc_at_027_card(code, owner, instance_id, frame, *, card_type='공격'):
 
 
 def _unc_at_027_expected_effects():
-    """Errata text of Secret Time (UNC-AT-027 / CB04-AT-016)."""
+    """Errata text of Secret Time (UNC-AT-027 / CB04-AT-016), Q-AUTO-007."""
     placed_key = 'unc_at_027_placed_cards'
-    random_key = 'unc_at_027_random_catch_card'
     place_where = {'is_technique': True, 'frame_gte': 1, 'frame_lte': 8}
+    available_count = {
+        'op': 'add',
+        'values': [
+            {
+                'op': 'zone_count', 'player': {'controller': True},
+                'zone': zone, 'where': copy.deepcopy(place_where),
+            }
+            for zone in ('hand', 'list')
+        ],
+    }
+    place_count = {'op': 'min', 'values': [3, available_count]}
     place_selector = {
         'kind': 'card', 'player': {'controller': True},
-        'zones': ['hand', 'list'], 'min': 3, 'max': 3,
+        'zones': ['hand', 'list'],
+        'min': copy.deepcopy(place_count),
+        'max': copy.deepcopy(place_count),
         'where': copy.deepcopy(place_where),
         'as_operation': 'move_card', 'to_zone': 'lumen',
     }
@@ -31420,42 +31432,33 @@ def _unc_at_027_expected_effects():
         {
             'op': 'conditional',
             'condition': {
-                'op': 'gte',
-                'left': {
-                    'op': 'add',
-                    'values': [
-                        {
-                            'op': 'zone_count',
-                            'player': {'controller': True},
-                            'zone': zone, 'where': copy.deepcopy(place_where),
-                        }
-                        for zone in ('hand', 'list')
-                    ],
-                },
-                'right': 3,
+                'op': 'gte', 'left': copy.deepcopy(available_count),
+                'right': 1,
             },
             'then': [{
-                'op': 'choose_effect', 'player': {'controller': True},
+                'op': 'choose_effect',
+                'player': {'controller': True},
                 'prompt': (
-                    '패나 리스트의 8속도 이하 기술 3장을 루멘 존에 '
-                    '뒷면으로 배치하시겠습니까?'
+                    '패나 리스트의 8속도 이하 기술(최대 3장)을 루멘 '
+                    '존에 뒷면으로 배치하시겠습니까?'
                 ),
                 'optional': True,
                 'options': [{
-                    'id': 'place', 'label': '3장 뒷면 배치',
+                    'id': 'place', 'label': '뒷면 배치',
                     'selector_available': copy.deepcopy(place_selector),
                     'effects': [{
                         'op': 'request_choice',
                         'player': {'controller': True},
                         'prompt': (
                             '루멘 존에 뒷면으로 배치할 8속도 이하 '
-                            '기술 3장을 선택하세요.'
+                            '기술을 선택하세요(최대 3장).'
                         ),
                         'selector': copy.deepcopy(place_selector),
                         'selection_key': placed_key, 'default': [],
                         'then': [
                             {
-                                'op': 'move_card', 'selection_key': placed_key,
+                                'op': 'move_card',
+                                'selection_key': placed_key,
                                 'to_zone': 'lumen', 'face_up': False,
                             },
                             {'op': 'hide', 'selection_key': placed_key},
@@ -31466,28 +31469,20 @@ def _unc_at_027_expected_effects():
             'else': [],
         },
         {
-            'op': 'random_select',
-            'selector': {
-                'kind': 'card', 'player': {'controller': True},
-                'zones': ['lumen'], 'min': 0, 'max': 1,
-                'where': {'face_up': False},
-            },
-            'count': 1, 'selection_key': random_key,
-            'visibility': 'private',
-        },
-        {
             'op': 'conditional',
             'condition': {
                 'op': 'gte',
                 'left': {
-                    'op': 'selection_count', 'selection_key': random_key,
+                    'op': 'zone_count', 'player': {'controller': True},
+                    'zone': 'lumen', 'where': {'face_up': False},
                 },
                 'right': 1,
             },
             'then': [{
                 'op': 'grant_catch', 'player': {'controller': True},
-                'allow_zones': ['lumen'], 'selection_key': random_key,
+                'allow_zones': ['lumen'],
                 'where': {'face_up': False},
+                'random_pick': True,
             }],
             'else': [],
         },
@@ -31604,6 +31599,8 @@ def _run_unc_at_027_scenario(
             'option_ids': sorted(
                 str(option.get('id')) for option in choice.get('options') or []
             ),
+            'minimum': choice.get('minimum'),
+            'maximum': choice.get('maximum'),
         })
         _unc_at_027_submit(
             engine, owner, [f'{owner}-secret-{item}' for item in pick],
@@ -31617,38 +31614,74 @@ def _run_unc_at_027_scenario(
         for catch in engine.engine_state.get('granted_catches') or []
         if catch.get('owner') == owner
     ]
-    catch_ids = []
-    caught_id = None
+    catch_actions = []
+    candidate_ids = []
+    drawn_id = None
+    drawn_usable = None
     caught_zone = None
+    fizzled = False
     hp_before = int(engine.state['players'][other]['hp'])
     if granted:
         engine.engine_state['battle'] = {owner: {}, other: {}}
         engine._open_catch_or_cleanup()
+        catch = engine.engine_state.get('catch') or {}
+        candidate_ids = sorted(
+            str(card.get('instance_id'))
+            for card in engine._random_catch_candidates(owner, catch)
+        )
         catch_actions = [
-            action for action in engine.legal_actions(owner)
+            copy.deepcopy(action) for action in engine.legal_actions(owner)
             if action.get('type') == 'play_catch_card'
         ]
-        catch_ids = sorted(
-            str(action['payload']['card_instance_id'])
-            for action in catch_actions
-        )
         if catch_actions:
-            action = catch_actions[0]
-            caught_id = str(action['payload']['card_instance_id'])
+            event_start = len(engine.events)
             engine.submit_action(
-                owner, action['action_id'], {},
+                owner, catch_actions[0]['action_id'], {},
                 command_id=f'secret-time-review-catch-{owner}',
             )
-            location = engine._find_location(caught_id)
+            new_events = engine.events[event_start:]
+            drawn = next((
+                event for event in new_events
+                if event.get('type') == 'random_catch_drawn'
+            ), None)
+            if drawn:
+                payload = drawn.get('payload') or {}
+                drawn_id = str((payload.get('card') or {}).get('instance_id'))
+                drawn_usable = bool(payload.get('usable'))
+            fizzled = any(
+                event.get('type') == 'catch_fizzled' for event in new_events
+            )
+            location = engine._find_location(drawn_id) if drawn_id else None
             caught_zone = location[1] if location else None
+    lumen_after = engine.state['players'][owner]['zones']['lumen']
     return {
         'decisions': decisions,
         'hidden_ids': hidden_ids,
-        'granted_where': [catch.get('where') for catch in granted],
-        'granted_zones': [catch.get('allow_zones') for catch in granted],
-        'catch_ids': catch_ids,
-        'caught_id': caught_id,
+        'granted': [
+            {
+                'where': catch.get('where'),
+                'allow_zones': catch.get('allow_zones'),
+                'random_pick': bool(catch.get('random_pick')),
+                'max_speed': catch.get('max_speed'),
+            }
+            for catch in granted
+        ],
+        'candidate_ids': candidate_ids,
+        'catch_actions': [
+            {
+                'payload': action.get('payload'),
+                'has_card': bool(action.get('card')),
+            }
+            for action in catch_actions
+        ],
+        'drawn_id': drawn_id,
+        'drawn_usable': drawn_usable,
+        'fizzled': fizzled,
         'caught_zone': caught_zone,
+        'hidden_after': sorted(
+            card['instance_id'] for card in lumen_after
+            if card.get('face_up') is False
+        ),
         'catch_damage': hp_before - int(engine.state['players'][other]['hp']),
         'resolved': any(
             event.get('type') == 'effect_resolved'
@@ -31692,15 +31725,15 @@ def _review_unc_at_027_definition(definition, card_snapshot, extra_root):
             False, False, [AbilityReview(
                 'unc-at-027', False,
                 reason=(
-                    '시크릿 타임(에라타)의 무피해 조건·8속도 이하 기술 3장 '
-                    '뒷면 배치·무작위 뒷면 카드 캐치 정의가 일치하지 않습니다.'
+                    '시크릿 타임(에라타)의 무피해 조건·8속도 이하 기술 최대 '
+                    '3장 뒷면 배치·캐치 시점 무작위 뒷면 카드 캐치 정의가 '
+                    '일치하지 않습니다.'
                 ),
             )],
             'UNC-AT-027 전용 정의 검증에 실패했습니다.',
             method=AUTOMATIC_SCENARIO_VERSION,
         )
 
-    placed_names = ('hand-0', 'hand-1', 'list-0')
     specs = (
         # name, owner, scenario kwargs, expectation
         (
@@ -31716,17 +31749,27 @@ def _review_unc_at_027_definition(definition, card_snapshot, extra_root):
             'p1', {'seed_suffix': 'alternate'}, 'placed',
         ),
         (
+            'random-pool-includes-existing-hidden-card', 'p2',
+            {'hidden': (4,)}, 'pool',
+        ),
+        (
+            'fewer-than-three-candidates-places-all-of-them', 'p1',
+            {'hand': (5,), 'listed': (6,), 'pick': ('hand-0', 'list-0')},
+            'partial',
+        ),
+        (
             'declined-placement-still-catches-existing-hidden-card',
             'p2', {'hidden': (6,), 'place': False}, 'existing',
         ),
         (
-            'speed-nine-and-defense-are-not-placeable', 'p1',
-            {'hand': (9, 5, (None, '수비')), 'listed': (6,), 'pick': ()},
-            'nothing',
+            'uncatchable-random-card-stays-face-down-and-fizzles', 'p1',
+            {'hand': (), 'listed': (), 'hidden': ((None, '수비'),)},
+            'fizzle',
         ),
         (
-            'no-hidden-card-grants-no-catch', 'p2',
-            {'hand': (5,), 'listed': (), 'pick': ()}, 'nothing',
+            'speed-nine-and-defense-are-not-placeable', 'p1',
+            {'hand': (9, (None, '수비')), 'listed': (), 'pick': ()},
+            'nothing',
         ),
         (
             'damage-received-does-not-resolve', 'p1',
@@ -31741,6 +31784,10 @@ def _review_unc_at_027_definition(definition, card_snapshot, extra_root):
             {'numbered_effects_negated': True, 'hidden': (6,)}, 'inactive',
         ),
     )
+    random_grant = {
+        'where': {'face_up': False}, 'allow_zones': ['lumen'],
+        'random_pick': True, 'max_speed': None,
+    }
     scenarios = []
     for name, owner, kwargs, expectation in specs:
         first = _run_unc_at_027_scenario(
@@ -31750,49 +31797,90 @@ def _review_unc_at_027_definition(definition, card_snapshot, extra_root):
             definition, snapshot, owner, **kwargs,
         )
         deterministic = _canonical(first) == _canonical(second)
-        placed_ids = sorted(
-            f'{owner}-secret-{item}' for item in placed_names
-        )
-        single_catch = bool(
-            len(first['granted_where']) == 1
-            and first['granted_zones'] == [['lumen']]
-            and len(first['catch_ids']) == 1
-            and first['granted_where'][0].get('instance_id')
-            == first['catch_ids'][0] == first['caught_id']
-            and first['caught_zone'] not in {None, 'lumen'}
-            and first['catch_damage'] == 300
+
+        def ids(*names):
+            return sorted(f'{owner}-secret-{item}' for item in names)
+
+        def caught(pool):
+            # One cardless random-catch action; the card is drawn only after
+            # committing, then played as a Catch outside the lumen zone with
+            # its printed damage and no FP speed cap.
+            return bool(
+                first['granted'] == [random_grant]
+                and first['candidate_ids'] == pool
+                and first['catch_actions'] == [{
+                    'payload': {'random_pick': True}, 'has_card': False,
+                }]
+                and first['drawn_id'] in pool
+                and first['drawn_usable'] is True
+                and not first['fizzled']
+                and first['caught_zone'] not in {None, 'lumen'}
+                and first['catch_damage'] == 300
+                and first['hidden_after'] == sorted(
+                    set(pool) - {first['drawn_id']}
+                )
+            )
+
+        placed = ids('hand-0', 'hand-1', 'list-0')
+        kinds = [item['kind'] for item in first['decisions']]
+        three_of_four = bool(
+            kinds == ['effect_branch', 'effect_choice']
+            and all(item['owner'] == owner for item in first['decisions'])
+            and first['decisions'][1]['option_ids']
+            == ids('hand-0', 'hand-1', 'hand-2', 'list-0')
+            and first['decisions'][1]['minimum'] == 3
+            and first['decisions'][1]['maximum'] == 3
         )
         if expectation == 'placed':
             passed = bool(
-                first['resolved'] and single_catch
-                and first['hidden_ids'] == placed_ids
-                and first['caught_id'] in placed_ids
-                and [item['kind'] for item in first['decisions']]
-                == ['effect_branch', 'effect_choice']
-                and all(
-                    item['owner'] == owner for item in first['decisions']
-                )
-                and first['decisions'][1]['option_ids'] == sorted([
-                    f'{owner}-secret-hand-0', f'{owner}-secret-hand-1',
-                    f'{owner}-secret-hand-2', f'{owner}-secret-list-0',
-                ])
+                first['resolved'] and three_of_four
+                and first['hidden_ids'] == placed and caught(placed)
+            )
+        elif expectation == 'pool':
+            pool = sorted([*placed, f'{owner}-secret-hidden-0'])
+            passed = bool(
+                first['resolved'] and three_of_four
+                and first['hidden_ids'] == pool and caught(pool)
+            )
+        elif expectation == 'partial':
+            pool = ids('hand-0', 'list-0')
+            passed = bool(
+                first['resolved']
+                and kinds == ['effect_branch', 'effect_choice']
+                and first['decisions'][1]['option_ids'] == pool
+                and first['decisions'][1]['minimum'] == 2
+                and first['decisions'][1]['maximum'] == 2
+                and first['hidden_ids'] == pool and caught(pool)
             )
         elif expectation == 'existing':
+            pool = ids('hidden-0')
             passed = bool(
-                first['resolved'] and single_catch
-                and [item['kind'] for item in first['decisions']]
-                == ['effect_branch']
-                and first['caught_id'] == f'{owner}-secret-hidden-0'
+                first['resolved'] and kinds == ['effect_branch']
+                and first['hidden_ids'] == pool and caught(pool)
+            )
+        elif expectation == 'fizzle':
+            pool = ids('hidden-0')
+            passed = bool(
+                first['resolved'] and not first['decisions']
+                and first['granted'] == [random_grant]
+                and first['candidate_ids'] == pool
+                and len(first['catch_actions']) == 1
+                and first['drawn_id'] == pool[0]
+                and first['drawn_usable'] is False
+                and first['fizzled']
+                and first['caught_zone'] == 'lumen'
+                and first['hidden_after'] == pool
+                and first['catch_damage'] == 0
             )
         elif expectation == 'nothing':
             passed = bool(
                 first['resolved'] and not first['decisions']
-                and not first['hidden_ids'] and not first['granted_where']
+                and not first['hidden_ids'] and not first['granted']
             )
         else:
             passed = bool(
                 not first['resolved'] and not first['decisions']
-                and not first['granted_where']
+                and not first['granted']
             )
         scenarios.append({
             'name': name, 'passed': bool(deterministic and passed),

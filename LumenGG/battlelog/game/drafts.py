@@ -21134,17 +21134,33 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         for rule in definition.get('combo_rules') or []:
             rule['numbered_effect'] = True
     if normalized_code == 'UNC-AT-027':
-        # Errata (CB04-AT-016 reprint): after judgment, if no damage was
-        # received, optionally place three <speed 8 or less> Techniques from
-        # hand/list face down in the own Lumen Zone, then optionally Catch with
-        # one random face-down card of the own Lumen Zone.  Open rule points
-        # are tracked in AUTOMATIC_EFFECT_RULE_QUESTIONS_KO.txt.
+        # Errata (CB04-AT-016 reprint), rulings in Q-AUTO-007: after judgment,
+        # if no damage was received, optionally place up to three <speed 8 or
+        # less> attack Techniques (fewer when fewer qualify) from hand/list
+        # face down in the own Lumen Zone.  Independently, the player may Catch
+        # with a face-down card of the own Lumen Zone drawn at random only
+        # when the Catch is declared; an uncatchable draw stays face down and
+        # the Catch fizzles.  No FP speed cap applies.
         placed_key = 'unc_at_027_placed_cards'
-        random_key = 'unc_at_027_random_catch_card'
         place_where = {'is_technique': True, 'frame_gte': 1, 'frame_lte': 8}
+        available_count = {
+            'op': 'add',
+            'values': [
+                {
+                    'op': 'zone_count',
+                    'player': {'controller': True},
+                    'zone': zone,
+                    'where': copy.deepcopy(place_where),
+                }
+                for zone in ('hand', 'list')
+            ],
+        }
+        place_count = {'op': 'min', 'values': [3, available_count]}
         place_selector = {
             'kind': 'card', 'player': {'controller': True},
-            'zones': ['hand', 'list'], 'min': 3, 'max': 3,
+            'zones': ['hand', 'list'],
+            'min': copy.deepcopy(place_count),
+            'max': copy.deepcopy(place_count),
             'where': copy.deepcopy(place_where),
             'as_operation': 'move_card', 'to_zone': 'lumen',
         }
@@ -21180,31 +21196,19 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 {
                     'op': 'conditional',
                     'condition': {
-                        'op': 'gte',
-                        'left': {
-                            'op': 'add',
-                            'values': [
-                                {
-                                    'op': 'zone_count',
-                                    'player': {'controller': True},
-                                    'zone': zone,
-                                    'where': copy.deepcopy(place_where),
-                                }
-                                for zone in ('hand', 'list')
-                            ],
-                        },
-                        'right': 3,
+                        'op': 'gte', 'left': copy.deepcopy(available_count),
+                        'right': 1,
                     },
                     'then': [{
                         'op': 'choose_effect',
                         'player': {'controller': True},
                         'prompt': (
-                            '패나 리스트의 8속도 이하 기술 3장을 루멘 존에 '
-                            '뒷면으로 배치하시겠습니까?'
+                            '패나 리스트의 8속도 이하 기술(최대 3장)을 루멘 '
+                            '존에 뒷면으로 배치하시겠습니까?'
                         ),
                         'optional': True,
                         'options': [{
-                            'id': 'place', 'label': '3장 뒷면 배치',
+                            'id': 'place', 'label': '뒷면 배치',
                             'selector_available': copy.deepcopy(
                                 place_selector,
                             ),
@@ -21213,7 +21217,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                                 'player': {'controller': True},
                                 'prompt': (
                                     '루멘 존에 뒷면으로 배치할 8속도 이하 '
-                                    '기술 3장을 선택하세요.'
+                                    '기술을 선택하세요(최대 3장).'
                                 ),
                                 'selector': copy.deepcopy(place_selector),
                                 'selection_key': placed_key, 'default': [],
@@ -21234,30 +21238,21 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     'else': [],
                 },
                 {
-                    'op': 'random_select',
-                    'selector': {
-                        'kind': 'card', 'player': {'controller': True},
-                        'zones': ['lumen'], 'min': 0, 'max': 1,
-                        'where': {'face_up': False},
-                    },
-                    'count': 1, 'selection_key': random_key,
-                    'visibility': 'private',
-                },
-                {
                     'op': 'conditional',
                     'condition': {
                         'op': 'gte',
                         'left': {
-                            'op': 'selection_count',
-                            'selection_key': random_key,
+                            'op': 'zone_count',
+                            'player': {'controller': True},
+                            'zone': 'lumen', 'where': {'face_up': False},
                         },
                         'right': 1,
                     },
                     'then': [{
                         'op': 'grant_catch', 'player': {'controller': True},
                         'allow_zones': ['lumen'],
-                        'selection_key': random_key,
                         'where': {'face_up': False},
+                        'random_pick': True,
                     }],
                     'else': [],
                 },

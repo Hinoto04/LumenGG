@@ -29291,7 +29291,7 @@ class AutomaticEngineTests(SimpleTestCase):
 
         self.assertTrue(result.passed, result.as_dict())
         self.assertEqual(len(result.abilities), 1)
-        self.assertEqual(result.as_dict()['scenario_count'], 9)
+        self.assertEqual(result.as_dict()['scenario_count'], 11)
         self.assertNotIn('effect_damage_limit', definition)
         self.assertEqual(
             [ability['id'] for ability in definition['abilities']],
@@ -29307,15 +29307,24 @@ class AutomaticEngineTests(SimpleTestCase):
             placed['hidden_ids'],
             ['p1-secret-hand-0', 'p1-secret-hand-1', 'p1-secret-list-0'],
         )
-        self.assertEqual(len(placed['catch_ids']), 1)
-        self.assertIn(placed['caught_id'], placed['hidden_ids'])
+        self.assertIn(placed['drawn_id'], placed['hidden_ids'])
         self.assertEqual(placed['catch_damage'], 300)
+        pool = scenarios['random-pool-includes-existing-hidden-card']
+        self.assertIn('p2-secret-hidden-0', pool['candidate_ids'])
+        self.assertEqual(len(pool['candidate_ids']), 4)
+        partial = scenarios['fewer-than-three-candidates-places-all-of-them']
+        self.assertEqual(partial['decisions'][1]['maximum'], 2)
+        fizzle = scenarios[
+            'uncatchable-random-card-stays-face-down-and-fizzles'
+        ]
+        self.assertTrue(fizzle['fizzled'])
+        self.assertEqual(fizzle['hidden_after'], ['p1-secret-hidden-0'])
         excluded = scenarios['speed-nine-and-defense-are-not-placeable']
         self.assertEqual(excluded['decisions'], [])
-        self.assertEqual(excluded['granted_where'], [])
+        self.assertEqual(excluded['granted'], [])
         self.assertEqual(
             scenarios['declined-placement-still-catches-existing-hidden-card'][
-                'caught_id'
+                'drawn_id'
             ],
             'p2-secret-hidden-0',
         )
@@ -29330,12 +29339,10 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertFalse(review_automatic_definition(
             wrong_speed, card_has_text=True, card_snapshot=snapshot,
         ).passed)
-        wrong_catch = copy.deepcopy(definition)
-        wrong_catch['abilities'][0]['effects'][2]['then'][0].pop(
-            'selection_key'
-        )
+        fixed_pick = copy.deepcopy(definition)
+        fixed_pick['abilities'][0]['effects'][1]['then'][0].pop('random_pick')
         self.assertFalse(review_automatic_definition(
-            wrong_catch, card_has_text=True, card_snapshot=snapshot,
+            fixed_pick, card_has_text=True, card_snapshot=snapshot,
         ).passed)
         old_limit = copy.deepcopy(definition)
         old_limit['effect_damage_limit'] = {'opponent': 3, 'scope': 'game'}
@@ -29500,6 +29507,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.act(engine, 'p1', 'submit_decision', {'selected': ['place']})
         decision = engine.engine_state['pending_decision']
         self.assertEqual(decision['kind'], 'effect_choice')
+        # Q-AUTO-007: speed 9 and defense Techniques cannot be placed.
         self.assertEqual(
             sorted(str(option['id']) for option in decision['options']),
             sorted([
@@ -29507,41 +29515,124 @@ class AutomaticEngineTests(SimpleTestCase):
                 listed_eight['instance_id'],
             ]),
         )
+        self.assertEqual((decision['minimum'], decision['maximum']), (3, 3))
         self.act(engine, 'p1', 'submit_decision', {'selected': [
             speed_five['instance_id'], speed_six['instance_id'],
             listed_eight['instance_id'],
         ]})
 
         lumen = engine.state['players']['p1']['zones']['lumen']
-        self.assertEqual(
-            sorted(card['instance_id'] for card in lumen),
-            sorted([
-                speed_five['instance_id'], speed_six['instance_id'],
-                listed_eight['instance_id'],
-            ]),
-        )
+        placed_ids = {card['instance_id'] for card in lumen}
+        self.assertEqual(placed_ids, {
+            speed_five['instance_id'], speed_six['instance_id'],
+            listed_eight['instance_id'],
+        })
         self.assertTrue(all(card['face_up'] is False for card in lumen))
-        self.assertIsNone(engine._find_card(source['instance_id'], owner='p2'))
         granted = engine.engine_state['granted_catches']
         self.assertEqual(len(granted), 1)
         self.assertEqual(granted[0]['allow_zones'], ['lumen'])
-        chosen = granted[0]['where']['instance_id']
-        self.assertIn(chosen, {card['instance_id'] for card in lumen})
+        self.assertTrue(granted[0]['random_pick'])
+        # The random card is not fixed when the effect resolves.
+        self.assertNotIn('instance_id', granted[0]['where'])
 
         engine.engine_state['battle'] = {'p1': {}, 'p2': {}}
         engine._open_catch_or_cleanup()
-        catch_ids = [
-            action['payload']['card_instance_id']
-            for action in engine.legal_actions('p1')
+        catch_actions = [
+            action for action in engine.legal_actions('p1')
             if action['type'] == 'play_catch_card'
         ]
-        self.assertEqual(catch_ids, [chosen])
+        self.assertEqual(len(catch_actions), 1)
+        self.assertEqual(catch_actions[0]['payload'], {'random_pick': True})
+        self.assertNotIn('card', catch_actions[0])
         self.act(engine, 'p1', 'play_catch_card')
+        drawn = next(
+            event for event in engine.events
+            if event['type'] == 'random_catch_drawn'
+        )
+        chosen = drawn['payload']['card']['instance_id']
+        self.assertIn(chosen, placed_ids)
+        self.assertTrue(drawn['payload']['usable'])
         self.assertLess(engine.state['players']['p2']['hp'], 5000)
         self.assertIsNone(engine._find_card(chosen, owner='p1', zone='lumen'))
         self.assertEqual(
             validate_effect_definition(definition, card_has_text=True), [],
         )
+
+    def test_secret_time_errata_places_fewer_than_three_when_short(self):
+        definition = build_effect_draft('UNC-AT-027', UNC_AT_027_ERRATA_TEXT)
+        source = defense('secret-time', 'p1')
+        source['code'] = 'UNC-AT-027'
+        only_card = attack('secret-only', 'p1', frame=4)
+        state = base_state([only_card], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [source]
+        release = ruleset(source, only_card)
+        release['cards']['UNC-AT-027']['effect_definition'] = definition
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='secret-time-errata-short',
+        )
+        engine.state['phase'] = 'battle'
+
+        engine._fire('after_judgment', {
+            'controller': 'p1', 'source_card': source,
+            'source_card_instance_id': source['instance_id'],
+            'controller_damage_received': 0,
+        })
+        self.act(engine, 'p1', 'submit_decision', {'selected': ['place']})
+        decision = engine.engine_state['pending_decision']
+        self.assertEqual((decision['minimum'], decision['maximum']), (1, 1))
+        self.act(engine, 'p1', 'submit_decision', {
+            'selected': [only_card['instance_id']],
+        })
+        lumen = engine.state['players']['p1']['zones']['lumen']
+        self.assertEqual(
+            [(card['instance_id'], card['face_up']) for card in lumen],
+            [(only_card['instance_id'], False)],
+        )
+
+    def test_secret_time_errata_uncatchable_random_card_fizzles(self):
+        definition = build_effect_draft('UNC-AT-027', UNC_AT_027_ERRATA_TEXT)
+        source = defense('secret-time', 'p1')
+        source['code'] = 'UNC-AT-027'
+        hidden_guard = defense('secret-hidden-guard', 'p1')
+        hidden_guard['face_up'] = False
+        opponent_card = attack('secret-opponent', 'p2')
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [source]
+        state['players']['p1']['zones']['lumen'] = [hidden_guard]
+        state['players']['p2']['zones']['battle'] = [opponent_card]
+        release = ruleset(source, hidden_guard, opponent_card)
+        release['cards']['UNC-AT-027']['effect_definition'] = definition
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='secret-time-errata-fizzle',
+        )
+        engine.state['phase'] = 'battle'
+
+        engine._fire('after_judgment', {
+            'controller': 'p1', 'source_card': source,
+            'source_card_instance_id': source['instance_id'],
+            'controller_damage_received': 0,
+        })
+        # No placeable Technique: no placement prompt, but the Catch with the
+        # existing face-down card is still granted (Q-AUTO-007 answer 5).
+        self.assertIsNone(engine.engine_state.get('pending_decision'))
+        engine.engine_state['battle'] = {'p1': {}, 'p2': {}}
+        engine._open_catch_or_cleanup()
+        self.act(engine, 'p1', 'play_catch_card')
+
+        events = [event['type'] for event in engine.events]
+        self.assertIn('catch_fizzled', events)
+        lumen = engine.state['players']['p1']['zones']['lumen']
+        self.assertEqual(
+            [(card['instance_id'], card['face_up']) for card in lumen],
+            [(hidden_guard['instance_id'], False)],
+        )
+        self.assertEqual(engine.state['players']['p2']['hp'], 5000)
+        self.assertFalse([
+            action for action in engine.legal_actions('p1')
+            if action['type'] == 'play_catch_card'
+        ])
 
     def test_secret_time_errata_without_hidden_cards_grants_no_catch(self):
         definition = build_effect_draft('UNC-AT-027', UNC_AT_027_ERRATA_TEXT)
