@@ -31408,7 +31408,7 @@ def _unc_at_027_card(code, owner, instance_id, frame, *, card_type='공격'):
 def _unc_at_027_expected_effects():
     """Errata text of Secret Time (UNC-AT-027 / CB04-AT-016), Q-AUTO-007."""
     placed_key = 'unc_at_027_placed_cards'
-    place_where = {'is_technique': True, 'frame_gte': 1, 'frame_lte': 8}
+    place_where = {'type_in': ['공격'], 'frame_gte': 1, 'frame_lte': 8}
     available_count = {
         'op': 'add',
         'values': [
@@ -31772,7 +31772,10 @@ def _review_unc_at_027_definition(definition, card_snapshot, extra_root):
         ),
         (
             'speed-nine-and-defense-are-not-placeable', 'p1',
-            {'hand': (9, (None, '수비')), 'listed': (), 'pick': ()},
+            {
+                'hand': (9, (None, '수비'), (8, '수비')),
+                'listed': (), 'pick': (),
+            },
             'nothing',
         ),
         (

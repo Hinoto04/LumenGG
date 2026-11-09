@@ -29486,6 +29486,7 @@ class AutomaticEngineTests(SimpleTestCase):
         speed_six = attack('secret-speed-six', 'p1', frame=6)
         listed_eight = attack('secret-list-eight', 'p1', frame=8)
         guard = defense('secret-guard', 'p1')
+        guard['frame'] = 8  # a speed-8 defense is still not placeable
         opponent_card = attack('secret-opponent', 'p2')
         state = base_state([speed_five, speed_nine, speed_six, guard], [])
         state['phase'] = 'battle'

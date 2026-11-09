@@ -21142,7 +21142,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         # when the Catch is declared; an uncatchable draw stays face down and
         # the Catch fizzles.  No FP speed cap applies.
         placed_key = 'unc_at_027_placed_cards'
-        place_where = {'is_technique': True, 'frame_gte': 1, 'frame_lte': 8}
+        place_where = {'type_in': ['공격'], 'frame_gte': 1, 'frame_lte': 8}
         available_count = {
             'op': 'add',
             'values': [
