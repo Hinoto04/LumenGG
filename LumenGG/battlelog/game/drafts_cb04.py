@@ -16,7 +16,7 @@ FROST_STATE = 'frost'
 FROST_LABEL = '서리'
 BUKUKI_TECHNIQUE = {'character_key': BUKUKI_KEY, 'is_technique': True}
 # "다음 턴 종료 시까지": 부여한 턴과 다음 턴의 리커버리 페이즈 종료(턴 종료)까지.
-# Q-AUTO-007: 이미 서리 상태여도 재부여가 되며, 지속은 더 오래 가는 쪽을 유지한다.
+# Q-AUTO-008: 이미 서리 상태여도 재부여가 되며, 지속은 더 오래 가는 쪽을 유지한다.
 UNTIL_NEXT_TURN_END = {
     'event': 'phase_end', 'phase': 'recovery', 'occurrences': 2, 'keep_longer': True,
 }
@@ -129,7 +129,7 @@ def _bitter_cold(code):
             ]},
             effects=[_bitter_cold_bonus()],
         ),
-        # Q-AUTO-010: 콤보 타임을 연 1콤보 시동 기술도 대상이다. 시동 기술의
+        # Q-AUTO-011: 콤보 타임을 연 1콤보 시동 기술도 대상이다. 시동 기술의
         # '콤보' 이벤트는 배틀 데미지 계산 전에 발생한다.
         _ability(
             code, 'n1-starter', '이 기술이 루멘 존에 존재하는 한, 콤보 시 [부쿠키] 기술 데미지+100',
@@ -189,7 +189,7 @@ def _winter_fangs(code):
             timing='opponent_dodge', active_zones=['battle'], trigger={'event': 'opponent_dodge'},
             effects=[
                 {'op': 'change_fp', 'player': {'opponent': True}, 'amount': 2},
-                # Q-AUTO-009: FP는 상대가 얻고, 리스트로 보낼 기술은 사용자가 고른다.
+                # Q-AUTO-010: FP는 상대가 얻고, 리스트로 보낼 기술은 사용자가 고른다.
                 _lumen_bukuki_to_list('cb04_at_002_dodge_list', chooser='controller'),
             ],
         ),

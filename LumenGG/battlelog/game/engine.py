@@ -605,7 +605,19 @@ class AutomaticGameEngine:
         elif phase == 'battle' and step == 'catch':
             catch = engine.get('catch') or {}
             if catch.get('owner') == role:
-                for option in self._legal_catch_options(role, catch):
+                random_pick = bool(catch.get('random_pick'))
+                if random_pick and self._random_catch_candidates(role, catch):
+                    # The card is drawn only after the player commits to the
+                    # Catch, so the action carries no card (Q-AUTO-007).
+                    actions.append(self._action(
+                        'play_catch_card',
+                        label='무작위 뒷면 카드로 캐치',
+                        payload={'random_pick': True},
+                    ))
+                for option in (
+                    [] if random_pick
+                    else self._legal_catch_options(role, catch)
+                ):
                     card = option['card']
                     optional_speed = option.get('optional_fixed_speed')
                     cost = option.get('counter_cost') or {}
@@ -631,7 +643,10 @@ class AutomaticGameEngine:
                         card=self._private_action_card(card),
                         choice_speed=choice_speed,
                     ))
-                exemption = self._catch_source_break_exemption(role, catch)
+                exemption = (
+                    None if random_pick
+                    else self._catch_source_break_exemption(role, catch)
+                )
                 if exemption:
                     counter_key = exemption['counter']
                     for option in self._legal_catch_options(
@@ -749,6 +764,8 @@ class AutomaticGameEngine:
             )
         elif action_type == 'end_combo':
             self.end_combo()
+        elif action_type == 'play_catch_card' and payload.get('random_pick'):
+            self._play_random_catch(role)
         elif action_type == 'play_catch_card':
             self._play_catch(
                 role, payload['card_instance_id'],
@@ -4584,6 +4601,8 @@ class AutomaticGameEngine:
         role = (catch or {}).get('owner')
         if role not in PLAYER_SIDES:
             return False
+        if catch.get('random_pick'):
+            return bool(self._random_catch_candidates(role, catch))
         if self._legal_catch_options(role, catch):
             return True
         exemption = self._catch_source_break_exemption(role, catch)
@@ -4750,6 +4769,63 @@ class AutomaticGameEngine:
             seen.add(instance_id)
             cards.append(card)
         return cards
+
+    def _random_catch_candidates(self, role, catch):
+        if not catch or catch.get('owner') != role:
+            return []
+        if not self._limited_grant_available(catch, role):
+            return []
+        return [
+            card
+            for zone in (catch.get('allow_zones') or ['hand'])
+            for card in self._zone(role, zone)
+            if card_matches(
+                card, catch.get('where'), self.state,
+                {'controller': role, 'source_card': card},
+            )
+        ]
+
+    def _play_random_catch(self, role):
+        # Q-AUTO-007: the player first commits to the Catch, then one card is
+        # drawn at random from every matching card (e.g. all face-down cards
+        # in their lumen zone).  An unusable card stays face down where it is
+        # and the Catch fizzles; a usable one must be played.
+        catch = self.engine_state.get('catch') or {}
+        if catch.get('owner') != role or not catch.get('random_pick'):
+            raise IllegalAction('무작위 캐치를 사용할 수 없습니다.')
+        candidates = self._random_catch_candidates(role, catch)
+        if not candidates:
+            raise IllegalAction('무작위로 고를 캐치 후보가 없습니다.')
+        selected = self.random_choice(
+            [{'id': card.get('instance_id')} for card in candidates], 1,
+            actor=role,
+        )
+        chosen_id = selected[0]['id']
+        card = self._find_card(chosen_id, owner=role)
+        pinned = dict(catch)
+        pinned['where'] = {**(catch.get('where') or {}), 'instance_id': chosen_id}
+        pinned['random_pick'] = False
+        options = self._legal_catch_options(role, pinned)
+        option = next(
+            (item for item in options if item.get('catch_rule_index') is None),
+            options[0] if options else None,
+        )
+        self.emit('random_catch_drawn', role, {
+            'card': self._public_action_card(card or {}),
+            'usable': bool(option),
+        })
+        if not option:
+            self.emit('catch_fizzled', role, {
+                'reason': 'random_card_not_catchable',
+                'card_instance_id': chosen_id,
+                'source': catch.get('source'),
+            })
+            self.end_catch()
+            return
+        catch.update(pinned)
+        self._play_catch(
+            role, chosen_id, catch_rule_index=option.get('catch_rule_index'),
+        )
 
     def _play_catch(
         self, role, instance_id, *, cost_paid=False, catch_rule_index=None,
@@ -7164,7 +7240,7 @@ class AutomaticGameEngine:
         phase = str(expires.get('phase') or '')
         occurrences = max(1, _number(expires.get('occurrences'), 1))
         if expires.get('keep_longer'):
-            # Q-AUTO-007: a re-grant keeps whichever duration lasts longer.
+            # Q-AUTO-008: a re-grant keeps whichever duration lasts longer.
             current = next((
                 item for item in self.engine_state.get('state_expirations') or []
                 if item.get('player') == side and item.get('state') == key
@@ -7268,7 +7344,7 @@ class AutomaticGameEngine:
                 )
             elif not value:
                 self._clear_state_expiration(side, key)
-            # "부여할 때마다" (CB04-PS-001, Q-AUTO-007): granting a state the
+            # "부여할 때마다" (CB04-PS-001, Q-AUTO-008): granting a state the
             # player already has still counts as a grant for listeners.
             if value and refire_when_active and not self._rule_blocked(
                 'state_gain', side, {'state': key, 'owner': side}, source_card,

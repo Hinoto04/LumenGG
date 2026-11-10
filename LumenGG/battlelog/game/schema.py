@@ -1138,8 +1138,15 @@ def _validate_effect(value, path, issues):
             _issue(issues, path, '캐치 최대 속도는 최소 속도 이상이어야 합니다.')
         if value.get('where') is not None and not isinstance(value.get('where'), dict):
             _issue(issues, f'{path}.where', '캐치 카드 필터는 객체여야 합니다.')
+        if 'selection_key' in value and (
+            not isinstance(value.get('selection_key'), str)
+            or not value.get('selection_key').strip()
+        ):
+            _issue(issues, f'{path}.selection_key', '캐치 카드 선택 키는 비어 있지 않은 문자열이어야 합니다.')
         if 'source_only' in value and not isinstance(value.get('source_only'), bool):
             _issue(issues, f'{path}.source_only', '소스 카드 전용 캐치 여부는 불리언이어야 합니다.')
+        if 'random_pick' in value and not isinstance(value.get('random_pick'), bool):
+            _issue(issues, f'{path}.random_pick', '캐치 시점 무작위 카드 결정 여부는 불리언이어야 합니다.')
         if 'source_attached' in value and not isinstance(value.get('source_attached'), bool):
             _issue(issues, f'{path}.source_attached', '소스에 세트된 카드 전용 여부는 불리언이어야 합니다.')
         if 'damage_bonus' in value:

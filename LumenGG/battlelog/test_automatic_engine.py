@@ -104,6 +104,13 @@ from .simulator_services import (
 EMPTY_DEFINITION = {'schema_version': 1, 'abilities': []}
 
 
+UNC_AT_027_ERRATA_TEXT = (
+    '①판정 후, 데미지를 받지 않았다면 이하의 효과를 적용한다.\n'
+    '-패나 리스트에서 〈8속도 이하〉기술 3장을 루멘 존에 뒷면으로 배치할 수 있다.\n'
+    '-무작위 자신 루멘 존의 뒷면 카드로 캐치할 수 있다.'
+)
+
+
 def attack(instance_id, owner, *, code=None, frame=5, damage=400, position='상단', special=None, hit='0', counter='0'):
     return {
         'instance_id': instance_id, 'kind': 'card', 'owner': owner,
@@ -29171,44 +29178,12 @@ class AutomaticEngineTests(SimpleTestCase):
             validate_effect_definition(definition, card_has_text=True), [],
         )
 
-    def test_unc_at_027_reviews_secret_setup_quiz_and_damage_limit(self):
-        text = (
-            '①판정 후, 자신이 데미지를 받지 않았다면 자신의 패에서 속도가 다른 '
-            '기술 3장을 보여주고 그중 1장을 상대 루멘 존에 뒷면으로 배치한다.\n'
-            '그 후, 이 기술을 자신의 루멘 존에 두고 이하의 효과를 적용한다.\n'
-            '-턴당 1번 루멘 페이즈 시, 상대는 이 카드의 효과로 배치된 뒷면 '
-            '카드가 루멘 존에 있을 경우 그 카드의 속도를 선언한다.\n'
-            '그 후, 결과에 따라 이하의 효과를 적용한다.\n'
-            '-맞힐 경우, 이 기술과 그 카드를 브레이크한다.\n'
-            '-틀릴 경우, 상대에게 300데미지를 주고 그 카드를 자신의 패로 '
-            '가져온다.\n'
-            '그 후, 자신의 패에서 속도가 다른 기술 3장을 보여주고 그중 1장을 '
-            '상대 루멘존에 뒷면으로 배치하거나 이 기술을 브레이크한다.\n'
-            '②이 기술의 효과는 3번을 초과하여 상대에게 데미지를 줄 수 없다.'
-        )
-        detail_text = (
-            '① 효과: 이 기술의 "판정 후" 타이밍에 조건(자신이 데미지를 받지 '
-            '않았다면)을 만족한 경우 발동하는 강제효과입니다. 상대 루멘 존에 '
-            '배치된 카드는 뒷면 카드로서, 기술로 취급하지 않습니다. "그 후," '
-            '이전의 효과를 처리했다면, "그 후," 이후의 효과를 반드시 '
-            '처리합니다.\n'
-            '② 효과: 이 기술이 루멘 존에 있는 동안 루멘 페이즈에 발동하는 '
-            '강제효과입니다. 상대는 이 카드의 ①효과로 상대 루멘 존에 배치된 '
-            '뒷면 카드의 속도를 선언하고 고른 카드의 속도를 서로 확인합니다.\n'
-            '맞힐 경우, [시크릿 타임]과 상대 루멘 존에 배치된 기술을 '
-            '브레이크합니다.\n'
-            '틀릴 경우, 상대에게 300데미지를 주고 상대 루멘 존에 배치된 기술을 '
-            '자신의 패로 가져옵니다. 이 효과로는 게임 3번까지만 데미지를 줄 수 '
-            '있습니다.'
-        )
-        qna_ids = [59, 67, 111, 112, 113, 349, 350, 351, 353, 354, 544]
-        definition = build_effect_draft(
-            'UNC-AT-027', text, qna_ids=qna_ids,
-            detail_text=detail_text,
-        )
+    def test_unc_at_027_reviews_errata_hidden_placement_and_random_catch(self):
+        text = UNC_AT_027_ERRATA_TEXT
+        definition = build_effect_draft('UNC-AT-027', text)
         snapshot = {
             'code': 'UNC-AT-027', 'name': '시크릿 타임',
-            'type': '수비', 'text': text, 'detail_text': detail_text,
+            'type': '수비', 'text': text,
             'frame': None, 'damage': None, 'pos': None, 'body': '',
             'special': None, 'ultimate': False,
             'hit': None, 'guard': None, 'counter': None,
@@ -29219,81 +29194,73 @@ class AutomaticEngineTests(SimpleTestCase):
         )
 
         self.assertTrue(result.passed, result.as_dict())
-        self.assertEqual(len(result.abilities), 3)
-        self.assertEqual(result.as_dict()['scenario_count'], 18)
-        self.assertTrue(all(
-            ability.passed and len(ability.scenarios) >= 3
-            for ability in result.abilities
-        ))
-        by_id = {ability.ability_id: ability for ability in result.abilities}
-        setup = {
-            item['name']: item for item in by_id['unc-at-027-n1'].scenarios
-        }
-        owner_setup = setup['owner-p1-opponent-selects-hidden-card']
+        self.assertEqual(len(result.abilities), 1)
+        self.assertEqual(result.as_dict()['scenario_count'], 11)
+        self.assertNotIn('effect_damage_limit', definition)
         self.assertEqual(
-            [item['owner'] for item in owner_setup['decisions']],
-            ['p1', 'p2'],
+            [ability['id'] for ability in definition['abilities']],
+            ['unc-at-027-n1'],
         )
-        self.assertEqual(owner_setup['source_zone'], 'lumen')
-        self.assertFalse(owner_setup['secret_face_up'])
-        self.assertFalse(
-            setup['qna-113-only-two-distinct-speeds-do-not-resolve'][
-                'resolved'
-            ],
-        )
-        limit = {
-            item['name']: item for item in by_id['unc-at-027-n2'].scenarios
+        scenarios = {
+            item['name']: item for item in result.abilities[0].scenarios
         }
-        capped = limit['owner-p1-four-misses-deal-only-three-times']
-        self.assertEqual(capped['completed_attempts'], 4)
-        self.assertEqual(capped['damage_amounts'], [300, 300, 300])
-        guess = {
-            item['name']: item
-            for item in by_id['unc-at-027-secret-guess'].scenarios
-        }
-        self.assertEqual(
-            guess['owner-p1-correct-guess-breaks-both']['source_zone'],
-            'break',
-        )
-        self.assertEqual(
-            guess['wrong-guess-replace-branch-installs-new-secret'][
-                'hosted_hidden_count'
-            ],
-            1,
-        )
-        failed_return = guess[
-            'failed-return-does-not-open-followup-branch'
+        placed = scenarios[
+            'owner-p1-places-three-from-hand-and-list-then-catches'
         ]
-        self.assertEqual(failed_return['secret_zone'], 'lumen')
-        self.assertFalse(failed_return['pending'])
-        self.assertFalse(
-            guess['qna-111-source-outside-lumen-leaves-old-secret'][
-                'resolved'
+        self.assertEqual(
+            placed['hidden_ids'],
+            ['p1-secret-hand-0', 'p1-secret-hand-1', 'p1-secret-list-0'],
+        )
+        self.assertIn(placed['drawn_id'], placed['hidden_ids'])
+        self.assertEqual(placed['catch_damage'], 300)
+        pool = scenarios['random-pool-includes-existing-hidden-card']
+        self.assertIn('p2-secret-hidden-0', pool['candidate_ids'])
+        self.assertEqual(len(pool['candidate_ids']), 4)
+        partial = scenarios['fewer-than-three-candidates-places-all-of-them']
+        self.assertEqual(partial['decisions'][1]['maximum'], 2)
+        fizzle = scenarios[
+            'uncatchable-random-card-stays-face-down-and-fizzles'
+        ]
+        self.assertTrue(fizzle['fizzled'])
+        self.assertEqual(fizzle['hidden_after'], ['p1-secret-hidden-0'])
+        excluded = scenarios['speed-nine-and-defense-are-not-placeable']
+        self.assertEqual(excluded['decisions'], [])
+        self.assertEqual(excluded['granted'], [])
+        self.assertEqual(
+            scenarios['declined-placement-still-catches-existing-hidden-card'][
+                'drawn_id'
             ],
+            'p2-secret-hidden-0',
+        )
+        self.assertFalse(
+            scenarios['damage-received-does-not-resolve']['resolved'],
         )
 
-        wrong_result = copy.deepcopy(definition)
-        wrong_result['abilities'][0]['effects'][0]['then'][1]['then'][1].pop(
-            'result_key'
-        )
+        wrong_speed = copy.deepcopy(definition)
+        wrong_speed['abilities'][0]['effects'][0]['then'][0]['options'][0][
+            'effects'
+        ][0]['selector']['where']['frame_lte'] = 9
         self.assertFalse(review_automatic_definition(
-            wrong_result, card_has_text=True, card_snapshot=snapshot,
+            wrong_speed, card_has_text=True, card_snapshot=snapshot,
         ).passed)
-        wrong_limit = copy.deepcopy(definition)
-        wrong_limit['effect_damage_limit']['opponent'] = 4
+        fixed_pick = copy.deepcopy(definition)
+        fixed_pick['abilities'][0]['effects'][1]['then'][0].pop('random_pick')
         self.assertFalse(review_automatic_definition(
-            wrong_limit, card_has_text=True, card_snapshot=snapshot,
+            fixed_pick, card_has_text=True, card_snapshot=snapshot,
         ).passed)
-        wrong_host = copy.deepcopy(definition)
-        wrong_host['abilities'][2]['condition']['conditions'][1]['where'].pop(
-            'secret_time_host'
-        )
+        old_limit = copy.deepcopy(definition)
+        old_limit['effect_damage_limit'] = {'opponent': 3, 'scope': 'game'}
         self.assertFalse(review_automatic_definition(
-            wrong_host, card_has_text=True, card_snapshot=snapshot,
+            old_limit, card_has_text=True, card_snapshot=snapshot,
         ).passed)
         self.assertFalse(review_automatic_definition(
             definition, card_has_text=True,
             card_snapshot={**snapshot, 'type': '공격'},
+        ).passed)
+        # The live catalog stores this card's empty body as None.
+        self.assertTrue(review_automatic_definition(
+            definition, card_has_text=True,
+            card_snapshot={**snapshot, 'body': None},
         ).passed)
         self.assertEqual(
             validate_effect_definition(definition, card_has_text=True), [],
@@ -29414,36 +29381,30 @@ class AutomaticEngineTests(SimpleTestCase):
             validate_effect_definition(definition, card_has_text=True), [],
         )
 
-    def test_secret_time_runs_hidden_speed_quiz_and_replacement_loop(self):
-        definition = build_effect_draft(
-            'UNC-AT-027',
-            '①판정 후, 자신이 데미지를 받지 않았다면 자신의 패에서 속도가 다른 '
-            '기술 3장을 보여주고 그중 1장을 상대 루멘 존에 뒷면으로 배치한다.\n'
-            '그 후, 이 기술을 자신의 루멘 존에 두고 이하의 효과를 적용한다.\n'
-            '-턴당 1번 루멘 페이즈 시, 상대는 이 카드의 효과로 배치된 뒷면 '
-            '카드가 루멘 존에 있을 경우 그 카드의 속도를 선언한다.\n'
-            '그 후, 결과에 따라 이하의 효과를 적용한다.\n'
-            '-맞힐 경우, 이 기술과 그 카드를 브레이크한다.\n'
-            '-틀릴 경우, 상대에게 300데미지를 주고 그 카드를 자신의 패로 가져온다.\n'
-            '그 후, 자신의 패에서 속도가 다른 기술 3장을 보여주고 그중 1장을 '
-            '상대 루멘존에 뒷면으로 배치하거나 이 기술을 브레이크한다.\n'
-            '②이 기술의 효과는 3번을 초과하여 상대에게 데미지를 줄 수 없다.',
-        )
-        source = attack('secret-time', 'p1', code='UNC-AT-027')
+    def test_secret_time_errata_places_hidden_cards_and_catches_random_one(self):
+        definition = build_effect_draft('UNC-AT-027', UNC_AT_027_ERRATA_TEXT)
+        source = defense('secret-time', 'p1')
+        source['code'] = 'UNC-AT-027'
         speed_five = attack('secret-speed-five', 'p1', frame=5)
-        speed_five_duplicate = attack('secret-speed-five-duplicate', 'p1', frame=5)
+        speed_nine = attack('secret-speed-nine', 'p1', frame=9)
         speed_six = attack('secret-speed-six', 'p1', frame=6)
-        speed_seven = attack('secret-speed-seven', 'p1', frame=7)
-        state = base_state(
-            [speed_five, speed_five_duplicate, speed_six, speed_seven], [],
-        )
+        listed_eight = attack('secret-list-eight', 'p1', frame=8)
+        guard = defense('secret-guard', 'p1')
+        guard['frame'] = 8  # a speed-8 defense is still not placeable
+        opponent_card = attack('secret-opponent', 'p2')
+        state = base_state([speed_five, speed_nine, speed_six, guard], [])
         state['phase'] = 'battle'
         state['players']['p1']['zones']['battle'] = [source]
+        state['players']['p1']['zones']['list'] = [listed_eight]
+        state['players']['p2']['zones']['battle'] = [opponent_card]
         release = ruleset(
-            source, speed_five, speed_five_duplicate, speed_six, speed_seven,
+            source, speed_five, speed_nine, speed_six, listed_eight, guard,
+            opponent_card,
         )
         release['cards']['UNC-AT-027']['effect_definition'] = definition
-        engine = AutomaticGameEngine.initialize(state, release, seed='secret-time-loop')
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='secret-time-errata',
+        )
         engine.state['phase'] = 'battle'
 
         engine._fire('after_judgment', {
@@ -29452,62 +29413,161 @@ class AutomaticEngineTests(SimpleTestCase):
             'controller_damage_received': 0,
         })
         decision = engine.engine_state['pending_decision']
+        self.assertEqual(decision['kind'], 'effect_branch')
+        self.act(engine, 'p1', 'submit_decision', {'selected': ['place']})
+        decision = engine.engine_state['pending_decision']
         self.assertEqual(decision['kind'], 'effect_choice')
-        action = next(
-            item for item in engine.legal_actions('p1')
-            if item['type'] == 'submit_decision'
+        # Q-AUTO-007: speed 9 and defense Techniques cannot be placed.
+        self.assertEqual(
+            sorted(str(option['id']) for option in decision['options']),
+            sorted([
+                speed_five['instance_id'], speed_six['instance_id'],
+                listed_eight['instance_id'],
+            ]),
         )
-        with self.assertRaises(IllegalAction):
-            engine.submit_action('p1', action['action_id'], {
-                'selected': [
-                    speed_five['instance_id'], speed_five_duplicate['instance_id'],
-                    speed_six['instance_id'],
-                ],
-            }, command_id='secret-invalid-duplicate-speed')
+        self.assertEqual((decision['minimum'], decision['maximum']), (3, 3))
         self.act(engine, 'p1', 'submit_decision', {'selected': [
             speed_five['instance_id'], speed_six['instance_id'],
-            speed_seven['instance_id'],
+            listed_eight['instance_id'],
         ]})
-        self.assertEqual(engine.engine_state['pending_decision']['owner'], 'p2')
-        self.act(engine, 'p2', 'submit_decision', {
-            'selected': [speed_six['instance_id']],
-        })
 
-        self.assertIsNotNone(engine._find_card(source['instance_id'], owner='p1', zone='lumen'))
-        hidden = engine._find_card(speed_six['instance_id'], owner='p2', zone='lumen')
-        self.assertFalse(hidden['face_up'])
-        self.assertTrue(hidden['non_technique_while_face_down'])
-        self.assertEqual(engine._definition_for_card(hidden), {})
-
-        engine.state['phase'] = 'lumen'
-        engine._fire('phase_start', {'phase': 'lumen'})
-        self.assertEqual(engine.engine_state['pending_decision']['kind'], 'effect_amount')
-        self.assertEqual(engine.engine_state['pending_decision']['owner'], 'p2')
-        self.act(engine, 'p2', 'submit_decision', {'selected': ['5']})
-        self.assertEqual(engine.state['players']['p2']['hp'], 4700)
-        returned = engine._find_card(speed_six['instance_id'], owner='p1', zone='hand')
-        self.assertNotIn('non_technique_while_face_down', returned)
-        self.assertEqual(engine.engine_state['pending_decision']['kind'], 'effect_branch')
-        self.act(engine, 'p1', 'submit_decision', {'selected': ['replace']})
-        self.act(engine, 'p1', 'submit_decision', {'selected': [
+        lumen = engine.state['players']['p1']['zones']['lumen']
+        placed_ids = {card['instance_id'] for card in lumen}
+        self.assertEqual(placed_ids, {
             speed_five['instance_id'], speed_six['instance_id'],
-            speed_seven['instance_id'],
-        ]})
-        self.act(engine, 'p2', 'submit_decision', {
-            'selected': [speed_seven['instance_id']],
+            listed_eight['instance_id'],
+        })
+        self.assertTrue(all(card['face_up'] is False for card in lumen))
+        granted = engine.engine_state['granted_catches']
+        self.assertEqual(len(granted), 1)
+        self.assertEqual(granted[0]['allow_zones'], ['lumen'])
+        self.assertTrue(granted[0]['random_pick'])
+        # The random card is not fixed when the effect resolves.
+        self.assertNotIn('instance_id', granted[0]['where'])
+
+        engine.engine_state['battle'] = {'p1': {}, 'p2': {}}
+        engine._open_catch_or_cleanup()
+        catch_actions = [
+            action for action in engine.legal_actions('p1')
+            if action['type'] == 'play_catch_card'
+        ]
+        self.assertEqual(len(catch_actions), 1)
+        self.assertEqual(catch_actions[0]['payload'], {'random_pick': True})
+        self.assertNotIn('card', catch_actions[0])
+        self.act(engine, 'p1', 'play_catch_card')
+        drawn = next(
+            event for event in engine.events
+            if event['type'] == 'random_catch_drawn'
+        )
+        chosen = drawn['payload']['card']['instance_id']
+        self.assertIn(chosen, placed_ids)
+        self.assertTrue(drawn['payload']['usable'])
+        self.assertLess(engine.state['players']['p2']['hp'], 5000)
+        self.assertIsNone(engine._find_card(chosen, owner='p1', zone='lumen'))
+        self.assertEqual(
+            validate_effect_definition(definition, card_has_text=True), [],
+        )
+
+    def test_secret_time_errata_places_fewer_than_three_when_short(self):
+        definition = build_effect_draft('UNC-AT-027', UNC_AT_027_ERRATA_TEXT)
+        source = defense('secret-time', 'p1')
+        source['code'] = 'UNC-AT-027'
+        only_card = attack('secret-only', 'p1', frame=4)
+        state = base_state([only_card], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [source]
+        release = ruleset(source, only_card)
+        release['cards']['UNC-AT-027']['effect_definition'] = definition
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='secret-time-errata-short',
+        )
+        engine.state['phase'] = 'battle'
+
+        engine._fire('after_judgment', {
+            'controller': 'p1', 'source_card': source,
+            'source_card_instance_id': source['instance_id'],
+            'controller_damage_received': 0,
+        })
+        self.act(engine, 'p1', 'submit_decision', {'selected': ['place']})
+        decision = engine.engine_state['pending_decision']
+        self.assertEqual((decision['minimum'], decision['maximum']), (1, 1))
+        self.act(engine, 'p1', 'submit_decision', {
+            'selected': [only_card['instance_id']],
+        })
+        lumen = engine.state['players']['p1']['zones']['lumen']
+        self.assertEqual(
+            [(card['instance_id'], card['face_up']) for card in lumen],
+            [(only_card['instance_id'], False)],
+        )
+
+    def test_secret_time_errata_uncatchable_random_card_fizzles(self):
+        definition = build_effect_draft('UNC-AT-027', UNC_AT_027_ERRATA_TEXT)
+        source = defense('secret-time', 'p1')
+        source['code'] = 'UNC-AT-027'
+        hidden_guard = defense('secret-hidden-guard', 'p1')
+        hidden_guard['face_up'] = False
+        opponent_card = attack('secret-opponent', 'p2')
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [source]
+        state['players']['p1']['zones']['lumen'] = [hidden_guard]
+        state['players']['p2']['zones']['battle'] = [opponent_card]
+        release = ruleset(source, hidden_guard, opponent_card)
+        release['cards']['UNC-AT-027']['effect_definition'] = definition
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='secret-time-errata-fizzle',
+        )
+        engine.state['phase'] = 'battle'
+
+        engine._fire('after_judgment', {
+            'controller': 'p1', 'source_card': source,
+            'source_card_instance_id': source['instance_id'],
+            'controller_damage_received': 0,
+        })
+        # No placeable Technique: no placement prompt, but the Catch with the
+        # existing face-down card is still granted (Q-AUTO-007 answer 5).
+        self.assertIsNone(engine.engine_state.get('pending_decision'))
+        engine.engine_state['battle'] = {'p1': {}, 'p2': {}}
+        engine._open_catch_or_cleanup()
+        self.act(engine, 'p1', 'play_catch_card')
+
+        events = [event['type'] for event in engine.events]
+        self.assertIn('catch_fizzled', events)
+        lumen = engine.state['players']['p1']['zones']['lumen']
+        self.assertEqual(
+            [(card['instance_id'], card['face_up']) for card in lumen],
+            [(hidden_guard['instance_id'], False)],
+        )
+        self.assertEqual(engine.state['players']['p2']['hp'], 5000)
+        self.assertFalse([
+            action for action in engine.legal_actions('p1')
+            if action['type'] == 'play_catch_card'
+        ])
+
+    def test_secret_time_errata_without_hidden_cards_grants_no_catch(self):
+        definition = build_effect_draft('UNC-AT-027', UNC_AT_027_ERRATA_TEXT)
+        source = defense('secret-time', 'p1')
+        source['code'] = 'UNC-AT-027'
+        too_fast = attack('secret-speed-nine', 'p1', frame=9)
+        state = base_state([too_fast], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [source]
+        release = ruleset(source, too_fast)
+        release['cards']['UNC-AT-027']['effect_definition'] = definition
+        engine = AutomaticGameEngine.initialize(
+            state, release, seed='secret-time-errata-empty',
+        )
+        engine.state['phase'] = 'battle'
+
+        engine._fire('after_judgment', {
+            'controller': 'p1', 'source_card': source,
+            'source_card_instance_id': source['instance_id'],
+            'controller_damage_received': 0,
         })
 
-        engine.state['turn'] = 2
-        engine._reset_usage('turn')
-        engine._fire('phase_start', {'phase': 'lumen'})
-        self.act(engine, 'p2', 'submit_decision', {'selected': ['7']})
-        self.assertIsNotNone(engine._find_card(source['instance_id'], owner='p1', zone='break'))
-        broken_secret = engine._find_card(
-            speed_seven['instance_id'], owner='p1', zone='break',
-        )
-        self.assertNotIn('non_technique_while_face_down', broken_secret)
-        self.assertEqual(definition['effect_damage_limit'], {'opponent': 3, 'scope': 'game'})
-        self.assertEqual(validate_effect_definition(definition, card_has_text=True), [])
+        self.assertIsNone(engine.engine_state.get('pending_decision'))
+        self.assertEqual(engine.engine_state.get('granted_catches') or [], [])
+        self.assertEqual(engine.state['players']['p1']['zones']['lumen'], [])
 
     def test_minotaur_wrong_guess_lets_opponent_designate_get_card(self):
         definition = build_effect_draft(

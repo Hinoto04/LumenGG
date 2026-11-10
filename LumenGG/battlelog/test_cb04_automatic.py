@@ -182,7 +182,7 @@ class CB04AutomaticEffectTests(SimpleTestCase):
             'source_card_instance_id': 'fangs', 'opponent_card': enemy,
         })
         decision = engine.engine_state.get('pending_decision') or {}
-        # Q-AUTO-009: 리스트로 보낼 기술은 윈터 팽스 사용자가 고른다.
+        # Q-AUTO-010: 리스트로 보낼 기술은 윈터 팽스 사용자가 고른다.
         self.assertEqual(decision.get('owner'), 'p1')
         self.assertEqual([item['id'] for item in decision['options']], ['stored'])
         self.resolve(engine)
@@ -259,7 +259,7 @@ class CB04AutomaticEffectTests(SimpleTestCase):
         self.assertFalse(engine._defense_judgment_allowed(blizzard, slow, 'dodge', 'p2'))
 
     def test_frost_regrant_triggers_frost_veil_again_without_turn_limit(self):
-        # Q-AUTO-007: 이미 서리 상태여도 ②가 발동하고, 턴당 1회 제한이 없다.
+        # Q-AUTO-008: 이미 서리 상태여도 ②가 발동하고, 턴당 1회 제한이 없다.
         veil = passive_card('veil', 'p1', 'CB04-PS-001')
         blizzard = bukuki(attack('blizzard', 'p1', code='CB04-AT-007', frame=9))
         first = bukuki(attack('first', 'p1', code='CB04-AT-012'))
@@ -280,7 +280,7 @@ class CB04AutomaticEffectTests(SimpleTestCase):
         self.assertEqual(len(engine.state['players']['p1']['zones']['lumen']), 2)
 
     def test_frost_regrant_keeps_the_longer_expiration(self):
-        # Q-AUTO-007: 재부여 시 더 오래 지속되는 쪽을 유지한다.
+        # Q-AUTO-008: 재부여 시 더 오래 지속되는 쪽을 유지한다.
         engine = self.engine_for(base_state([], []), [], seed='frost-expiration')
         long_frost = {'event': 'phase_end', 'phase': 'recovery', 'occurrences': 2, 'keep_longer': True}
         engine.set_passive('p2', 'frost', value=True, expires=dict(long_frost))
@@ -292,7 +292,7 @@ class CB04AutomaticEffectTests(SimpleTestCase):
         self.assertEqual(engine.engine_state['state_expirations'][0]['remaining'], 2)
 
     def test_bitter_cold_also_powers_bukuki_combo_starter_once(self):
-        # Q-AUTO-010: 1콤보 시동 기술에도 +100을 적용한다.
+        # Q-AUTO-011: 1콤보 시동 기술에도 +100을 적용한다.
         cold = bukuki(attack('cold', 'p1', code='CB04-AT-012', frame=14, damage=600))
         starter = bukuki(attack('starter', 'p1', code='CB04-AT-007', damage=400, hit='콤보'))
         other = attack('other-starter', 'p1', code='OTHER-003', damage=400, hit='콤보')
