@@ -100,7 +100,7 @@ EFFECT_OPS = {
     'modify_judgment', 'modify_defense_judgments',
     'prevent', 'negate', 'replace', 'skip_phase', 'repeat_phase',
     'copy_defense_judgments', 'copy_clash_judgments',
-    'invalidate_battle_card',
+    'invalidate_battle_card', 'negate_battle_card_effects',
     'guess_hand_parity', 'modify_hand_guess_categories',
     'force_ready', 'force_ready_first', 'force_designated_get',
     'skip_get', 'replace_get',

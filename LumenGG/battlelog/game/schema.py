@@ -954,7 +954,7 @@ def _validate_effect(value, path, issues):
         if not isinstance(operations, list) or any(
             operation not in {
                 'modify_stat', 'modify_judgment', 'move_card', 'break_card',
-                'discard', 'invalidate_battle_card',
+                'discard', 'invalidate_battle_card', 'negate_battle_card_effects',
             }
             for operation in operations
         ):

@@ -1,0 +1,143 @@
+[
+  {
+    "snapshot": {
+      "code": "CB04-AT-001",
+      "name": "설국",
+      "ruby": "",
+      "text": "이 기술은 자신의 체력이 2500 이하일 경우에만 사용할 수 있다.\r\n①사용 시, 배틀 존의 상대 기술 효과를 무효로 한다.\r\n②사용 후, 이 기술을 브레이크하고 다음 턴 종료 시까지 상대에게 「서리」 상태를 부여한다.\r\n그 후, 배틀 페이즈를 종료한다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "수비",
+      "frame": null,
+      "damage": null,
+      "pos": null,
+      "body": "",
+      "hit": "0",
+      "guard": "0",
+      "counter": "0",
+      "special": null,
+      "g_top": "방어",
+      "g_mid": "방어",
+      "g_bot": "방어",
+      "ultimate": true,
+      "character_id": 24
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Snow Country",
+        "ruby": "",
+        "text": "This Technique can only be used if your HP is 2500 or lower.\n①On use, negate the effects of your opponent's Technique in the Battle Zone.\n②After use, break this Technique and give your opponent \"Frost\" status until the end of next turn.\nThen end the Battle Phase.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "雪国",
+        "ruby": "",
+        "text": "この技は自分のHPが2500以下の場合のみ使用できる。\n①使用時、バトルゾーンの相手の技の効果を無効にする。\n②使用後、この技をブレイクし、次のターン終了時まで相手に「霜」状態を付与する。\nその後、バトルフェイズを終了する。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-002",
+      "name": "윈터 팽스",
+      "ruby": "",
+      "text": "①상대 회피 시, 상대는 2FP를 얻고 루멘 존의 [부쿠키] 기술을 1장 골라 리스트로 보낸다.\r\n②히트/카운터/콤보 시, 패나 리스트의 [부쿠키] 기술 1장을 루멘 존에 보낼 수 있다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 5,
+      "damage": 400,
+      "pos": "중단",
+      "body": "",
+      "hit": "2",
+      "guard": "-4",
+      "counter": "3",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 24
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Winter Fangs",
+        "ruby": "",
+        "text": "①When your opponent dodges, your opponent gains 2 FP, then chooses 1 [BUKUKI] Technique in the Lumen Zone and sends it to the List.\n②On hit/counter/combo, you may send 1 [BUKUKI] Technique from your hand or List to the Lumen Zone.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "ウィンター・ファングス",
+        "ruby": "",
+        "text": "①相手が回避した時、相手は2FPを得て、ルーメンゾーンの[ブクキ]技を1枚選んでリストに送る。\n②ヒット/カウンター/コンボ時、手札やリストの[ブクキ]技1枚をルーメンゾーンに送ることができる。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-007",
+      "name": "블리자드",
+      "ruby": "",
+      "text": "이 기술은 <8속도 이하>기술만 회피한다.\r\n①상대 「서리」: 이 기술 데미지 +200\r\n②히트 및 카운터 시, 다음 턴 종료 시까지 상대에게 「서리」 상태를 부여한다.\r\n③콤보 시, 이번 턴 루멘 존의 [부쿠키] 기술을 콤보에 사용할 수 있다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 9,
+      "damage": 400,
+      "pos": "하단",
+      "body": "",
+      "hit": "콤보",
+      "guard": "-9",
+      "counter": "콤보",
+      "special": "하단 회피",
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 24
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Blizzard",
+        "ruby": "",
+        "text": "This Technique can only dodge Techniques with <Speed 8 or lower>.\n①Opponent in \"Frost\": This Technique's damage +200\n②On hit or counter, give your opponent \"Frost\" status until the end of next turn.\n③On combo, this turn, you may use [BUKUKI] Techniques in the Lumen Zone in the combo.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "ブリザード",
+        "ruby": "",
+        "text": "この技は〈速度8以下〉の技のみ回避できる。\n①相手「霜」：この技のダメージ+200\n②ヒットおよびカウンター時、次のターン終了時まで相手に「霜」状態を付与する。\n③コンボ時、このターン、ルーメンゾーンの[ブクキ]技をコンボに使用できる。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  }
+]

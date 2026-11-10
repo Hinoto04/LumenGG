@@ -209,6 +209,7 @@ EFFECT_GROUPS = [
         _item('copy_defense_judgments', '선택한 수비 카드의 방어 판정을 현재 카드에 복사한다.', 'selection_key, player'),
         _item('copy_clash_judgments', '선택한 카드의 상쇄 관련 판정을 복사한다.', 'selection_key, player'),
         _item('invalidate_battle_card', '선택/지정한 배틀 기술을 판정에서 무효화한다.', 'selection_key|card_instance_id, player'),
+        _item('negate_battle_card_effects', '상대 배틀 존 기술을 그 자리에 둔 채 번호 효과(①②…)를 무효로 한다.', 'player=opponent'),
     ]),
     ('금지·무효·대체', [
         _item('prevent', 'kind의 행동/결과를 금지하는 수정자를 설치한다.', 'kind, player, condition, where, against_where, target_zones, duration, max_uses, controller_only, selection_key, unless_event_attached'),

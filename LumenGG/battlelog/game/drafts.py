@@ -9,6 +9,7 @@ import copy
 import re
 
 from .spec import ALL_ZONES, EFFECT_SCHEMA_VERSION
+from .drafts_cb04 import build_cb04_definition
 
 
 NUMBER_MARKERS = '①②③④⑤⑥⑦⑧⑨⑩'
@@ -4309,6 +4310,9 @@ def infer_deck_rules(text):
 def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
     """Build a deterministic, non-publishable DSL scaffold for one card."""
     qna_ids = sorted({int(value) for value in (qna_ids or []) if int(value) > 0})
+    card_specific = build_cb04_definition(card_code, qna_ids=qna_ids, detail_text=detail_text)
+    if card_specific is not None:
+        return card_specific
     segments = _expand_compound_segments(split_card_text(text))
     if not segments:
         external_ruling = bool(qna_ids or str(detail_text or '').strip())

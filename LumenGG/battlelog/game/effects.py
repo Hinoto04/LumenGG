@@ -1694,6 +1694,7 @@ class EffectResolver:
                 visibility=effect.get('visibility') or context.get('ability_visibility', 'public'),
                 source_card=context.get('source_card'),
                 expires=copy.deepcopy(effect.get('expires')),
+                refire_when_active=bool(effect.get('refire_when_active')),
             )
         elif op == 'lose_state':
             self.engine.set_passive(
@@ -1850,6 +1851,17 @@ class EffectResolver:
                     effect_source=context.get('source_card_instance_id'),
                     return_zone=effect.get('return_zone') or 'hand',
                 )
+        elif op == 'negate_battle_card_effects':
+            # "배틀 존의 상대 기술 효과를 무효로 한다": the card stays in the
+            # Battle Zone; only its numbered effects stop applying.
+            side = target if target in PLAYER_SIDES and target != controller else _opponent(controller)
+            entry = (self.engine.engine_state.get('battle') or {}).get(side) or {}
+            card_id = entry.get('instance_id') or (context.get('opponent_card') or {}).get('instance_id')
+            if card_id:
+                self.engine.negate_battle_card_effects(
+                    card_id, effect_controller=controller,
+                    effect_source=context.get('source_card_instance_id'),
+                )
         elif op == 'guess_hand_parity':
             self.begin_hand_parity_guess(effect, context)
         elif op == 'modify_hand_guess_categories':
@@ -2002,14 +2014,22 @@ class EffectResolver:
                 },
             )
         elif op == 'choose_effect':
-            options = [
-                copy.deepcopy(option)
-                for option in (effect.get('options') or [])
-                if condition_matches(option.get('condition'), self.state, context)
-                and self.engine.selector_has_minimum(
-                    option.get('selector_available'), context,
-                )
-            ]
+            options = []
+            unavailable = []
+            for option in effect.get('options') or []:
+                if not condition_matches(option.get('condition'), self.state, context):
+                    continue
+                if self.engine.selector_has_minimum(option.get('selector_available'), context):
+                    options.append(copy.deepcopy(option))
+                    continue
+                # 대상이 없어 고를 수 없는 선택지도 이유와 함께 보여 준다.
+                unavailable.append({
+                    'id': str(option.get('id')),
+                    'label': option.get('label') or str(option.get('id')),
+                    'reason': self.engine.selector_unavailable_reason(
+                        option.get('selector_available'), context,
+                    ),
+                })
             if not options:
                 raise EffectResolutionError('적용할 수 있는 효과 선택지가 없습니다.')
             self.engine.create_decision(
@@ -2028,6 +2048,7 @@ class EffectResolver:
                     'type': 'effect_branch', 'options': options,
                     'context': copy.deepcopy(context),
                 },
+                unavailable=unavailable,
             )
         elif op == 'random_select':
             options = self.engine.selector_options(effect.get('selector'), context)

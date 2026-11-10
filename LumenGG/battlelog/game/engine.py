@@ -51,6 +51,38 @@ PASSIVE_STATE_KEY_ALIASES = {
 }
 
 
+# Presentation contract for game clients (docs/PLAY_PROTOCOL.md).  ``observe``
+# attaches ``ui`` hints from this table; ``action_id`` hashing ignores them.
+#   card      - bound to one or more board cards; triggered by touching them
+#   primary   - the single progress button (End phase / End combo ...)
+#   secondary - a smaller companion button next to the primary one
+#   decision  - opens the pending-decision chooser
+#   system    - menu or system dialog (timer, rewind, concede)
+ACTION_UI_KINDS = {
+    'ready_card': 'card',
+    'select_get_card': 'card',
+    'select_ultimate': 'card',
+    'play_catch_card': 'card',
+    'play_combo_card': 'card',
+    'play_combo_pair': 'card',
+    'play_combo_sequence': 'card',
+    'select_combo_first': 'card',
+    'select_combo_followup': 'card',
+    'pass_phase': 'primary',
+    'end_combo': 'primary',
+    'decline_catch': 'primary',
+    'declare_no_response': 'primary',
+    'cancel_combo_first': 'secondary',
+    'submit_decision': 'decision',
+    'pause_clock': 'system',
+    'resume_clock': 'system',
+    'request_rewind': 'system',
+    'answer_rewind': 'system',
+    'concede': 'system',
+}
+ACTION_UI_DEFAULT_KIND = 'secondary'
+
+
 def opponent(side):
     return 'p2' if side == 'p1' else 'p1'
 
@@ -546,7 +578,13 @@ class AutomaticGameEngine:
                         payload={'card_instance_id': card.get('instance_id')},
                         card=self._public_action_card(card),
                     ))
-                actions.append(self._action('pass_phase', label='획득하지 않음'))
+                # Comprehensive rules 4.5.3: only a player whose hand has
+                # reached the hand limit may skip the get action. With nothing
+                # to take (4.5.5) the phase still has to be able to end.
+                gettable = any(item['type'] in {'select_get_card', 'select_ultimate'} for item in actions)
+                limit = self._current_hand_limit(role)
+                if not gettable or limit is None or len(self._zone(role, 'hand')) >= limit:
+                    actions.append(self._action('pass_phase', label='획득하지 않음'))
         elif phase == 'battle' and step == 'combo':
             combo = engine.get('combo') or {}
             if combo.get('owner') == role and not combo.get('proposal_submitted'):
@@ -909,6 +947,7 @@ class AutomaticGameEngine:
             return
         engine = self.engine_state
         previous = self.state.get('phase')
+        self._return_presented_combo_cards(engine.get('combo'))
         # Returning to Ready is part of the resolving effect. Remaining effects
         # at the old timing miss their window, and no battle-end expiration is
         # performed because the same battle phase continues (Q&A 67/404/626).
@@ -1340,6 +1379,10 @@ class AutomaticGameEngine:
             if combo_result == 'mutual':
                 return not self.is_waiting
             if combo_result:
+                # 쓸 수 없는 콤보를 건너뛴 경우 end_combo()가 combo_end 파이프라인을 열어 둔다.
+                # 여기서 멈추면 아무도 행동할 수 없으므로 이어서 진행한다.
+                if self.engine_state.get('pipeline'):
+                    return not self.is_waiting
                 return False
             self._open_catch_or_cleanup()
             return not self.is_waiting
@@ -2263,6 +2306,7 @@ class AutomaticGameEngine:
         combo = self.engine_state.get('combo')
         if not combo:
             return
+        self._return_presented_combo_cards(combo)
         self.emit('combo_ended', combo.get('owner'), {'used': combo.get('used') or []})
         self.engine_state['combo'] = None
         self.engine_state['step'] = 'combo_end'
@@ -3016,6 +3060,10 @@ class AutomaticGameEngine:
         instance_id = card_ids[0]
         self._refresh_continuous_rules()
         found_owner, found_zone, _index, card = self._find_location(instance_id)
+        presented_from = (combo.get('presented_from') or {}).get(instance_id)
+        if presented_from and found_zone == 'battle':
+            # 함께 제시해 먼저 배틀 존에 놓인 카드: 판정은 원래 있던 존 기준
+            found_zone = presented_from
         projected_card, combo_rules, borrow_rule = (
             self._combo_candidate_projection(
                 role, card, legality_combo,
@@ -3138,10 +3186,15 @@ class AutomaticGameEngine:
             combo_rules, selected_speed,
             use_optional_speed_ignore=use_optional_speed_rule,
         )
-        self.move_card(
-            instance_id, 'battle', to_player=role if borrow_rule else None,
-            reason='borrowed_combo' if borrow_rule else 'combo',
-        )
+        if presented_from:
+            combo['presented_from'].pop(instance_id, None)
+        else:
+            self.move_card(
+                instance_id, 'battle', to_player=role if borrow_rule else None,
+                reason='borrowed_combo' if borrow_rule else 'combo',
+            )
+        if len(card_ids) > 1:
+            self._present_combo_cards(role, combo, card_ids[1:])
         if borrow_rule:
             card['numbered_effects_negated'] = bool(borrow_rule.get('negate_effects', True))
             card['borrowed_combo'] = {
@@ -3195,6 +3248,41 @@ class AutomaticGameEngine:
         self.emit('combo_card_used', role, {
             'card_instance_id': instance_id, 'damage': damage,
         })
+
+    def _present_combo_cards(self, role, combo, card_ids):
+        """Put every Technique of one Combo proposal on the Battle Zone first.
+
+        The 1-Combo and 2-Combo Techniques are placed together and each one's
+        effects then resolve while both are on the Battle Zone; the later cards
+        are not left in hand during the earlier card's resolution.  The zone a
+        presented card came from is kept so its own legality (zone permissions,
+        costs) is still judged from there when its turn comes.
+        """
+        presented = combo.setdefault('presented_from', {})
+        for other_id in card_ids:
+            if other_id in presented:
+                continue
+            other_owner, other_zone, _other_index, other = self._find_location(other_id)
+            if not other or other_owner != role or other_zone == 'battle':
+                continue
+            presented[other_id] = other_zone
+            self.move_card(other_id, 'battle', reason='combo_presented', face_up=True)
+
+    def _return_presented_combo_cards(self, combo):
+        """A presented Combo card that never resolved goes back where it came from."""
+        presented = (combo or {}).get('presented_from') or {}
+        used = set((combo or {}).get('used') or [])
+        for instance_id, from_zone in list(presented.items()):
+            if instance_id in used:
+                continue
+            _owner, zone, _index, card = self._find_location(instance_id)
+            if card and zone == 'battle':
+                self.move_card(
+                    instance_id, from_zone, reason='combo_presentation_returned',
+                    _skip_effect_checks=True,
+                )
+        if combo:
+            combo['presented_from'] = {}
 
     def _return_borrowed_combo_cards(self, combo):
         combo_owner = combo.get('owner')
@@ -5528,6 +5616,7 @@ class AutomaticGameEngine:
     def create_decision(
         self, *, owner, kind, prompt, options, minimum=1, maximum=1,
         default=None, optional=False, distinct_by=None, continuation=None,
+        unavailable=None,
     ):
         normalized = []
         for index, option in enumerate(options or []):
@@ -5545,6 +5634,9 @@ class AutomaticGameEngine:
             'distinct_by': distinct_by,
             'continuation': copy.deepcopy(continuation or {}), 'created_at': self.now.isoformat(),
         }
+        if unavailable:
+            # 고를 수 없는 선택지는 이유와 함께 따로 보여 준다(제출 검증·AI는 options만 본다).
+            decision['unavailable_options'] = copy.deepcopy(unavailable)
         self.engine_state['pending_decision'] = decision
         self._start_clock(
             'decision', owner=owner,
@@ -7071,6 +7163,15 @@ class AutomaticGameEngine:
         event = str(expires.get('event') or 'phase_end')
         phase = str(expires.get('phase') or '')
         occurrences = max(1, _number(expires.get('occurrences'), 1))
+        if expires.get('keep_longer'):
+            # Q-AUTO-007: a re-grant keeps whichever duration lasts longer.
+            current = next((
+                item for item in self.engine_state.get('state_expirations') or []
+                if item.get('player') == side and item.get('state') == key
+                and item.get('event') == event and item.get('phase') == phase
+            ), None)
+            if current:
+                occurrences = max(occurrences, _number(current.get('remaining'), 0))
         entries = [
             item for item in self.engine_state.setdefault(
                 'state_expirations', [],
@@ -7133,7 +7234,7 @@ class AutomaticGameEngine:
 
     def set_passive(
         self, side, key, *, value, label=None, visibility='public',
-        source_card=None, expires=None,
+        source_card=None, expires=None, refire_when_active=False,
     ):
         states = self.state['players'][side].setdefault('passive_state', {})
         before = copy.deepcopy(states.get(key))
@@ -7167,6 +7268,17 @@ class AutomaticGameEngine:
                 )
             elif not value:
                 self._clear_state_expiration(side, key)
+            # "부여할 때마다" (CB04-PS-001, Q-AUTO-007): granting a state the
+            # player already has still counts as a grant for listeners.
+            if value and refire_when_active and not self._rule_blocked(
+                'state_gain', side, {'state': key, 'owner': side}, source_card,
+            ):
+                self.emit('state_gained', side, {
+                    'state': key, 'before': before, 'value': True, 'reapplied': True,
+                }, visibility=visibility)
+                self._fire('state_gained', {
+                    'controller': side, 'player': side, 'state': key, 'reapplied': True,
+                })
             return True
         if not value and self._rule_blocked(
             'state_loss', side, {'state': key, 'owner': side},
@@ -7757,6 +7869,39 @@ class AutomaticGameEngine:
             effect_controller=effect_controller,
             effect_source=effect_source,
         )
+        return True
+
+    def negate_battle_card_effects(
+        self, instance_id, *, effect_controller=None, effect_source=None,
+    ):
+        owner, zone, _index, card = self._find_location(instance_id)
+        if (
+            not card or owner not in PLAYER_SIDES or zone != 'battle'
+            or (effect_controller in PLAYER_SIDES and owner == effect_controller)
+        ):
+            return False
+        if self._card_ignores_effect(
+            card, effect_controller, effect_source, zone=zone,
+            operation='negate_battle_card_effects',
+        ):
+            self.emit('card_effect_ignored', owner, {
+                'card_instance_id': instance_id,
+                'operation': 'negate_battle_card_effects',
+                'effect_controller': effect_controller,
+                'effect_source': effect_source,
+            })
+            return False
+        card['numbered_effects_negated'] = True
+        battle_entry = (self.engine_state.get('battle') or {}).get(owner) or {}
+        if (
+            battle_entry.get('instance_id') == instance_id
+            and isinstance(battle_entry.get('card'), dict)
+        ):
+            battle_entry['card']['numbered_effects_negated'] = True
+        self.emit('battle_card_effects_negated', effect_controller or 'system', {
+            'card_instance_id': instance_id, 'owner': owner,
+            'source': effect_source,
+        })
         return True
 
     def _refresh_continuous_rules(self):
@@ -9075,6 +9220,17 @@ class AutomaticGameEngine:
         self, kind, side, card=None, against_card=None, *, zone=None,
         effect_controller=None, direct_controller=None,
     ):
+        return self._rule_blocking_replacement(
+            kind, side, card, against_card, zone=zone,
+            effect_controller=effect_controller,
+            direct_controller=direct_controller,
+        ) is not None
+
+    def _rule_blocking_replacement(
+        self, kind, side, card=None, against_card=None, *, zone=None,
+        effect_controller=None, direct_controller=None,
+    ):
+        """The prevent/negate replacement that blocks this rule action, if any."""
         for replacement in self.engine_state.get('replacements') or []:
             if replacement.get('op') not in {'prevent', 'negate'}:
                 continue
@@ -9123,8 +9279,48 @@ class AutomaticGameEngine:
             }
             if not condition_matches(replacement.get('condition'), self.state, context):
                 continue
-            return True
-        return False
+            return replacement
+        return None
+
+    _UNAVAILABLE_OPERATION_LABELS = {
+        'break_card': '브레이크할', 'move_card': '옮길', 'discard': '버릴',
+    }
+
+    def selector_unavailable_reason(self, selector, context=None):
+        """Why a ``selector_available`` cannot be met (shown on disabled options)."""
+        selector = selector or {}
+        context = context or {}
+        minimum = _number(resolve_value(selector.get('min', 1), self.state, context), 1)
+        operation = selector.get('as_operation')
+        verb = self._UNAVAILABLE_OPERATION_LABELS.get(operation)
+        if verb and not selector.get('include_operation_blocked'):
+            unblocked = {**selector, 'include_operation_blocked': True}
+            candidates = self.selector_options(unblocked, context)
+            if len(candidates) >= minimum:
+                controller = context.get('controller')
+                rule_kind = {'break_card': 'break'}.get(operation)
+                sources = []
+                for option in candidates:
+                    card = self._find_card(option.get('id')) or {}
+                    replacement = (
+                        self._rule_blocking_replacement(
+                            rule_kind, card.get('owner') or option.get('owner'), card,
+                            zone=option.get('zone'), effect_controller=controller,
+                        )
+                        if rule_kind else None
+                    )
+                    source = self._find_card(replacement.get('source')) if replacement else None
+                    name = (source or {}).get('name')
+                    if name and name not in sources:
+                        sources.append(name)
+                if sources:
+                    names = ', '.join(f'「{name}」' for name in sources)
+                    return f'{names} 효과로 {verb} 수 없습니다.'
+                return f'효과로 {verb} 수 없는 카드뿐입니다.'
+        available = len(self.selector_options(selector, context))
+        if available <= 0:
+            return '조건에 맞는 카드가 없습니다.'
+        return f'조건에 맞는 카드가 부족합니다({available}/{minimum}).'
 
     def _priority_order(self):
         priority = self.state.get('priority_player')
@@ -9512,9 +9708,13 @@ class AutomaticGameEngine:
             decision_payload = copy.deepcopy(decision)
             if decision_payload:
                 decision_payload.pop('continuation', None)
+                self._attach_option_ui(
+                    role, decision_payload.get('options'),
+                    self._decision_destination(decision),
+                )
         return {
             'state': self._observation_state(role) if include_state else None,
-            'legal_actions': self.legal_actions(role),
+            'legal_actions': self._with_action_ui(role, self.legal_actions(role)),
             'pending_decision': decision_payload,
             'clocks': copy.deepcopy(self.engine_state.get('clock')),
             'timer_settings': {
@@ -9531,6 +9731,101 @@ class AutomaticGameEngine:
             },
             'ruleset_version': self.ruleset.get('version') or self.ruleset.get('content_hash'),
         }
+
+    def _ui_card_ref(self, role, instance_id):
+        """Locate a card by the position a role-filtered state exposes.
+
+        Hidden cards lose their ``instance_id`` in client state, so clients
+        address board slots by ``owner``/``zone``/``index``.  The id is only
+        repeated when the card is visible to ``role``.
+        """
+        if not instance_id:
+            return None
+        owner, zone, index, card = self._find_location(instance_id)
+        if card is None:
+            return None
+        ref = {'owner': owner, 'zone': zone, 'index': index}
+        if role == card.get('owner') or card.get('face_up'):
+            ref['instance_id'] = card.get('instance_id')
+        return ref
+
+    def _with_action_ui(self, role, actions):
+        decorated = []
+        for action in actions:
+            action = dict(action)
+            payload = action.get('payload') or {}
+            card_ids = list(payload.get('card_instance_ids') or [])
+            if not card_ids and payload.get('card_instance_id'):
+                card_ids = [payload['card_instance_id']]
+            cards = [self._ui_card_ref(role, card_id) for card_id in card_ids]
+            action['ui'] = {
+                'kind': ACTION_UI_KINDS.get(action.get('type'), ACTION_UI_DEFAULT_KIND),
+                'cards': [card for card in cards if card],
+            }
+            if action.get('options'):
+                action['options'] = copy.deepcopy(action['options'])
+                self._attach_option_ui(
+                    role, action['options'],
+                    self._decision_destination(self.engine_state.get('pending_decision'))
+                    if action.get('type') == 'submit_decision' else None,
+                )
+            decorated.append(action)
+        return decorated
+
+    # Where the chosen cards end up, for the game client's drag and drop
+    # (ui.to_zone). Presentation only: the effect still decides the move.
+    # 'discard' is resolved per card (Special Techniques go to the Break Zone).
+    _DECISION_DESTINATION_OPS = {
+        'break_card': 'break', 'break_cards': 'break', 'discard': 'discard',
+        'force_ready': 'battle', 'force_ready_first': 'battle',
+    }
+    # Cost decisions whose continuation carries the paid cost.
+    _COST_DECISION_KINDS = {
+        'play_cost', 'battle_reveal_play_cost', 'combo_speed_cost', 'defense_cost',
+    }
+
+    def _decision_destination(self, decision):
+        continuation = (decision or {}).get('continuation') or {}
+        kind = continuation.get('type')
+        if kind in {'hand_limit_discard', 'break_replenish'}:
+            # 손패 제한 버리기, 사이드 덱에서 리스트로 보충
+            return 'list'
+        if kind in self._COST_DECISION_KINDS:
+            cost = continuation.get('cost') or {}
+            operation = cost.get('operation')
+            if operation == 'discard':
+                return 'discard'
+            if operation == 'move_card':
+                return cost.get('to_zone')
+            if operation in self._DECISION_DESTINATION_OPS:
+                return self._DECISION_DESTINATION_OPS[operation]
+            return None
+        if kind == 'effect_choice':
+            for effect in continuation.get('effects') or []:
+                if not isinstance(effect, dict):
+                    continue
+                op = effect.get('op')
+                if op == 'move_card' and isinstance(effect.get('to_zone'), str):
+                    return effect['to_zone']
+                if op in self._DECISION_DESTINATION_OPS:
+                    return self._DECISION_DESTINATION_OPS[op]
+        return None
+
+    def _attach_option_ui(self, role, options, to_zone=None):
+        for option in options or []:
+            if not isinstance(option, dict):
+                continue
+            ref = self._ui_card_ref(
+                role, option.get('card_instance_id') or option.get('id'),
+            )
+            option['ui'] = {'card': ref} if ref else {}
+            if ref and to_zone:
+                destination = to_zone
+                if to_zone == 'discard':
+                    # 버리기: 특수 기술은 브레이크 존, 그 밖에는 리스트
+                    card = self._find_card(option.get('card_instance_id') or option.get('id'))
+                    destination = 'break' if _is_special(card or {}) else 'list'
+                option['ui']['to_zone'] = destination
 
     def _observation_state(self, role):
         state = copy.deepcopy(self.state)
