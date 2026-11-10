@@ -28,11 +28,12 @@ function Navigation() {
             "/collection",
             "/qna",
             "/calculator",
-            "/party",
             "/tournaments",
+            "/utilities",
           ].includes(pathname)
         )
           router.dismissTo("/");
+        else if (pathname === "/party") router.dismissTo("/utilities");
         else if (router.canGoBack()) router.back();
         else router.replace("/");
         return true;
@@ -65,6 +66,7 @@ function Navigation() {
       <Stack.Screen name="decks" options={{ title: t("덱") }} />
       <Stack.Screen name="collection" options={{ title: t("컬렉션") }} />
       <Stack.Screen name="qna" options={{ title: "QNA" }} />
+      <Stack.Screen name="utilities" options={{ title: t("유틸리티") }} />
       <Stack.Screen name="party" options={{ title: t("루멘 파티") }} />
       <Stack.Screen name="tournaments" options={{ title: t("내 대회") }} />
       <Stack.Screen name="tournament/[id]" options={{ title: t("내 경기") }} />
@@ -76,7 +78,7 @@ function Navigation() {
           headerShown: false,
         }}
       />
-      <Stack.Screen name="battle" options={{ title: t("대전") }} />
+      <Stack.Screen name="battle" options={{ title: t("시뮬") }} />
       <Stack.Screen
         name="play"
         options={{ title: t("대전"), orientation: "default", headerShown: false }}

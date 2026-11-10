@@ -8,15 +8,16 @@ import { colors } from "../src/ui";
 import { useCalculatorEntry } from "../src/calculator-entry";
 
 const gap = 12;
+// 루멘 파티는 미공개 기능이라 메인화면이 아닌 유틸리티 아래에 둔다.
 const menus = [
-  { label: "내 대회", icon: "♜", href: "/tournaments" },
-  { label: "루멘 파티", icon: "⚄", href: "/party" },
   { label: "계산기", icon: "±", href: "/calculator" },
+  { label: "시뮬", icon: "⚔", href: "/battle" },
   { label: "카드", icon: "▣", href: "/cards" },
   { label: "덱", icon: "▤", href: "/decks" },
   { label: "컬렉션", icon: "▦", href: "/collection" },
   { label: "QNA", icon: "?", href: "/qna" },
-  { label: "대전", icon: "⚔", href: "/battle" },
+  { label: "대회", icon: "♜", href: "/tournaments" },
+  { label: "유틸리티", icon: "✦", href: "/utilities" },
 ] as const;
 
 export default function Home() {
@@ -49,12 +50,7 @@ export default function Home() {
                   { opacity: pressed ? 0.75 : 1 },
                 ]}
               >
-                <View style={homeStyles.iconRow}>
-                  <Text style={homeStyles.icon}>{menu.icon}</Text>
-                  {menu.href === "/party" && (
-                    <Text style={homeStyles.subtitle}>2–4P</Text>
-                  )}
-                </View>
+                <Text style={homeStyles.icon}>{menu.icon}</Text>
                 <Text style={homeStyles.title}>{t(menu.label)}</Text>
               </Pressable>
             ))}
@@ -82,9 +78,7 @@ const homeStyles = StyleSheet.create({
   },
   calculator: { backgroundColor: "#2a2215", borderColor: colors.accent },
   smallTile: { flex: 1 },
-  iconRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   icon: { fontSize: 38, color: colors.accent },
-  subtitle: { fontSize: 12, color: colors.muted },
   title: {
     fontSize: 22,
     fontWeight: "700",

@@ -5,9 +5,11 @@ the five database features, a bundled public catalog, account-scoped offline
 storage, and local/shared calculators. The included seed contains 455 cards,
 19 characters, 35 packs, 1,802 collection items and 487 Q&A entries.
 
-The start screen uses a two-column/four-row menu: Calculator occupies the top
-2×2 area; Cards/Decks and Collection/QNA occupy the remaining four cells. Feature
-screens return to this menu through stack navigation; there is no bottom tab bar.
+The start screen uses a two-column/four-row menu: Calculator/Simulator,
+Cards/Decks, Collection/QNA and Tournaments/Utilities. Utilities collects
+miscellaneous tools; Lumen Party lives there but stays hidden until
+`PARTY_PUBLIC` in `app/utilities.tsx` is enabled. Feature screens return to this
+menu through stack navigation; there is no bottom tab bar.
 Card search has icon-only sort and display controls at the right end of the
 filter row. Display cycles directly
 between a card grid and detailed rows. The sort popover supports card number,
@@ -61,6 +63,9 @@ large-screen compatibility property preserves these orientation requests;
 ## Run and build
 
 Use Node 24 and an Android SDK/JDK 21 for local Android builds.
+Recent Android Studio releases bundle JDK 25, whose native-access warning fails
+the `react-native-worklets` CMake step; set `JAVA_HOME` to a separate JDK 21
+before running the bundle script.
 
 ```powershell
 cd mobile
@@ -92,12 +97,13 @@ submission are account-specific and are not embedded in the repository.
 
 ### Local Play Store bundle
 
-The application ID is `kr.hinoto.lumen`, version `1.0.8`, versionCode 9.
+The application ID is `kr.hinoto.lumen`, version `1.2.0`, versionCode 11.
 The upload keystore is `C:\Hinoto\lumen-upload.keystore`; the configured alias is
 `HInoto_key`. Its RSA-3072 certificate expires on December 31, 9999. The passwords
 are stored outside the repository in Windows-encrypted SecureStrings at
 `C:\Hinoto\lumen-upload.credentials.xml`. This XML can be decrypted only by the
-Windows account/machine that created it. Keep a separate backup of the keystore
+Windows account/machine that created it. On another PC, recreate it by entering the passwords with
+`mobile/scripts/new-upload-credentials.ps1`. Keep a separate backup of the keystore
 and the passwords supplied when creating it; the XML is a local convenience.
 JKS aliases are case-insensitive and keytool displays this alias in lowercase.
 
@@ -106,7 +112,7 @@ From the repository root:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1
 # For a later upload, use a greater versionCode:
-powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1 -VersionCode 10
+powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1 -VersionCode 12
 ```
 
 The default versionCode comes from app.config.ts. The script regenerates Android
