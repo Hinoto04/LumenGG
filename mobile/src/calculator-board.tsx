@@ -384,7 +384,7 @@ export function CalculatorBoard({
   return (
     <CharacterFrame.Provider value={characterFrame}>
       <SafeAreaView
-        style={[board.screen, characterFrame && { backgroundColor: "#070b13" }]}
+        style={[board.screen, characterFrame && { backgroundColor: "#0b0e14" }]}
       >
         <StatusBar hidden />
         {!!error && !setupOpen && <Notice text={error} />}
@@ -406,8 +406,10 @@ export function CalculatorBoard({
               { width: centerWidth },
               characterFrame && {
                 padding: 6,
-                backgroundColor: "#101a2b",
-                borderRadius: 12,
+                backgroundColor: "#131823",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.09)",
+                borderRadius: 18,
                 gap: 6,
               },
             ]}
@@ -468,8 +470,9 @@ export function CalculatorBoard({
               style={[
                 board.timer,
                 characterFrame && {
-                  backgroundColor: "#17243b",
-                  borderColor: "#526585",
+                  backgroundColor: "#1a1812",
+                  borderColor: "rgba(232,189,98,0.3)",
+                  borderRadius: 16,
                 },
                 state?.timer.is_running && { borderColor: colors.accent },
                 { height: timerHeight, minHeight: timerHeight },
@@ -655,8 +658,9 @@ function SmallButton({
         characterFrame && {
           width: 44,
           height: 44,
-          backgroundColor: "#17243b",
-          borderColor: "#3c4b63",
+          borderRadius: 12,
+          backgroundColor: "#1b2130",
+          borderColor: "rgba(255,255,255,0.09)",
         },
         disabled && { opacity: 0.4 },
       ]}

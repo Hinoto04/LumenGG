@@ -1,14 +1,16 @@
 import themes from "./calculator-themes.json";
 import type { CalculatorTheme } from "./types";
+/** 계산기 화면은 하나다. "classic"은 예전 링크와 저장값을 읽기 위해서만 남긴다. */
 export type CalculatorUi = "classic" | "character";
-export function calculatorUi(value: unknown): CalculatorUi {
-  return value === "character" ? "character" : "classic";
+export function calculatorUi(_value?: unknown): CalculatorUi {
+  return "character";
 }
-export function calculatorLink(value: string, ui: CalculatorUi): string {
+/** 예전 ?ui= 선택값을 걷어낸 링크. 역할 토큰·다른 쿼리·조각은 그대로 둔다. */
+export function calculatorLink(value: string, _ui?: CalculatorUi): string {
   const absolute = /^https?:\/\//i.test(value);
   const url = new URL(value, "https://calculator.invalid");
   url.searchParams.delete("ui");
-  if (ui === "character") url.searchParams.set("ui", "character");
+  url.searchParams.delete("choose_ui");
   return absolute ? url.toString() : url.pathname + url.search + url.hash;
 }
 export function linkedCalculatorUi(value: string): CalculatorUi | undefined {

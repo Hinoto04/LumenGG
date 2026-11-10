@@ -333,7 +333,7 @@
 
     function showHpDelta(target, amount) {
         if (!amount) return;
-        const hpBox = document.querySelector(`[data-player-hp="${target}"]`)?.closest(".v2-battle-hp > div");
+        const hpBox = document.querySelector(`[data-player-hp="${target}"]`)?.closest("[data-hp-box]");
         if (!hpBox) return;
         const badge = document.createElement("span");
         badge.className = `v2-battle-hp-delta ${amount > 0 ? "is-heal" : "is-damage"}`;
@@ -388,75 +388,17 @@
         };
     }
 
-    function renderCustomPassiveUi(target, holder, passiveUi) {
-        const root = document.createElement("div");
-        const rootId = `v2-battle-passive-${state.id}-${target}-${state.players[target].character.id}`;
-        root.id = rootId;
-        root.className = "v2-battle-passive-custom";
-        root.innerHTML = passiveUi.html || "";
-
-        if (passiveUi.css) {
-            const style = document.createElement("style");
-            style.textContent = String(passiveUi.css).replaceAll(":host", `#${rootId}`);
-            holder.appendChild(style);
-        }
-        holder.appendChild(root);
-
-        if (passiveUi.js) {
-            try {
-                const api = makePassiveApi(target, root, passiveUi.options || {});
-                const run = new Function("api", `"use strict";\n${passiveUi.js}`);
-                run(api);
-            } catch (error) {
-                const message = document.createElement("p");
-                message.className = "v2-battle-empty";
-                message.textContent = t("패시브 패널 스크립트 오류가 발생했습니다.");
-                holder.appendChild(message);
-                console.error(error);
-            }
-        }
-    }
-
-    function renderFallbackPassiveMemo(target, holder) {
-        holder.replaceChildren();
-    }
-
     function renderPassives(target) {
         const holder = document.querySelector(`[data-player-passives="${target}"]`);
         if (!holder) return;
         const player = state.players[target];
         holder.classList.toggle('has-shield-controls', shields.supportsShield(player));
-        const passiveUi = player.character ? player.character.passive_ui || {} : {};
-        if (window.characterCalculator) {
-            const frame = JSON.stringify([player.character?.id, player.character?.trait_card_id, player.character?.calculator_ui?.theme_key, player.hp, player.fp, player.passive_state, state.can_control, state.is_expired]);
-            if (characterPassiveFrames.get(target) === frame) return;
-            characterPassiveFrames.set(target, frame);
-        }
-        if (window.characterCalculator?.renderPassives) {
-            const handled = window.characterCalculator.renderPassives(makePassiveApi(target, holder, {}));
-            if (handled !== false) { renderShieldControls(target, holder); return; }
-        }
-        if (player.character?.trait_card_id && !player.character.trait_config?.legacy_character_actions && window.renderTraitControls) {
-            window.renderTraitControls(makePassiveApi(target, holder, passiveUi.options));
-            renderShieldControls(target, holder); return;
-        }
-        const scrollTop = holder.scrollTop;
-        holder.replaceChildren();
-        const hasCustomPanel = passiveUi.html || passiveUi.css || passiveUi.js;
-        if (!player.character) {
-            const empty = document.createElement("p");
-            empty.className = "v2-battle-empty";
-            empty.textContent = t("캐릭터를 선택하면 패시브 패널이 표시됩니다.");
-            holder.appendChild(empty);
-            return;
-        }
-        if (hasCustomPanel) {
-            renderCustomPassiveUi(target, holder, passiveUi);
-            renderShieldControls(target, holder);
-            if (window.characterCalculator) holder.scrollTop = scrollTop;
-            return;
-        }
-        renderFallbackPassiveMemo(target, holder);
+        // 상태가 그대로면 다시 그리지 않아 누르는 중인 버튼과 스크롤 위치를 지킨다.
+        const frame = JSON.stringify([player.character?.id, player.character?.trait_card_id, player.hp, player.passive_state, state.can_control, state.is_expired, partyExchangeBusy]);
+        if (characterPassiveFrames.get(target) === frame) return;
+        characterPassiveFrames.set(target, frame);
+        if (window.calculatorTray) window.calculatorTray.render(makePassiveApi(target, holder, {}));
+        else holder.replaceChildren();
         renderShieldControls(target, holder);
     }
 
@@ -641,7 +583,6 @@
         renderCharacterSelectors();
         if (historyOpen) renderHistory();
         setControlDisabled();
-        window.characterCalculator?.render(state);
     }
 
     function renderPresence() {
@@ -707,7 +648,7 @@
         historyOpen = nextOpen;
         document.body.classList.toggle("v2-battle-history-open", historyOpen);
         document.querySelectorAll("[data-history-toggle]").forEach((button) => {
-            button.textContent = historyOpen ? t("로그 닫기") : t("로그 확인");
+            button.setAttribute("aria-expanded", String(historyOpen));
         });
         if (historyOpen) fetchHistory(true);
     }
@@ -1103,7 +1044,7 @@
     }
 
     function updateQueuedHpBadge(target, amount) {
-        const hpBox = document.querySelector(`[data-player-hp="${target}"]`)?.closest(".v2-battle-hp > div");
+        const hpBox = document.querySelector(`[data-player-hp="${target}"]`)?.closest("[data-hp-box]");
         if (!hpBox) return;
         hpBox.querySelectorAll(".v2-battle-hp-pending").forEach((node) => node.remove());
         if (!amount) return;

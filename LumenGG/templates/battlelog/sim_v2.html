@@ -2,13 +2,6 @@
 {% load static %}
 {% load language_tags %}
 {% block title %}{% tr "대전 계산기" %} - LumenDB{% endblock title %}
-{% block style %}<style>
-.v2-calculator-ui-choice{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px;margin:0 0 20px;border:1px solid var(--v2-line);border-radius:10px}
-.v2-calculator-ui-choice legend{grid-column:1/-1;padding:0 6px;font-weight:700}
-.v2-calculator-ui-choice label{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;min-height:44px;padding:6px 14px;border:1px solid var(--v2-line);border-radius:8px;text-align:center;cursor:pointer}
-.v2-calculator-ui-choice input[type="radio"]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.v2-calculator-ui-choice label:has(input:checked){border-color:var(--v2-accent);background:color-mix(in srgb,var(--v2-accent) 12%,transparent)}
-</style>{% endblock %}
 {% block content %}
 <section class="v2-page-head">
     <div>
@@ -20,12 +13,6 @@
 
 <form class="v2-panel v2-battle-start" action="{% url "battlelog:sim" %}" method="post">
     {% csrf_token %}
-    <fieldset class="v2-calculator-ui-choice">
-        <legend>{% tr "계산기 UI 선택" %}</legend>
-        <label><input type="radio" name="ui" value="classic" {% if calculator_ui != 'character' %}checked{% endif %}> {% tr "기존 계산기" %}</label>
-        <label><input type="radio" name="ui" value="character" data-calculator-style="illustrated" {% if calculator_ui == 'character' %}checked{% endif %}> {% tr "캐릭터 UI 계산기" %}</label>
-        <label><input type="radio" name="ui" value="character" data-calculator-style="clean"> {% tr "깔끔한 UI 계산기" %}</label>
-    </fieldset>
     <div class="v2-battle-start-grid">
         <div class="v2-admin-field">
             <label for="player1_name">{% tr "플레이어1 이름" %}</label>
@@ -57,7 +44,7 @@
     </div>
 </form>
 
-<section class="v2-panel v2-session-history" data-session-history data-session-history-kind="battle" data-ui-choice-label="{% tr "계산기 UI 선택" %}" hidden>
+<section class="v2-panel v2-session-history" data-session-history data-session-history-kind="battle" hidden>
     <header>
         <strong>{% tr "최근 접속한 계산기" %}</strong>
         <span>{% tr "이 기기에 저장된 최근 5개 세션입니다." %}</span>
@@ -66,6 +53,5 @@
 </section>
 
 <script src="{% static "v2/session-history.js" %}"></script>
-<script src="{% static 'v2/calculator-appearance-model.js' %}"></script><script src="{% static 'v2/calculator-appearance-entry.js' %}"></script>
 <script src="{% static 'v2/calculator-trait-choice.js' %}" defer></script>
 {% endblock content %}

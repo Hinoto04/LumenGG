@@ -27,7 +27,7 @@ from .automatic_services import (
 from .game.engine import IllegalAction, StaleState
 from .models import LumenSimulatorSession
 from .play_start import opens_in_game_client, play_url, start_session
-from .calculator_ui import calculator_ui, calculator_url
+from .calculator_ui import calculator_url
 from .presence import battle_presence_counts, simulator_presence_counts
 from .realtime import broadcast_battle_session
 from .realtime import broadcast_simulator_session
@@ -83,9 +83,9 @@ def sim(req):
             trait_ids=[int(req.POST.get('player1_trait_card_id') or 0), int(req.POST.get('player2_trait_card_id') or 0)] if req.POST.get('schema_version') == '2' else None,
         )
         url = reverse('battlelog:sessionControl', kwargs={'view_token': session.view_token, 'control_token': session.control_token})
-        return redirect(calculator_url(url, req.POST.get('ui')))
+        return redirect(url)
 
-    return render(req, 'battlelog/sim_v2.html', {'characters': characters, 'calculator_ui': calculator_ui(req.GET.get('ui'))})
+    return render(req, 'battlelog/sim_v2.html', {'characters': characters})
 
 
 def simulatorStart(req):
@@ -553,25 +553,21 @@ def _render_session(req, view_token, control_token):
     session = _get_session(view_token)
     state = serialize_session(session, req.user, control_token, include_events=False, language=language)
     character_options = character_options_for_session(session, req.user, control_token, language=language)
-    ui = calculator_ui(req.GET.get('ui'))
     context = {
         'session': session,
         'state': state,
+        'players': [('p1', session.player1_name), ('p2', session.player2_name)],
         'control_token': control_token,
         'can_control': can_control_session(req.user, session, control_token),
         'can_sudden_death': can_toggle_sudden_death(req.user, session, control_token),
         'character_options': character_options,
-        'view_url': req.build_absolute_uri(calculator_url(state['view_url'], ui)),
-        'control_url': req.build_absolute_uri(calculator_url(state['control_url'], ui)),
-        'current_url': req.build_absolute_uri(),
+        # 예전 ?ui=, ?choose_ui= 링크도 같은 통합 계산기로 열리고, 공유 링크에는 남기지 않는다.
+        'view_url': req.build_absolute_uri(calculator_url(state['view_url'])),
+        'control_url': req.build_absolute_uri(calculator_url(state['control_url'])),
+        'current_url': req.build_absolute_uri(calculator_url(req.get_full_path())),
         'battle_i18n': javascript_i18n(language),
     }
-    if req.GET.get('choose_ui') == '1':
-        context['classic_url'] = calculator_url(req.get_full_path(), 'classic')
-        context['character_url'] = calculator_url(req.get_full_path(), 'character')
-        return render(req, 'battlelog/calculator_entry.html', context)
-    template = 'battlelog/session_character.html' if ui == 'character' else 'battlelog/session_v2.html'
-    return render(req, template, context)
+    return render(req, 'battlelog/session_v2.html', context)
 
 
 @require_GET

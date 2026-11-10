@@ -22,11 +22,9 @@ import {
   storedShared,
   parseShareLink,
 } from "../src/shared";
-import { CalculatorBoard } from "../src/calculator-board";
 import {
   calculatorUi,
   calculatorLink,
-  linkedCalculatorUi,
 } from "../src/calculator-ui";
 const CharacterCalculatorBoard = React.lazy(
   () => import("../src/calculator-character-board"),
@@ -49,7 +47,7 @@ export default function Calculator() {
   }>();
   const { catalog, language, t, online, user, scope } = useApp();
   const ui = calculatorUi(params.ui);
-  const Board = ui === "character" ? CharacterCalculatorBoard : CalculatorBoard;
+  const Board = CharacterCalculatorBoard;
   const [local, setLocal] = useState<CalcState | null>(null),
     [shared, setShared] = useState<CalcState | null>(null),
     [session, setSession] = useState<SharedSession | null>(null),
@@ -631,8 +629,6 @@ export default function Calculator() {
                     onPress={async () => {
                       try {
                         const next = parseShareLink(link);
-                        const linkedUi = linkedCalculatorUi(link);
-                        router.setParams({ ui: linkedUi || "classic" });
                         await saveShared(next);
                         setSession(next);
                         setShared(null);

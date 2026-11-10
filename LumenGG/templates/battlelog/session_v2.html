@@ -2,140 +2,134 @@
 {% load static %}
 {% load language_tags %}
 {% block title %}{{ session.player1_name }} vs {{ session.player2_name }} - {% tr "대전 계산기" %}{% endblock title %}
-{% block body_class %}v2-battle-mode{% endblock body_class %}
-{% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}"><link rel="stylesheet" href="{% static 'v2/calculator-shield.css' %}">{% endblock %}
+{% block body_class %}v2-battle-mode lc-mode{% endblock body_class %}
+{% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}"><link rel="stylesheet" href="{% static 'v2/calculator.css' %}?v=20261111e">{% endblock %}
 {% block content %}
 {% include "battlelog/_preparation.html" %}
-<section class="v2-battle-page" data-battle-session>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="lc-i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+    <symbol id="lc-i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="lc-i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+    <symbol id="lc-i-log" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+    <symbol id="lc-i-share" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+    <symbol id="lc-i-full" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></symbol>
+    <symbol id="lc-i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></symbol>
+</svg>
+<section class="lc" data-battle-session data-calculator-style="illustrated">
     {% csrf_token %}
-    {% if state.party %}
-    <div class="party-calculator-bar">
-        <a class="v2-button" href="{{ state.party.return_url }}" data-party-return>← 파티로 돌아가기</a>
-        <p>파티 교전 · <strong data-party-exchanges>{{ state.party.exchanges }}/2</strong> 공방 완료<br><span data-party-calculator-help>HP·FP 입력 후 공방 완료를 눌러주세요.</span></p>
-        {% if control_token %}<button class="v2-button v2-button-primary" type="button" data-party-exchange>공방 완료</button>{% endif %}
-    </div>
-    {% endif %}
-    <div class="v2-page-head">
-        <div>
-            <div class="v2-kicker">BATTLE CALCULATOR</div>
-            <h1 class="v2-title">{{ session.player1_name }} vs {{ session.player2_name }}</h1>
-            {% if session.tournament_match %}
-            <p class="v2-subtitle">
-                {{ session.tournament_match.round.tournament.name }} / {{ session.tournament_match.table_label }}
-            </p>
-            {% endif %}
-        </div>
-    </div>
 
-    <button class="v2-battle-history-backdrop" type="button" data-history-backdrop aria-label="{% tr "로그 닫기" %}"></button>
-    <button class="v2-battle-share-backdrop" type="button" data-share-close aria-label="{% tr "공유 닫기" %}"></button>
-    <div class="v2-battle-share-modal" data-share-modal role="dialog" aria-modal="true" aria-label="{% tr "링크 공유" %}">
-        <div class="v2-battle-share-head">
+    <button class="lc-backdrop lc-history-backdrop" type="button" data-history-backdrop aria-label="{% tr "로그 닫기" %}"></button>
+    <button class="lc-backdrop lc-share-backdrop" type="button" data-share-close aria-label="{% tr "공유 닫기" %}"></button>
+    <div class="lc-sheet lc-share" data-share-modal role="dialog" aria-modal="true" aria-label="{% tr "링크 공유" %}">
+        <div class="lc-sheet-head">
             <strong>{% tr "링크 공유" %}</strong>
-            <button class="v2-button" type="button" data-share-close>{% tr "닫기" %}</button>
+            <button class="lc-chip" type="button" data-share-close>{% tr "닫기" %}</button>
         </div>
-        <button class="v2-button" type="button" data-copy-link="{{ view_url }}" data-copy-kind="view">{% tr "관전 링크 복사" %}</button>
+        <button class="lc-wide-button" type="button" data-copy-link="{{ view_url }}" data-copy-kind="view">{% tr "관전 링크 복사" %}</button>
         {% if control_token %}
-        <button class="v2-button" type="button" data-copy-link="{{ control_url }}" data-copy-kind="control">{% tr "조작 링크 복사" %}</button>
+        <button class="lc-wide-button" type="button" data-copy-link="{{ control_url }}" data-copy-kind="control">{% tr "조작 링크 복사" %}</button>
         {% endif %}
-        <div class="v2-battle-presence" data-battle-presence></div>
+        <div class="lc-presence" data-battle-presence></div>
     </div>
 
-    <div class="v2-battle-layout">
-        <article class="v2-panel v2-battle-player v2-battle-player-p1" data-player-panel="p1">
-            <div class="v2-battle-player-head">
-                <div>
-                    <h2 data-player-name="p1">{{ session.player1_name }}</h2>
-                </div>
-                <strong data-player-hand="p1">{% tr "손패 -" %}</strong>
+    <aside class="lc-sheet lc-history" aria-label="{% tr "기록" %}">
+        <div class="lc-sheet-head" data-history-panel>
+            <strong>{% tr "기록" %}</strong>
+            <div class="lc-history-filter" role="group">
+                <button class="lc-chip" type="button" data-history-target="all">{% tr "전체" %}</button>
+                <button class="lc-chip" type="button" data-history-target="p1" data-player-name="p1">{{ session.player1_name }}</button>
+                <button class="lc-chip" type="button" data-history-target="p2" data-player-name="p2">{{ session.player2_name }}</button>
             </div>
-            <div class="v2-battle-hp">
-                <button class="v2-battle-hp-button is-damage is-heavy" type="button" data-hp-target="p1" data-hp-step="-500" data-queue-label="5">5</button>
-                <button class="v2-battle-hp-button is-damage" type="button" data-hp-target="p1" data-hp-step="-100">-</button>
-                <div>
-                    <strong data-player-hp="p1">0</strong>
-                </div>
-                <button class="v2-battle-hp-button is-heal" type="button" data-hp-target="p1" data-hp-step="100">+</button>
-                <button class="v2-battle-hp-button is-heal is-heavy" type="button" data-hp-target="p1" data-hp-step="500" data-queue-label="5">5</button>
-            </div>
-            <div class="v2-battle-fp">
-                <button class="v2-battle-fp-button" type="button" data-fp-target="p1" data-fp-step="-1">-</button>
-                <button class="v2-battle-fp-value" type="button" data-player-fp="p1" data-fp-reset="p1">0</button>
-                <button class="v2-battle-fp-button" type="button" data-fp-target="p1" data-fp-step="1">+</button>
-            </div>
-            <div class="v2-battle-passives" data-player-passives="p1"></div>
-        </article>
+            <button class="lc-chip" type="button" data-history-toggle>{% tr "닫기" %}</button>
+        </div>
+        <div class="lc-history-list" data-battle-history data-history-panel></div>
+        {% if not session.tournament_match and control_token and not state.party %}
+        <button class="lc-wide-button is-danger" type="button" data-battle-reset>{% tr "초기화" %}</button>
+        {% endif %}
+    </aside>
 
-        <section class="v2-panel v2-battle-center">
-            <div class="v2-battle-timer-top">
+    <div class="lc-board">
+        {% for target, player_name in players %}
+        <article class="lc-player" data-player-panel="{{ target }}">
+            <div class="lc-scene" aria-hidden="true"><i class="lc-scene-bg"></i><i class="lc-scene-art"></i></div>
+            <header class="lc-player-head">
+                <span class="lc-avatar" data-player-avatar="{{ target }}" aria-hidden="true"></span>
+                <div class="lc-ident">
+                    <h2 data-player-name="{{ target }}">{{ player_name }}</h2>
+                    <span data-player-character="{{ target }}"></span>
+                </div>
+                <strong class="lc-hand" data-player-hand="{{ target }}">{% tr "손패 -" %}</strong>
+            </header>
+            {# P1은 [HP | FP], P2는 [FP | HP]로 가운데를 기준으로 대칭이다. FP는 HP 옆 세로 열(+ / 값 / −). #}
+            <div class="lc-controls">
+                <div class="lc-main">
+                    <div class="lc-hp" data-hp-box>
+                        <span class="lc-caption">HP</span>
+                        <strong class="lc-hp-value" data-player-hp="{{ target }}">0</strong>
+                        <span class="lc-hp-bar" aria-hidden="true"><i></i></span>
+                    </div>
+                    <div class="lc-hp-steps">
+                        <button class="lc-hp-step is-damage is-heavy" type="button" data-hp-target="{{ target }}" data-hp-step="-500" data-queue-label="−500">−500</button>
+                        <button class="lc-hp-step is-damage" type="button" data-hp-target="{{ target }}" data-hp-step="-100" data-queue-label="−100">−100</button>
+                        <button class="lc-hp-step is-heal" type="button" data-hp-target="{{ target }}" data-hp-step="100" data-queue-label="+100">+100</button>
+                        <button class="lc-hp-step is-heal is-heavy" type="button" data-hp-target="{{ target }}" data-hp-step="500" data-queue-label="+500">+500</button>
+                    </div>
+                </div>
+                <div class="lc-fp">
+                    <button class="lc-step" type="button" data-fp-target="{{ target }}" data-fp-step="1" data-queue-label="+" aria-label="FP +1">+</button>
+                    <div class="lc-fp-box">
+                        <span class="lc-caption">FP</span>
+                        <button class="lc-fp-value" type="button" data-player-fp="{{ target }}" data-fp-reset="{{ target }}" title="{% tr "FP 초기화" %}" aria-label="FP · {% tr "FP 초기화" %}">0</button>
+                    </div>
+                    <button class="lc-step" type="button" data-fp-target="{{ target }}" data-fp-step="-1" data-queue-label="−" aria-label="FP −1">−</button>
+                </div>
+            </div>
+            <div class="lc-passives" data-player-passives="{{ target }}"></div>
+        </article>
+        {% if forloop.first %}
+        <section class="lc-center">
+            <div class="lc-center-top">
                 {% if state.party %}
-                <a class="v2-button" href="{{ state.party.return_url }}" data-party-return>파티 지도</a>
+                <a class="lc-icon" href="{{ state.party.return_url }}" data-party-return aria-label="파티 지도" title="파티 지도"><svg><use href="#lc-i-back"/></svg></a>
                 {% elif session.tournament_match %}
-                <a class="v2-button" href="{% url "tournament:detail" session.tournament_match.round.tournament.id %}" data-tournament-return>{% tr "대회 복귀" %}</a>
+                <a class="lc-icon" href="{% url "tournament:detail" session.tournament_match.round.tournament.id %}" data-tournament-return aria-label="{% tr "대회 복귀" %}" title="{% tr "대회 복귀" %}"><svg><use href="#lc-i-back"/></svg></a>
                 {% else %}
-                <a class="v2-button" href="{% url "battlelog:sim" %}" data-battle-back>{% tr "돌아가기" %}</a>
+                <a class="lc-icon" href="{% url "battlelog:sim" %}" data-battle-back aria-label="{% tr "돌아가기" %}" title="{% tr "돌아가기" %}"><svg><use href="#lc-i-back"/></svg></a>
                 {% endif %}
-                <div class="v2-battle-round-clock">
+                <div class="lc-clock">
                     <span data-battle-set-status>{% tr "게임 시간" %}</span>
                     <strong data-battle-round-time-large>--:--</strong>
                 </div>
-                {% if not state.party %}<button class="v2-button v2-danger-button" type="button" data-battle-action="sudden">{% tr "서든 데스" %}</button>{% endif %}
+                <button class="lc-icon" type="button" data-display-open aria-haspopup="dialog" aria-label="{% tr "화면 설정" %}" title="{% tr "화면 설정" %}"><svg><use href="#lc-i-gear"/></svg></button>
             </div>
-            <button class="v2-battle-big-timer" type="button" data-battle-action="timer">
-                <span>{% tr "10초 타이머" %}</span>
+            {% if state.party %}
+            <div class="lc-party">
+                <p>파티 교전 · <strong data-party-exchanges>{{ state.party.exchanges }}/2</strong><br><span data-party-calculator-help>HP·FP 입력 후 공방 완료를 눌러주세요.</span></p>
+                {% if control_token %}<button class="lc-wide-button is-primary" type="button" data-party-exchange>공방 완료</button>{% endif %}
+            </div>
+            {% endif %}
+            <button class="lc-timer" type="button" data-battle-action="timer" aria-label="{% tr "10초 타이머" %}">
+                <span><svg><use href="#lc-i-timer"/></svg>{% tr "10초 타이머" %}</span>
                 <strong data-battle-short-timer>10</strong>
             </button>
-            <div class="v2-battle-set-panel" data-battle-set-panel></div>
-            <div class="v2-battle-report-actions">
-                <button class="v2-button v2-button-primary" type="button" data-report-set>{% tr "결과 보고" %}</button>
+            <div class="lc-set" data-battle-set-panel></div>
+            <button class="lc-wide-button is-primary" type="button" data-report-set hidden>{% tr "결과 보고" %}</button>
+            <div class="lc-extra" data-extra-time-panel hidden>
+                <button class="lc-chip" type="button" data-extra-time="60">{% tr "+1분" %}</button>
+                <button class="lc-chip" type="button" data-extra-time="180">{% tr "+3분" %}</button>
+                <button class="lc-chip" type="button" data-extra-time="300">{% tr "+5분" %}</button>
             </div>
-            <div class="v2-battle-center-actions">
-                <button class="v2-button" type="button" data-battle-action="undo">{% tr "되돌리기" %}</button>
-                <button class="v2-button" type="button" data-history-toggle>{% tr "로그 확인" %}</button>
-                <button class="v2-button" type="button" data-share-toggle>{% tr "링크 공유" %}</button>
-                <button class="v2-button" type="button" data-fullscreen-toggle>{% tr "전체화면" %}</button>
+            <div class="lc-selectors" data-character-selectors></div>
+            {% if not state.party %}<button class="lc-wide-button is-danger lc-sudden" type="button" data-battle-action="sudden">{% tr "서든 데스" %}</button>{% endif %}
+            <div class="lc-tools">
+                <button type="button" data-battle-action="undo"><svg><use href="#lc-i-undo"/></svg><span>{% tr "되돌리기" %}</span></button>
+                <button type="button" data-history-toggle><svg><use href="#lc-i-log"/></svg><span>{% tr "기록" %}</span></button>
+                <button type="button" data-share-toggle><svg><use href="#lc-i-share"/></svg><span>{% tr "공유" %}</span></button>
+                <button type="button" data-fullscreen-toggle><svg><use href="#lc-i-full"/></svg><span>{% tr "전체화면" %}</span></button>
             </div>
-            <div class="v2-battle-extra-time" data-extra-time-panel>
-                <button class="v2-button" type="button" data-extra-time="60">{% tr "+1분" %}</button>
-                <button class="v2-button" type="button" data-extra-time="180">{% tr "+3분" %}</button>
-                <button class="v2-button" type="button" data-extra-time="300">{% tr "+5분" %}</button>
-            </div>
-            <div class="v2-battle-character-selectors" data-character-selectors></div>
-            <div class="v2-battle-history-head" data-history-panel>
-                <strong>{% tr "기록" %}</strong>
-                {% if not session.tournament_match and control_token and not state.party %}
-                <button class="v2-button v2-danger-button v2-battle-reset-button" type="button" data-battle-reset>{% tr "초기화" %}</button>
-                {% else %}
-                <span></span>
-                {% endif %}
-                <button class="v2-button" type="button" data-history-toggle>{% tr "로그 닫기" %}</button>
-            </div>
-            <div class="v2-battle-history" data-battle-history data-history-panel></div>
         </section>
-
-        <article class="v2-panel v2-battle-player v2-battle-player-p2" data-player-panel="p2">
-            <div class="v2-battle-player-head">
-                <div>
-                    <h2 data-player-name="p2">{{ session.player2_name }}</h2>
-                </div>
-                <strong data-player-hand="p2">{% tr "손패 -" %}</strong>
-            </div>
-            <div class="v2-battle-hp">
-                <button class="v2-battle-hp-button is-damage is-heavy" type="button" data-hp-target="p2" data-hp-step="-500" data-queue-label="5">5</button>
-                <button class="v2-battle-hp-button is-damage" type="button" data-hp-target="p2" data-hp-step="-100">-</button>
-                <div>
-                    <strong data-player-hp="p2">0</strong>
-                </div>
-                <button class="v2-battle-hp-button is-heal" type="button" data-hp-target="p2" data-hp-step="100">+</button>
-                <button class="v2-battle-hp-button is-heal is-heavy" type="button" data-hp-target="p2" data-hp-step="500" data-queue-label="5">5</button>
-            </div>
-            <div class="v2-battle-fp">
-                <button class="v2-battle-fp-button" type="button" data-fp-target="p2" data-fp-step="-1">-</button>
-                <button class="v2-battle-fp-value" type="button" data-player-fp="p2" data-fp-reset="p2">0</button>
-                <button class="v2-battle-fp-button" type="button" data-fp-target="p2" data-fp-step="1">+</button>
-            </div>
-            <div class="v2-battle-passives" data-player-passives="p2"></div>
-        </article>
+        {% endif %}
+        {% endfor %}
     </div>
 </section>
 
@@ -160,12 +154,11 @@
         language: "{{ current_language|escapejs }}",
     };
 </script>
-{% block battle_scripts %}
-<script src="{% static 'v2/calculator-trait-model.js' %}"></script>
-<script src="{% static 'v2/trait-controls.js' %}"></script>
 <script src="{% static "v2/session-history.js" %}"></script>
 <script src="{% static 'v2/calculator-shield-model.js' %}"></script>
 <script src="{% static 'v2/calculator-passive-input-model.js' %}"></script>
-<script src="{% static "v2/battle-calculator.js" %}?v=20261022-passive-input1"></script>
-{% endblock battle_scripts %}
+<script src="{% static 'v2/calculator-appearance-model.js' %}"></script>
+<script src="{% static 'v2/calculator-passive-tray.js' %}?v=20261111e"></script>
+<script src="{% static 'v2/calculator-hud.js' %}?v=20261111e"></script>
+<script src="{% static "v2/battle-calculator.js" %}?v=20261111e"></script>
 {% endblock content %}

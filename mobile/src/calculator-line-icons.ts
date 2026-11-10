@@ -1,0 +1,21 @@
+// 패시브 트레이 아이콘(LumenGG/static/v2/calculator-character/clean의 선 아이콘). 웹과 같은 파일이다.
+export const passiveLineIcons: Record<string, number> = {
+  "blade": require("../assets/calculator-release/line/blade.png"),
+  "claw": require("../assets/calculator-release/line/claw.png"),
+  "cockpit": require("../assets/calculator-release/line/cockpit.png"),
+  "core": require("../assets/calculator-release/line/core.png"),
+  "dagger": require("../assets/calculator-release/line/dagger.png"),
+  "foresight": require("../assets/calculator-release/line/foresight.png"),
+  "foresight_coin": require("../assets/calculator-release/line/foresight_coin.png"),
+  "fracture": require("../assets/calculator-release/line/fracture.png"),
+  "furnace": require("../assets/calculator-release/line/furnace.png"),
+  "gear": require("../assets/calculator-release/line/gear.png"),
+  "knowledge": require("../assets/calculator-release/line/knowledge.png"),
+  "notice": require("../assets/calculator-release/line/notice.png"),
+  "pressure": require("../assets/calculator-release/line/pressure.png"),
+  "spider": require("../assets/calculator-release/line/spider.png"),
+  "stance": require("../assets/calculator-release/line/stance.png"),
+  "veil": require("../assets/calculator-release/line/veil.png"),
+  "wave": require("../assets/calculator-release/line/wave.png"),
+  "wish": require("../assets/calculator-release/line/wish.png"),
+};

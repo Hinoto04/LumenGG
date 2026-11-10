@@ -14,7 +14,7 @@ import { CalculatorBoard, type CalculatorBoardProps } from "./calculator-board";
 import { calculatorTheme } from "./calculator-ui";
 import { calculatorArt } from "./calculator-art";
 import { localized } from "./core";
-import { VisualPassives } from "./calculator-visual-passives";
+import { PassiveTray } from "./calculator-passive-tray-view";
 import { hpAppearance } from "./calculator-display";
 import { shieldAmount } from "./calculator-shield";
 import { ShieldPassiveRow } from "./calculator-shield-controls";
@@ -96,6 +96,7 @@ export default function CharacterCalculatorBoard(props: CalculatorBoardProps) {
                 calculator_ui: entry.calculator_ui,
                 passive: localized(entry, language, "passive"),
                 hand_table: entry.hand_table,
+                img_sm: entry.img_sm,
               },
             }
           : stored;
@@ -150,6 +151,20 @@ type PlayerProps = {
   motionAllowed: () => boolean;
   ambientAllowed: boolean;
 };
+const C = {
+  panel: "#131823",
+  text: "#f2f0ea",
+  muted: "#9ba4b4",
+  line: "rgba(255,255,255,0.09)",
+  damage: "#ff6f6f",
+  heal: "#45d0a0",
+  fp: "#b892ff",
+  gold: "#e8bd62",
+};
+/**
+ * 웹 calculator.css의 .lc-player와 같은 구성. P1은 [HP | FP], P2는 [FP | HP]로
+ * 가운데를 기준으로 대칭이고, FP는 HP 옆 세로 열(+ / 값 / −)이다. 패시브는 스크롤 없이 맞춘다.
+ */
 function CharacterPlayer({
   player,
   target,
@@ -163,12 +178,12 @@ function CharacterPlayer({
   onDamage,
   onAction,
   motionAllowed,
-  ambientAllowed,
   display,
 }: PlayerProps) {
   const { t } = useApp();
   const { height } = useWindowDimensions();
   const compact = height < 500;
+  const mirrored = target === "p2";
   const theme = calculatorTheme(player.character);
   const art = calculatorArt[theme.theme_key];
   const health = hpAppearance(player.hp, player.initial_hp);
@@ -179,144 +194,110 @@ function CharacterPlayer({
     .sort((a, b) => a - b);
   const threshold = thresholds.find((n) => player.hp <= n) ?? thresholds.at(-1);
   const hand = threshold === undefined ? "—" : table[threshold];
+  const characterName = String(player.character?.name || "");
+  const avatar = String(player.character?.icon_img || player.character?.img_sm || "");
+  const shield = shieldAmount(player);
+  const illustrated = display.style === "illustrated";
   const pulse = useRef(new Animated.Value(0)).current;
-  const snapshot = JSON.stringify([
-    player.character?.id,
-    player.hp,
-    player.fp,
-    player.passive_state,
-  ]);
+  const snapshot = JSON.stringify([player.character?.id, player.hp, player.fp, player.passive_state]);
   const previous = useRef({ snapshot, character: player.character?.id });
   useEffect(() => {
     const before = previous.current;
     previous.current = { snapshot, character: player.character?.id };
-    if (
-      before.snapshot === snapshot ||
-      before.character !== player.character?.id ||
-      !motionAllowed()
-    )
+    if (before.snapshot === snapshot || before.character !== player.character?.id || !illustrated || !motionAllowed())
       return;
     pulse.stopAnimation();
-    pulse.setValue(0.75);
-    Animated.timing(pulse, {
-      toValue: 0,
-      duration: 480,
-      useNativeDriver: true,
-    }).start();
+    pulse.setValue(0.6);
+    Animated.timing(pulse, { toValue: 0, duration: 420, useNativeDriver: true }).start();
   }, [snapshot]);
+  const low = health.ratio <= 0.3;
+  const steps = mirrored ? [500, 100, -100, -500] : [-500, -100, 100, 500];
   return (
-    <View style={[s.player, { borderColor: theme.accent + "88" }]}>
+    <View
+      style={[
+        s.player,
+        { borderColor: low ? C.damage + "88" : theme.accent + "55", padding: compact ? 7 : 12, gap: compact ? 6 : 10 },
+      ]}
+    >
       <View
         pointerEvents="none"
         style={StyleSheet.absoluteFill}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
-        {art && display.style === "illustrated" && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.accent, opacity: 0.1 }]} />
+        {illustrated && art && (
           <Image
             key={"scene-" + theme.theme_key}
             source={art.background}
             resizeMode="cover"
-            style={[
-              StyleSheet.absoluteFill,
-              { width: "100%", height: "100%" },
-              target === "p1" && { transform: [{ scaleX: -1 }] },
-            ]}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
+            style={[StyleSheet.absoluteFill, { width: "100%", height: "100%", opacity: 0.15 + 0.85 * (display.brightness / 100) }]}
           />
         )}
-        {display.style === "illustrated" && !!player.character?.img && (
-          <View
-            pointerEvents="none"
-            style={[
-              s.portrait,
-              target === "p2" && { left: "-8%", right: undefined },
-            ]}
-          >
+        {illustrated && !!player.character?.img && (
+          <View style={[s.portrait, mirrored && { left: "-10%", right: undefined }, { opacity: 0.3 + 0.7 * (display.brightness / 100) }]}>
             <CachedImage
               key={String(player.character.id) + ":" + player.character.img}
               url={player.character.img}
               fill
               transparent
               height="100%"
-              contentPosition={target === "p1" ? "right center" : "left center"}
+              contentPosition={mirrored ? "left center" : "right center"}
             />
           </View>
         )}
-        <View
-          pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              backgroundColor: "#080d16",
-              opacity:
-                display.style === "clean" ? 0 : 1 - display.brightness / 100,
-            },
-          ]}
-        />
+        {illustrated && <View style={[StyleSheet.absoluteFill, { backgroundColor: "#0b0e14", opacity: 0.45 }]} />}
       </View>
-      <View
-        style={[
-          s.resources,
-          target === "p2" && { flexDirection: "row-reverse" },
-        ]}
-      >
-        <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+      <View style={[s.head, mirrored && { flexDirection: "row-reverse" }]}>
+        {!!avatar && (
+          <View style={[s.avatar, compact && { width: 26, height: 26 }, { borderColor: theme.accent }]}>
+            <CachedImage url={avatar} fill height={compact ? 26 : 30} />
+          </View>
+        )}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[s.name, mirrored && { textAlign: "right" }]}>
+            {player.name}
+          </Text>
+          {!!characterName && characterName !== player.name && (
+            <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[s.character, { color: theme.secondary }, mirrored && { textAlign: "right" }]}>
+              {characterName}
+            </Text>
+          )}
+        </View>
+        <Text maxFontSizeMultiplier={1.2} style={s.hand}>
+          {t("손패")} {hand}
+        </Text>
+      </View>
+      <View style={[s.controls, mirrored && { flexDirection: "row-reverse" }]}>
+        <View style={s.main}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${label} HP ${player.hp}, ${t("대미지 적용")}`}
             disabled={disabled}
             onPress={onDamage}
-            style={[
-              s.health,
-              { minHeight: compact ? 84 : 108, borderColor: health.border },
-            ]}
+            style={[s.hp, { minHeight: compact ? 66 : 104 }]}
           >
-            <Text
-              style={[s.caption, { position: "absolute", top: 5, left: 7 }]}
-            >
-              HP
-            </Text>
-            <Text
-              style={[
-                s.hand,
-                {
-                  position: "absolute",
-                  top: 5,
-                  right: 7,
-                  color: theme.secondary,
-                },
-              ]}
-            >
-              {t("손패")} {hand}
-            </Text>
+            <Text style={[s.caption, { position: "absolute", top: 5, left: 10 }]}>HP</Text>
             <Text
               adjustsFontSizeToFit
               numberOfLines={1}
-              style={[
-                s.hpValue,
-                { color: health.strong, fontSize: compact ? 48 : 68 },
-              ]}
+              maxFontSizeMultiplier={1}
+              style={[s.hpValue, { color: player.hp <= 0 ? "#687183" : health.strong, fontSize: compact ? 44 : 72 }]}
             >
               {player.hp}
-              {!!shieldAmount(player) && <Text style={{ color: "#a9e4ff", fontSize: compact ? 18 : 24 }}> +{shieldAmount(player)}</Text>}
+              {!!shield && <Text style={{ color: "#9fd0ff", fontSize: compact ? 16 : 22 }}> +{shield}</Text>}
             </Text>
-            <View
-              pointerEvents="none"
-              style={[
-                s.healthBar,
-                {
-                  width: `${health.ratio * 100}%`,
-                  backgroundColor: health.strong,
-                },
-              ]}
-            />
+            <View style={s.barTrack} pointerEvents="none">
+              <View style={[s.bar, { width: `${health.ratio * 100}%`, backgroundColor: health.strong }]} />
+            </View>
             {!!pendingHp && (
               <Text
+                accessibilityLabel={`${label} ${t("누적 HP 변화")} ${pendingHp}`}
                 style={[
                   s.pending,
-                  { color: pendingHp < 0 ? "#ff98aa" : "#98e0c8" },
+                  pendingHp < 0
+                    ? { color: C.damage, backgroundColor: "rgba(255,111,111,0.14)", borderColor: C.damage }
+                    : { color: C.heal, backgroundColor: "rgba(69,208,160,0.14)", borderColor: C.heal },
                 ]}
               >
                 {pendingHp > 0 ? "+" : "−"}
@@ -325,7 +306,7 @@ function CharacterPlayer({
             )}
           </Pressable>
           <View style={s.hpButtons}>
-            {[-500, -100, 100, 500].map((amount) => (
+            {steps.map((amount) => (
               <Pressable
                 key={amount}
                 accessibilityRole="button"
@@ -333,21 +314,21 @@ function CharacterPlayer({
                 accessibilityState={{ disabled }}
                 disabled={disabled}
                 onPress={() => onHp(amount)}
-                style={[
+                style={({ pressed }) => [
                   s.hpButton,
-                  {
-                    backgroundColor: amount < 0 ? "#401e31c0" : "#153a35c0",
-                    opacity: disabled ? 0.4 : 1,
-                  },
+                  { minHeight: compact ? 40 : 56 },
+                  amount < 0
+                    ? { borderColor: "rgba(255,111,111,0.32)", backgroundColor: Math.abs(amount) === 500 ? "#3a1c22" : "#2a181d" }
+                    : { borderColor: "rgba(69,208,160,0.3)", backgroundColor: Math.abs(amount) === 500 ? "#123229" : "#11241f" },
+                  disabled && { opacity: 0.4 },
+                  pressed && { transform: [{ scale: 0.96 }] },
                 ]}
               >
                 <Text
                   adjustsFontSizeToFit
                   numberOfLines={1}
-                  style={[
-                    s.hpStep,
-                    { color: amount < 0 ? "#ff98aa" : "#98e0c8" },
-                  ]}
+                  maxFontSizeMultiplier={1.2}
+                  style={[s.hpStep, { color: amount < 0 ? C.damage : C.heal, fontSize: compact ? 15 : 20 }]}
                 >
                   {amount > 0 ? "+" : "−"}
                   {Math.abs(amount)}
@@ -356,14 +337,8 @@ function CharacterPlayer({
             ))}
           </View>
         </View>
-        <View style={s.fp}>
-          <ArenaButton
-            label={`${label} FP +1`}
-            text={pendingFp > 0 ? `+${pendingFp}` : "+"}
-            accent={theme.accent}
-            disabled={disabled}
-            onPress={() => onFp(1)}
-          />
+        <View style={[s.fp, { width: compact ? 50 : 72 }]}>
+          <Step label={`${label} FP +1`} text={pendingFp > 0 ? `+${pendingFp}` : "+"} disabled={disabled} compact={compact} onPress={() => onFp(1)} />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${label} FP ${player.fp}, ${t("초기화")}`}
@@ -372,85 +347,49 @@ function CharacterPlayer({
             style={s.fpValue}
           >
             <Text style={s.caption}>FP</Text>
-            <Text style={[s.fpNumber, { color: theme.secondary }]}>
-              {player.fp}
+            <Text
+              adjustsFontSizeToFit
+              numberOfLines={1}
+              maxFontSizeMultiplier={1}
+              style={[s.fpNumber, { fontSize: compact ? 20 : 30, color: player.fp > 0 ? C.fp : player.fp < 0 ? C.damage : C.muted }]}
+            >
+              {player.fp > 0 ? "+" + player.fp : player.fp}
             </Text>
           </Pressable>
-          <ArenaButton
-            label={`${label} FP -1`}
-            text={pendingFp < 0 ? `−${Math.abs(pendingFp)}` : "−"}
-            accent={theme.accent}
-            disabled={disabled}
-            onPress={() => onFp(-1)}
-          />
+          <Step label={`${label} FP -1`} text={pendingFp < 0 ? `−${Math.abs(pendingFp)}` : "−"} disabled={disabled} compact={compact} onPress={() => onFp(-1)} />
         </View>
       </View>
       <View style={s.passives}>
         <ShieldPassiveRow player={player} target={target} disabled={disabled} pending={pendingShield} onShield={onShield} onAction={onAction}>
-        <VisualPassives
-          player={player}
-          target={target}
-          disabled={disabled}
-          onAction={onAction}
-          accent={theme.accent}
-          theme={theme.theme_key}
-          clean={display.style === "clean"}
-          motionAllowed={() => display.style !== "clean" && motionAllowed()}
-          ambientAllowed={display.style !== "clean" && ambientAllowed}
-        />
+          <PassiveTray
+            player={player}
+            target={target}
+            definition={player.character?.passive || {}}
+            disabled={disabled}
+            accent={theme.accent}
+            secondary={theme.secondary}
+            onAction={(value) => void onAction(value)}
+          />
         </ShieldPassiveRow>
       </View>
       <Animated.View
         pointerEvents="none"
-        style={[
-          StyleSheet.absoluteFill,
-          {
-            borderWidth: 3,
-            borderRadius: 14,
-            borderColor: theme.accent,
-            opacity: display.style === "clean" ? 0 : pulse,
-          },
-        ]}
+        style={[StyleSheet.absoluteFill, { borderWidth: 2, borderRadius: 18, borderColor: theme.accent, opacity: pulse }]}
       />
     </View>
   );
 }
-function ArenaButton({
-  label,
-  text,
-  accent,
-  disabled,
-  onPress,
-  active = false,
-}: {
-  label: string;
-  text: string;
-  accent: string;
-  disabled: boolean;
-  onPress: () => void;
-  active?: boolean;
-}) {
+function Step({ label, text, disabled, compact, onPress }: { label: string; text: string; disabled: boolean; compact: boolean; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled, selected: active }}
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[
-        s.button,
-        {
-          borderColor: accent + "66",
-          backgroundColor: active ? accent : "#17243be8",
-          opacity: disabled ? 0.4 : 1,
-        },
-      ]}
+      style={({ pressed }) => [s.step, { minHeight: compact ? 36 : 54 }, disabled && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.96 }] }]}
     >
-      <Text
-        adjustsFontSizeToFit
-        numberOfLines={2}
-        style={[s.buttonText, { color: active ? "#101725" : accent }]}
-      >
+      <Text adjustsFontSizeToFit numberOfLines={1} maxFontSizeMultiplier={1.2} style={[s.stepText, { fontSize: compact ? 18 : 24 }]}>
         {text}
       </Text>
     </Pressable>
@@ -461,90 +400,79 @@ const s = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 8,
-    gap: 6,
+    borderRadius: 18,
     overflow: "hidden",
-    backgroundColor: "#101725",
+    backgroundColor: C.panel,
   },
-  portrait: {
-    position: "absolute",
-    right: "-8%",
-    top: 0,
-    bottom: "-3%",
-    width: "94%",
-    opacity: 0.8,
-  },
+  portrait: { position: "absolute", right: "-10%", top: 0, bottom: "-3%", width: "90%" },
+  head: { flexDirection: "row", alignItems: "center", gap: 8 },
+  avatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, overflow: "hidden" },
+  name: { color: C.text, fontSize: 15, fontWeight: "800" },
+  character: { fontSize: 11, opacity: 0.85 },
   hand: {
-    fontSize: 11,
-    fontWeight: "700",
-    padding: 0,
+    color: C.gold,
+    fontSize: 12,
+    fontWeight: "800",
+    paddingVertical: 3,
+    paddingHorizontal: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(232,189,98,0.45)",
+    backgroundColor: "rgba(232,189,98,0.1)",
+    overflow: "hidden",
   },
-  resources: { flexDirection: "row", gap: 6 },
-  health: {
+  controls: { flexDirection: "row", gap: 8 },
+  main: { flex: 1, minWidth: 0, gap: 6 },
+  caption: { color: C.muted, fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
+  hp: {
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#0a1224b8",
+    paddingHorizontal: 10,
+    paddingBottom: 8,
+    borderRadius: 14,
     borderWidth: 1,
-    borderRadius: 10,
-    overflow: "hidden",
+    borderColor: C.line,
+    backgroundColor: "rgba(5,7,11,0.62)",
   },
-  caption: {
-    color: "#b3c0d6",
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 1,
-  },
-  hpValue: {
-    fontWeight: "900",
-    letterSpacing: -1,
-    fontVariant: ["tabular-nums"],
-  },
-  healthBar: { position: "absolute", left: 0, bottom: 0, height: 4 },
+  hpValue: { fontWeight: "900", letterSpacing: -1, fontVariant: ["tabular-nums"] },
+  barTrack: { position: "absolute", left: 10, right: 10, bottom: 6, height: 4, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" },
+  bar: { height: 4, borderRadius: 4 },
   pending: {
     position: "absolute",
     top: 5,
-    left: 30,
-    fontWeight: "800",
-    fontSize: 12,
-    backgroundColor: "#10192bee",
-    padding: 3,
-    borderRadius: 5,
-  },
-  hpButtons: { flexDirection: "row", gap: 4 },
-  hpButton: {
-    flex: 1,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: "center",
-    alignItems: "center",
+    right: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#52607966",
-    borderRadius: 6,
-    paddingHorizontal: 1,
+    borderStyle: "dashed",
+    fontWeight: "900",
+    fontSize: 15,
+    overflow: "hidden",
   },
-  hpStep: { fontSize: 12, fontWeight: "800" },
-  fp: { width: 44, gap: 0 },
+  fp: { gap: 4 },
   fpValue: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#40526b",
-    borderRadius: 7,
-    backgroundColor: "#0b1428b8",
+    borderColor: "rgba(184,146,255,0.3)",
+    backgroundColor: "rgba(5,7,11,0.62)",
+  },
+  fpNumber: { fontWeight: "900", fontVariant: ["tabular-nums"] },
+  step: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: "rgba(9,12,18,0.82)",
     alignItems: "center",
     justifyContent: "center",
   },
-  fpNumber: { fontSize: 23, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  stepText: { color: C.fp, fontWeight: "800" },
+  hpButtons: { flexDirection: "row", gap: 6 },
+  hpButton: { flex: 1, minWidth: 0, borderWidth: 1, borderRadius: 12, alignItems: "center", justifyContent: "center", paddingHorizontal: 2 },
+  hpStep: { fontWeight: "900", fontVariant: ["tabular-nums"] },
   passives: { flex: 1, minHeight: 0 },
-  button: {
-    minWidth: 44,
-    minHeight: 44,
-    borderWidth: 1,
-    borderRadius: 7,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 3,
-  },
-  buttonText: { fontSize: 13, fontWeight: "800", textAlign: "center" },
 });

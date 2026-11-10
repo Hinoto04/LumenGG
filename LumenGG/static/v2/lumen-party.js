@@ -469,11 +469,7 @@
     const key = `lumendb.party.opened.${state.code}`;
     if (stored(key) !== String(battle.id)) {
       remember(key, String(battle.id));
-      location.assign(
-        battle.calculator_url +
-          (battle.calculator_url.includes("?") ? "&" : "?") +
-          "choose_ui=1",
-      );
+      location.assign(battle.calculator_url);
     }
   }
   async function switchTestPlayer(value) {
@@ -1638,10 +1634,7 @@
         : "계산기 관전",
       "v2-button v2-button-primary",
     );
-    link.href =
-      battle.calculator_url +
-      (battle.calculator_url.includes("?") ? "&" : "?") +
-      "choose_ui=1";
+    link.href = battle.calculator_url;
     holder.append(link);
     if (battle.can_confirm) {
       holder.append(

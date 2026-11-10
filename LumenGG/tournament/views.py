@@ -487,10 +487,7 @@ def battleEntryV2(req, id, match_id):
         messages.error(req, 'BYE 매치는 계산기를 사용할 수 없습니다.')
         return redirect('tournament:detail', id=tournament.id)
     session = get_or_create_tournament_session(match, req.user)
-    url = reverse('battlelog:sessionDetail', kwargs={'view_token': session.view_token})
-    if req.GET.get('choose_ui') == '1':
-        url += '?choose_ui=1'
-    return redirect(url)
+    return redirect('battlelog:sessionDetail', view_token=session.view_token)
 
 
 def battleStateV2(req, id):

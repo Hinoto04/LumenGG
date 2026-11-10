@@ -827,6 +827,7 @@ def _character_payload(character, hp, language=DEFAULT_LANGUAGE):
     if not character:
         return None
     from .calculator_ui import character_calculator_ui
+    from mobile_api.passives import native_passive
     return {
         'id': character.id,
         'trait_card_id': getattr(character, 'trait_card_id', None),
@@ -841,6 +842,8 @@ def _character_payload(character, hp, language=DEFAULT_LANGUAGE):
         'passive_ui': _passive_ui(character, language),
         'passive_cards': _passive_cards(character, language),
         'passives': _passive_cards(character, language),
+        # 웹·앱 계산기가 함께 쓰는 선언형 패시브 정의(실행 코드 없음).
+        'passive': native_passive(character, language),
     }
 
 

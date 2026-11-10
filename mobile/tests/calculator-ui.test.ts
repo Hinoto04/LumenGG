@@ -9,18 +9,16 @@ import {
 import { newCalculator, reduceCalculator } from "../src/core";
 import type { Character } from "../src/types";
 
-test("UI links preserve role tokens, queries and fragments; old links default to classic", () => {
-  assert.equal(calculatorUi(undefined), "classic");
-  assert.equal(calculatorUi("unknown"), "classic");
+test("every link opens the single calculator and keeps role tokens, queries and fragments", () => {
+  assert.equal(calculatorUi(undefined), "character");
+  assert.equal(calculatorUi("classic"), "character");
   const source = "/battlelog/session/view/control/secret/?lang=ja#history";
-  const selected = calculatorLink(source, "character");
+  assert.equal(calculatorLink(source), source);
   assert.equal(
-    selected,
-    "/battlelog/session/view/control/secret/?lang=ja&ui=character#history",
+    calculatorLink("/battlelog/session/view/control/secret/?lang=ja&ui=character&choose_ui=1#history"),
+    source,
   );
-  assert.equal(linkedCalculatorUi(selected), "character");
   assert.equal(linkedCalculatorUi(source), undefined);
-  assert.equal(calculatorLink(selected, "classic"), source);
 });
 test("older local characters resolve packaged themes while unknown characters use the neutral skin", () => {
   assert.equal(calculatorTheme({ id: 3 }).theme_key, "root");
