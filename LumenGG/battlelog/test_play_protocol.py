@@ -158,6 +158,14 @@ class PlayActionUiTableTests(SimpleTestCase):
         self.assertTrue(dispatched)
         self.assertEqual(sorted(dispatched - set(ACTION_UI_KINDS)), [])
 
+    def test_card_action_without_a_card_is_shown_as_a_button(self):
+        # 시크릿 타임(Q-AUTO-007): 무작위 뒷면 캐치는 캐치를 정한 뒤에 카드를 뽑는다.
+        engine = AutomaticGameEngine.initialize(base_state(), ruleset(), seed='random-catch-ui')
+        [action] = engine._with_action_ui('p1', [engine._action(
+            'play_catch_card', label='무작위 뒷면 카드로 캐치', payload={'random_pick': True},
+        )])
+        self.assertEqual(action['ui'], {'kind': 'secondary', 'cards': []})
+
 
 class PlayPrivateEventTests(SimpleTestCase):
     def test_hidden_card_move_keeps_zones_but_not_identity(self):

@@ -9833,11 +9833,13 @@ class AutomaticGameEngine:
             card_ids = list(payload.get('card_instance_ids') or [])
             if not card_ids and payload.get('card_instance_id'):
                 card_ids = [payload['card_instance_id']]
-            cards = [self._ui_card_ref(role, card_id) for card_id in card_ids]
-            action['ui'] = {
-                'kind': ACTION_UI_KINDS.get(action.get('type'), ACTION_UI_DEFAULT_KIND),
-                'cards': [card for card in cards if card],
-            }
+            cards = [card for card in (self._ui_card_ref(role, card_id) for card_id in card_ids) if card]
+            kind = ACTION_UI_KINDS.get(action.get('type'), ACTION_UI_DEFAULT_KIND)
+            if kind == 'card' and not cards:
+                # 카드 없이 내는 카드 행동(시크릿 타임의 무작위 뒷면 캐치 등)은
+                # 붙일 카드가 없으므로 버튼으로 보여 준다.
+                kind = ACTION_UI_DEFAULT_KIND
+            action['ui'] = {'kind': kind, 'cards': cards}
             if action.get('options'):
                 action['options'] = copy.deepcopy(action['options'])
                 self._attach_option_ui(
