@@ -9,7 +9,9 @@
     const i18n = i18nNode ? JSON.parse(i18nNode.textContent) : {};
 
     function dispatchAutomaticClientError(error, context) {
-        if (!(config.automaticMode || envelope.mode === "automatic" || envelope.automation_failure)) return;
+        // Automatic matches run in the game client (/battlelog/play/). Only a
+        // session that fell back to manual after an engine failure reports here.
+        if (!envelope.automation_failure) return;
         const value = error && typeof error === "object" ? error : {};
         window.dispatchEvent(new CustomEvent("lumen-simulator-client-error", {detail: {
             error_type: value.name || "ClientTransportError",
@@ -60,7 +62,6 @@
     let nextRequestId = 1;
     let logOpen = false;
     let selectedCardId = "";
-    let automaticEffectDetail = null;
     let pendingTimerTimeoutKey = "";
     let reportedTimerTimeoutKey = "";
     let actionBatchTimer = null;
@@ -702,40 +703,19 @@
         return true;
     }
 
-    function selectCardInstance(instanceId, effectDetail) {
+    function selectCardInstance(instanceId) {
         selectedCardId = instanceId || "";
         selectedLogCard = null;
-        automaticEffectDetail = effectDetail || null;
         renderCardDetail();
     }
 
     function selectLogCard(card) {
         selectedCardId = "";
         selectedLogCard = card || null;
-        automaticEffectDetail = null;
         if (selectedLogCard && selectedLogCard.card_id) {
             scheduleCardMetadataFetch(new Set([String(selectedLogCard.card_id)]));
         }
         renderCardDetail();
-    }
-
-    function automaticEffectMarkup(card) {
-        const detail = automaticEffectDetail || {};
-        if (!card || String(detail.instance_id || "") !== String(card.instance_id || "")) return "";
-        const prompt = cleanKeywordText(detail.effect_prompt || detail.option_label).trim();
-        const option = cleanKeywordText(detail.option_label).trim();
-        const sequence = Array.isArray(detail.sequence_labels)
-            ? detail.sequence_labels.map(String).filter(Boolean)
-            : [];
-        if (!prompt && !option && sequence.length < 2) return "";
-        return `
-            <section class="v2-automatic-card-detail-effect" aria-live="polite">
-                <span>현재 처리할 효과</span>
-                ${prompt ? `<strong>${escapeHtml(prompt)}</strong>` : ""}
-                ${option && option !== prompt ? `<p>${escapeHtml(option)}</p>` : ""}
-                ${sequence.length > 1 ? `<small>사용 순서: ${escapeHtml(sequence.join(" → "))}</small>` : ""}
-            </section>
-        `;
     }
 
     function logCardPayload(event) {
@@ -852,7 +832,6 @@
             lastInspectedEventId = inspectedEventId;
             window.clearTimeout(inspectedCardTimer);
             selectedCardId = "";
-            automaticEffectDetail = null;
             selectedLogCard = cloneData(inspectedEvent.payload.card);
             inspectedCardTimer = window.setTimeout(() => {
                 if (String(lastInspectedEventId) !== inspectedEventId) return;
@@ -873,14 +852,6 @@
         const detail = event.detail || {};
         if (!detail.envelope) return;
         updateEnvelope(detail.envelope, {force: true, silent: !!detail.optimistic});
-    });
-
-    window.addEventListener("lumen-simulator-open-card-detail", (event) => {
-        const detail = event.detail || {};
-        const instanceId = String(detail.instance_id || "");
-        const card = instanceId ? findCard(instanceId) : null;
-        if (!card || card.hidden) return;
-        selectCardInstance(instanceId, detail);
     });
 
     function cloneData(value) {
@@ -2637,19 +2608,6 @@
     }
 
     function eventPresentation(event) {
-        const formatter = window.LumenSimulatorLogFormatter;
-        if (
-            (config.automaticMode || envelope.mode === "automatic")
-            && formatter && typeof formatter.format === "function"
-        ) {
-            return formatter.format(event, {
-                t,
-                playerLabel,
-                zoneLabel,
-                phaseLabel,
-                formatSigned,
-            });
-        }
         return {
             summary: t(eventLabel(event)),
             category: "",
@@ -2697,12 +2655,7 @@
             holder.appendChild(loading);
             return;
         }
-        const formatter = window.LumenSimulatorLogFormatter;
-        const preparedEvents = (
-            (config.automaticMode || envelope.mode === "automatic")
-            && formatter && typeof formatter.prepare === "function"
-        ) ? formatter.prepare(events) : events;
-        const rows = preparedEvents.slice().reverse()
+        const rows = events.slice().reverse()
             .map((event) => ({ event, presentation: eventPresentation(event) }))
             .filter((item) => !item.presentation.hidden);
         if (!rows.length) {
@@ -2779,7 +2732,6 @@
         holder.innerHTML = `
             ${image ? `<img src="${escapeHtml(image)}" alt="">` : ""}
             <h2>${escapeHtml(cardDisplayName(card))}</h2>
-            ${automaticEffectMarkup(card)}
             ${actions}
             <section class="v2-sim-card-detail-text">${details.join("")}</section>
         `;
@@ -3375,7 +3327,6 @@
         if (button.dataset.cardDrawerClose !== undefined) {
             selectedCardId = "";
             selectedLogCard = null;
-            automaticEffectDetail = null;
             renderCardDetail();
             return;
         }
@@ -3587,12 +3538,10 @@
     document.addEventListener("click", (event) => {
         if (!selectedCardId && !selectedLogCard) return;
         if (event.target.closest("[data-card-drawer]")) return;
-        if (event.target.closest(".v2-automatic-choice-layer")) return;
         if (event.target.closest("[data-card-open]")) return;
         if (event.target.closest("[data-log-card-instance], [data-log-card]")) return;
         selectedCardId = "";
         selectedLogCard = null;
-        automaticEffectDetail = null;
         renderCardDetail();
     });
 

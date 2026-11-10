@@ -1861,3 +1861,9 @@
         grid-template-columns: minmax(0, 1fr) var(--sim-ultimate-zone-width);
     }
 }
+
+/* 전체 화면에서는 사이트 머리글·바닥글을 숨긴다 (예전 lumen-simulator-automatic.css에서 옮김) */
+body.v2-simulator-mode.is-v2-simulator-fullscreen .v2-header,
+body.v2-simulator-mode.is-v2-simulator-fullscreen .v2-footer {
+    display: none !important;
+}

@@ -12,6 +12,7 @@
   - `common` 다국어(ko/en/ja), 룰북(`/rules/`), 사이트 설정
   - `battlelog` HP/FP 대전 계산기(실시간 공유), 자동 판정 시뮬레이터·AI(`battlelog/game/`), 루멘 파티(`party_*`, 문서 `content/PARTY.md`)
   - `mobile_api` 앱용 API `/api/mobile/v1/`, 오프라인 카탈로그 배포
+- `play/` — 자동 판정 대전 클라이언트(React + Vite). `/battlelog/play/`에서 제공하고 앱은 WebView로 연다. 빌드 결과물은 `LumenGG/static/play/`에 커밋한다. 문서 `docs/PLAY_PROTOCOL.md`
 - `mobile/` — Expo SDK 57 / React Native / TypeScript / expo-router 앱. 자세한 내용은 `mobile/README.md`
 - `scripts/` — 계산기 에셋 빌드 및 웹·Android 시각 검증 스크립트
 - `docs/`, `MOBILE_IMPLEMENTATION.md`, `TESTING.md` — 기능별 설계·배포·테스트 문서
@@ -25,6 +26,8 @@ Python은 루트 `.venv`를 쓰고, 의존성은 `LumenGG/requirements.txt`를 �
 .\test.ps1 -TestLabel battlelog.test_party   # 범위를 좁혀 실행
 cd LumenGG; ..\.venv\Scripts\python.exe manage.py test <label> --settings=LumenGG.test_settings
 cd mobile; npm run typecheck; npm test
+cd play; npm run typecheck; npm run build:django   # 대전 클라이언트 → LumenGG/static/play/
+.\scripts\serve-play-dev.ps1                       # 운영 DB를 읽기만 하는 격리된 대전 개발 서버
 ```
 
 MariaDB 호환성 확인: `docker compose -f compose.test.yml up -d --wait`, `.\test.ps1 -Database mariadb`

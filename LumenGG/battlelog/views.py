@@ -26,6 +26,7 @@ from .automatic_services import (
 )
 from .game.engine import IllegalAction, StaleState
 from .models import LumenSimulatorSession
+from .play_start import opens_in_game_client, play_url, start_session
 from .calculator_ui import calculator_ui, calculator_url
 from .presence import battle_presence_counts, simulator_presence_counts
 from .realtime import broadcast_battle_session
@@ -102,57 +103,31 @@ def simulatorStart(req):
         player1_deck_id = req.POST.get('player1_deck', '')
         player2_deck_id = req.POST.get('player2_deck', '')
         try:
-            player1_deck = Deck.objects.select_related('character', 'author').get(id=player1_deck_id, deleted=False)
-            player2_deck = Deck.objects.select_related('character', 'author').get(id=player2_deck_id, deleted=False)
-        except (Deck.DoesNotExist, ValueError, TypeError):
-            context['errors'].append('덱 ID를 확인해주세요.')
+            session = start_session(
+                req.user,
+                player1_deck_id=player1_deck_id,
+                player2_deck_id=player2_deck_id,
+                mode=req.POST.get('mode', 'manual'),
+                opponent=req.POST.get('opponent_type', 'human'),
+                player1_name=req.POST.get('player1_name', ''),
+                player2_name=req.POST.get('player2_name', ''),
+                ready_timeout_seconds=req.POST.get('ready_timeout_seconds', '30'),
+                effect_timeout_seconds=req.POST.get('effect_timeout_seconds', '60'),
+                regulation_version_id=req.POST.get('regulation_version_id') or None,
+            )
+        except PermissionError as exc:
+            context['errors'].extend(exc.args[0])
+        except ValueError as exc:
+            context['errors'].append(str(exc))
         else:
-            if not can_view_deck_for_simulator(req.user, player1_deck):
-                context['errors'].append('플레이어1 덱을 볼 권한이 없습니다.')
-            if not can_view_deck_for_simulator(req.user, player2_deck):
-                context['errors'].append('플레이어2 덱을 볼 권한이 없습니다.')
-            if not context['errors']:
-                requested_mode = req.POST.get('mode', 'manual')
-                opponent_type = req.POST.get('opponent_type', 'human')
-                player2_controller = (
-                    LumenSimulatorSession.CONTROLLER_AI
-                    if opponent_type == 'ai'
-                    else LumenSimulatorSession.CONTROLLER_HUMAN
-                )
-                try:
-                    from deck.traits import trait_choices
-                    for selected_deck in (player1_deck, player2_deck):
-                        if not selected_deck.trait_card_id and trait_choices(selected_deck.character_id).count() > 1:
-                            raise ValueError('덱 작성 화면에서 사용할 특성을 선택해주세요.')
-                    regulation_version = None
-                    if req.POST.get('regulation_version_id'):
-                        regulation_version = accessible_versions(req.user).filter(pk=req.POST['regulation_version_id']).first()
-                        if not regulation_version:
-                            raise ValueError('선택할 수 없는 규정입니다.')
-                    session = create_simulator_session(
-                        req.POST.get('player1_name', ''),
-                        req.POST.get('player2_name', ''),
-                        player1_deck,
-                        player2_deck,
-                        mode=requested_mode,
-                        regulation_version=regulation_version,
-                        player2_controller=player2_controller,
-                        ready_timeout_seconds=req.POST.get(
-                            'ready_timeout_seconds', '30',
-                        ),
-                        effect_timeout_seconds=req.POST.get(
-                            'effect_timeout_seconds', '60',
-                        ),
-                    )
-                except ValueError as exc:
-                    context['errors'].append(str(exc))
-                else:
-                    return redirect(
-                        'battlelog:simulatorSeat',
-                        view_token=session.view_token,
-                        seat='p1',
-                        seat_token=session.player1_token,
-                    )
+            if opens_in_game_client(session):
+                return redirect(play_url(session.view_token, 'p1', session.player1_token))
+            return redirect(
+                'battlelog:simulatorSeat',
+                view_token=session.view_token,
+                seat='p1',
+                seat_token=session.player1_token,
+            )
 
         context.update({
             'player1_name': req.POST.get('player1_name', '플레이어1'),
@@ -192,10 +167,14 @@ def simulatorGuide(req):
 
 @require_GET
 def simulatorDeckSearch(req):
-    query = req.GET.get('q', '').strip()
+    return JsonResponse(deck_search_rows(req, req.GET.get('q', '')), safe=False)
+
+
+def deck_search_rows(req, query):
+    query = str(query or '').strip()
     query_is_id = query.isdigit()
     if len(query) < 2 and not query_is_id:
-        return JsonResponse([], safe=False)
+        return []
 
     if query_is_id:
         search_q = Q(id=int(query))
@@ -222,21 +201,24 @@ def simulatorDeckSearch(req):
             ]
     else:
         decks = list(decks)
+    return deck_rows(req, decks[:20])
 
+
+def deck_rows(req, decks):
     language = get_language(req)
-    data = [
+    return [
         {
             'id': deck.id,
             'name': deck.name,
             'author': deck.author.username,
             'character': translated_character_field(deck.character, language, 'name'),
+            'character_id': deck.character_id,
             'version': deck.version,
             'visibility': ui_text(deck.get_visibility_display(), language),
             'is_owner': req.user.is_authenticated and deck.author_id == req.user.id,
         }
-        for deck in decks[:20]
+        for deck in decks
     ]
-    return JsonResponse(data, safe=False)
 
 
 def _get_simulator_session(view_token):
@@ -302,6 +284,19 @@ def _simulator_page_url(req, view_token, seat, seat_token, mobile=False):
 def _render_simulator(req, view_token, seat, seat_token, template_name='battlelog/simulator_session_v2.html'):
     language = get_language(req)
     session = _get_simulator_session(view_token)
+    # Staff build automatic test scenarios from manual boards (data-scenario-open),
+    # a review tool that only the legacy page has.
+    staff_scenario_builder = (
+        session.mode == LumenSimulatorSession.MODE_MANUAL and req.user.has_perm('card.change_card')
+    )
+    if opens_in_game_client(session, legacy=bool(req.GET.get('legacy')) or staff_scenario_builder):
+        # Matches are played in the game client (play/). Old seat and
+        # spectator links keep working through this redirect. Manual sessions
+        # with a character-specific passive panel (or ?legacy=1) stay here.
+        role = role_for_token(session, seat, seat_token)
+        if role in ('p1', 'p2'):
+            return redirect(play_url(view_token, role, seat_token))
+        return redirect(play_url(view_token))
     if role_for_token(session, seat, seat_token) in ('p1', 'p2'):
         was_automatic = session.mode == 'automatic'
         session = reconcile_automatic_session(session, both_players_disconnected=False)

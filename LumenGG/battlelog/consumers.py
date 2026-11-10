@@ -373,10 +373,16 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
         session = simulator_queryset().get(view_token=self.view_token)
         if self.presence_role in ('p1', 'p2'):
             was_automatic = session.mode == LumenSimulatorSession.MODE_AUTOMATIC
+            version_before = session.version
             session = reconcile_automatic_session(session, both_players_disconnected=False)
             if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
                 session = advance_ai_session(session)
-            if was_automatic and session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
+            # A read can settle an elapsed timer or let the AI move. Tell the
+            # other seat and spectators too, or they stay on the old state.
+            if (
+                (was_automatic and session.mode != LumenSimulatorSession.MODE_AUTOMATIC)
+                or session.version != version_before
+            ):
                 broadcast_simulator_session(session)
         self.send_json({
             'type': 'state',

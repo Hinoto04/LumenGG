@@ -2119,148 +2119,6 @@ class AutomaticEngineTests(SimpleTestCase):
 
         self.assertEqual(options.training_pair, ['3:4', '5:6'])
 
-    def test_automatic_client_uses_card_choice_dock_and_inline_stale_recovery(self):
-        project_root = Path(__file__).resolve().parent.parent
-        script = (
-            project_root / 'static' / 'v2' / 'lumen-simulator-automatic.js'
-        ).read_text(encoding='utf-8')
-        style = (
-            project_root / 'static' / 'v2' / 'lumen-simulator-automatic.css'
-        ).read_text(encoding='utf-8')
-        desktop_script = (
-            project_root / 'static' / 'v2' / 'lumen-simulator.js'
-        ).read_text(encoding='utf-8')
-        mobile_script = (
-            project_root / 'static' / 'v2' / 'lumen-simulator-mobile.js'
-        ).read_text(encoding='utf-8')
-        log_script = (
-            project_root / 'static' / 'v2' / 'lumen-simulator-log.js'
-        ).read_text(encoding='utf-8')
-
-        self.assertNotIn('window.alert(', script)
-        self.assertIn('equivalentLegalAction', script)
-        self.assertNotIn('data-automatic-choice-detail', script)
-        self.assertIn('lumen-simulator-apply-state', script)
-        self.assertIn('lumen-simulator-open-card-detail', script)
-        self.assertIn('lumen-simulator-open-card-detail', desktop_script)
-        self.assertIn('lumen-simulator-open-card-detail', mobile_script)
-        self.assertIn('lumen-simulator-card-metadata', script)
-        self.assertIn('lumen-simulator-card-metadata', desktop_script)
-        self.assertIn('lumen-simulator-card-metadata', mobile_script)
-        self.assertIn('function choiceEntryLabel', script)
-        self.assertIn('option.card_instance_id || option.id', script)
-        self.assertIn('emptySelectionValues', script)
-        self.assertIn('optionId === "decline"', script)
-        self.assertIn('`${selectedCount} 확정`', script)
-        self.assertNotIn('"선택하지 않음"', script)
-        self.assertIn('v2-automatic-choice-progress', script)
-        self.assertIn('Math.pow(actualRatio, 1.65)', script)
-        self.assertIn('v2-automatic-speed-badge', script)
-        self.assertIn('const EFFECT_MODE_ICONS', script)
-        self.assertIn('const EFFECT_ZONE_ICONS', script)
-        self.assertIn('GET PHASE : 획득할 기술을 선택하세요.', script)
-        self.assertIn('function actionChoicePrompt', script)
-        self.assertIn('findVisibleCardZone', script)
-        self.assertIn('cards.scrollLeft = previousScroll', script)
-        self.assertIn('cards.addEventListener("wheel"', script)
-        self.assertIn('cards.scrollLeft += event.deltaY', script)
-        self.assertIn('{passive: false}', script)
-        self.assertIn('function renderAutomaticFocus', script)
-        self.assertIn('function renderFocusPlayer', script)
-        self.assertIn('"v2-button v2-automatic-fullscreen"', script)
-        self.assertIn('fullscreen.dataset.fullscreenToggle = "";', script)
-        self.assertNotIn('function focusPassiveEntries', script)
-        self.assertNotIn('"v2-automatic-focus-zones"', script)
-        self.assertNotIn('"v2-automatic-focus-passives"', script)
-        self.assertIn('function scheduleAutomaticBoardFocus', script)
-        self.assertIn('function observeAutomaticBoard', script)
-        self.assertIn(
-            'automaticBoardObserver.observe(board, {childList: true, subtree: true});',
-            script,
-        )
-        self.assertIn('let automaticExpandedZoneKey = "";', script)
-        self.assertNotIn('automaticAllZonesExpanded', script)
-        self.assertIn(
-            'automaticExpandedZoneKey = automaticExpandedZoneKey === key ? "" : key;',
-            script,
-        )
-        self.assertIn('let choiceLayerMinimized = false;', script)
-        self.assertIn(
-            '"v2-button v2-automatic-choice-hide", "숨기기"', script,
-        )
-        self.assertIn('"선택창 열기"', script)
-        self.assertIn('.v2-automatic-choice-layer', style)
-        self.assertIn('.v2-automatic-focus-matchup', style)
-        self.assertIn(
-            '.has-automatic-simulator .v2-sim-controlbar', style,
-        )
-        self.assertIn(
-            '.v2-sim-zone:not(.v2-sim-zone-battle):not(.v2-sim-zone-hand):not(.is-automatic-expanded)',
-            style,
-        )
-        self.assertIn('border: solid currentColor;', style)
-        self.assertIn('transform: rotate(-45deg);', style)
-        self.assertNotIn('content: "▸";', style)
-        self.assertIn(
-            '.has-automatic-simulator .v2-mobile-player > .v2-mobile-hp',
-            style,
-        )
-        self.assertIn(
-            '.has-automatic-simulator .v2-sim-page:fullscreen', style,
-        )
-        self.assertIn(
-            'body.v2-simulator-mode.is-v2-simulator-fullscreen .v2-header',
-            style,
-        )
-        self.assertIn('grid-template-rows: repeat(5, auto);', style)
-        self.assertNotIn(
-            '--sim-card-width-setting: clamp(56px, 10dvh, 84px)', style,
-        )
-        self.assertNotIn(
-            '--sim-card-height-setting: clamp(78px, 14dvh, 118px)', style,
-        )
-        self.assertIn('function toggleSimulatorFullscreen', desktop_script)
-        self.assertIn(
-            'function updateSimulatorFullscreenPresentation', desktop_script,
-        )
-        self.assertIn(
-            '.v2-automatic-choice-layer.is-minimized', style,
-        )
-        self.assertNotIn('padding-bottom: min(46vh, 27rem);', style)
-        self.assertNotIn('padding-bottom: min(52dvh, 28rem);', style)
-        self.assertIn('width: min(66.666vw, 90rem);', style)
-        self.assertIn('.v2-automatic-card-detail-effect', style)
-        self.assertIn(
-            ':root[data-theme="light"] .v2-automatic-choice-layer', style,
-        )
-        self.assertIn(
-            ':root[data-theme="light"] .v2-automatic-choice-head strong',
-            style,
-        )
-        self.assertIn(
-            ':root[data-theme="light"] .v2-automatic-choice-card.is-selected',
-            style,
-        )
-        self.assertIn('.v2-automatic-effect-badge.is-mandatory', style)
-        self.assertIn('.v2-automatic-effect-badge.is-optional', style)
-        self.assertIn('.v2-automatic-choice-progress', style)
-        self.assertIn('.v2-automatic-speed-badge', style)
-        self.assertIn('.v2-automatic-zone-badge', style)
-        self.assertIn(
-            ':root[data-theme="light"] .v2-sim-card-detail '
-            '.v2-automatic-card-detail-effect > strong',
-            style,
-        )
-        self.assertIn('LumenSimulatorLogFormatter', log_script)
-        self.assertIn('battle_judged', log_script)
-        self.assertIn('decision_resolved', log_script)
-        self.assertIn('HIDDEN_EVENT_TYPES', log_script)
-        self.assertIn('function prepare(events)', log_script)
-        self.assertIn('eventPresentation', desktop_script)
-        self.assertIn('eventPresentation', mobile_script)
-        self.assertIn('function cleanKeywordText', desktop_script)
-        self.assertIn('genericEntries', desktop_script)
-
     def test_rulebook_verification_rejects_wrong_page_count(self):
         from pypdf import PdfWriter
 
@@ -47208,7 +47066,7 @@ class SimulatorAIHTTPTests(TestCase):
         self.assertEqual(note.json()['report_id'], str(report.public_id))
         self.assertEqual(report.comments.get().role, 'p1')
 
-    def test_automatic_page_loads_client_reporter_before_board_script(self):
+    def test_automatic_start_and_old_seat_links_open_the_game_client(self):
         response = self.client.post(reverse('battlelog:simulatorStart'), {
             'player1_name': 'Human 1',
             'player2_name': 'Human 2',
@@ -47218,24 +47076,32 @@ class SimulatorAIHTTPTests(TestCase):
             'opponent_type': 'human',
         })
         session = LumenSimulatorSession.objects.get()
-
-        page = self.client.get(
-            reverse(
-                'battlelog:simulatorSeat',
-                kwargs={
-                    'view_token': session.view_token,
-                    'seat': 'p1',
-                    'seat_token': session.player1_token,
-                },
-            )
+        play = reverse('battlelog:play')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response['Location'],
+            f'{play}?game={session.view_token}&seat=p1&token={session.player1_token}',
         )
 
-        self.assertEqual(page.status_code, 200)
-        html = page.content.decode()
-        reporter = html.index('v2/lumen-simulator-automatic.js')
-        board = html.index('v2/lumen-simulator.js')
-        self.assertLess(reporter, board)
-        self.assertIn('automaticMode: true', html)
+        # Automatic matches are played in the game client; shared seat and
+        # spectator links of the legacy page keep working by redirecting.
+        seat = self.client.get(reverse('battlelog:simulatorSeat', kwargs={
+            'view_token': session.view_token, 'seat': 'p2',
+            'seat_token': session.player2_token,
+        }))
+        self.assertEqual(seat.status_code, 302)
+        self.assertEqual(
+            seat['Location'],
+            f'{play}?game={session.view_token}&seat=p2&token={session.player2_token}',
+        )
+        viewer = self.client.get(reverse('battlelog:simulatorMobileView', kwargs={
+            'view_token': session.view_token,
+        }))
+        self.assertEqual(viewer['Location'], f'{play}?game={session.view_token}')
+
+        page = self.client.get(play)
+        self.assertContains(page, 'play/play.js')
+        self.assertIn('csrftoken', page.cookies)
 
     def test_training_command_uses_the_active_policy_as_its_baseline(self):
         active_policy = SimulatorAIPolicy.objects.get(is_active=True)

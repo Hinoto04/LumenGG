@@ -1,0 +1,4 @@
+# scripts/export-play-fixtures.ps1 생성물
+fixtures/
+node_modules/
+dist/

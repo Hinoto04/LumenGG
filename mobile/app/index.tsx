@@ -16,6 +16,7 @@ const menus = [
   { label: "덱", icon: "▤", href: "/decks" },
   { label: "컬렉션", icon: "▦", href: "/collection" },
   { label: "QNA", icon: "?", href: "/qna" },
+  { label: "대전", icon: "⚔", href: "/battle" },
 ] as const;
 
 export default function Home() {

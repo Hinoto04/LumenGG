@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import views
-from . import decks, party, tournaments
+from . import decks, party, simulator, tournaments
 from deck import api as deck_api
 
 app_name = 'mobile_api'
@@ -14,6 +14,7 @@ urlpatterns = [
     path('tournaments/<int:tournament_id>', tournaments.detail),
     path('tournaments/<int:tournament_id>/matches/<int:match_id>/calculator', tournaments.calculator),
     path('tournaments/<int:tournament_id>/matches/<int:match_id>/report', tournaments.report),
+    path('simulator/sessions', simulator.sessions),
     path('party/', party.create),
     path('party/<str:code>/join', party.join),
     path('party/<str:code>/state', party.state),

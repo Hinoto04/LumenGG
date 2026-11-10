@@ -1,0 +1,33 @@
+/* 자동 판정 오류로 수동 모드가 된 세션의 안내·제보 패널 (lumen-simulator-failure.js) */
+.v2-automatic-panel {
+    margin: 0 0 1rem;
+    padding: .8rem;
+    border-color: color-mix(in srgb, var(--v2-accent, #70cfff) 55%, transparent);
+    background: color-mix(in srgb, var(--v2-panel-bg, #111820) 94%, transparent);
+}
+
+.v2-automatic-panel > strong {
+    display: block;
+}
+
+.v2-automatic-status {
+    margin: .4rem 0;
+    opacity: .8;
+}
+
+.v2-automatic-issue-text {
+    box-sizing: border-box;
+    display: block;
+    margin: .5rem 0;
+    width: 100%;
+}
+
+.v2-automatic-issue-status {
+    display: inline-block;
+    margin-left: .5rem;
+}
+
+:root[data-theme="light"] .v2-automatic-panel {
+    border-color: rgba(36, 125, 115, .44);
+    background: rgba(255, 250, 242, .96);
+}

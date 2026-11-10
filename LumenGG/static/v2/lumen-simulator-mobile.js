@@ -10,7 +10,9 @@
     const i18n = i18nNode ? JSON.parse(i18nNode.textContent) : {};
 
     function dispatchAutomaticClientError(error, context) {
-        if (!(config.automaticMode || envelope.mode === "automatic" || envelope.automation_failure)) return;
+        // Automatic matches run in the game client (/battlelog/play/). Only a
+        // session that fell back to manual after an engine failure reports here.
+        if (!envelope.automation_failure) return;
         const value = error && typeof error === "object" ? error : {};
         window.dispatchEvent(new CustomEvent("lumen-simulator-client-error", {detail: {
             error_type: value.name || "ClientTransportError",
@@ -35,7 +37,6 @@
     let modalZone = "";
     let pendingSetCardId = "";
     let selectedCardId = "";
-    let automaticEffectDetail = null;
     let logOpen = false;
     let events = Array.isArray(envelope.events) ? envelope.events : [];
     let eventsLoaded = Array.isArray(envelope.events);
@@ -480,14 +481,6 @@
         const detail = event.detail || {};
         if (!detail.envelope) return;
         updateEnvelope(detail.envelope, {silent: !!detail.optimistic});
-    });
-
-    window.addEventListener("lumen-simulator-open-card-detail", (event) => {
-        const detail = event.detail || {};
-        const instanceId = String(detail.instance_id || "");
-        const card = instanceId ? findCard(instanceId) : null;
-        if (!card || card.hidden) return;
-        openCardDetail(instanceId, detail);
     });
 
     function suppressAuthoritativeStateOnce() {
@@ -1708,14 +1701,6 @@
         const image = card.img || card.img_sm || "";
         const details = [];
         const text = effectText(card);
-        const automaticDetail = automaticEffectDetail || {};
-        const automaticPrompt = String(automaticDetail.effect_prompt || automaticDetail.option_label || "").trim();
-        const automaticOption = String(automaticDetail.option_label || "").trim();
-        const automaticSequence = Array.isArray(automaticDetail.sequence_labels)
-            ? automaticDetail.sequence_labels.map(String).filter(Boolean)
-            : [];
-        const showAutomaticEffect = String(automaticDetail.instance_id || "") === String(card.instance_id || "")
-            && (automaticPrompt || automaticOption || automaticSequence.length > 1);
         if (isAttackCard(card)) {
             details.push(`<p class="v2-mobile-card-detail-line">${escapeHtml(valueOrDashLabel(card, "hit"))} | ${escapeHtml(valueOrDashLabel(card, "guard"))} | ${escapeHtml(valueOrDashLabel(card, "counter"))}</p>`);
             const judgments = joinPresent([displayValue(card, "body"), displayValue(card, "special")], " / ");
@@ -1727,24 +1712,15 @@
         holder.innerHTML = `
             ${image ? `<img src="${escapeHtml(image)}" alt="">` : ""}
             <h2>${escapeHtml(cardName(card))}</h2>
-            ${showAutomaticEffect ? `
-                <section class="v2-automatic-card-detail-effect" aria-live="polite">
-                    <span>현재 처리할 효과</span>
-                    ${automaticPrompt ? `<strong>${escapeHtml(automaticPrompt)}</strong>` : ""}
-                    ${automaticOption && automaticOption !== automaticPrompt ? `<p>${escapeHtml(automaticOption)}</p>` : ""}
-                    ${automaticSequence.length > 1 ? `<small>사용 순서: ${escapeHtml(automaticSequence.join(" → "))}</small>` : ""}
-                </section>
-            ` : ""}
             <section class="v2-mobile-card-detail-text">${details.join("")}</section>
         `;
         modal.hidden = false;
     }
 
-    function openCardDetail(instanceId, effectDetail) {
+    function openCardDetail(instanceId) {
         const card = hydrateCard(findCard(instanceId));
         if (!card || card.hidden) return;
         selectedCardId = instanceId || "";
-        automaticEffectDetail = effectDetail || null;
         if (card.card_id && !metadataCache.has(String(card.card_id))) {
             scheduleMetadataFetch([String(card.card_id)]);
         }
@@ -1753,7 +1729,6 @@
 
     function closeCardDetail() {
         selectedCardId = "";
-        automaticEffectDetail = null;
         renderCardDetail();
     }
 
@@ -1830,19 +1805,6 @@
     }
 
     function eventPresentation(event) {
-        const formatter = window.LumenSimulatorLogFormatter;
-        if (
-            (config.automaticMode || envelope.mode === "automatic")
-            && formatter && typeof formatter.format === "function"
-        ) {
-            return formatter.format(event, {
-                t,
-                playerLabel,
-                zoneLabel,
-                phaseLabel,
-                formatSigned,
-            });
-        }
         return {
             summary: t(eventLabel(event)),
             category: "",
@@ -1881,12 +1843,7 @@
             holder.appendChild(loading);
             return;
         }
-        const formatter = window.LumenSimulatorLogFormatter;
-        const preparedEvents = (
-            (config.automaticMode || envelope.mode === "automatic")
-            && formatter && typeof formatter.prepare === "function"
-        ) ? formatter.prepare(events) : events;
-        const visibleEvents = preparedEvents
+        const visibleEvents = events
             .map((event) => ({ event, presentation: eventPresentation(event) }))
             .filter((item) => !item.presentation.hidden);
         if (!visibleEvents.length) {

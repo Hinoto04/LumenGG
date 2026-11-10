@@ -76,6 +76,11 @@ function Navigation() {
           headerShown: false,
         }}
       />
+      <Stack.Screen name="battle" options={{ title: t("대전") }} />
+      <Stack.Screen
+        name="play"
+        options={{ title: t("대전"), orientation: "default", headerShown: false }}
+      />
       <Stack.Screen name="card/[id]" options={{ title: "LumenDB" }} />
       <Stack.Screen name="qna/[id]" options={{ title: "Q&A" }} />
       <Stack.Screen name="regulations" options={{title: "대회 규정"}} />

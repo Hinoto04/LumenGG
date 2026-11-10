@@ -159,6 +159,8 @@ def _card_metadata(card):
         'character_id': card.character_id,
         'img': image,
         'img_sm': card.img_sm or image,
+        # 원본 크기. 게임 클라이언트의 카드 확대 보기용(필드 추가만, 기존 클라이언트는 무시).
+        'img_lg': card.img or image,
     }
 
 
@@ -2066,6 +2068,9 @@ def _localized_card_metadata(card, language):
     if language != DEFAULT_LANGUAGE:
         metadata['name'] = translated_card_field(card, language, 'name')
         _localized_card_term_labels(metadata, language)
+    # 상태 응답의 카드와 같은 렌더링 결과(마크업 → 표시 문자열). 필드 추가만.
+    for field_name in ('text', 'detail_text'):
+        metadata[f'{field_name}_label'] = render_localized_markup(metadata.get(field_name), language)
     return metadata
 
 
@@ -2244,6 +2249,30 @@ def _localize_revealed_cards(payload, language=DEFAULT_LANGUAGE):
             card['card_label'] = _payload_card_label(card, language)
 
 
+# Fields of a private event that other viewers may still see.  Zone sizes are
+# already public in the filtered state, so a hidden card's source and
+# destination zones reveal nothing new; card identity, ids and reasons stay
+# hidden.  Game clients use these to animate hidden movement.  Event types not
+# listed here are fully redacted (their type may itself be a secret, e.g. a
+# manual-mode declaration).
+PRIVATE_EVENT_PUBLIC_FIELDS = {
+    'card_moved': ('from_player', 'from_zone', 'to_player', 'to_zone'),
+    'card_readied': (),
+}
+
+
+def _redacted_private_payload(event):
+    event_type = str(event.get('type') or '')
+    payload = event.get('payload') or {}
+    if event_type not in PRIVATE_EVENT_PUBLIC_FIELDS:
+        return {'redacted': True}
+    redacted = {'redacted': True, 'event_type': event_type}
+    for key in PRIVATE_EVENT_PUBLIC_FIELDS[event_type]:
+        if key in payload:
+            redacted[key] = copy.deepcopy(payload[key])
+    return redacted
+
+
 def _filtered_event(event, state, viewer_side, language=DEFAULT_LANGUAGE):
     filtered = copy.deepcopy(event)
     if filtered.get('visibility') == 'private' and filtered.get('actor') != viewer_side:
@@ -2251,7 +2280,7 @@ def _filtered_event(event, state, viewer_side, language=DEFAULT_LANGUAGE):
             'id': filtered.get('id'),
             'type': 'private_event',
             'actor': filtered.get('actor'),
-            'payload': {},
+            'payload': _redacted_private_payload(filtered),
             'created_at': filtered.get('created_at'),
         }
     payload = filtered.get('payload') or {}
@@ -2477,6 +2506,9 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
             copy_state=False,
         )
         payload.update({key: value for key, value in observation.items() if key != 'state'})
+        from .play_protocol import PLAY_PROTOCOL_VERSION
+
+        payload['protocol_version'] = PLAY_PROTOCOL_VERSION
     if language == DEFAULT_LANGUAGE:
         payload['state'] = _render_card_markup_labels(payload['state'], language)
     return payload
