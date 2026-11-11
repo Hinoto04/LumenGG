@@ -199,7 +199,11 @@ export function DecisionPanel({
 
   // 카드를 옮기는 선택이면(예: 손패 제한 버리기 → 리스트) 선택 창으로 덮지 않고 보드에서 끌어 옮긴다.
   const onBoard = movesOnBoard(options);
+  // 새 선택 창이 뜬 순간의 선택은 직전 선택 창의 것이다(초기화는 다음 렌더에 반영).
+  // 빠른 확정이 이 값을 보내면 직전에 고른 카드(예: 브레이크 보충 카드)가 그대로 제출된다.
+  const staleSelection = useRef<string[] | null>(null);
   useEffect(() => {
+    staleSelection.current = selected;
     const valid = new Set(options.map((option) => option.id));
     setSelected(onBoard ? [] : (decision?.default ?? []).filter((id) => valid.has(id)).slice(0, maximum));
     setCollapsed(onBoard);
@@ -214,6 +218,7 @@ export function DecisionPanel({
   const autoSent = useRef<string | null>(null);
   useEffect(() => {
     if (!quickConfirm || !onBoard || busy || autoSent.current === decisionId) return;
+    if (selected === staleSelection.current) return;
     if (selected.length === maximum && selected.length >= minimum && selected.length > 0) {
       autoSent.current = decisionId;
       onSubmit(action, { selected });
