@@ -31,7 +31,8 @@ import { cardPrintings } from "../../src/collection-data";
 export default function CardDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { catalog, language, t } = useApp();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
   const [viewing, setViewing] = useState(false);
   const card = catalog?.cards.find((c) => c.id === Number(id));
   if (!card)
@@ -53,7 +54,10 @@ export default function CardDetail() {
     .toISOString()
     .slice(0, 10);
   // 카드 비율(약 1:1.4)을 유지하되 태블릿에서 지나치게 커지지 않게 한다.
-  const imageWidth = Math.min(width - space.lg * 2, 360);
+  // 가로에서는 화면 높이에 맞춰 이미지를 왼쪽에 두고 정보를 오른쪽에 놓는다.
+  const imageWidth = landscape
+    ? Math.min(width * 0.38, (height - 140) / 1.4, 360)
+    : Math.min(width - space.lg * 2, 360);
   const image = card.img || card.img_mid || card.img_sm;
   const tags = [card.pos, card.body, card.special].filter(Boolean);
   return (
@@ -67,51 +71,58 @@ export default function CardDetail() {
         title={name}
         onClose={() => setViewing(false)}
       />
-      <Pressable
-        accessibilityRole="imagebutton"
-        accessibilityLabel={t("카드 이미지 크게 보기")}
-        onPress={() => setViewing(true)}
-        style={({ pressed }) => [
-          detailStyles.image,
-          { width: imageWidth },
-          pressed && { opacity: 0.9 },
-        ]}
-      >
-        <CachedImage
-          url={card.img || card.img_mid}
-          large
-          height={imageWidth * 1.4}
-        />
-        <View style={detailStyles.zoomHint}>
-          <Icon name="expand-outline" size={16} color={colors.text} />
+      <View style={landscape ? detailStyles.split : undefined}>
+        <View style={landscape ? { width: imageWidth } : undefined}>
+          <Pressable
+            accessibilityRole="imagebutton"
+            accessibilityLabel={t("카드 이미지 크게 보기")}
+            onPress={() => setViewing(true)}
+            style={({ pressed }) => [
+              detailStyles.image,
+              { width: imageWidth },
+              pressed && { opacity: 0.9 },
+            ]}
+          >
+            <CachedImage
+              url={card.img || card.img_mid}
+              large
+              height={imageWidth * 1.4}
+            />
+            <View style={detailStyles.zoomHint}>
+              <Icon name="expand-outline" size={16} color={colors.text} />
+            </View>
+          </Pressable>
         </View>
-      </Pressable>
+        <View style={landscape ? { flex: 1 } : undefined}>
+          <Text style={[text.display, { marginTop: landscape ? 0 : space.lg }]}>
+            {name}
+          </Text>
+          <View style={detailStyles.meta}>
+            <Text style={styles.muted}>{card.code || "—"}</Text>
+            {character && <Badge label={localized(character, language)} />}
+            <Badge label={card.type} tone="accent" />
+            {card.ultimate && <Badge label="얼티밋" tone="danger" />}
+            {tags.map((tag) => (
+              <Badge key={tag} label={tag} />
+            ))}
+          </View>
 
-      <Text style={[text.display, { marginTop: space.lg }]}>{name}</Text>
-      <View style={detailStyles.meta}>
-        <Text style={styles.muted}>{card.code || "—"}</Text>
-        {character && <Badge label={localized(character, language)} />}
-        <Badge label={card.type} tone="accent" />
-        {card.ultimate && <Badge label="얼티밋" tone="danger" />}
-        {tags.map((tag) => (
-          <Badge key={tag} label={tag} />
-        ))}
+          <View style={{ marginTop: space.lg }}>
+            <CardStats card={card} />
+          </View>
+
+          {!!effect && (
+            <Section title="효과">
+              <RichText text={effect} />
+            </Section>
+          )}
+          {!!detail && (
+            <Section title="보충 설명">
+              <RichText text={detail} />
+            </Section>
+          )}
+        </View>
       </View>
-
-      <View style={{ marginTop: space.lg }}>
-        <CardStats card={card} />
-      </View>
-
-      {!!effect && (
-        <Section title="효과">
-          <RichText text={effect} />
-        </Section>
-      )}
-      {!!detail && (
-        <Section title="보충 설명">
-          <RichText text={detail} />
-        </Section>
-      )}
 
       <Text style={detailStyles.heading}>{t("수록 정보")}</Text>
       {printings.length === 0 ? (
@@ -227,4 +238,5 @@ const detailStyles = StyleSheet.create({
     marginLeft: space.xs,
   },
   print: { flexDirection: "row", gap: space.md, alignItems: "flex-start" },
+  split: { flexDirection: "row", gap: space.xl, alignItems: "flex-start" },
 });

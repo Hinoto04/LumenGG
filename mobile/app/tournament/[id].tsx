@@ -111,7 +111,12 @@ export default function MyTournament() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={{ paddingBottom: 48 }}
+      contentContainerStyle={{
+        width: "100%",
+        maxWidth: 760,
+        alignSelf: "center",
+        paddingBottom: 48,
+      }}
       refreshControl={
         <RefreshControl
           refreshing={busy && !!data}

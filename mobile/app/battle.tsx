@@ -629,7 +629,7 @@ export default function Battle() {
   );
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView style={styles.screen} contentContainerStyle={{ width: "100%", maxWidth: 760, alignSelf: "center", paddingBottom: 40 }}>
       {resume && (
         <View style={battleStyles.resume}>
           <Icon name="play-circle" size={28} color={colors.accent} />

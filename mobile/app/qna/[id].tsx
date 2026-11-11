@@ -32,7 +32,12 @@ export default function QnaDetail() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={{ paddingBottom: 48 }}
+      contentContainerStyle={{
+        width: "100%",
+        maxWidth: 760,
+        alignSelf: "center",
+        paddingBottom: 48,
+      }}
     >
       <Stack.Screen options={{ title: "Q&A #" + qna.id }} />
       <Text style={type.title}>{qna.title}</Text>

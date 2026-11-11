@@ -89,6 +89,7 @@ export function CardSortMenu({
       transparent
       statusBarTranslucent
       animationType="fade"
+      supportedOrientations={["portrait", "landscape"]}
       onRequestClose={onClose}
     >
       <View

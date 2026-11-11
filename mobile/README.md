@@ -97,7 +97,7 @@ submission are account-specific and are not embedded in the repository.
 
 ### Local Play Store bundle
 
-The application ID is `kr.hinoto.lumen`, version `1.3.0`, versionCode 12.
+The application ID is `kr.hinoto.lumen`, version `1.3.0`, versionCode 13.
 The upload keystore is `C:\Hinoto\lumen-upload.keystore`; the configured alias is
 `HInoto_key`. Its RSA-3072 certificate expires on December 31, 9999. The passwords
 are stored outside the repository in Windows-encrypted SecureStrings at

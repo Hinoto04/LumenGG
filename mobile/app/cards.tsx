@@ -49,10 +49,12 @@ import {
   type CardFilters,
 } from "../src/card-filters";
 import type { Card } from "../src/types";
+import { cardImageFor, columnsFor, listColumns } from "../src/layout";
 
 export default function Cards() {
   const { catalog, language, error, t, refresh } = useApp();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
   const [display, setDisplay] = useState<CardDisplay>("grid"),
     [sort, setSort] = useState<CardSort>("code_asc"),
     [sortVisible, setSortVisible] = useState(false);
@@ -110,7 +112,11 @@ export default function Cards() {
     language,
     catalog || { packs: [], collection: [] },
   );
-  const columns = display === "grid" ? (width >= 700 ? 3 : 2) : 1;
+  // 칸 하나를 세로 화면과 비슷한 크기(약 185dp)로 유지하고 가로에서는 칸 수를 늘린다.
+  const columns =
+    display === "grid"
+      ? columnsFor(width - 32, landscape ? 160 : 185, 2)
+      : listColumns(width);
   const tileWidth = (width - 32 - 12 * (columns - 1)) / columns;
   const imageHeight = tileWidth * 1.4;
   const filterCount = activeFilterCount(filters);
@@ -162,31 +168,34 @@ export default function Cards() {
         title={preview ? localized(preview, language) : ""}
         onClose={() => setPreview(null)}
       />
-      <SearchInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="카드 이름·효과 검색"
-      />
-      <View style={cardStyles.toolbar}>
-        <FilterButton
-          count={filterCount}
-          onPress={() => {
-            Keyboard.dismiss();
-            setFilterVisible(true);
-          }}
+      <View style={landscape ? landscapeBar : undefined}>
+        <SearchInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="카드 이름·효과 검색"
+          containerStyle={landscape ? { flex: 1, marginBottom: 0 } : undefined}
         />
-        <Text style={[styles.muted, { flex: 1 }]}>
-          {cards.length.toLocaleString()} {t("장")}
-        </Text>
-        <CardSearchToolbar
-          display={display}
-          onToggle={toggleDisplay}
-          onSort={(bottom) => {
-            setSortAnchor(bottom);
-            setSortVisible(true);
-          }}
-          expanded={sortVisible}
-        />
+        <View style={cardStyles.toolbar}>
+          <FilterButton
+            count={filterCount}
+            onPress={() => {
+              Keyboard.dismiss();
+              setFilterVisible(true);
+            }}
+          />
+          <Text style={[styles.muted, !landscape && { flex: 1 }]}>
+            {cards.length.toLocaleString()} {t("장")}
+          </Text>
+          <CardSearchToolbar
+            display={display}
+            onToggle={toggleDisplay}
+            onSort={(bottom) => {
+              setSortAnchor(bottom);
+              setSortVisible(true);
+            }}
+            expanded={sortVisible}
+          />
+        </View>
       </View>
       {filterCount > 0 && (
         <ScrollView
@@ -258,7 +267,7 @@ export default function Cards() {
             >
               <View style={cardStyles.tileImage}>
                 <CachedImage
-                  url={c.img_sm || c.img_mid || c.img}
+                  url={cardImageFor(c, tileWidth)}
                   fill
                   height={imageHeight}
                 />
@@ -280,10 +289,11 @@ export default function Cards() {
               style={({ pressed }) => [
                 styles.panel,
                 cardStyles.detailRow,
+                columns > 1 && { flex: 1 / columns, maxWidth: tileWidth },
                 pressed && { backgroundColor: colors.surface2 },
               ]}
             >
-              <CachedImage url={c.img_sm || c.img_mid || c.img} height={132} />
+              <CachedImage url={cardImageFor(c, 94)} height={132} />
               <View style={{ flex: 1, gap: 6 }}>
                 <View>
                   <Text numberOfLines={1} style={cardStyles.rowName}>
@@ -330,3 +340,11 @@ const cardStyles = StyleSheet.create({
   },
   effect: { color: colors.muted, fontSize: 13, lineHeight: 18 },
 });
+
+// 가로 화면에서 검색창과 도구 줄을 한 줄로 합칠 때 쓰는 배치.
+const landscapeBar = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+  marginBottom: 4,
+};

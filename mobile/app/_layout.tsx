@@ -45,7 +45,8 @@ function Navigation() {
     <Stack
       initialRouteName="index"
       screenOptions={{
-        orientation: "portrait",
+        // 기기를 돌리면 화면도 돌아간다. 각 화면은 useWindowDimensions로 배치를 다시 계산한다.
+        orientation: "default",
         headerStyle: { backgroundColor: colors.panel },
         headerTintColor: colors.text,
         contentStyle: { backgroundColor: colors.bg },
@@ -67,7 +68,10 @@ function Navigation() {
       <Stack.Screen name="collection" options={{ title: t("컬렉션") }} />
       <Stack.Screen name="qna" options={{ title: "QNA" }} />
       <Stack.Screen name="utilities" options={{ title: t("유틸리티") }} />
-      <Stack.Screen name="party" options={{ title: t("루멘 파티") }} />
+      <Stack.Screen
+        name="party"
+        options={{ title: t("루멘 파티"), orientation: "portrait" }}
+      />
       <Stack.Screen name="tournaments" options={{ title: t("내 대회") }} />
       <Stack.Screen name="tournament/[id]" options={{ title: t("내 경기") }} />
       <Stack.Screen

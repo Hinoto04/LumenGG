@@ -121,7 +121,12 @@ export default function Settings() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       style={styles.screen}
-      contentContainerStyle={{ paddingBottom: 48 }}
+      contentContainerStyle={{
+        width: "100%",
+        maxWidth: 760,
+        alignSelf: "center",
+        paddingBottom: 48,
+      }}
     >
       <Text style={settingStyles.heading}>{t("언어")}</Text>
       <Segmented

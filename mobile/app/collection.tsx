@@ -22,10 +22,15 @@ import {
   emptyCollectionFilters,
   type CollectionFilters,
 } from "../src/collection-data";
+import { cellStyle, listColumns, useScreen } from "../src/layout";
 
 export default function Collection() {
   const { catalog, language, amounts, setAmount, status, t, syncErrors } =
     useApp();
+  // 가로 화면이나 넓은 화면에서는 목록을 여러 칸으로 놓는다.
+  const { width, height } = useScreen();
+  const listCols = listColumns(width);
+  const landscape = width > height;
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<CollectionFilters>({
     ...emptyCollectionFilters,
@@ -38,38 +43,46 @@ export default function Collection() {
   const ratio = rows.length ? owned / rows.length : 0;
   return (
     <View style={[styles.screen, { paddingBottom: 0 }]}>
-      <SearchInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="카드 이름·번호 검색"
-      />
-      <View style={collectionStyles.toolbar}>
-        <FilterButton
-          count={collectionFilterCount(filters)}
-          onPress={() => {
-            Keyboard.dismiss();
-            setFilterVisible(true);
-          }}
+      <View style={landscape ? landscapeBar : undefined}>
+        <SearchInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="카드 이름·번호 검색"
+          containerStyle={landscape ? { flex: 1, marginBottom: 0 } : undefined}
         />
-        <View style={{ flex: 1, gap: 6 }}>
-          <Text style={styles.muted}>
-            {t("보유") +
-              " " +
-              owned.toLocaleString() +
-              " / " +
-              rows.length.toLocaleString() +
-              " " +
-              t("종")}
-            {rows.length ? "  ·  " + Math.round(ratio * 100) + "%" : ""}
-          </Text>
-          <View
-            style={collectionStyles.track}
-            accessibilityRole="progressbar"
-            accessibilityValue={{ min: 0, max: rows.length, now: owned }}
-          >
+        <View
+          style={[
+            collectionStyles.toolbar,
+            landscape && { width: 380, marginBottom: 0 },
+          ]}
+        >
+          <FilterButton
+            count={collectionFilterCount(filters)}
+            onPress={() => {
+              Keyboard.dismiss();
+              setFilterVisible(true);
+            }}
+          />
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={styles.muted}>
+              {t("보유") +
+                " " +
+                owned.toLocaleString() +
+                " / " +
+                rows.length.toLocaleString() +
+                " " +
+                t("종")}
+              {rows.length ? "  ·  " + Math.round(ratio * 100) + "%" : ""}
+            </Text>
             <View
-              style={[collectionStyles.fill, { width: `${ratio * 100}%` }]}
-            />
+              style={collectionStyles.track}
+              accessibilityRole="progressbar"
+              accessibilityValue={{ min: 0, max: rows.length, now: owned }}
+            >
+              <View
+                style={[collectionStyles.fill, { width: `${ratio * 100}%` }]}
+              />
+            </View>
           </View>
         </View>
       </View>
@@ -85,6 +98,9 @@ export default function Collection() {
       />
       <Notice text={status} />
       <FlatList
+        key={"columns-" + listCols}
+        numColumns={listCols}
+        columnWrapperStyle={listCols > 1 ? { gap: 12 } : undefined}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         data={rows}
@@ -102,7 +118,7 @@ export default function Collection() {
           const amount = amounts[c.id] || 0;
           const name = card ? localized(card, language) : c.name;
           return (
-            <View style={collectionStyles.item}>
+            <View style={[collectionStyles.item, cellStyle(width, listCols)]}>
               <View
                 style={[collectionStyles.thumb, !amount && { opacity: 0.45 }]}
               >
@@ -181,3 +197,11 @@ const collectionStyles = StyleSheet.create({
     flexWrap: "wrap",
   },
 });
+
+// 가로 화면에서 검색창과 도구 줄을 한 줄로 합칠 때 쓰는 배치.
+const landscapeBar = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+  marginBottom: 4,
+};

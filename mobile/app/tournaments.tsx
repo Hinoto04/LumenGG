@@ -26,9 +26,13 @@ import {
   styles,
 } from "../src/ui";
 import { InfoLine, statusTone } from "../src/tournament-ui";
+import { cellStyle, listColumns, useScreen } from "../src/layout";
 
 export default function Tournaments() {
   const { user, language } = useApp();
+  // 가로 화면이나 넓은 화면에서는 목록을 여러 칸으로 놓는다.
+  const { width } = useScreen();
+  const listCols = listColumns(width);
   const { data, busy, message, refresh } = useTournamentResource<{
     tournaments: TournamentSummary[];
   }>("/tournaments");
@@ -50,6 +54,9 @@ export default function Tournaments() {
     <View style={[styles.screen, { paddingBottom: 0 }]}>
       <Notice text={message} />
       <FlatList
+        key={"columns-" + listCols}
+        numColumns={listCols}
+        columnWrapperStyle={listCols > 1 ? { gap: 12 } : undefined}
         data={data?.tournaments || []}
         keyExtractor={(d) => String(d.id)}
         contentContainerStyle={{ paddingBottom: 32 }}
@@ -89,6 +96,7 @@ export default function Tournaments() {
             }
             style={({ pressed }) => [
               listStyles.item,
+              cellStyle(width, listCols),
               d.status === "running" && listStyles.running,
               pressed && { backgroundColor: colors.surface2 },
             ]}

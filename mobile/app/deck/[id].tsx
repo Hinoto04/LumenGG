@@ -158,7 +158,11 @@ export default function DeckDetail() {
         )
       : null;
   const character = catalog?.characters.find((c) => c.id === deck.character_id);
-  const columns = deckColumns[size],
+  // 세로 폭(약 380dp)에서의 칸 수를 기준으로, 넓은 화면에서는 같은 칸 크기로 칸 수를 늘린다.
+  const columns = Math.max(
+      deckColumns[size],
+      Math.round((deckColumns[size] * width) / 380),
+    ),
     gap = 4,
     tileWidth = Math.max(
       1,

@@ -36,7 +36,12 @@ export default function Utilities() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ padding: 16 }}
+      contentContainerStyle={{
+        width: "100%",
+        maxWidth: 760,
+        alignSelf: "center",
+        padding: 16,
+      }}
     >
       {tools.length === 0 ? (
         <EmptyState

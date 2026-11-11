@@ -6,6 +6,7 @@ import { useApp } from "../src/provider";
 import { Icon, colors, radius, tapFeedback, type IconName } from "../src/ui";
 
 import { useCalculatorEntry } from "../src/calculator-entry";
+import { useScreen } from "../src/layout";
 
 const gap = 12;
 // 루멘 파티는 미공개 기능이라 메인화면이 아닌 유틸리티 아래에 둔다.
@@ -23,13 +24,20 @@ const menus: { label: string; icon: IconName; href: string }[] = [
 export default function Home() {
   const { t } = useApp();
   const { chooseUi, entrySheet } = useCalculatorEntry();
+  const { landscape } = useScreen();
+  // 세로는 2열×4행, 가로는 4열×2행.
+  const perRow = landscape ? 4 : 2;
+  const rows = Array.from(
+    { length: menus.length / perRow },
+    (_, i) => i * perRow,
+  );
   return (
     <SafeAreaView edges={["bottom"]} style={homeStyles.screen}>
       {entrySheet}
       <View style={homeStyles.grid}>
-        {[0, 2, 4, 6].map((start) => (
+        {rows.map((start) => (
           <View key={start} style={homeStyles.row}>
-            {menus.slice(start, start + 2).map((menu) => (
+            {menus.slice(start, start + perRow).map((menu) => (
               <Pressable
                 key={menu.href}
                 accessibilityRole="button"

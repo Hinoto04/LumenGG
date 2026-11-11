@@ -44,7 +44,7 @@ export function FilterSheet({
       visible={visible}
       animationType="slide"
       presentationStyle="fullScreen"
-      supportedOrientations={["portrait"]}
+      supportedOrientations={["portrait", "landscape"]}
       onRequestClose={onClose}
     >
       <SafeAreaView style={filterStyles.screen}>

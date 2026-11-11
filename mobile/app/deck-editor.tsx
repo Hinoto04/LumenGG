@@ -275,6 +275,9 @@ export default function DeckEditor() {
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
+          width: "100%",
+          maxWidth: 760,
+          alignSelf: "center",
           padding: space.lg,
           paddingBottom: 120 + insets.bottom,
         }}

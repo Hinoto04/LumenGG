@@ -21,6 +21,7 @@ export function CardImageViewer({
       transparent
       statusBarTranslucent
       animationType="fade"
+      supportedOrientations={["portrait", "landscape"]}
       onRequestClose={onClose}
     >
       <Pressable

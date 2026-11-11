@@ -14,9 +14,14 @@ import {
   space,
   styles,
 } from "../src/ui";
+import { cellStyle, listColumns, useScreen } from "../src/layout";
 
 export default function Qna() {
   const { catalog, t } = useApp();
+  // 가로 화면이나 넓은 화면에서는 목록을 여러 칸으로 놓는다.
+  const { width, height } = useScreen();
+  const listCols = listColumns(width);
+  const landscape = width > height;
   const [query, setQuery] = useState(""),
     [faq, setFaq] = useState(false);
   const needle = normalizeSearch(query);
@@ -25,23 +30,29 @@ export default function Qna() {
   );
   return (
     <View style={[styles.screen, { paddingBottom: 0 }]}>
-      <SearchInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="질문·카드 이름 검색"
-      />
-      <View style={qnaStyles.toolbar}>
-        <Chip
-          label="FAQ"
-          icon={faq ? "star" : "star-outline"}
-          selected={faq}
-          onPress={() => setFaq(!faq)}
+      <View style={landscape ? landscapeBar : undefined}>
+        <SearchInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="질문·카드 이름 검색"
+          containerStyle={landscape ? { flex: 1, marginBottom: 0 } : undefined}
         />
-        <Text style={styles.muted}>
-          {rows.length.toLocaleString() + " " + t("개")}
-        </Text>
+        <View style={[qnaStyles.toolbar, landscape && { marginBottom: 0 }]}>
+          <Chip
+            label="FAQ"
+            icon={faq ? "star" : "star-outline"}
+            selected={faq}
+            onPress={() => setFaq(!faq)}
+          />
+          <Text style={styles.muted}>
+            {rows.length.toLocaleString() + " " + t("개")}
+          </Text>
+        </View>
       </View>
       <FlatList
+        key={"columns-" + listCols}
+        numColumns={listCols}
+        columnWrapperStyle={listCols > 1 ? { gap: 12 } : undefined}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         data={rows}
@@ -58,6 +69,7 @@ export default function Qna() {
             accessibilityLabel={q.title}
             style={({ pressed }) => [
               qnaStyles.item,
+              cellStyle(width, listCols),
               pressed && { backgroundColor: colors.surface2 },
             ]}
             onPress={() =>
@@ -128,3 +140,11 @@ const qnaStyles = StyleSheet.create({
     flexWrap: "wrap",
   },
 });
+
+// 가로 화면에서 검색창과 도구 줄을 한 줄로 합칠 때 쓰는 배치.
+const landscapeBar = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  gap: 12,
+  marginBottom: 4,
+};

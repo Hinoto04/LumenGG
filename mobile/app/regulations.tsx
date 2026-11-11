@@ -52,7 +52,7 @@ export default function Regulations() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={{ paddingBottom: 50 }}
+      contentContainerStyle={{ width: "100%", maxWidth: 760, alignSelf: "center", paddingBottom: 50 }}
     >
       <Text style={styles.title}>대회 규정</Text>
       <Notice text={message} />
