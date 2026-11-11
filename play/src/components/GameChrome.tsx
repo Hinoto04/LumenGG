@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { useFx, type PlaybackSpeed } from "../anim/fx";
 import { LogPanel } from "./LogPanel";
-import { SoundButton } from "./SoundButton";
+import { SoundSettings } from "./SoundSettings";
 import { FINISH_REASONS } from "../labels";
 import { currentTarget, useLive } from "../net/live";
 import type { PlayEnvelope } from "../protocol";
@@ -31,45 +31,104 @@ function exitUrl(): string {
   return inApp ? location.pathname : "/battlelog/simulator/";
 }
 
-/** 실제 대전 화면 위쪽의 작은 메뉴: 연결 상태, 연출 속도, 기록, 나가기 */
+/**
+ * 실제 대전 화면 위쪽의 메뉴 버튼 하나. 보드를 가리지 않도록 버튼만 두고
+ * 연결 상태·연출 속도·효과음·기록·나가기와 게임 메뉴는 누르면 열리는 시트에 모았다.
+ * 연결이 끊겼거나 상대가 나갔으면 버튼에 점을 띄운다.
+ */
 export function LiveBar({ envelope, onSubmit }: { envelope: PlayEnvelope | null; onSubmit: SystemSubmit }) {
   const status = useLive((s) => s.status);
   const presence = useLive((s) => s.presence);
   const [menuOpen, setMenuOpen] = useState(false);
-  const speed = useFx((s) => s.speed);
-  const setSpeed = useFx((s) => s.setSpeed);
   const [logOpen, setLogOpen] = useState(false);
-  const speedIndex = SPEEDS.findIndex((item) => item.value === speed);
+  const away = opponentAway(envelope, presence);
+  const alert = status !== "open" || away;
   return (
     <>
-      <div className="live-bar">
-        {STATUS_TEXT[status] && <span className={`live-status is-${status}`}>{STATUS_TEXT[status]}</span>}
-        {status === "open" && envelope && <PresenceChip envelope={envelope} presence={presence} />}
-        <button
-          type="button"
-          className="btn-chip"
-          title="이벤트 연출 속도"
-          onClick={() => setSpeed(SPEEDS[(speedIndex + 1) % SPEEDS.length].value)}
-        >
-          {SPEEDS[speedIndex]?.label ?? "연출 ×1"}
-        </button>
-        <SoundButton />
-        {envelope && (
-          <button type="button" className={`btn-chip ${logOpen ? "is-on" : ""}`} onClick={() => setLogOpen(!logOpen)}>
-            기록
-          </button>
-        )}
-        {envelope && (
-          <button type="button" className="btn-chip" onClick={() => setMenuOpen(true)}>
-            메뉴
-          </button>
-        )}
-        <a className="btn-chip" href={exitUrl()}>
-          나가기
-        </a>
-      </div>
+      <button
+        type="button"
+        className={`live-menu-btn ${alert ? "has-alert" : ""} ${status === "closed" ? "is-closed" : ""}`}
+        aria-label={alert ? `메뉴 (${STATUS_TEXT[status] || "상대 연결 끊김"})` : "메뉴"}
+        title={STATUS_TEXT[status] || (away ? "상대 연결 끊김" : "메뉴")}
+        onClick={() => setMenuOpen(true)}
+      >
+        <span aria-hidden="true" className="live-menu-icon">
+          <i />
+          <i />
+          <i />
+        </span>
+        {alert && <span className="live-menu-dot" aria-hidden="true" />}
+      </button>
       {envelope && <LogPanel envelope={envelope} open={logOpen} onClose={() => setLogOpen(false)} />}
-      {envelope && <GameMenu envelope={envelope} open={menuOpen} onClose={() => setMenuOpen(false)} onSubmit={onSubmit} />}
+      <GameMenu
+        envelope={envelope}
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onSubmit={onSubmit}
+        screen={
+          <ScreenSection
+            envelope={envelope}
+            onLog={() => {
+              setMenuOpen(false);
+              setLogOpen(true);
+            }}
+          />
+        }
+      />
+    </>
+  );
+}
+
+function opponentAway(envelope: PlayEnvelope | null, presence: Partial<Record<string, number>> | null): boolean {
+  if (!envelope || !presence || envelope.role === "viewer") return false;
+  const { opp } = perspective(envelope);
+  return envelope.controllers?.[opp] === "human" && (presence[opp] ?? 0) === 0;
+}
+
+/** 메뉴 맨 위: 연결 상태, 연출 속도, 효과음, 기록, 나가기 */
+function ScreenSection({ envelope, onLog }: { envelope: PlayEnvelope | null; onLog: () => void }) {
+  const status = useLive((s) => s.status);
+  const presence = useLive((s) => s.presence);
+  const speed = useFx((s) => s.speed);
+  const setSpeed = useFx((s) => s.setSpeed);
+  return (
+    <>
+      <section className="menu-screen">
+        <div className="menu-status">
+          <span className={`live-status is-${status}`}>{STATUS_TEXT[status] || "연결됨"}</span>
+          {status === "open" && envelope && <PresenceChip envelope={envelope} presence={presence} />}
+        </div>
+        <div className="menu-buttons">
+          {envelope && (
+            <button type="button" className="btn-secondary" onClick={onLog}>
+              기록 보기
+            </button>
+          )}
+          <a className="btn-secondary" href={exitUrl()}>
+            나가기
+          </a>
+        </div>
+      </section>
+      <section>
+        <div className="menu-row menu-toggle is-static">
+          <span>연출 속도</span>
+          <div className="segmented menu-speed" role="radiogroup" aria-label="연출 속도">
+            {SPEEDS.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                role="radio"
+                aria-checked={speed === item.value}
+                className={speed === item.value ? "is-active" : ""}
+                onClick={() => setSpeed(item.value)}
+              >
+                {item.label.replace("연출 ", "")}
+              </button>
+            ))}
+          </div>
+        </div>
+        <SoundSettings />
+      </section>
     </>
   );
 }

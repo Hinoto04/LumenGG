@@ -46,6 +46,8 @@ const SETTINGS_KEY = "lumen-play-sound";
 interface SoundSettings {
   volume: number;
   muted: boolean;
+  /** iOS 무음 스위치를 켜도 효과음을 낸다 */
+  ignoreSilentSwitch: boolean;
 }
 
 function loadSettings(): SoundSettings {
@@ -53,24 +55,29 @@ function loadSettings(): SoundSettings {
     const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "null") as Partial<SoundSettings> | null;
     if (raw && typeof raw === "object") {
       const volume = Number(raw.volume);
-      return { volume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 0.6, muted: !!raw.muted };
+      return {
+        volume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 0.6,
+        muted: !!raw.muted,
+        ignoreSilentSwitch: !!raw.ignoreSilentSwitch,
+      };
     }
   } catch {
     /* 저장소를 못 쓰면 기본값 */
   }
-  return { volume: 0.6, muted: false };
+  return { volume: 0.6, muted: false, ignoreSilentSwitch: false };
 }
 
 interface SoundStore extends SoundSettings {
   setVolume: (volume: number) => void;
   setMuted: (muted: boolean) => void;
+  setIgnoreSilentSwitch: (on: boolean) => void;
 }
 
 export const useSound = create<SoundStore>((set, get) => {
   const save = () => {
     try {
-      const { volume, muted } = get();
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify({ volume, muted }));
+      const { volume, muted, ignoreSilentSwitch } = get();
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({ volume, muted, ignoreSilentSwitch }));
     } catch {
       /* 무시 */
     }
@@ -85,6 +92,11 @@ export const useSound = create<SoundStore>((set, get) => {
     setMuted: (muted) => {
       set({ muted });
       save();
+    },
+    setIgnoreSilentSwitch: (ignoreSilentSwitch) => {
+      set({ ignoreSilentSwitch });
+      save();
+      applyAudioSession();
     },
   };
 });
@@ -171,14 +183,61 @@ async function loadManifest(ctx: AudioContext) {
   );
 }
 
-/** 첫 클릭·터치에서 오디오를 깨운다. main.tsx에서 한 번 부른다. */
+/**
+ * 사용자 입력에서 오디오를 깨운다. main.tsx에서 한 번 부른다.
+ *
+ * - iOS WebKit은 pointerdown을 사용자 입력으로 치지 않아 touchend·click에서도 깨운다.
+ * - 깨운 직후 무음 버퍼를 한 번 재생해야 소리가 나는 iOS 버전이 있다.
+ * - 전화·앱 전환 뒤에는 상태가 interrupted/suspended로 바뀌므로 리스너를 떼지 않고
+ *   다음 입력과 화면 복귀 때마다 다시 깨운다.
+ */
 export function installSoundUnlock() {
+  let primed = false;
   const unlock = () => {
     const ctx = audio();
-    if (ctx && ctx.state === "suspended") void ctx.resume();
+    if (!ctx) return;
+    applyAudioSession();
+    if (ctx.state !== "running") void ctx.resume().catch(() => undefined);
+    if (!primed) {
+      primed = true;
+      try {
+        const silent = ctx.createBufferSource();
+        silent.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+        silent.connect(ctx.destination);
+        silent.start(0);
+      } catch {
+        primed = false;
+      }
+    }
   };
-  window.addEventListener("pointerdown", unlock, { capture: true });
-  window.addEventListener("keydown", unlock, { capture: true });
+  for (const type of ["pointerdown", "touchstart", "touchend", "mousedown", "click", "keydown"]) {
+    window.addEventListener(type, unlock, { capture: true, passive: true });
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && context && context.state !== "running") void context.resume().catch(() => undefined);
+  });
+}
+
+/**
+ * iOS(Safari 17+, 앱 WebView): 기본값에서는 무음 스위치를 켜면 효과음도 나지 않는다.
+ * '무음 모드에서도 재생'을 켜면 오디오 세션을 playback으로 바꿔 무음 스위치와 상관없이 낸다.
+ * (playback은 다른 앱의 음악을 멈출 수 있어 기본값은 끄고 둔다.)
+ */
+type AudioSessionNavigator = Navigator & { audioSession?: { type: string } };
+
+export function hasAudioSession(): boolean {
+  return typeof navigator !== "undefined" && !!(navigator as AudioSessionNavigator).audioSession;
+}
+
+function applyAudioSession() {
+  const session = (navigator as AudioSessionNavigator).audioSession;
+  if (!session) return;
+  const wanted = useSound.getState().ignoreSilentSwitch ? "playback" : "auto";
+  try {
+    if (session.type !== wanted) session.type = wanted;
+  } catch {
+    /* 지원하지 않는 값이면 그대로 둔다 */
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +252,12 @@ export function playSound(name: SoundName, { gain = 1 }: { gain?: number } = {})
   if (muted || volume <= 0) return;
   if (typeof document !== "undefined" && document.hidden) return;
   const ctx = audio();
-  if (!ctx || !master || ctx.state !== "running") return;
+  if (!ctx || !master) return;
+  if (ctx.state !== "running") {
+    // 앱 전환·전화 뒤 멈춘 상태. 다시 깨워 보고 이번 소리는 건너뛴다.
+    void ctx.resume().catch(() => undefined);
+    return;
+  }
   const nowMs = performance.now();
   if (nowMs - (lastPlayed.get(name) ?? -Infinity) < MIN_GAP_MS) return;
   lastPlayed.set(name, nowMs);

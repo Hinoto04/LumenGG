@@ -67,6 +67,10 @@ export default function Play() {
           javaScriptEnabled
           domStorageEnabled
           sharedCookiesEnabled
+          // 효과음(Web Audio): 안드로이드 WebView는 기본으로 사용자 제스처 없이는 오디오를 막고,
+          // iOS는 인라인 재생을 허용해야 오디오 세션이 열린다.
+          mediaPlaybackRequiresUserAction={false}
+          allowsInlineMediaPlayback
           allowsBackForwardNavigationGestures={false}
           setSupportMultipleWindows={false}
           overScrollMode="never"

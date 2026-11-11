@@ -1091,15 +1091,57 @@ button {
   transform: none;
 }
 
-.live-bar {
+.live-menu-btn {
   position: fixed;
   top: 0.5em;
   right: var(--gutter);
-  z-index: 25;
-  display: flex;
-  gap: 0.4em;
-  align-items: center;
-  font-size: 0.8em;
+  /* 선택 창·시작 패 확인(30~35) 위, 메뉴 시트(40) 아래: 언제든 메뉴를 열 수 있다. */
+  z-index: 39;
+  display: grid;
+  place-items: center;
+  width: 2.3em;
+  height: 2.3em;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(27, 27, 27, 0.72);
+  color: var(--muted);
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+.live-menu-btn:hover,
+.live-menu-btn:focus-visible {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.live-menu-icon {
+  display: grid;
+  gap: 3px;
+  width: 0.95em;
+}
+
+.live-menu-icon i {
+  display: block;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.live-menu-dot {
+  position: absolute;
+  top: 0.1em;
+  right: 0.1em;
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-1);
+}
+
+.live-menu-btn.is-closed .live-menu-dot {
+  background: #e06c6c;
 }
 
 .btn-chip {
@@ -1116,43 +1158,58 @@ button {
   color: var(--text);
 }
 
-.sound-menu {
-  position: relative;
-}
-
-.sound-pop {
-  position: absolute;
-  top: calc(100% + 0.4em);
-  right: 0;
+.menu-sound {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 0.6em;
-  width: 17em;
-  padding: 0.7em 0.9em;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel-bg);
-  color: var(--text);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  gap: 0.5em;
 }
 
 .sound-row {
-  display: flex;
-  gap: 0.35em;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.7em;
   align-items: center;
-  white-space: nowrap;
 }
 
-.sound-pop input[type="range"] {
+.sound-row input[type="range"] {
   width: 100%;
   min-width: 0;
   accent-color: var(--accent);
 }
 
-.sound-demo {
-  grid-column: 1 / -1;
-  justify-self: start;
+.menu-screen {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.menu-screen a.btn-secondary {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.menu-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  align-items: center;
+  font-size: 0.85em;
+}
+
+.live-status.is-open {
+  background: rgba(118, 196, 140, 0.14);
+  color: #8fd6a3;
+}
+
+.menu-speed {
+  display: flex;
+  gap: 0.4em;
+}
+
+.menu-speed button {
+  padding: 0.35em 0.9em;
+}
+
+.menu-row.menu-toggle.is-static {
+  cursor: default;
 }
 
 .sound-value {
@@ -2433,14 +2490,13 @@ button.prep-tile-name {
     min-width: 0;
   }
 
-  .live-bar {
+  .live-menu-btn {
     left: var(--gutter);
     right: auto;
   }
 
-  .sound-pop {
-    right: auto;
-    left: 0;
+  .menu-screen {
+    grid-template-columns: 1fr;
   }
 
   .piles {

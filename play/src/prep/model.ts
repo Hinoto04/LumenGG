@@ -11,6 +11,9 @@ export const isTrait = (card?: PrepCatalogCard) =>
   !!card && (card.type === "특성" || /PS/i.test(String(card.code ?? "")));
 
 export const isUltimate = (card?: PrepCatalogCard) => !!card?.ultimate;
+/** 특수 기술: 덱에 넣으면 전부 사이드 덱에 둔다(룰북 p20, deck/validation.py와 같은 판정). */
+export const isSpecial = (card?: PrepCatalogCard) =>
+  !!card && !card.ultimate && String(card.type ?? "").includes("특수") && !String(card.type ?? "").includes("패시브");
 
 function addCount(map: Map<number, number>, id: number | null | undefined, count: number) {
   if (id == null) return;
@@ -120,10 +123,15 @@ export function setPlacement(active: PrepActive, cardId: number, hand: number, s
 /** 준비 화면의 영역. ultimate는 얼티밋 카드의 자리, reserve는 교체 덱이다. */
 export type PrepZone = Placement | "ultimate" | "reserve";
 
-/** 카드 한 장을 from에서 to로 옮길 수 있는지(얼티밋은 얼티밋 자리와 교체 덱 사이만) */
+/**
+ * 카드 한 장을 from에서 to로 옮길 수 있는지.
+ * - 얼티밋은 얼티밋 자리와 교체 덱 사이만
+ * - 특수 기술은 사이드 덱과 교체 덱 사이만(예전 덱에서 리스트·손패에 있던 것은 사이드나 교체 덱으로 뺄 수 있다)
+ */
 export function canMove(card: PrepCatalogCard | undefined, from: PrepZone, to: PrepZone): boolean {
   if (from === to || !card) return false;
   if (isUltimate(card)) return (from === "ultimate" || from === "reserve") && (to === "ultimate" || to === "reserve");
+  if (isSpecial(card)) return from !== "ultimate" && (to === "side" || to === "reserve");
   return from !== "ultimate" && to !== "ultimate";
 }
 
