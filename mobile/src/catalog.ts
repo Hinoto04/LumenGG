@@ -5,6 +5,7 @@ import { Asset } from "expo-asset";
 import * as Crypto from "expo-crypto";
 import type { Catalog, Manifest } from "./types";
 import { BASE_URL, request, absoluteUrl } from "./api";
+import { isCatalogUnavailable } from "./catalog-status";
 import { preference, setPreference, userDb, write } from "./storage";
 
 const directory = FileSystem.documentDirectory + "catalogs/";
@@ -100,11 +101,18 @@ export async function updateCatalog(force = false): Promise<Catalog | null> {
     const last = await preference<number>("catalog-checked", 0);
     if (!force && Date.now() - last < 300000) return null;
     await setPreference("catalog-checked", Date.now());
-    const manifest: Manifest = await request(
-      "/catalog/manifest?client_version=1.1.0&schema_version=2",
-      {},
-      false,
-    );
+    let manifest: Manifest;
+    try {
+      manifest = await request(
+        "/catalog/manifest?client_version=1.1.0&schema_version=2",
+        {},
+        false,
+      );
+    } catch (err) {
+      // 서버에 배포된 DB가 없으면 오류가 아니다. 내장·저장된 DB를 그대로 쓴다.
+      if (isCatalogUnavailable(err)) return null;
+      throw err;
+    }
     if (
       manifest.schema_version !== 2 ||
       !/^\d{8}T\d{6}-[a-f0-9]{12}$/.test(manifest.release_version) ||

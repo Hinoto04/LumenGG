@@ -6,9 +6,10 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import time
 import uuid
 from contextlib import closing
-from urllib.parse import urlparse, unquote
+from urllib.parse import urljoin, urlparse, unquote
 
 import requests
 from django.conf import settings
@@ -110,6 +111,61 @@ def read_snapshot(schema_version=SCHEMA_VERSION):
     return rows, relations
 
 
+IMAGE_FETCH_ATTEMPTS = 3
+
+
+def _get_with_retry(url, headers):
+    """이미지 서버가 잠깐 느리거나 끊겨도 카탈로그 배포 전체가 멈추지 않게 몇 번 다시 시도한다."""
+    for attempt in range(IMAGE_FETCH_ATTEMPTS):
+        try:
+            return requests.get(url, headers=headers, timeout=(10, 30), stream=True, allow_redirects=False)
+        except (requests.Timeout, requests.ConnectionError):
+            if attempt == IMAGE_FETCH_ATTEMPTS - 1:
+                raise
+            logger.warning('Retrying catalog image after a network error: %s', url)
+            time.sleep(2 ** (attempt + 1))
+
+
+def fetch_image(url, headers, max_redirects=3):
+    """허용된 이미지 호스트에서 이미지를 받는다.
+
+    http 주소는 https로 받고, 리디렉션은 허용된 호스트의 https 주소로만 따라간다.
+    원본 이미지가 없으면(404·410) 그 이미지만 건너뛰도록 None을 돌려준다.
+    304는 'not-modified', 성공하면 (내용, ETag, Last-Modified)를 돌려준다.
+    """
+    current = url
+    parsed = urlparse(current)
+    if parsed.scheme == 'http':
+        current = parsed._replace(scheme='https').geturl()
+    for _ in range(max_redirects + 1):
+        with _get_with_retry(current, headers) as response:
+            if response.status_code in (301, 302, 303, 307, 308):
+                target = urljoin(current, response.headers.get('Location', ''))
+                parsed = urlparse(target)
+                if parsed.scheme != 'https' or parsed.hostname not in settings.MOBILE_IMAGE_ALLOWED_HOSTS:
+                    raise ValueError('Image redirects outside the allowed hosts are not permitted.')
+                current = target
+                continue
+            if response.status_code == 304:
+                return 'not-modified'
+            if response.status_code in (404, 410):
+                logger.warning('Catalog image is missing and was skipped: %s', url)
+                return None
+            response.raise_for_status()
+            if response.status_code != 200:
+                raise ValueError('Unexpected image response %s.' % response.status_code)
+            if not response.headers.get('Content-Type', '').lower().startswith('image/'):
+                raise ValueError('An image URL returned non-image content.')
+            chunks, size = [], 0
+            for chunk in response.iter_content(65536):
+                size += len(chunk)
+                if size > 20 * 1024 * 1024:
+                    raise ValueError('Image exceeds 20 MB.')
+                chunks.append(chunk)
+            return b''.join(chunks), response.headers.get('ETag'), response.headers.get('Last-Modified')
+    raise ValueError('Too many image redirects.')
+
+
 def image_asset(url, root):
     if not url or not settings.MOBILE_CATALOG_FETCH_IMAGES:
         return None
@@ -134,27 +190,20 @@ def image_asset(url, root):
         content = local.read_bytes()
     else:
         headers = {}
-        if cached.get('etag'):
-            headers['If-None-Match'] = cached['etag']
-        elif cached.get('last_modified'):
-            headers['If-Modified-Since'] = cached['last_modified']
-        with requests.get(url, headers=headers, timeout=(5, 15), stream=True, allow_redirects=False) as response:
-            if response.status_code == 304 and (images / cached.get('filename', '')).is_file():
-                return cached['filename']
-            response.raise_for_status()
-            if response.status_code != 200:
-                raise ValueError('Image redirects are not permitted.')
-            if not response.headers.get('Content-Type', '').lower().startswith('image/'):
-                raise ValueError('An image URL returned non-image content.')
-            chunks, size = [], 0
-            for chunk in response.iter_content(65536):
-                size += len(chunk)
-                if size > 20 * 1024 * 1024:
-                    raise ValueError('Image exceeds 20 MB.')
-                chunks.append(chunk)
-            content = b''.join(chunks)
-            cached['etag'] = response.headers.get('ETag')
-            cached['last_modified'] = response.headers.get('Last-Modified')
+        # 캐시 기록만 남고 파일이 없으면 조건부 요청을 보내지 않는다(304를 받아도 쓸 파일이 없다).
+        if (images / cached.get('filename', '')).is_file():
+            if cached.get('etag'):
+                headers['If-None-Match'] = cached['etag']
+            elif cached.get('last_modified'):
+                headers['If-Modified-Since'] = cached['last_modified']
+        fetched = fetch_image(url, headers)
+        if fetched is None:
+            return None
+        if fetched == 'not-modified':
+            return cached['filename']
+        content, etag, last_modified = fetched
+        cached['etag'] = etag
+        cached['last_modified'] = last_modified
     suffix = Path(parsed.path).suffix.lower()
     if suffix not in {'.png', '.jpg', '.jpeg', '.webp', '.gif'}:
         suffix = '.webp'

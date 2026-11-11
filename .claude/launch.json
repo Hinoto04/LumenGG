@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "play-dev",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["-u", "scripts/serve_play_dev.py", "--port", "8874"],
+      "port": 8874
+    }
+  ]
+}

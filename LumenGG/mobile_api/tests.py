@@ -348,3 +348,50 @@ class MobileApiTests(TestCase):
             first,_=publish_catalog();image.write_bytes(b'changed image content')
             second,changed=publish_catalog()
         self.assertTrue(changed);self.assertNotEqual(first.sha256,second.sha256)
+
+
+class CatalogImageFetchTests(TestCase):
+    """카탈로그 배포 중 이미지 다운로드: http 주소·리디렉션·없는 이미지·일시적 네트워크 오류."""
+
+    def response(self, status, location=None, content=b'img'):
+        from unittest.mock import MagicMock
+        r = MagicMock()
+        r.status_code = status
+        r.headers = {'Content-Type': 'image/webp', **({'Location': location} if location else {})}
+        r.iter_content.return_value = [content]
+        r.raise_for_status.side_effect = None if status < 400 else Exception('HTTP %s' % status)
+        r.__enter__.return_value = r
+        return r
+
+    def test_http_url_is_fetched_over_https(self):
+        from mobile_api.catalog import fetch_image
+        with patch('mobile_api.catalog.requests.get', return_value=self.response(200)) as get:
+            self.assertEqual(fetch_image('http://images.hinoto.kr/a.webp', {})[0], b'img')
+        self.assertEqual(get.call_args.args[0], 'https://images.hinoto.kr/a.webp')
+
+    def test_redirect_is_followed_only_within_allowed_https_hosts(self):
+        from mobile_api.catalog import fetch_image
+        ok = [self.response(301, 'https://images.hinoto.kr/b.webp'), self.response(200, content=b'b')]
+        with patch('mobile_api.catalog.requests.get', side_effect=ok):
+            self.assertEqual(fetch_image('https://images.hinoto.kr/a.webp', {})[0], b'b')
+        with patch('mobile_api.catalog.requests.get', return_value=self.response(302, 'https://evil.example/x.webp')):
+            with self.assertRaises(ValueError):
+                fetch_image('https://images.hinoto.kr/a.webp', {})
+
+    def test_missing_image_is_skipped_and_not_modified_is_reported(self):
+        from mobile_api.catalog import fetch_image
+        with patch('mobile_api.catalog.requests.get', return_value=self.response(404)):
+            self.assertIsNone(fetch_image('https://images.hinoto.kr/missing.webp', {}))
+        with patch('mobile_api.catalog.requests.get', return_value=self.response(304)):
+            self.assertEqual(fetch_image('https://images.hinoto.kr/a.webp', {'If-None-Match': 'x'}), 'not-modified')
+
+    def test_timeouts_are_retried_before_failing(self):
+        import requests
+        from mobile_api.catalog import fetch_image
+        flaky = [requests.Timeout('slow'), self.response(200, content=b'ok')]
+        with patch('mobile_api.catalog.time.sleep'), patch('mobile_api.catalog.requests.get', side_effect=flaky):
+            self.assertEqual(fetch_image('https://images.hinoto.kr/a.webp', {})[0], b'ok')
+        with patch('mobile_api.catalog.time.sleep'),                 patch('mobile_api.catalog.requests.get', side_effect=requests.Timeout('down')) as get:
+            with self.assertRaises(requests.Timeout):
+                fetch_image('https://images.hinoto.kr/a.webp', {})
+        self.assertEqual(get.call_count, 3)
