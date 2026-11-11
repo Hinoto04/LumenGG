@@ -4,6 +4,7 @@ import { Board } from "./components/Board";
 import { DecisionPanel, stageCombo, stageDecision, type SubmitAction } from "./components/Decision";
 import { DecisionFrames } from "./components/DecisionFrames";
 import { DragMask } from "./components/DragMask";
+import { OpeningReview } from "./components/OpeningReview";
 import { FxLayer } from "./components/FxLayer";
 import { PlayerSheet } from "./components/Manual";
 import { CardSidePanel, SelectionPopover, useCompact } from "./components/Selection";
@@ -88,6 +89,7 @@ function GameScreen({ mode }: { mode: Exclude<AppMode, { kind: "lobby" }> }) {
           {!compact && <CardSidePanel />}
           {!compact && <SelectionPopover envelope={envelope} onAction={onAction} />}
           <FxLayer me={perspective(envelope).me} />
+          <OpeningReview envelope={envelope} onAction={onAction} />
           <PauseNotice envelope={envelope} onSubmit={onSubmit} />
           <RewindPrompt envelope={envelope} onSubmit={onSubmit} />
           <CardInspector envelope={envelope} onAction={onAction} />

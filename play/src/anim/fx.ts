@@ -1,11 +1,13 @@
 import { create } from "zustand";
-import type { Side } from "../protocol";
+import type { Side, VisibleCard } from "../protocol";
 
 /** 화면 가운데 큰 알림 */
 export type Banner =
   | { id: number; kind: "phase"; title: string; sub?: string }
   | { id: number; kind: "judge"; mine: string; theirs: string; tone: Tone; speeds?: [number, number] | null }
-  | { id: number; kind: "text"; title: string; tone?: Tone };
+  | { id: number; kind: "text"; title: string; tone?: Tone }
+  /** 효과로 고른 패를 양쪽이 함께 확인하는 연출(요한 선언 등) */
+  | { id: number; kind: "card"; title: string; sub?: string; card: VisibleCard; tone?: Tone };
 
 export type Tone = "good" | "bad" | "neutral";
 

@@ -141,7 +141,16 @@ async function run(runGeneration: number) {
 // ---------------------------------------------------------------------------
 // 이벤트 → 중간 상태 + 연출
 
-const JUDGE_LABELS: Record<string, string> = {
+const GUESS_LABELS: Record<string, string> = {
+  odd: "홀수",
+  even: "짝수",
+  attack: "공격 기술",
+  defense: "수비 기술",
+  odd_attack: "홀수 공격",
+  even_attack: "짝수 공격",
+};
+
+export const JUDGE_LABELS: Record<string, string> = {
   hit: "히트",
   counter: "카운터",
   countered: "카운터 당함",
@@ -390,6 +399,26 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
     case "card_broken":
       if (players[actor]) addFloat({ side: actor, text: "브레이크", tone: "info" });
       return { envelope, ms: 350 };
+
+    // 요한 선언(디제스터 원·판도라 박스 등): 고른 상대 패를 양쪽이 잠시 함께 확인한다.
+    case "card_guess_resolved": {
+      const card = payload.card as VisibleCard | undefined;
+      if (!card || card.hidden) return { envelope, ms: 0 };
+      const guess = GUESS_LABELS[String(payload.guess ?? "")] ?? String(payload.guess ?? "");
+      const correct = !!(payload.correct ?? payload.guess_correct);
+      const mine = actor === me;
+      showBanner(
+        {
+          kind: "card",
+          title: `${mine ? "내" : "상대"} 선언: ${guess}`,
+          sub: correct ? "적중!" : "빗나감",
+          card: { ...card, face_up: true, hidden: false },
+          tone: envelope.role === "viewer" ? "neutral" : correct === mine ? "good" : "bad",
+        },
+        dur(2200),
+      );
+      return { envelope, ms: 2000 };
+    }
 
     default:
       return { envelope, ms: 0 };

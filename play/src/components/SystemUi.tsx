@@ -142,6 +142,7 @@ export function GameMenu({
                 닫기
               </button>
             </header>
+            <QuickConfirmRow />
             <section>
               {opponentLink && <CopyRow label="상대 좌석" url={opponentLink} />}
               <CopyRow label="관전" url={spectate} />
@@ -254,5 +255,22 @@ export function RewindPrompt({ envelope, onSubmit }: { envelope: PlayEnvelope; o
         </footer>
       </section>
     </div>
+  );
+}
+
+/** 설정 · 빠른 확정 */
+function QuickConfirmRow() {
+  const on = usePlay((s) => s.quickConfirm);
+  const setOn = usePlay((s) => s.setQuickConfirm);
+  return (
+    <section>
+      <label className="menu-row menu-toggle">
+        <span>
+          빠른 확정
+          <small className="muted">카드를 옮기는 선택에서 옮겨야 할 장 수를 다 옮기면 확정 버튼 없이 바로 보냅니다.</small>
+        </span>
+        <input type="checkbox" checked={on} onChange={(event) => setOn(event.target.checked)} />
+      </label>
+    </section>
   );
 }

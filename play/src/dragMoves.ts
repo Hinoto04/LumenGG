@@ -30,6 +30,8 @@ export interface DropTarget extends ZoneRef {
   label: string;
   /** 작은 영역(더미)에 쓰는 짧은 이름 */
   shortLabel: string;
+  /** 이 영역 대신 놓아도 되는 더 넓은 자리(CSS 선택자). 손패 → 배틀 존은 내 필드 전체. */
+  area?: string;
   run: () => void;
 }
 
@@ -190,7 +192,26 @@ export function dragPlan(
       }
     }
   }
+  // 손패에서 배틀 존으로만 갈 수 있는 카드(레디·콤보·캐치)는 내 필드 어디에 놓아도 배틀 존으로 친다.
+  // 작은 화면에서 배틀 존을 정확히 맞히기 어렵기 때문이다.
+  const { me } = perspective(envelope);
+  if (
+    !isManual(envelope) &&
+    ref.zone === "hand" &&
+    targets.length === 1 &&
+    targets[0].zone === "battle" &&
+    targets[0].owner === me
+  ) {
+    targets[0] = { ...targets[0], area: ".field-me" };
+  }
   return { card: { ...ref }, sources: [...sources.values()], targets };
+}
+
+/** 넓은 놓는 자리(area)의 사각형 */
+export function areaRect(selector?: string): DOMRect | null {
+  if (!selector) return null;
+  const rect = document.querySelector(selector)?.getBoundingClientRect();
+  return rect && rect.width > 0 ? rect : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,7 +245,8 @@ export function targetAt(plan: DragPlan, point: { x: number; y: number }): DropT
   let best: DropTarget | null = null;
   let bestArea = Infinity;
   for (const target of plan.targets) {
-    for (const rect of zoneRects(target)) {
+    const area = areaRect(target.area);
+    for (const rect of area ? [...zoneRects(target), area] : zoneRects(target)) {
       const box = inflate(rect, pad);
       if (point.x >= box.left && point.x <= box.right && point.y >= box.top && point.y <= box.bottom) {
         // 키운 사각형이 겹치면 더 작은(더 구체적인) 영역을 고른다.

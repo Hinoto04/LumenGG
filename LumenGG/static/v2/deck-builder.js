@@ -496,7 +496,8 @@ function selectInitialCharacter() {
 
 function setupEvents() {
     document.querySelectorAll('input[name="char"]').forEach((input) => {
-        input.addEventListener("change", () => syncSearchCharacter(false));
+        // 캐릭터를 바꾸면 새 캐릭터가 쓸 수 없는 카드만 정리하고 세츠메이(중립) 카드는 남긴다.
+        input.addEventListener("change", () => syncSearchCharacter(true));
     });
     document.getElementById("v2DeckSearchButton").addEventListener("click", searchCards);
     document.getElementById("v2DeckSubmit").addEventListener("click", submitDeck);

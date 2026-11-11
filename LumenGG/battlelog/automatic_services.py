@@ -58,7 +58,7 @@ AUTOMATIC_COMMAND_LOG_KEEP = 1000
 AUTOMATIC_REWIND_ENABLED = False
 DEFAULT_AUTOMATIC_READY_SECONDS = 30
 DEFAULT_AUTOMATIC_EFFECT_SECONDS = 60
-AUTOMATIC_TIMER_CHOICES = {None, 15, 30, 45, 60, 90, 120}
+AUTOMATIC_TIMER_CHOICES = {None, 10, 15, 30, 45, 60, 90, 120}
 NEUTRAL_CHARACTER_ID = 1
 CHARACTER_MAIN_DECK_EXCEPTIONS = {5: 24, 15: 33, 16: 26, 17: 25}
 MIN_AI_POLICY_TRAINING_GAMES = 40
@@ -188,6 +188,40 @@ def ai_policy_payload(policy=None):
     }
 
 
+def _remove_game_start_counter_grants(player, cards):
+    """Avoid granting a trait's game-start counters twice.
+
+    The manual calculator stores the post-game-start value (e.g. Yohan's
+    Foresight 2) as the initial passive state.  The automatic engine resolves
+    the trait's ``game_start`` ability itself, so it must start from the value
+    before that ability.
+    """
+    from .game.engine import PASSIVE_STATE_KEY_ALIASES
+    passive_state = player.get('passive_state') or {}
+    for passive_card in (player.get('zones') or {}).get('passive') or []:
+        definition = (cards.get(str(passive_card.get('code') or '')) or {}).get('effect_definition') or {}
+        for ability in definition.get('abilities') or []:
+            if (ability.get('trigger') or {}).get('event') != 'game_start':
+                continue
+            if 'passive' not in (ability.get('active_zones') or ['passive']):
+                continue
+            for effect in ability.get('effects') or []:
+                if effect.get('op') != 'change_counter' or not (effect.get('player') or {}).get('controller'):
+                    continue
+                counter = str(effect.get('counter') or '')
+                try:
+                    amount = int(effect.get('amount') or 0)
+                except (TypeError, ValueError):
+                    continue
+                if not counter or amount <= 0:
+                    continue
+                for key, entry in passive_state.items():
+                    if key != counter and PASSIVE_STATE_KEY_ALIASES.get(key) != counter:
+                        continue
+                    if isinstance(entry, dict) and isinstance(entry.get('count'), (int, float)):
+                        entry['count'] = max(0, entry['count'] - amount)
+
+
 def _pin_release_card_data(state, snapshot, *, preserve_runtime_state=False):
     cards = snapshot.get('cards') or {}
     characters = snapshot.get('characters') or {}
@@ -218,6 +252,7 @@ def _pin_release_card_data(state, snapshot, *, preserve_runtime_state=False):
                 player['initial_hp'] = initial_hp
                 player['hp'] = initial_hp
                 player['passive_state'] = initial_passive_state_for_character(character)
+                _remove_game_start_counter_grants(player, cards)
             character_payload.update({
                 'name': released_character.get('name'),
                 'img': released_character.get('body_img') or released_character.get('sd_img') or released_character.get('img'),
@@ -266,6 +301,8 @@ def automatic_session_settings(
         ),
         'auto_advance_empty_phases': True,
         'rewind_enabled': AUTOMATIC_REWIND_ENABLED,
+        # 게임 시작 효과 전에 서로 상대의 시작 패를 확인하는 시간
+        'opening_review': True,
     }
 
 

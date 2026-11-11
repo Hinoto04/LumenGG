@@ -348,6 +348,15 @@ class PlayClockBroadcastTests(TransactionTestCase):
             view_token='play-clock-view', player1_token='clock-p1', player2_token='clock-p2',
             mode=LumenSimulatorSession.MODE_AUTOMATIC, ruleset_release=release, document=document,
         )
+        # 게임 시작 효과 전에 양쪽이 서로의 시작 패를 확인한다.
+        for seat, token in (('p1', 'clock-p1'), ('p2', 'clock-p2')):
+            envelope = serialize_simulator_session(session, seat, token)
+            confirm = next(action for action in envelope['legal_actions'] if action['type'] == 'confirm_opening_review')
+            session = perform_automatic_command(session, {
+                'command_id': f'clock-review-{seat}', 'action_id': confirm['action_id'],
+                'expected_version': session.version, 'selections': {},
+                'seat': seat, 'seat_token': token,
+            })
         envelope = serialize_simulator_session(session, 'p1', 'clock-p1')
         ready = next(action for action in envelope['legal_actions'] if action['type'] == 'ready_card')
         session = perform_automatic_command(session, {
@@ -614,3 +623,90 @@ class ComboPairPresentedTogetherTests(SimpleTestCase):
         self.assertEqual(engine._find_location('pair-second')[1], 'battle')
         engine.end_combo()
         self.assertEqual(engine._find_location('pair-second')[1], 'hand')
+
+
+class ClockGraceAndTimerChoiceTests(SimpleTestCase):
+    """0초 직전에 낸 행동이 늦게 도착해도 받아 주는 여유 시간, 레디 10초 선택지."""
+
+    def test_timeout_waits_for_grace_period(self):
+        from datetime import timedelta
+        from .game.engine import CLOCK_GRACE_SECONDS
+
+        engine = AutomaticGameEngine.initialize(base_state(), ruleset(), seed='grace')
+        engine.create_decision(
+            owner='p1', kind='effect_choice', prompt='고르기',
+            options=[{'id': 'a'}, {'id': 'b'}], minimum=1, maximum=1, default=['a'], continuation={},
+        )
+        clock = engine.engine_state['clock']
+        self.assertEqual(clock['grace_seconds'], CLOCK_GRACE_SECONDS)
+        deadline = datetime.fromisoformat(clock['deadline'])
+        # 0초가 지났어도 여유 시간 안에는 시간 초과로 처리하지 않는다(행동을 받을 수 있다).
+        engine.now = deadline + timedelta(seconds=CLOCK_GRACE_SECONDS - 0.5)
+        self.assertFalse(engine.reconcile_clock())
+        self.assertIsNotNone(engine.engine_state['pending_decision'])
+        engine.now = deadline + timedelta(seconds=CLOCK_GRACE_SECONDS + 0.1)
+        self.assertTrue(engine.reconcile_clock())
+        self.assertIsNone(engine.engine_state['pending_decision'])
+
+    def test_ten_second_ready_and_thirty_second_effect_are_allowed(self):
+        from .automatic_services import automatic_session_settings
+
+        settings = automatic_session_settings(ready_timeout_seconds='10', effect_timeout_seconds='30')
+        self.assertEqual(settings['ready_timeout_seconds'], 10)
+        self.assertEqual(settings['effect_timeout_seconds'], 30)
+
+
+class OpeningReviewRevealsHandsTests(SimpleTestCase):
+    """상대 시작 패 확인 단계에서는 두 플레이어가 서로의 손패를 본다(관전자는 보지 않는다)."""
+
+    def state(self, stage):
+        from .simulator_services import _filtered_state
+
+        raw = base_state([attack('p1-h', 'p1')], [attack('p2-h', 'p2')])
+        raw['engine'] = {'startup_stage': stage}
+        return lambda role: _filtered_state(raw, role, include_database_hand_limits=False)
+
+    def test_players_see_each_other_hand_during_review(self):
+        view = self.state('opening_review')
+        opponent_hand = view('p1')['players']['p2']['zones']['hand']
+        self.assertFalse(opponent_hand[0]['hidden'])
+        self.assertEqual(opponent_hand[0]['instance_id'], 'p2-h')
+        self.assertTrue(view('viewer')['players']['p2']['zones']['hand'][0]['hidden'])
+
+    def test_hand_is_hidden_again_after_review(self):
+        view = self.state(None)
+        self.assertTrue(view('p1')['players']['p2']['zones']['hand'][0]['hidden'])
+
+
+class RevealedHandCardStaysKnownTests(SimpleTestCase):
+    """요한 예지 등으로 공개된 손패를 레디하면 배틀 존에서도 무슨 카드인지 보인다(규칙상 앞면은 아니다)."""
+
+    def test_readied_revealed_card_is_known_but_face_down(self):
+        from .simulator_services import _filtered_state
+
+        card = attack('seen-card', 'p2')
+        engine = AutomaticGameEngine.initialize(base_state([], [card]), ruleset(card), seed='known')
+        engine.set_card_visibility('seen-card', True)
+        engine.move_card('seen-card', 'battle', reason='ready')
+        moved = engine._find_card('seen-card')
+        self.assertFalse(moved['face_up'])
+        self.assertTrue(moved['publicly_known'])
+        view = _filtered_state(engine.state, 'p1', include_database_hand_limits=False)
+        slot = view['players']['p2']['zones']['battle'][0]
+        self.assertFalse(slot['hidden'])
+        self.assertTrue(slot['publicly_known'])
+
+    def test_unrevealed_ready_stays_hidden_and_hide_clears_flag(self):
+        from .simulator_services import _filtered_state
+
+        secret = attack('secret-card', 'p2')
+        engine = AutomaticGameEngine.initialize(base_state([], [secret]), ruleset(secret), seed='secret')
+        engine.move_card('secret-card', 'battle', reason='ready')
+        view = _filtered_state(engine.state, 'p1', include_database_hand_limits=False)
+        self.assertTrue(view['players']['p2']['zones']['battle'][0]['hidden'])
+
+        engine.move_card('secret-card', 'hand', reason='test')
+        engine.set_card_visibility('secret-card', True)
+        engine.move_card('secret-card', 'battle', reason='ready')
+        engine.set_card_visibility('secret-card', False)
+        self.assertNotIn('publicly_known', engine._find_card('secret-card'))

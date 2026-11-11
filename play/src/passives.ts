@@ -11,6 +11,8 @@ export interface PassiveItem {
   kind: "counter" | "state" | "value";
   value: number | boolean | string;
   max?: number | null;
+  /** 카운터이면서 상태로 켜질 수 있는 항목(타오 음/양): 켜진 쪽은 분홍색으로 강조한다. */
+  active?: boolean;
 }
 
 interface Control {
@@ -38,8 +40,8 @@ const PANEL_KEYS: Record<string, Control[]> = {
       key: "harmony_effect",
       label: "조화 효과",
       choices: [
-        { value: "damage_100", label: "+100DMG" },
-        { value: "fp_1", label: "+1FP" },
+        { value: "damage_100", label: "DMG+100" },
+        { value: "fp_1", label: "FP+1" },
       ],
     },
   ],
@@ -56,7 +58,17 @@ function stored(player: PlayerState, key: string): unknown {
   return entry.count;
 }
 
-function labelFor(player: PlayerState, key: string, fallback?: string): string {
+/** 엔진 상태 키가 그대로 노출되는 항목의 한글 이름 */
+const STATE_LABELS: Record<string, string> = {
+  yin: "음",
+  yang: "양",
+  harmony: "조화",
+  harmony_damage: "조화: DMG+100",
+  harmony_fp: "조화: FP+1",
+};
+
+export function labelFor(player: PlayerState, key: string, fallback?: string): string {
+  if (STATE_LABELS[key]) return STATE_LABELS[key];
   const entry = player.passive_state?.[key];
   return String(entry?.display_label ?? fallback ?? entry?.label ?? key);
 }
@@ -98,6 +110,16 @@ export function passiveItems(player: PlayerState, manual: boolean): PassiveItem[
     if (seen.has(key) || !entry || typeof entry !== "object") continue;
     const raw = stored(player, key);
     const label = labelFor(player, key);
+    // 타오의 음/양처럼 카운터와 같은 이름의 상태가 걸리면 엔진이 value=true를 덧씌운다.
+    // 개수가 가려지지 않도록 카운터와 상태를 따로 보여 준다.
+    // 개수는 항상 보이게 카운터로 두고, 상태가 켜졌는지는 강조(active)로 표시한다.
+    const count = (entry as Record<string, unknown>).count;
+    const flag = (entry as Record<string, unknown>).value;
+    if (typeof count === "number" && (typeof flag === "boolean" || (entry as Record<string, unknown>).derived)) {
+      items.push({ key, label, kind: "counter", value: count, active: ON.has(flag) });
+      seen.add(key);
+      continue;
+    }
     if (typeof raw === "number") items.push({ key, label, kind: "counter", value: raw });
     else if (ON.has(raw) || OFF.has(raw)) items.push({ key, label, kind: "state", value: ON.has(raw) });
     else if (typeof raw === "string" && raw) items.push({ key, label, kind: "value", value: raw });

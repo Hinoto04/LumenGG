@@ -1,7 +1,7 @@
-import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { motion } from "motion/react";
+import { useState } from "react";
 import { useFx, type PlaybackSpeed } from "../anim/fx";
-import { eventText } from "../eventText";
+import { LogPanel } from "./LogPanel";
 import { FINISH_REASONS } from "../labels";
 import { currentTarget, useLive } from "../net/live";
 import type { PlayEnvelope } from "../protocol";
@@ -20,6 +20,15 @@ const SPEEDS: { value: PlaybackSpeed; label: string }[] = [
   { value: 1, label: "연출 ×1" },
   { value: 2, label: "연출 ×2" },
 ];
+
+/**
+ * '나가기': 사이트의 시뮬레이터 시작 화면(/battlelog/simulator/)으로 돌아간다.
+ * 앱(WebView)에서는 예전처럼 대전 클라이언트 로비 주소로 보내, 이미 배포된 앱도 대전 화면을 닫게 한다.
+ */
+function exitUrl(): string {
+  const inApp = typeof window !== "undefined" && "ReactNativeWebView" in window;
+  return inApp ? location.pathname : "/battlelog/simulator/";
+}
 
 /** 실제 대전 화면 위쪽의 작은 메뉴: 연결 상태, 연출 속도, 기록, 나가기 */
 export function LiveBar({ envelope, onSubmit }: { envelope: PlayEnvelope | null; onSubmit: SystemSubmit }) {
@@ -44,7 +53,7 @@ export function LiveBar({ envelope, onSubmit }: { envelope: PlayEnvelope | null;
           {SPEEDS[speedIndex]?.label ?? "연출 ×1"}
         </button>
         {envelope && (
-          <button type="button" className="btn-chip" onClick={() => setLogOpen(true)}>
+          <button type="button" className={`btn-chip ${logOpen ? "is-on" : ""}`} onClick={() => setLogOpen(!logOpen)}>
             기록
           </button>
         )}
@@ -53,11 +62,11 @@ export function LiveBar({ envelope, onSubmit }: { envelope: PlayEnvelope | null;
             메뉴
           </button>
         )}
-        <a className="btn-chip" href={location.pathname}>
+        <a className="btn-chip" href={exitUrl()}>
           나가기
         </a>
       </div>
-      {envelope && <LogSheet envelope={envelope} open={logOpen} onClose={() => setLogOpen(false)} />}
+      {envelope && <LogPanel envelope={envelope} open={logOpen} onClose={() => setLogOpen(false)} />}
       {envelope && <GameMenu envelope={envelope} open={menuOpen} onClose={() => setMenuOpen(false)} onSubmit={onSubmit} />}
     </>
   );
@@ -82,48 +91,6 @@ function PresenceChip({
     <span className={`btn-chip is-static ${online ? "is-online" : "is-offline"}`}>
       {online ? "상대 접속 중" : "상대 연결 끊김"}
     </span>
-  );
-}
-
-function LogSheet({ envelope, open, onClose }: { envelope: PlayEnvelope; open: boolean; onClose: () => void }) {
-  const events = useLive((s) => s.events);
-  const { me } = perspective(envelope);
-  const lines = useMemo(
-    () =>
-      events
-        .map((event) => ({ seq: event.seq, text: eventText(event, me) }))
-        .filter((line): line is { seq: number; text: string } => !!line.text)
-        .reverse(),
-    [events, me],
-  );
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div className="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-          <motion.div
-            className="zone-sheet log-sheet"
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", stiffness: 380, damping: 36 }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header>
-              <h2>기록</h2>
-              <button type="button" className="btn-ghost" onClick={onClose}>
-                닫기
-              </button>
-            </header>
-            <ol className="log-lines">
-              {lines.length === 0 && <li className="muted">아직 기록이 없습니다.</li>}
-              {lines.map((line) => (
-                <li key={line.seq}>{line.text}</li>
-              ))}
-            </ol>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
   );
 }
 

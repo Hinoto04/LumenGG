@@ -18,6 +18,9 @@ interface PlayStore {
   /** 효과 선택에서 고른 선택지 id(선택 창과 보드가 함께 쓴다) */
   decisionPicks: string[];
   setDecisionPicks: (ids: string[]) => void;
+  /** 설정 · 빠른 확정: 카드 옮기기 선택에서 옮겨야 할 장 수를 다 옮기면 확정 버튼 없이 바로 보낸다. */
+  quickConfirm: boolean;
+  setQuickConfirm: (on: boolean) => void;
   /** 펼친 더미 패널(ZoneDock)을 가렸는지 */
   dockHidden: boolean;
   setDockHidden: (hidden: boolean) => void;
@@ -39,6 +42,16 @@ interface PlayStore {
   flash: (message: string) => void;
 }
 
+const QUICK_CONFIRM_KEY = "lumen-play-quick-confirm";
+
+function storedFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
 export const usePlay = create<PlayStore>((set) => ({
@@ -50,6 +63,15 @@ export const usePlay = create<PlayStore>((set) => ({
   setDecisionCollapsed: (decisionCollapsed) => set({ decisionCollapsed }),
   decisionPicks: [],
   setDecisionPicks: (decisionPicks) => set({ decisionPicks }),
+  quickConfirm: storedFlag(QUICK_CONFIRM_KEY),
+  setQuickConfirm: (quickConfirm) => {
+    try {
+      localStorage.setItem(QUICK_CONFIRM_KEY, quickConfirm ? "1" : "0");
+    } catch {
+      /* 저장하지 못해도 이번 접속에는 적용된다 */
+    }
+    set({ quickConfirm });
+  },
   dockHidden: false,
   setDockHidden: (dockHidden) => set({ dockHidden }),
   drag: null,

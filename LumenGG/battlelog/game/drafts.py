@@ -4266,6 +4266,10 @@ def infer_deck_rules(text):
             **({'same_name_limit': maximum} if single_card_supplement else {}),
             'allow_foreign_mark': reference_kind == 'token' and reference_key != 'parts',
             'allow_non_technique': reference_kind == 'token' and reference_key != 'parts',
+            # Parts are Pinp's own techniques: they may already occupy the
+            # ordinary 20-card deck, and only copies above that use the
+            # trait-created slots.
+            **({'allow_base_copies': True} if reference_kind == 'token' and reference_key == 'parts' else {}),
         })
     if supplements:
         rules['supplements'] = supplements
@@ -21084,6 +21088,9 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'kind': 'effect', 'mode': 'optional',
                 'timing': 'combo', 'active_zones': ['side'],
                 'allow_non_source_trigger': True,
+                # 사이드의 여러 장이 같은 콤보 창에서 함께 발동하지 않도록
+                # 같은 이름의 효과는 턴당 1회만 해결한다.
+                'limit': {'scope': 'turn', 'max': 1},
                 # ``combo`` is source-only for the Technique currently being
                 # resolved.  ``combo_window`` is the shared timing window in
                 # which a Side-zone Technique may react.

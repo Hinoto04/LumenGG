@@ -118674,6 +118674,7 @@ def _review_rfs_ps_002_definition(definition, card_snapshot, extra_root):
                 'where': {'token_key': 'parts'}, 'max_count': 4,
                 'allow_foreign_mark': False,
                 'allow_non_technique': False,
+                'allow_base_copies': True,
             }],
             'main_size': {
                 'min': 20, 'max': 24,

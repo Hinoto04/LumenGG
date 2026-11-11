@@ -111,7 +111,11 @@ export function Card({
   const [failed, setFailed] = useState<string | null>(null);
   const showImage = !!image && failed !== image;
   // 손패는 원래 비공개이므로 표시하지 않는다. 필드에 뒷면으로 놓인 내 카드만 표시한다.
-  const secretToOthers = !!view && !card.face_up && card.zone !== "hand" && size !== "large";
+  // 공개된 손패를 레디해 배틀 존에 뒷면으로 놓였지만 이미 알려진 카드(요한 예지 등)
+  const knownCard = !!view && !card.face_up && !!(card as VisibleCard).publicly_known && size !== "large";
+  const secretToOthers = !!view && !card.face_up && !knownCard && card.zone !== "hand" && size !== "large";
+  // 효과(요한 예지 등)로 공개된 손패: 상대에게 보이는 카드임을 손패 주인도 알 수 있게 표시한다.
+  const revealedInHand = !!view && !!card.face_up && card.zone === "hand" && size !== "large";
   const classes = [
     "card",
     `card-${size}`,
@@ -187,6 +191,16 @@ export function Card({
       {secretToOthers && (
         <span className="card-secret" title="상대에게는 뒷면으로 보입니다">
           비공개
+        </span>
+      )}
+      {knownCard && (
+        <span className="card-secret card-revealed" title="손패에서 공개되었던 카드입니다(뒷면으로 놓였지만 무슨 카드인지 알려져 있습니다)">
+          공개됨
+        </span>
+      )}
+      {revealedInHand && (
+        <span className="card-secret card-revealed" title="상대에게 공개된 카드입니다">
+          공개됨
         </span>
       )}
     </motion.button>

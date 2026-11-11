@@ -53,6 +53,7 @@
             <div class="v2-admin-field" data-automatic-timer-setting>
                 <label for="simulator_ready_timeout">{% tr "레디 선택 제한 시간" %}</label>
                 <select id="simulator_ready_timeout" name="ready_timeout_seconds">
+                    <option value="10"{% if ready_timeout_seconds == "10" %} selected{% endif %}>10{% tr "초" %}</option>
                     <option value="30"{% if ready_timeout_seconds|default:"30" == "30" %} selected{% endif %}>30{% tr "초" %}</option>
                     <option value="45"{% if ready_timeout_seconds == "45" %} selected{% endif %}>45{% tr "초" %}</option>
                     <option value="60"{% if ready_timeout_seconds == "60" %} selected{% endif %}>60{% tr "초" %}</option>

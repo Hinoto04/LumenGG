@@ -29,6 +29,10 @@ class EngineError(ValueError):
     """Base class for automatic engine failures."""
 
 
+# 제한 시간이 0이 된 뒤에도 이만큼은 행동을 받아 준다(통신 지연 여유).
+CLOCK_GRACE_SECONDS = 2
+
+
 class IllegalAction(EngineError):
     """The submitted action is not in the current legal-action set."""
 
@@ -69,6 +73,7 @@ ACTION_UI_KINDS = {
     'select_combo_first': 'card',
     'select_combo_followup': 'card',
     'pass_phase': 'primary',
+    'confirm_opening_review': 'primary',
     'end_combo': 'primary',
     'decline_catch': 'primary',
     'declare_no_response': 'primary',
@@ -275,7 +280,14 @@ class AutomaticGameEngine:
                 'ruleset_version': ruleset.get('version') or ruleset.get('content_hash'),
                 'priority_player': first,
             })
-            engine._fire('game_start', {'turn': 1})
+            if (settings or {}).get('opening_review'):
+                # Both players inspect each other's revealed opening hand
+                # before any game-start effect (e.g. a hand selection) runs.
+                engine.engine_state['startup_stage'] = 'opening_review'
+                engine.engine_state['opening_review'] = {'confirmed': []}
+                engine.emit('opening_review_started', 'system', {})
+            else:
+                engine._fire('game_start', {'turn': 1})
             engine._continue()
         else:
             # Scenario sessions import a board which already represents the
@@ -512,6 +524,13 @@ class AutomaticGameEngine:
         if clock.get('paused'):
             actions.append(self._action('resume_clock', label='타이머 재개'))
             return actions
+        if engine.get('startup_stage') == 'opening_review':
+            confirmed = (engine.get('opening_review') or {}).get('confirmed') or []
+            if role not in confirmed:
+                actions.append(self._action(
+                    'confirm_opening_review', label='상대 시작 패 확인 완료',
+                ))
+            return actions
         decision = engine.get('pending_decision')
         if decision:
             if decision.get('owner') == role:
@@ -724,6 +743,8 @@ class AutomaticGameEngine:
             self._get_card(role, payload['card_instance_id'])
         elif action_type == 'submit_decision':
             self._submit_decision(role, payload['decision_id'], selections.get('selected') or [])
+        elif action_type == 'confirm_opening_review':
+            self._confirm_opening_review(role)
         elif action_type == 'select_combo_first':
             combo = self.engine_state.get('combo') or {}
             if combo.get('owner') != role or combo.get('used'):
@@ -890,9 +911,25 @@ class AutomaticGameEngine:
             return
         raise EngineError('자동 진행 단계 제한을 초과했습니다.')
 
+    def _confirm_opening_review(self, role):
+        if self.engine_state.get('startup_stage') != 'opening_review':
+            raise IllegalAction('시작 패를 확인하는 시점이 아닙니다.')
+        review = self.engine_state.setdefault('opening_review', {'confirmed': []})
+        confirmed = review.setdefault('confirmed', [])
+        if role in confirmed:
+            raise IllegalAction('이미 시작 패 확인을 마쳤습니다.')
+        confirmed.append(role)
+        self.emit('opening_review_confirmed', role, {})
+        if all(side in confirmed for side in PLAYER_SIDES):
+            self.engine_state.pop('opening_review', None)
+            self.engine_state['startup_stage'] = 'after_game_start'
+            self._fire('game_start', {'turn': 1})
+
     def _advance_startup_stage(self):
         """Open initial timing windows only after the previous one settles."""
         stage = self.engine_state.get('startup_stage')
+        if stage == 'opening_review':
+            return False
         if stage == 'after_game_start':
             self.engine_state['startup_stage'] = 'after_turn_start'
             self._fire('turn_start', {'turn': self.state.get('turn', 1)})
@@ -910,6 +947,8 @@ class AutomaticGameEngine:
     def _auto_advance_actionless_phase(self):
         settings = self.engine_state.get('settings') or {}
         if not settings.get('auto_advance_empty_phases', False):
+            return False
+        if self.engine_state.get('startup_stage') == 'opening_review':
             return False
         phase = self.state.get('phase')
         step = self.engine_state.get('step')
@@ -5643,6 +5682,7 @@ class AutomaticGameEngine:
         self.engine_state['clock'] = {
             'kind': kind, 'owner': owner, 'duration_seconds': int(seconds),
             'deadline': (self.now + timedelta(seconds=int(seconds))).isoformat(),
+            'grace_seconds': CLOCK_GRACE_SECONDS,
             'paused': False, 'pause_reason': '', 'paused_by': None,
         }
         self.emit('clock_started', 'system', {'kind': kind, 'owner': owner, 'seconds': int(seconds)})
@@ -5655,7 +5695,9 @@ class AutomaticGameEngine:
         if not clock or clock.get('paused') or both_disconnected:
             return False
         deadline = _as_datetime(clock.get('deadline'))
-        if not deadline or self.now < deadline:
+        # 표시된 시간이 0이 되기 직전에 낸 행동이 통신 지연으로 늦게 도착해도 받아 준다.
+        grace = timedelta(seconds=_number(clock.get('grace_seconds'), 0))
+        if not deadline or self.now < deadline + grace:
             return False
         kind = clock.get('kind')
         owner = clock.get('owner')
@@ -6643,6 +6685,11 @@ class AutomaticGameEngine:
             card.pop('non_technique_while_face_down', None)
             card.pop('effects_negated', None)
             card.pop('secret_time_host', None)
+        # 예지 등으로 손패에서 공개된 카드를 레디하면 배틀 존에서도 무슨 카드인지 알려진 상태로 둔다.
+        # 게임 규칙상의 앞면(face_up)은 그대로 뒷면이고, 화면 표시에만 쓰는 표식이다.
+        known_publicly = (
+            from_zone == 'hand' and to_zone == 'battle' and bool(card.get('face_up'))
+        )
         if face_up is None:
             public_get_hand = (
                 to_zone == 'hand' and self.state.get('phase') == 'get'
@@ -6661,6 +6708,10 @@ class AutomaticGameEngine:
             card.pop('hide_after_get', None)
         if to_zone != 'hand':
             card.pop('hide_after_get', None)
+        if known_publicly and not card.get('face_up'):
+            card['publicly_known'] = True
+        else:
+            card.pop('publicly_known', None)
         self._apply_card_form(card, to_zone)
         self.state['players'][target]['zones'][to_zone].append(card)
         if from_zone != to_zone or from_player != target:
@@ -7208,6 +7259,8 @@ class AutomaticGameEngine:
                 return False
             was_face_up = bool(card.get('face_up'))
             card['face_up'] = bool(face_up)
+            if not face_up:
+                card.pop('publicly_known', None)
             payload = {
                 'card_instance_id': instance_id, 'face_up': bool(face_up),
                 'was_face_up': was_face_up,
@@ -8924,6 +8977,14 @@ class AutomaticGameEngine:
         _owner, source_zone, _index, _live_card = self._find_location(
             card.get('instance_id'),
         )
+        if source_zone == 'battle':
+            # 함께 제시해 먼저 배틀 존에 놓인 콤보 카드는 원래 있던 존 기준으로
+            # 비용을 판정한다(예: 키스 슈타이너의 리스트 사용 비용).
+            presented_from = (
+                (self.engine_state.get('combo') or {}).get('presented_from') or {}
+            ).get(card.get('instance_id'))
+            if presented_from:
+                source_zone = presented_from
         return [
             cost for cost in definition.get('play_costs') or []
             if not (
@@ -9934,11 +9995,13 @@ class AutomaticGameEngine:
             'winner': self.engine_state.get('winner'),
             'reason': self.engine_state.get('reason'),
         }
+        # The final opening hand is public until both players confirm it.
+        opening_review = self.engine_state.get('startup_stage') == 'opening_review'
         hidden_board_keys = {}
         for player_side, player in (state.get('players') or {}).items():
             for zone, cards in (player.get('zones') or {}).items():
                 for index, card in enumerate(cards):
-                    if role == card.get('owner') or card.get('face_up'):
+                    if role == card.get('owner') or card.get('face_up') or card.get('publicly_known') or (opening_review and zone == 'hand'):
                         continue
                     instance_id = card.get('instance_id')
                     if instance_id:
@@ -9952,7 +10015,7 @@ class AutomaticGameEngine:
             for zone, cards in (player.get('zones') or {}).items():
                 projected = []
                 for card in cards:
-                    if role == card.get('owner') or card.get('face_up'):
+                    if role == card.get('owner') or card.get('face_up') or card.get('publicly_known') or (opening_review and zone == 'hand'):
                         visible = copy.deepcopy(card)
                         visible['hidden'] = False
                         projected.append(visible)

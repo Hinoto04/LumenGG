@@ -12,6 +12,9 @@ import { userMessage } from "../src/errors";
 import type { Deck, RegulationVersion } from "../src/types";
 import { styles, Input, Button, Choices, Notice } from "../src/ui";
 
+const NEUTRAL_CHARACTER_ID = 1;
+const KIMERA_CHARACTER_ID = 15;
+
 export default function DeckEditor() {
   const params = useLocalSearchParams<{ id?: string; copy?: string }>();
   const { catalog, decks, language, user, scope, saveDeck } = useApp();
@@ -133,6 +136,19 @@ export default function DeckEditor() {
   const issues = deckIssues(deck, catalog, "draft"),
     character = catalog.characters.find((c) => c.id === deck.character_id);
   const change = (patch: Partial<Deck>) => setDeck({ ...deck, ...patch });
+  const keepsCardForCharacter = (cardId: number, characterId: number) => {
+    const card = catalog.cards.find((c) => c.id === cardId);
+    if (!card) return false;
+    if (card.character_id === NEUTRAL_CHARACTER_ID) return true;
+    if (card.character_id === characterId) return true;
+    // 키메라는 다른 캐릭터의 공격 기술을 덱에 넣을 수 있다.
+    return (
+      characterId === KIMERA_CHARACTER_ID &&
+      !card.ultimate &&
+      !isTrait(card) &&
+      card.type.includes("공격")
+    );
+  };
   const setCount = (
     id: number,
     field: "count" | "hand" | "side",
@@ -235,6 +251,14 @@ export default function DeckEditor() {
         onChange={(id) =>
           change({
             character_id: Number(id),
+            // 캐릭터를 바꾸면 새 캐릭터가 쓸 수 없는 카드만 정리하고
+            // 세츠메이(중립) 카드는 남긴다.
+            cards: deck.cards.filter((e) =>
+              keepsCardForCharacter(e.card_id, Number(id)),
+            ),
+            reserve_cards: (deck.reserve_cards || []).filter((e) =>
+              keepsCardForCharacter(e.card_id, Number(id)),
+            ),
             trait_card_id:
               catalog.characters.find((c) => c.id === Number(id))?.traits
                 ?.length === 1

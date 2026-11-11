@@ -2,7 +2,7 @@ import { AnimatePresence, motion, useAnimate } from "motion/react";
 import { useEffect, useMemo, type CSSProperties } from "react";
 import type { BoardCard, LegalAction, PlayEnvelope, PlayerState, Side, ZoneName } from "../protocol";
 import { PHASE_LABELS, PHASE_ORDER, PILE_ZONES, ZONE_LABELS } from "../labels";
-import { cardActions, indexActions, perspective, refKey, usePlay, type ActionIndex } from "../store";
+import { cardActions, indexActions, perspective, refKey, showCardInfo, usePlay, type ActionIndex } from "../store";
 import { useFx } from "../anim/fx";
 import { Card } from "./Card";
 import { dragPlan, insideSource, targetAt } from "../dragMoves";
@@ -133,6 +133,9 @@ function OpponentHand({ player, side }: { player: PlayerState; side: Side }) {
           card={card}
           size="mini"
           style={{ rotate: (index - (cards.length - 1) / 2) * -4 }}
+          // 공개된 상대 손패(시작 패 확인, 예지)는 눌러서도 정보를 본다. onClick이 없으면 버튼이 비활성이 된다.
+          onClick={card.hidden ? undefined : () => showCardInfo({ card, ref: { owner: side, zone: "hand", index, instance_id: card.instance_id } })}
+          selectKey={`${side}:hand:${index}`}
         />
       ))}
       <span className="count-badge">{cards.length}</span>
@@ -151,8 +154,8 @@ function PassiveBadges({ player, manual }: { player: PlayerState; manual: boolea
           key={item.key}
           className={`is-${item.kind} ${item.kind === "state" && !item.value ? "is-off" : ""} ${
             item.kind === "counter" && !item.value ? "is-zero" : ""
-          }`}
-          title={item.label}
+          } ${item.active ? "is-active" : ""}`}
+          title={item.active ? `${item.label} (활성)` : item.label}
         >
           {item.label}
           {item.kind === "counter" && <b>{item.max ? `${item.value}/${item.max}` : String(item.value)}</b>}

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useFx, type Float } from "../anim/fx";
 import type { Side } from "../protocol";
+import { Card } from "./Card";
 
 /** 화면 가운데 배너(페이즈, 판정, 콤보)와 위쪽 효과 띠 */
 export function FxLayer({ me }: { me: Side }) {
@@ -18,7 +19,15 @@ export function FxLayer({ me }: { me: Side }) {
             exit={{ opacity: 0, scale: 1.15, transition: { duration: 0.18 } }}
             transition={{ type: "spring", stiffness: 520, damping: 26 }}
           >
-            {banner.kind === "judge" ? (
+            {banner.kind === "card" ? (
+              <>
+                <span className="fx-banner-sub">{banner.title}</span>
+                <div className="fx-banner-card">
+                  <Card card={banner.card} size="large" detached />
+                </div>
+                {banner.sub && <strong>{banner.sub}</strong>}
+              </>
+            ) : banner.kind === "judge" ? (
               <>
                 <strong>{banner.mine}</strong>
                 <span className="fx-judge-sub">

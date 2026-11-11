@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { BoardCard, CardRef, DecisionOption, LegalAction, PlayEnvelope, VisibleCard, ZoneName } from "../protocol";
 import { moveCard } from "../net/optimistic";
 import { ZONE_LABELS } from "../labels";
@@ -201,6 +201,17 @@ export function DecisionPanel({
   const toggle = (id: string) => toggleDecisionPick(id, maximum);
 
   const ready = selected.length >= minimum && selected.length <= maximum;
+
+  // 빠른 확정(설정): 옮겨야 할 장 수(최대)를 다 옮기면 바로 보낸다. 같은 선택은 한 번만 보낸다.
+  const quickConfirm = usePlay((s) => s.quickConfirm);
+  const autoSent = useRef<string | null>(null);
+  useEffect(() => {
+    if (!quickConfirm || !onBoard || busy || autoSent.current === decisionId) return;
+    if (selected.length === maximum && selected.length >= minimum && selected.length > 0) {
+      autoSent.current = decisionId;
+      onSubmit(action, { selected });
+    }
+  }, [quickConfirm, onBoard, busy, selected, maximum, minimum, decisionId, action, onSubmit]);
   const destination = options.find((option) => option.ui?.to_zone)?.ui.to_zone;
   const fromPile = options.some((option) => option.ui?.card && !["hand", "list", "battle"].includes(option.ui.card.zone));
   const hintText = onBoard

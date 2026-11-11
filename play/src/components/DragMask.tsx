@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { inflate, MULTI_TARGET_PAD, zoneRect, type ZoneRef } from "../dragMoves";
+import { areaRect, inflate, MULTI_TARGET_PAD, zoneRect, type ZoneRef } from "../dragMoves";
 import { usePlay } from "../store";
 
 interface Hole {
@@ -8,6 +8,8 @@ interface Hole {
   label?: string;
   /** 작은 영역(더미 등)은 짧은 이름을 작게 쓴다 */
   compact?: boolean;
+  /** 이름 없이 테두리만 두른다(넓은 놓는 자리) */
+  frame?: boolean;
 }
 
 const COMPACT_WIDTH = 120;
@@ -56,7 +58,12 @@ export function DragMask() {
         });
       };
       drag.sources.forEach((source) => add(source));
-      drag.targets.forEach((target) => add(target, pad, target.label, target.shortLabel));
+      drag.targets.forEach((target) => {
+        // 넓은 놓는 자리(내 필드 전체)가 있으면 그 자리 전체를 밝히고 테두리를 두른다. 이름은 배틀 존에 쓴다.
+        const area = areaRect(target.area);
+        if (area) next.push({ key: `${target.owner}:${target.zone}:area`, rect: area, frame: true });
+        add(target, pad, target.label, target.shortLabel);
+      });
       // 위치가 바뀔 때만 다시 그린다(끄는 카드의 움직임을 방해하지 않게).
       setHoles((previous) => (sameHoles(previous, next) ? previous : next));
       frame = requestAnimationFrame(measure);
@@ -81,7 +88,7 @@ export function DragMask() {
         </defs>
         <rect width={width} height={height} fill="rgba(2, 5, 12, 0.72)" mask="url(#drag-mask-holes)" />
         {holes
-          .filter((hole) => hole.label)
+          .filter((hole) => hole.label || hole.frame)
           .map((hole) => (
             <rect
               key={`${hole.key}-frame`}

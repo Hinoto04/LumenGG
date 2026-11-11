@@ -28,7 +28,7 @@ from qna.models import QNA, QNARelation
 from qna.admin import QNAAdmin
 
 from .admin import SimulatorAIPolicyAdmin
-from .game.engine import AutomaticGameEngine, IllegalAction, StaleState
+from .game.engine import CLOCK_GRACE_SECONDS, AutomaticGameEngine, IllegalAction, StaleState
 from .game.schema import validate_effect_definition
 from .game.drafts import (
     build_effect_draft,
@@ -1594,7 +1594,7 @@ class AutomaticEngineTests(SimpleTestCase):
             minimum=2, maximum=2, default=['c'], continuation={},
         )
         deadline = datetime.fromisoformat(engine.engine_state['clock']['deadline'])
-        engine.now = deadline + timedelta(seconds=1)
+        engine.now = deadline + timedelta(seconds=1 + CLOCK_GRACE_SECONDS)
 
         engine.reconcile_clock()
 
@@ -1732,7 +1732,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.act(engine, 'p1', 'ready_card')
         engine.state['engine']['no_response']['p2'] = 2
         deadline = datetime.fromisoformat(engine.state['engine']['clock']['deadline'])
-        engine.now = deadline + timedelta(seconds=1)
+        engine.now = deadline + timedelta(seconds=1 + CLOCK_GRACE_SECONDS)
 
         self.assertTrue(engine.reconcile_clock())
         self.assertEqual(engine.state['engine']['no_response']['p2'], 3)
@@ -1761,7 +1761,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.enter_ready(engine)
         self.act(engine, 'p1', 'ready_card')
         deadline = datetime.fromisoformat(engine.engine_state['clock']['deadline'])
-        engine.now = deadline + timedelta(seconds=1)
+        engine.now = deadline + timedelta(seconds=1 + CLOCK_GRACE_SECONDS)
 
         engine.reconcile_clock()
         self.assertEqual(engine.engine_state['pending_decision']['kind'], 'optional_effect')
@@ -1778,7 +1778,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.enter_ready(engine)
         self.act(engine, 'p1', 'ready_card')
         deadline = datetime.fromisoformat(engine.engine_state['clock']['deadline'])
-        engine.now = deadline + timedelta(seconds=1)
+        engine.now = deadline + timedelta(seconds=1 + CLOCK_GRACE_SECONDS)
 
         engine.reconcile_clock()
 
@@ -34813,7 +34813,7 @@ class AutomaticEngineTests(SimpleTestCase):
 
         engine.now = datetime.fromisoformat(
             engine.engine_state['clock']['deadline'],
-        ) + timedelta(seconds=1)
+        ) + timedelta(seconds=1 + CLOCK_GRACE_SECONDS)
         engine.reconcile_clock()
 
         history = engine.engine_state['ability_resolution_history']
@@ -45422,7 +45422,7 @@ class RulesetPublicationTests(TestCase):
         )
         self.assertEqual(first.content_hash, _json_hash(first.snapshot))
         self.assertEqual(automatic_mode_release(), first)
-        start_page = self.client.get(reverse('battlelog:simulatorStart'))
+        start_page = self.client.get(reverse('battlelog:simulatorStart') + '?legacy=1')
         self.assertContains(start_page, 'value="automatic"')
         self.assertContains(start_page, 'value="ai"')
 
@@ -45465,7 +45465,7 @@ class RulesetPublicationTests(TestCase):
         )
         self.assertFalse(RulesetRelease.objects.exists())
         self.assertIsNone(automatic_mode_release())
-        start_page = self.client.get(reverse('battlelog:simulatorStart'))
+        start_page = self.client.get(reverse('battlelog:simulatorStart') + '?legacy=1')
         self.assertContains(start_page, 'value="manual"')
         self.assertNotContains(start_page, 'value="automatic"')
         self.assertNotContains(start_page, 'value="ai"')
@@ -46577,6 +46577,24 @@ class AutomaticDeckRuleTests(TestCase):
         ), unconstrained.errors)
 
 
+def finish_opening_review(session):
+    """게임 시작 효과 전, 양쪽이 서로의 시작 패 확인을 마친다."""
+    for seat, token in (('p1', session.player1_token), ('p2', session.player2_token)):
+        envelope = serialize_simulator_session(session, seat, token, include_events=False)
+        confirm = next(
+            (item for item in envelope['legal_actions'] if item['type'] == 'confirm_opening_review'),
+            None,
+        )
+        if not confirm:
+            continue
+        session = perform_automatic_command(session, {
+            'command_id': f'opening-review-{seat}', 'action_id': confirm['action_id'],
+            'expected_version': session.version, 'selections': {},
+            'seat': seat, 'seat_token': token,
+        })
+    return session
+
+
 class SimulatorAIHTTPTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='ai-http-user', password='pw')
@@ -46754,7 +46772,7 @@ class SimulatorAIHTTPTests(TestCase):
         self.assertEqual(labels, ['Ember Token', 'Foresight Counter'])
 
     def test_start_page_exposes_manual_automatic_and_ai_options(self):
-        response = self.client.get(reverse('battlelog:simulatorStart'))
+        response = self.client.get(reverse('battlelog:simulatorStart') + '?legacy=1')
 
         self.assertContains(response, 'value="manual"')
         self.assertContains(response, 'value="automatic"')
@@ -46780,7 +46798,7 @@ class SimulatorAIHTTPTests(TestCase):
 
         self.assertIsNone(active_ai_policy())
         self.assertTrue(ai_policy_activation_issues(unsafe))
-        response = self.client.get(reverse('battlelog:simulatorStart'))
+        response = self.client.get(reverse('battlelog:simulatorStart') + '?legacy=1')
         self.assertContains(response, 'value="automatic"')
         self.assertNotContains(response, 'value="ai"')
 
@@ -46859,6 +46877,7 @@ class SimulatorAIHTTPTests(TestCase):
             response.content.decode(errors='replace'),
         )
         session = LumenSimulatorSession.objects.get()
+        session = finish_opening_review(session)
         envelope = serialize_simulator_session(
             session, 'p1', session.player1_token, include_events=False,
         )
@@ -46906,6 +46925,7 @@ class SimulatorAIHTTPTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         session = LumenSimulatorSession.objects.get()
+        session = finish_opening_review(session)
         envelope = serialize_simulator_session(
             session, 'p1', session.player1_token, include_events=False,
         )
@@ -46965,6 +46985,7 @@ class SimulatorAIHTTPTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         session = LumenSimulatorSession.objects.get()
+        session = finish_opening_review(session)
         p1 = serialize_simulator_session(
             session, 'p1', session.player1_token, include_events=False,
         )
@@ -47015,6 +47036,7 @@ class SimulatorAIHTTPTests(TestCase):
 
         self.assertEqual(response.status_code, 302, response.content)
         session = LumenSimulatorSession.objects.get()
+        session = finish_opening_review(session)
         settings = session.document['state']['engine']['settings']
         self.assertIsNone(settings['ready_timeout_seconds'])
         self.assertEqual(settings['effect_timeout_seconds'], 120)

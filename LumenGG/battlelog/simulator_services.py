@@ -1939,11 +1939,16 @@ def perform_simulator_action(session, body):
 
 
 def _card_visible_to(card, viewer_side):
-    return viewer_side == card.get('owner') or bool(card.get('face_up'))
+    # publicly_known: 예지 등으로 공개된 손패를 레디해 배틀 존에 뒷면으로 놓였지만 이미 알려진 카드
+    return (
+        viewer_side == card.get('owner')
+        or bool(card.get('face_up'))
+        or bool(card.get('publicly_known'))
+    )
 
 
-def _filtered_card(card, zone, viewer_side):
-    if _card_visible_to(card, viewer_side):
+def _filtered_card(card, zone, viewer_side, *, reveal_hands=False):
+    if _card_visible_to(card, viewer_side) or (reveal_hands and zone == 'hand'):
         visible = {
             'instance_id': card.get('instance_id'),
             'kind': card.get('kind') or 'card',
@@ -1962,7 +1967,7 @@ def _filtered_card(card, zone, viewer_side):
             for field in ('name', 'img', 'img_sm', 'type', 'text', 'detail_text'):
                 if field in card:
                     visible[field] = card.get(field)
-        for field in ('attached_to', 'set_order'):
+        for field in ('attached_to', 'set_order', 'publicly_known'):
             if field in card:
                 visible[field] = card.get(field)
         return visible
@@ -2178,6 +2183,11 @@ def _filtered_state(
     _normalize_passive_zone_cards(state)
     _ensure_turn_changes(state)
     _ensure_counter_revisions(state)
+    # 자동 판정의 "상대 시작 패 확인" 단계: 두 플레이어는 서로의 시작 손패를 본다(관전자는 아님).
+    reveal_hands = (
+        viewer_side in PLAYER_SIDES
+        and (state.get('engine') or {}).get('startup_stage') == 'opening_review'
+    )
     for player_side, player in (state.get('players') or {}).items():
         passive_state = player.get('passive_state') or {}
         for key in list(passive_state):
@@ -2186,7 +2196,10 @@ def _filtered_state(
                 passive_state.pop(key, None)
         zones = player.get('zones') or {}
         for zone, cards in zones.items():
-            zones[zone] = [_filtered_card(card, zone, viewer_side) for card in cards]
+            zones[zone] = [
+                _filtered_card(card, zone, viewer_side, reveal_hands=reveal_hands)
+                for card in cards
+            ]
     timer = state.setdefault('timer', {})
     started_at = timer.get('started_at')
     duration = int(timer.get('duration_seconds') or 10)

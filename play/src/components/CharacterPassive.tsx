@@ -139,8 +139,8 @@ function Yohan({ side, player, enabled, mine }: PanelProps) {
 
 const TAO_MAX = 4;
 const HARMONY_EFFECTS = [
-  ["damage_100", "+100DMG"],
-  ["fp_1", "+1FP"],
+  ["damage_100", "DMG+100"],
+  ["fp_1", "FP+1"],
 ] as const;
 
 function Tao({ side, player, enabled }: PanelProps) {

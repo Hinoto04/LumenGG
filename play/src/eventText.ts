@@ -9,6 +9,10 @@ export function eventText(event: GameEvent, me: Side): string | null {
   switch (event.type) {
     case "automatic_game_started":
       return "대전 시작";
+    case "opening_review_started":
+      return "서로 상대의 시작 패를 확인합니다";
+    case "opening_review_confirmed":
+      return `${who(event.actor)}: 시작 패 확인 완료`;
     case "phase_started":
       return `턴 ${String(p.turn ?? "")} · ${PHASE_LABELS[String(p.phase)] ?? String(p.phase)} 페이즈`;
     case "card_moved":
