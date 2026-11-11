@@ -503,6 +503,54 @@ const words: Record<string, [string, string]> = {
     "Delete the account and its saved data.",
     "アカウントと保存データを削除します。",
   ],
+  // 덱 작성 화면
+  "카드 검색": ["Card search", "カード検索"],
+  덱리스트: ["Deck list", "デッキリスト"],
+  "덱 정보": ["Deck info", "デッキ情報"],
+  "덱 정보로": ["Go to deck info", "デッキ情報へ"],
+  공격: ["Attack", "攻撃"],
+  수비: ["Defense", "防御"],
+  "저장 중": ["Saving", "保存中"],
+  "카드 정보": ["Card info", "カード情報"],
+  "비어 있음": ["Empty", "空"],
+  리스트로: ["To list", "リストへ"],
+  손패로: ["To hand", "手札へ"],
+  사이드로: ["To side", "サイドへ"],
+  "1장 빼기": ["Remove 1", "1枚抜く"],
+  장: ["cards", "枚"],
+  "검색 결과가 없습니다.": ["No results.", "検索結果がありません。"],
+  "캐릭터를 먼저 선택해주세요.": [
+    "Select a character first.",
+    "先にキャラクターを選択してください。",
+  ],
+  "먼저 덱의 캐릭터를 선택해주세요.": [
+    "Select the deck's character first.",
+    "まずデッキのキャラクターを選択してください。",
+  ],
+  "덱 정보에서 캐릭터를 고르면 그 캐릭터가 쓸 수 있는 카드만 보여 줍니다.": [
+    "Pick a character in Deck info to see the cards it can use.",
+    "デッキ情報でキャラクターを選ぶと、使えるカードだけを表示します。",
+  ],
+  "카드 검색에서 넣어 주세요.": [
+    "Add cards from Card search.",
+    "カード検索から追加してください。",
+  ],
+  "길게 눌러 끌어서 영역을 옮깁니다.": [
+    "Long-press and drag to move between zones.",
+    "長押ししてドラッグすると領域を移動します。",
+  ],
+  "교체 덱은 웹에서 편집할 수 있습니다.": [
+    "Edit the reserve deck on the website.",
+    "交換デッキはウェブで編集できます。",
+  ],
+  "눌러서 리스트에 넣습니다. 특수 기술은 사이드로 들어갑니다.": [
+    "Tap to add to the list. Special techniques go to the side.",
+    "タップでリストに追加します。特殊技はサイドに入ります。",
+  ],
+  "길게 누르면 카드 정보를 봅니다.": [
+    "Long-press to view card info.",
+    "長押しでカード情報を表示します。",
+  ],
 };
 export function uiTranslation(
   key: string,

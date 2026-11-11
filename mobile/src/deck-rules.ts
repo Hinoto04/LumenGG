@@ -62,6 +62,76 @@ function matches(card: Card, where: any): boolean {
     return Array.isArray(value) ? value.includes(c[key]) : c[key] === value;
   });
 }
+/** 같은 이름 제한에 쓰는 카드 이름(한국어 원문). */
+const cardName = (c: Card) =>
+  c.original_name || c.localized.ko?.name || String(c.id);
+
+/** 캐릭터·특성·덱에 넣은 카드의 편성 규칙을 합친다. */
+export function deckRulesFor(
+  catalog: Catalog,
+  characterId: number,
+  traitId: number | null | undefined,
+  entries: { card_id: number; count: number }[],
+): Record<string, any> {
+  const character = catalog.characters.find((c) => c.id === characterId);
+  const trait = character?.traits?.find((t) => t.id === traitId);
+  const cards = new Map(catalog.cards.map((c) => [c.id, c]));
+  return mergeRules(
+    character?.base_deck_rules || {},
+    trait?.trait_config.deck_rules || {},
+    trait?.deck_rules || {},
+    ...entries
+      .filter((e) => e.count > 0)
+      .map((e) => cards.get(e.card_id)?.setup_rules || {}),
+  );
+}
+
+/** 같은 이름 카드를 덱에 넣을 수 있는 최대 매수. */
+export function sameNameLimit(c: Card, rules: Record<string, any>): number {
+  const printed = (c.localized.ko?.text || "").match(
+    /이 (?:기술|카드)은\s*(?:(\d+)장까지\s*덱에|덱에\s*(\d+)장까지)\s*넣을 수 있다/,
+  );
+  return Math.max(
+    c.deck_limit || rules.same_name_limit || 1,
+    Number(printed?.[1] || printed?.[2] || 0),
+    ...(rules.supplements || [])
+      .filter((s: any) => matches(c, s.where))
+      .map((s: any) => s.same_name_limit || 0),
+  );
+}
+
+/**
+ * 기술 덱(교체 덱 제외)에 카드를 몇 장 더 넣을 수 있는지 알려 주는 함수를 만든다.
+ * 얼티밋은 얼티밋 전체 매수, 그 밖의 카드는 같은 이름 카드 매수 제한을 따른다.
+ * 검색 결과 전체에 쓰므로 덱 쪽 집계는 한 번만 한다.
+ */
+export function copyAvailability(deck: Deck, catalog: Catalog) {
+  const cards = new Map(catalog.cards.map((c) => [c.id, c]));
+  const base = deckRulesFor(
+    catalog,
+    deck.character_id,
+    deck.trait_card_id,
+    deck.cards,
+  );
+  const names = new Map<string, number>();
+  let ultimates = 0;
+  for (const e of deck.cards) {
+    const c = cards.get(e.card_id);
+    if (!c) continue;
+    if (c.ultimate) ultimates += e.count;
+    else names.set(cardName(c), (names.get(cardName(c)) || 0) + e.count);
+  }
+  return (card: Card) => {
+    // 넣으려는 카드 자체의 편성 규칙(매수 제한 완화 등)도 반영한다.
+    const rules = card.setup_rules ? mergeRules(base, card.setup_rules) : base;
+    if (card.ultimate) return (rules.ultimate_maximum ?? 1) - ultimates;
+    return sameNameLimit(card, rules) - (names.get(cardName(card)) || 0);
+  };
+}
+
+export const remainingCopies = (card: Card, deck: Deck, catalog: Catalog) =>
+  copyAvailability(deck, catalog)(card);
+
 export function deckIssues(
   deck: Deck,
   catalog: Catalog,
@@ -223,13 +293,11 @@ export function deckIssues(
     )
   )
     return issues;
-  const rules = mergeRules(
-    character?.base_deck_rules || {},
-    trait?.trait_config.deck_rules || {},
-    trait?.deck_rules || {},
-    ...active.cards
-      .filter((e) => e.count > 0)
-      .map((e) => cards.get(e.card_id)?.setup_rules || {}),
+  const rules = deckRulesFor(
+    catalog,
+    deck.character_id,
+    active.trait_card_id,
+    active.cards,
   );
   const configured = rules.main_size,
     minimum =
@@ -302,16 +370,8 @@ export function deckIssues(
       );
     total += e.count;
     if (c.character_id === deck.character_id) own += e.count;
-    const name = c.original_name || c.localized.ko?.name || String(c.id),
-      text = c.localized.ko?.text || "",
-      printed = text.match(
-        /이 (?:기술|카드)은\s*(?:(\d+)장까지\s*덱에|덱에\s*(\d+)장까지)\s*넣을 수 있다/,
-      );
-    const limit = Math.max(
-      c.deck_limit || rules.same_name_limit || 1,
-      Number(printed?.[1] || printed?.[2] || 0),
-      ...matching.map((i: number) => supplements[i].same_name_limit || 0),
-    );
+    const name = cardName(c),
+      limit = sameNameLimit(c, rules);
     const previous = names.get(name) || { n: 0, limit: 0, ids: [] };
     names.set(name, {
       n: previous.n + e.count,
