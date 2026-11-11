@@ -919,6 +919,9 @@ function ListPage({
   const [selected, setSelected] = useState<Drag | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [hover, setHover] = useState<DeckZone | null>(null);
+  const [zoneHeights, setZoneHeights] = useState<
+    Partial<Record<DeckZone, number>>
+  >({});
   const ghost = useRef(new Animated.ValueXY()).current;
   const pageRef = useRef<View>(null);
   const sections = deckSections(deck, catalog);
@@ -951,21 +954,34 @@ function ListPage({
   const inner = width - pad * 2 - zonePad * 2 - 2;
   const available = height - pad * 2 - zoneGap * 2 - 3 * (zonePad * 2 + 2);
   const rowsFor = (columns: number) =>
-    DECK_ZONES.map((zone) => Math.ceil((tiles[zone].length + 1) / columns));
+    DECK_ZONES.map((zone) =>
+      Math.max(1, Math.ceil(tiles[zone].length / columns)),
+    );
   const heightFor = (tileWidth: number, columns: number) =>
     rowsFor(columns).reduce(
       (sum, rows) => sum + rows * tileWidth * CARD_RATIO + (rows - 1) * gap,
       0,
     );
-  // 덱이 비어 있어도 카드가 지나치게 커지지 않게 한 줄에 최소 5장은 둔다.
-  let tileWidth = Math.floor((inner - gap * 4) / 5);
-  let columns = 5;
+  // 기본은 한 줄에 6장이고, 높이가 모자랄 때만 카드를 더 줄인다.
+  let tileWidth = Math.floor((inner - gap * 5) / 6);
+  let columns = 6;
   for (; tileWidth > 16; tileWidth--) {
     columns = Math.max(1, Math.floor((inner + gap) / (tileWidth + gap)));
     if (heightFor(tileWidth, columns) <= available) break;
   }
   const tileHeight = tileWidth * CARD_RATIO;
   const zoneRows = rowsFor(columns);
+  // 영역명·매수 표시가 마지막 줄 카드와 겹치는지. 겹치면 표시 뒤에 배경 상자를 깐다.
+  const counterSize = { width: 48, height: 32 };
+  const overlaps = (zone: DeckZone, rows: number) => {
+    const count = tiles[zone].length;
+    const last = count - (rows - 1) * columns;
+    if (count === 0) return false;
+    const lastRight = last * (tileWidth + gap) - gap;
+    const content = rows * tileHeight + (rows - 1) * gap;
+    const room = (zoneHeights[zone] ?? 0) - zonePad * 2 - 2 - content;
+    return lastRight > inner - counterSize.width && room < counterSize.height;
+  };
 
   // 드래그 앤 드롭. 카드를 잠깐 누르고 있으면 들어 올려지고, 다른 영역에 놓으면 옮겨진다.
   const zoneRefs = {
@@ -1153,6 +1169,14 @@ function ListPage({
             <View
               key={zone}
               ref={zoneRefs[zone]}
+              onLayout={(e) => {
+                const value = e.nativeEvent.layout.height;
+                setZoneHeights((previous) =>
+                  previous[zone] === value
+                    ? previous
+                    : { ...previous, [zone]: value },
+                );
+              }}
               style={[
                 editorStyles.zone,
                 {
@@ -1233,6 +1257,7 @@ function ListPage({
                 style={[
                   editorStyles.counter,
                   { right: zonePad, bottom: zonePad },
+                  overlaps(zone, rows) && editorStyles.counterBox,
                 ]}
               >
                 <Text style={editorStyles.counterName}>
@@ -1684,6 +1709,14 @@ const editorStyles = StyleSheet.create({
   guideTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
   guideText: { color: colors.muted, fontSize: 13 },
   counter: { position: "absolute", alignItems: "flex-end" },
+  counterBox: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "rgba(17, 17, 17, 0.88)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+  },
   counterName: { color: colors.muted, fontSize: 10, fontWeight: "700" },
   counterValue: { fontSize: 13, fontWeight: "800" },
   zone: {
