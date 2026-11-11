@@ -8,7 +8,7 @@ import importlib
 from card.models import Card, Character
 from common.models import SiteSettings
 from collection.models import CollectionCard, Pack
-from deck.models import Deck, Regulation, RegulationVersion, ReserveCardInDeck
+from deck.models import CardInDeck, Deck, DeckLike, Regulation, RegulationVersion, ReserveCardInDeck
 
 
 class DeckBuilderV2Tests(TestCase):
@@ -156,6 +156,40 @@ class DeckBuilderV2Tests(TestCase):
         response = self.client.get(reverse('deck:index'), {'regulation_version_id': version.pk})
         self.assertNotContains(response, unrestricted.name)
         self.assertContains(response, regulated.name)
+
+    def test_bookmark_filter_and_mark_in_deck_list(self):
+        other = User.objects.create_user('other_builder', password='test-password')
+        cards = [Card.objects.create(name=f'Bookmark card {i}', character=self.character, type='공격') for i in range(15)]
+
+        def full_deck(name, author, visibility):
+            deck = Deck.objects.create(name=name, author=author, character=self.character, visibility=visibility)
+            CardInDeck.objects.bulk_create([CardInDeck(deck=deck, card=card, count=1) for card in cards])
+            return deck
+
+        public = full_deck('Public bookmarked', other, 'public')
+        unlisted = full_deck('Unlisted bookmarked', other, 'unlisted')
+        private = full_deck('Private bookmarked', other, 'private')
+        plain = full_deck('Plain public', other, 'public')
+        own = Deck.objects.create(name='Own bookmarked', author=self.user, character=self.character, visibility='private')
+        for deck in [public, unlisted, private, own]:
+            DeckLike.objects.create(deck=deck, author=self.user, bookmark=True)
+        DeckLike.objects.create(deck=plain, author=other, bookmark=True)
+
+        response = self.client.get(reverse('deck:index'))
+        self.assertContains(response, 'name="bookmarked"')
+        self.assertNotIn(unlisted, list(response.context['decks']))
+        self.assertContains(response, 'v2-deck-bookmark-mark', count=2)  # public, own
+
+        response = self.client.get(reverse('deck:index'), {'bookmarked': '1'})
+        self.assertTrue(response.context['bookmark_filter'])
+        self.assertEqual({deck.pk for deck in response.context['decks']}, {public.pk, unlisted.pk, own.pk})
+        self.assertContains(response, 'v2-deck-bookmark-mark', count=3)
+
+        self.client.logout()
+        response = self.client.get(reverse('deck:index'), {'bookmarked': '1'})
+        self.assertNotContains(response, 'name="bookmarked"')
+        self.assertFalse(response.context['bookmark_filter'])
+        self.assertEqual({deck.pk for deck in response.context['decks']}, {public.pk, plain.pk})
 
     def test_basic_regulation_data_migration_converts_decks_to_unrestricted(self):
         regulation = Regulation.objects.create(name='기본 규정')

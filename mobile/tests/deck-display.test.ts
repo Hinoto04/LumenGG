@@ -1,10 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  bookmarkedDecks,
+  mergeBookmarks,
+  publicDeckPath,
   deckColumns,
   deckSections,
   deckDescription,
   matchingDecks,
+  sortMyDecks,
 } from "../src/deck-display";
 import type { Catalog, Deck } from "../src/types";
 const deck: Deck = {
@@ -74,4 +78,60 @@ test("web descriptions preserve paragraphs and decode entities without executabl
     ),
     "A & B\n설명\n둘째 줄 한",
   );
+});
+
+test("my decks sort by version descending and keep recency within a version", () => {
+  const make = (uuid: string, version: string) => ({ ...deck, uuid, version });
+  const recent = [
+    make("a", "AWL"),
+    make("b", "LMI"),
+    make("c", "AWL"),
+    make("d", "LMI"),
+  ];
+  assert.deepEqual(
+    sortMyDecks(recent, "version").map((d) => d.uuid),
+    ["b", "d", "a", "c"],
+  );
+  assert.deepEqual(
+    sortMyDecks(recent, "recent").map((d) => d.uuid),
+    ["a", "b", "c", "d"],
+  );
+  assert.deepEqual(
+    sortMyDecks(recent, "like").map((d) => d.uuid),
+    ["a", "b", "c", "d"],
+  );
+});
+
+test("bookmark filter keeps only bookmarked uploaded decks", () => {
+  const decks = [{ id: 1 }, { id: 2 }, {}] as { id?: number }[];
+  assert.deepEqual(bookmarkedDecks(decks, [2, 9], false), decks);
+  assert.deepEqual(bookmarkedDecks(decks, [2, 9], true), [{ id: 2 }]);
+  assert.deepEqual(bookmarkedDecks(decks, [], true), []);
+});
+test("public deck path adds bookmark and page only when requested", () => {
+  assert.equal(
+    publicDeckPath({ query: " 콤보 ", character: "3", sort: "like" }),
+    "/decks?scope=public&q=%EC%BD%A4%EB%B3%B4&character_id=3&trait_card_id=&regulation_version_id=&sort=like",
+  );
+  assert.equal(
+    publicDeckPath({
+      query: "",
+      character: "",
+      trait: "7",
+      regulation: "2",
+      bookmarked: true,
+      page: 2,
+    }),
+    "/decks?scope=public&q=&character_id=&trait_card_id=7&regulation_version_id=2&bookmarked=1&page=2",
+  );
+});
+test("server bookmark flags update the local bookmark list", () => {
+  assert.deepEqual(
+    mergeBookmarks(
+      [3, 1],
+      [{ id: 2, bookmarked: true }, { id: 3, bookmarked: false }, { id: 4 }],
+    ),
+    [1, 2],
+  );
+  assert.equal(mergeBookmarks([2, 1], [{ id: 1, bookmarked: true }]), null);
 });

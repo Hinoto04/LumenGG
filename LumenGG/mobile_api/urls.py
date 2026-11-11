@@ -38,6 +38,7 @@ urlpatterns = [
     path('sync', views.sync, name='sync'),
     path('decks', decks.deck_list, name='decks'),
     path('decks/<int:deck_id>', decks.deck_detail, name='deck_detail'),
+    path('decks/<int:deck_id>/bookmark', decks.deck_bookmark, name='deck_bookmark'),
     path('calculators/', views.calculators),
     path('calculators/<str:view_token>/state', views.calculator_state),
     path('calculators/<str:view_token>/events', views.calculator_events),

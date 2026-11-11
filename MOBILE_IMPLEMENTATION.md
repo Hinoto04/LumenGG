@@ -90,6 +90,19 @@ operations and archives previous unsent deck changes locally. Deploy these new
 read endpoints before distributing 1.0.5. Decks already in the account snapshot
 and previously viewed decks can still be opened offline.
 
+Deck bookmarks and collection categories (added after 1.3.2, migration
+`collection.0012_collected_category`):
+
+- `PUT /decks/<id>/bookmark` with `{"bookmarked": true|false}` sets (not toggles)
+  the signed-in user's bookmark on a visible deck and returns `bookmarked` and
+  `bookmark_count`. It shares `DeckLike.bookmark` with the web toggle.
+- `GET /decks?bookmarked=1` requires authentication. With `scope=public` it lists
+  the user's bookmarked public/unlisted decks plus their own; with `scope=mine`
+  only their own. List and detail rows add `bookmarked` for signed-in users.
+- The sync snapshot adds `deck_bookmarks` (deck IDs) and each collection row adds
+  `category` (0 = none, 1–5 = heart color). Collection upserts may send `category`;
+  older apps omit it and the stored category is kept.
+
 Authentication uses `Authorization: Bearer <access>` with 5-minute access and
 14-day rotating refresh tokens. Password changes revoke existing tokens.
 

@@ -16,7 +16,7 @@ from card.models import Card, Character
 from collection.models import Pack, CollectionCard, Collected
 from common.models import SiteSettings
 from qna.models import QNA, QNARelation
-from deck.models import Deck, CardInDeck
+from deck.models import Deck, CardInDeck, DeckLike
 from battlelog.services import create_standalone_session, serialize_session, perform_session_action
 from mobile_api.catalog import publish_catalog
 from mobile_api.sync import apply_sync
@@ -52,6 +52,27 @@ class MobileDeckBrowseTests(TestCase):
         for query in ['콤보', 'other_player']:
             self.assertEqual(self.client.get('/api/mobile/v1/decks', {'q': query}).data['count'], 1)
         self.assertEqual(self.client.get('/api/mobile/v1/decks', {'character_id': 999}).data['count'], 0)
+
+    def test_public_list_sorts_like_web(self):
+        older = self.make_deck(self.owner, '오래된 인기 덱', 'public', version='AWL')
+        Deck.objects.filter(pk=older.pk).update(created=self.public.created.replace(year=2000))
+        self.public.version = 'LMI'
+        self.public.save(update_fields=['version'])
+        DeckLike.objects.create(deck=older, author=self.other, like=True)
+        DeckLike.objects.create(deck=older, author=self.owner, like=True)
+        DeckLike.objects.create(deck=self.public, author=self.owner, like=False)
+
+        def ids(sort=None):
+            params = {'sort': sort} if sort else {}
+            return [d['id'] for d in self.client.get('/api/mobile/v1/decks', params).data['decks']]
+
+        self.assertEqual(ids(), [self.public.pk, older.pk])
+        self.assertEqual(ids('recent'), [self.public.pk, older.pk])
+        self.assertEqual(ids('version'), [self.public.pk, older.pk])
+        self.assertEqual(ids('like'), [older.pk, self.public.pk])
+        likes = {d['id']: d['like_count'] for d in self.client.get('/api/mobile/v1/decks', {'sort': 'like'}).data['decks']}
+        self.assertEqual(likes, {older.pk: 2, self.public.pk: 0})
+        self.assertEqual(self.client.get('/api/mobile/v1/decks', {'sort': 'nope'}).status_code, 400)
 
     def test_mine_requires_authentication_and_returns_only_owner(self):
         self.assertEqual(self.client.get('/api/mobile/v1/decks?scope=mine').status_code, 401)
@@ -91,6 +112,42 @@ class MobileDeckBrowseTests(TestCase):
         for query in ['page=0', 'page=no', 'character_id=-1', 'character_id=x', 'scope=other']:
             self.assertEqual(self.client.get('/api/mobile/v1/decks?' + query).status_code, 400)
 
+
+    def test_bookmark_put_list_flag_and_filter(self):
+        path = f'/api/mobile/v1/decks/{self.public.pk}/bookmark'
+        self.assertEqual(self.client.put(path, {'bookmarked': True}, format='json').status_code, 401)
+        self.client.force_authenticate(self.owner)
+        self.assertEqual(self.client.put(path, {'bookmarked': 'yes'}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(path, {'bookmarked': True}, format='json').status_code, 405)
+        for deck in [self.private, self.deleted]:
+            self.assertEqual(self.client.put(f'/api/mobile/v1/decks/{deck.pk}/bookmark', {'bookmarked': True}, format='json').status_code, 404)
+        DeckLike.objects.create(deck=self.public, author=self.owner, like=True)
+        for _ in range(2):  # 같은 요청을 다시 보내도 토글되지 않는다.
+            result = self.client.put(path, {'bookmarked': True}, format='json')
+            self.assertEqual(result.data, {'id': self.public.pk, 'bookmarked': True, 'bookmark_count': 1})
+        like = DeckLike.objects.get(deck=self.public, author=self.owner)
+        self.assertTrue(like.like and like.bookmark)
+        self.client.put(f'/api/mobile/v1/decks/{self.unlisted.pk}/bookmark', {'bookmarked': True}, format='json')
+        self.client.put(f'/api/mobile/v1/decks/{self.mine.pk}/bookmark', {'bookmarked': True}, format='json')
+
+        listed = self.client.get('/api/mobile/v1/decks').data['decks']
+        self.assertEqual([(d['id'], d['bookmarked']) for d in listed], [(self.public.pk, True)])
+        self.assertTrue(self.client.get(f'/api/mobile/v1/decks/{self.public.pk}').data['bookmarked'])
+        ids = lambda **params: {d['id'] for d in self.client.get('/api/mobile/v1/decks', {'bookmarked': '1', **params}).data['decks']}
+        self.assertEqual(ids(), {self.public.pk, self.unlisted.pk, self.mine.pk})
+        self.assertEqual(ids(scope='mine'), {self.mine.pk})
+        self.assertEqual(ids(q='링크'), {self.unlisted.pk})
+        self.assertEqual(self.client.get('/api/mobile/v1/decks', {'bookmarked': 'x'}).status_code, 400)
+        self.assertEqual(apply_sync(self.owner, [])['deck_bookmarks'], sorted([self.public.pk, self.unlisted.pk, self.mine.pk]))
+
+        result = self.client.put(path, {'bookmarked': False}, format='json')
+        self.assertEqual(result.data['bookmarked'], False)
+        self.assertTrue(DeckLike.objects.get(deck=self.public, author=self.owner).like)
+        self.assertFalse(self.client.get(f'/api/mobile/v1/decks/{self.public.pk}').data['bookmarked'])
+
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get('/api/mobile/v1/decks', {'bookmarked': '1'}).status_code, 401)
+        self.assertFalse(self.client.get('/api/mobile/v1/decks').data['decks'][0]['bookmarked'])
 
 @override_settings(MOBILE_CATALOG_FETCH_IMAGES=False)
 class MobileApiTests(TestCase):
@@ -182,6 +239,21 @@ class MobileApiTests(TestCase):
         self.assertEqual(Collected.objects.get(user=self.user,card=self.item).amount,7)
         apply_sync(self.user,[self.collection_operation(0)])
         self.assertEqual(Collected.objects.get(user=self.user,card=self.item).amount,0)
+
+    def test_collection_category_sync_and_old_clients_keep_category(self):
+        op = self.collection_operation(2)
+        op['data']['category'] = 4
+        response = apply_sync(self.user, [op])
+        self.assertEqual(response['collection'], [{'card_id': self.item.pk, 'amount': 2, 'category': 4}])
+        apply_sync(self.user, [self.collection_operation(5)])  # 예전 앱: category 없음
+        saved = Collected.objects.get(user=self.user, card=self.item)
+        self.assertEqual((saved.amount, saved.category), (5, 4))
+        for bad in [6, -1, True, '2']:
+            op = self.collection_operation(1)
+            op['data']['category'] = bad
+            self.assertFalse(apply_sync(self.user, [op])['results'][0]['ok'])
+        saved.refresh_from_db()
+        self.assertEqual((saved.amount, saved.category), (5, 4))
 
     def test_operation_id_cannot_change_payload(self):
         op=self.collection_operation(2);apply_sync(self.user,[op]);op['data']['amount']=3

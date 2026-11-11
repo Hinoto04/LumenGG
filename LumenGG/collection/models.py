@@ -68,10 +68,16 @@ class CollectionCard(models.Model):
             return True
         return False
 
+# 사용자가 카드마다 붙이는 하트 분류. 0은 분류 없음, 1~5가 하트 색이다.
+COLLECTION_CATEGORY_COUNT = 5
+COLLECTION_CATEGORY_CHOICES = [(0, '분류 없음')] + [(n, f'분류 {n}') for n in range(1, COLLECTION_CATEGORY_COUNT + 1)]
+
+
 class Collected(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='collection')
     card = models.ForeignKey(CollectionCard, on_delete=models.CASCADE, related_name='collected')
     amount = models.SmallIntegerField(default=0)
+    category = models.PositiveSmallIntegerField(default=0, choices=COLLECTION_CATEGORY_CHOICES)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['user', 'card'], name='collection_user_card_unique')]

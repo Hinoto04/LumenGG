@@ -141,6 +141,15 @@ const words: Record<string, [string, string]> = {
   설정: ["Settings", "設定"],
   시뮬: ["Simulator", "シミュレーター"],
   지우기: ["Clear", "クリア"],
+  "비밀번호 표시": ["Show password", "パスワードを表示"],
+  "비밀번호 숨기기": ["Hide password", "パスワードを隠す"],
+  최신순: ["Newest", "新しい順"],
+  버전순: ["By version", "バージョン順"],
+  좋아요순: ["Most liked", "いいね順"],
+  "좋아요순은 공개 덱에서만 쓸 수 있습니다.": [
+    "Most liked is available for public decks only.",
+    "いいね順は公開デッキでのみ使えます。",
+  ],
   "카드 이름·효과 검색": ["Search card name or effect", "カード名・効果を検索"],
   "길게 누르면 크게 봅니다.": [
     "Long-press to enlarge.",
@@ -503,6 +512,21 @@ const words: Record<string, [string, string]> = {
     "Delete the account and its saved data.",
     "アカウントと保存データを削除します。",
   ],
+  // 덱 북마크·컬렉션 분류
+  북마크: ["Bookmark", "ブックマーク"],
+  "북마크 해제": ["Remove bookmark", "ブックマーク解除"],
+  "북마크한 덱만": ["Bookmarked only", "ブックマークのみ"],
+  "북마크한 덱": ["Bookmarked deck", "ブックマークしたデッキ"],
+  "북마크했습니다.": ["Bookmarked.", "ブックマークしました。"],
+  "북마크를 해제했습니다.": [
+    "Bookmark removed.",
+    "ブックマークを解除しました。",
+  ],
+  분류: ["Category", "分類"],
+  "분류 지정": ["Set category", "分類を指定"],
+  "분류 없음": ["No category", "分類なし"],
+  "분류된 카드": ["Categorized", "分類済み"],
+  하트: ["Heart", "ハート"],
   // 덱 작성 화면
   "카드 검색": ["Card search", "カード検索"],
   덱리스트: ["Deck list", "デッキリスト"],
@@ -546,6 +570,20 @@ const words: Record<string, [string, string]> = {
   "눌러서 리스트에 넣습니다. 특수 기술은 사이드로 들어갑니다.": [
     "Tap to add to the list. Special techniques go to the side.",
     "タップでリストに追加します。特殊技はサイドに入ります。",
+  ],
+  현재: ["Current", "現在"],
+  최소: ["Minimum", "最低"],
+  필요: ["Required", "必要"],
+  "얼티밋 제외": ["excluding Ultimate", "アルティメット除く"],
+  "캐릭터 마크 기술": ["Character-mark techniques", "キャラクターマーク技"],
+  "기술 카드 전체": ["All technique cards", "技カード全体"],
+  "노란색: 조건을 만족합니다.": [
+    "Yellow: requirement met.",
+    "黄色：条件を満たしています。",
+  ],
+  "빨간색: 조건을 만족하지 않습니다.": [
+    "Red: requirement not met.",
+    "赤：条件を満たしていません。",
   ],
   "길게 누르면 카드 정보를 봅니다.": [
     "Long-press to view card info.",

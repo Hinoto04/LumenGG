@@ -41,7 +41,7 @@
             </div>
         </div>
     </div>
-    <div class="v2-search-row v2-deck-search-row">
+    <div class="v2-search-row v2-deck-search-row"{% if user.is_authenticated %} data-bookmark-filter{% endif %}>
         {{ form.keyword }}
         {{ form.sort }}
         <label class="v2-deck-search-select" data-trait-filter-field {% if not selected_character_ids %}hidden{% endif %}>
@@ -55,6 +55,12 @@
                 <option value="unrestricted" {% if regulation_filter == "unrestricted" %}selected{% endif %}>{% tr "무금제" %}</option>
             </select>
         </label>
+        {% if user.is_authenticated %}
+        <label class="v2-deck-bookmark-toggle">
+            <input type="checkbox" name="bookmarked" value="1" {% if bookmark_filter %}checked{% endif %}>
+            <span>{% tr "북마크한 덱만" %}</span>
+        </label>
+        {% endif %}
         <button class="v2-button v2-button-primary" type="submit">{% tr "검색" %}</button>
     </div>
 </form>
@@ -86,6 +92,9 @@
             <div class="v2-deck-title-row">
                 <a class="v2-deck-title" href="{% url "deck:detail" deck.id %}">{{ deck.name }}</a>
                 <span class="v2-deck-version">{{ deck.version }}</span>
+                {% if deck.is_bookmarked %}
+                <span class="v2-deck-bookmark-mark" title="{% tr "북마크한 덱" %}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.5h10v13l-5-3.2-5 3.2z"/></svg>{% tr "북마크" %}</span>
+                {% endif %}
                 {% if deck.visibility != "public" %}
                 <span class="v2-deck-version">{{ deck.get_visibility_display|ui:current_language }}</span>
                 {% endif %}

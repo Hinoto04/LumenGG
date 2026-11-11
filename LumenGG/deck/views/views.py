@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect
-from django.db.models import OuterRef, Subquery, Q, Count, Prefetch
+from django.db.models import Exists, OuterRef, Subquery, Q, Count, Prefetch
 from django.db import models, transaction
 from django.urls import reverse
 from django.core import serializers
@@ -78,7 +78,12 @@ def index(req, template_name='deck/list.html'):
         qq.add(Q(author__username=keyword), qq.OR)
         q.add(qq, q.AND)
     
+    bookmark_filter = req.user.is_authenticated and req.GET.get('bookmarked') in ('1', 'on', 'true')
     visible_q = Q(visibility=Deck.VISIBILITY_PUBLIC)
+    if bookmark_filter:
+        # 북마크는 링크로만 공개된 덱에도 걸 수 있으므로, 북마크 필터에서는 일부 공개 덱도 보여준다.
+        visible_q.add(Q(visibility=Deck.VISIBILITY_UNLISTED), Q.OR)
+        q.add(Q(pk__in=DeckLike.objects.filter(author=req.user, bookmark=True).values('deck_id')), q.AND)
     if req.user.is_authenticated:
         visible_q.add(
             Q(
@@ -99,6 +104,10 @@ def index(req, template_name='deck/list.html'):
         cardcount=Count('cids', distinct=True),
         likecount=Subquery(like_subquery, output_field=models.IntegerField()),
         )
+    if req.user.is_authenticated:
+        data = data.annotate(is_bookmarked=Exists(
+            DeckLike.objects.filter(deck=OuterRef('pk'), author=req.user, bookmark=True)
+        ))
     
     if template_name == 'deck/list_v2.html':
         ultimate_cards = CardInDeck.objects.select_related('card').filter(
@@ -149,6 +158,7 @@ def index(req, template_name='deck/list.html'):
         'decks': page_data,
         'trait_filter': trait_filter,
         'regulation_filter': regulation_filter,
+        'bookmark_filter': bookmark_filter,
         'search_characters': search_characters,
         'selected_character_ids': selected_character_ids,
         'search_character_picker_columns': len(search_characters) + 1,

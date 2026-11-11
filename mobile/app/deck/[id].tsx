@@ -45,7 +45,18 @@ export default function DeckDetail() {
     submission?: string;
   }>();
   const [checkRegulation, setCheckRegulation] = useState("");
-  const { catalog, language, decks, scope, user, t } = useApp();
+  const {
+    catalog,
+    language,
+    decks,
+    scope,
+    user,
+    bookmarks,
+    setBookmark,
+    rememberBookmarks,
+    t,
+  } = useApp();
+  const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [loaded, setLoaded] = useState<{
       scope: string;
       id: string;
@@ -95,6 +106,7 @@ export default function DeckDetail() {
         );
         if (!live) return;
         setLoaded({ scope, id, deck: next });
+        if (user && !submission) void rememberBookmarks([next]);
         await setPreference(key, next);
       } catch (err) {
         if (!live) return;
@@ -174,6 +186,22 @@ export default function DeckDetail() {
     0,
   );
   const judged = deck.validation?.is_valid;
+  // 북마크는 서버에 올라간 덱만, 로그인했을 때 걸 수 있다(대회 제출본 제외).
+  const deckId = deck.id;
+  const canBookmark = !!user && !!deckId && !submission;
+  const bookmarked = !!deckId && bookmarks.includes(deckId);
+  const toggleBookmark = async () => {
+    if (!deckId || bookmarkBusy) return;
+    setBookmarkBusy(true);
+    try {
+      const next = await setBookmark(deckId, !bookmarked);
+      setMessage(next ? "북마크했습니다." : "북마크를 해제했습니다.");
+    } catch (err) {
+      setMessage(userMessage(err));
+    } finally {
+      setBookmarkBusy(false);
+    }
+  };
   const shareDeck = () => {
     void Share.share({
       message: JSON.stringify({
@@ -284,6 +312,15 @@ export default function DeckDetail() {
             })
           }
         />
+        {canBookmark && (
+          <IconButton
+            icon={bookmarked ? "bookmark" : "bookmark-outline"}
+            label={bookmarked ? "북마크 해제" : "북마크"}
+            filled
+            disabled={bookmarkBusy}
+            onPress={toggleBookmark}
+          />
+        )}
         <IconButton
           icon="share-social-outline"
           label="덱 코드 공유"

@@ -162,6 +162,11 @@ export interface Deck {
   locked?: boolean;
   version?: string;
   author?: User;
+  /** 공개 덱 목록에서만 온다(서버 1.3.2 이후). */
+  like_count?: number;
+  /** 서버 덱 목록·상세에서 로그인한 사용자가 북마크했는지. */
+  bookmarked?: boolean;
+  bookmark_count?: number;
 }
 export interface Operation {
   schema_version?: number;
@@ -184,7 +189,15 @@ export interface SyncResponse {
   user: User;
   results: { operation_id: string; ok: boolean; error?: unknown }[];
   decks: Deck[];
-  collection: { card_id: number; amount: number }[];
+  collection: CollectionDocument[];
+  /** 내가 북마크한 덱 ID. 예전 서버는 보내지 않는다. */
+  deck_bookmarks?: number[];
+}
+/** 컬렉션 문서. category는 하트 분류(0~5)이며 예전 서버·문서에는 없다. */
+export interface CollectionDocument {
+  card_id: number;
+  amount: number;
+  category?: number;
 }
 export interface Manifest {
   release_version: string;

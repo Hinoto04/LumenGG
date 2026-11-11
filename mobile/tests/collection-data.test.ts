@@ -2,8 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   cardPrintings,
+  collectionFilterCount,
   collectionRows,
   emptyCollectionFilters,
+  normalizeCategory,
 } from "../src/collection-data";
 import type { Card, CollectionItem, Pack } from "../src/types";
 
@@ -151,5 +153,33 @@ test("collection search uses displayed translations and preserves code normaliza
       (row) => row.id,
     ),
     [2],
+  );
+});
+test("collection category filter keeps hearts, any category or none", () => {
+  const catalog = {
+    cards: [],
+    collection: [item(1), item(2), item(3)],
+  };
+  const categories = { 1: 2, 3: 5 };
+  const ids = (category: string) =>
+    collectionRows(
+      catalog,
+      { ...emptyCollectionFilters, category },
+      "",
+      {},
+      "ko",
+      categories,
+    ).map((row) => row.id);
+  assert.deepEqual(ids(""), [1, 2, 3]);
+  assert.deepEqual(ids("any"), [1, 3]);
+  assert.deepEqual(ids("5"), [3]);
+  assert.deepEqual(ids("4"), []);
+  assert.equal(
+    collectionFilterCount({ ...emptyCollectionFilters, category: "any" }),
+    1,
+  );
+  assert.deepEqual(
+    [3, 0, 6, -1, "2", null, 2.5].map(normalizeCategory),
+    [3, 0, 0, 0, 2, 0, 0],
   );
 });

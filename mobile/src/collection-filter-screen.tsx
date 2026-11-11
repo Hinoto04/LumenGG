@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useApp } from "./provider";
 import { localized } from "./core";
 import {
+  COLLECTION_CATEGORIES,
+  categoryColors,
   collectionRows,
   emptyCollectionFilters,
   type CollectionFilters,
@@ -21,13 +23,14 @@ export function CollectionFilterScreen({
   onApply: (filters: CollectionFilters) => void;
   onClose: () => void;
 }) {
-  const { catalog, language, amounts, t } = useApp();
+  const { catalog, language, amounts, categories, t } = useApp();
   const [draft, setDraft] = useState({ ...value });
   useEffect(() => {
     if (visible) setDraft({ ...value });
   }, [visible, value]);
   const count = catalog
-    ? collectionRows(catalog, draft, query, amounts, language).length
+    ? collectionRows(catalog, draft, query, amounts, language, categories)
+        .length
     : 0;
   const set = (key: keyof CollectionFilters, value: string | boolean) =>
     setDraft((current) => ({ ...current, [key]: value }));
@@ -87,6 +90,21 @@ export function CollectionFilterScreen({
         value={draft.onlyZero ? "zero" : ""}
         onChange={(value) => set("onlyZero", value === "zero")}
         values={[all, { key: "zero", label: t("미보유") }]}
+      />
+      <FilterChoices
+        title="분류"
+        value={draft.category}
+        onChange={(value) => set("category", value)}
+        values={[
+          all,
+          { key: "any", label: t("분류된 카드") },
+          ...COLLECTION_CATEGORIES.map((n) => ({
+            key: String(n),
+            label: "\u2665 " + n,
+            color: categoryColors[n],
+            a11y: t("하트") + " " + n,
+          })),
+        ]}
       />
     </FilterSheet>
   );

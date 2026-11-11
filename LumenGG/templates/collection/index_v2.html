@@ -38,6 +38,26 @@
             {{ form.sortValue }}
         </div>
         {% if user.is_authenticated %}
+        <div class="v2-filter-box v2-collection-category-filter">
+            <span class="v2-collection-category-filter-label">{% tr "분류" %}</span>
+            <div class="v2-collection-category-options" role="radiogroup" aria-label="{% tr "분류" %}">
+                <label class="v2-collection-category-option">
+                    <input type="radio" name="category" value="" {% if not category_filter %}checked{% endif %}>
+                    <span>{% tr "전체" %}</span>
+                </label>
+                <label class="v2-collection-category-option">
+                    <input type="radio" name="category" value="any" {% if category_filter == "any" %}checked{% endif %}>
+                    <span>{% tr "분류된 카드" %}</span>
+                </label>
+                {% for n in category_choices %}
+                <label class="v2-collection-category-option" title="{% tr "분류" %} {{ n }}">
+                    <input type="radio" name="category" value="{{ n }}" {% if category_filter == n|stringformat:"d" %}checked{% endif %}>
+                    <span class="v2-heart v2-heart-{{ n }}" aria-hidden="true">&#9829;</span>
+                    <span class="v2-visually-hidden">{% tr "분류" %} {{ n }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
         <div class="v2-filter-box v2-collection-toggle-box">
             <label for="id_onlyZero" class="v2-collection-zero-toggle">
                 {{ form.onlyZero }}
@@ -55,7 +75,7 @@
 
 {% if user.is_authenticated %}
 <div class="v2-collection-notice">
-    {% tr "수량을 변경한 뒤 저장 버튼을 눌러주세요. 카드명 또는 코드를 누르면 정렬 기준이 바뀝니다." %}
+    {% tr "수량이나 분류(하트)를 변경한 뒤 저장 버튼을 눌러주세요. 카드명 또는 코드를 누르면 정렬 기준이 바뀝니다." %}
 </div>
 {% endif %}
 
@@ -70,8 +90,13 @@
     {% regroup data by img_sm as collection_groups %}
     {% for group in collection_groups %}
     {% with first=group.list.0 %}
-    <article class="v2-collection-row">
+    <article class="v2-collection-row" data-collection-row>
         <div class="v2-collection-image">
+            {% if user.is_authenticated %}
+            <div class="v2-collection-hearts" data-collection-hearts aria-hidden="true">
+                {% for c in group.list %}{% if c.category %}<span class="v2-heart v2-heart-{{ c.category }}">&#9829;</span>{% endif %}{% endfor %}
+            </div>
+            {% endif %}
             {% if first.card %}
             <a href="{% url "card:detail" first.card.id %}">
                 <img src="{{ first.img_sm }}" alt="{% if first.card %}{{ first.card|card_name:current_language }}{% else %}{{ first.name }}{% endif %}">
@@ -94,9 +119,20 @@
         <div class="v2-collection-pack">{{ first.pack|pack_name:current_language }}</div>
         <div class="v2-collection-prints">
             {% for c in group.list %}
-            <div class="v2-collection-print">
+            <div class="v2-collection-print" data-print-id="{{ c.id }}" data-category="{{ c.category|default_if_none:0 }}">
                 <span class="v2-rare {{ c.rare }}">{{ c.rare }}</span>
                 {% if user.is_authenticated %}
+                <div class="v2-collection-category">
+                    <button type="button" class="v2-collection-category-button" data-category-button aria-haspopup="true" aria-expanded="false" aria-label="{% tr "분류 지정" %}" title="{% tr "분류 지정" %}">
+                        <span class="v2-heart v2-heart-{{ c.category|default_if_none:0 }}" aria-hidden="true">{% if c.category %}&#9829;{% else %}&#9825;{% endif %}</span>
+                    </button>
+                    <div class="v2-collection-category-menu" data-category-menu role="menu" hidden>
+                        <button type="button" role="menuitem" data-category-value="0" title="{% tr "분류 없음" %}"><span class="v2-heart v2-heart-0" aria-hidden="true">&#9825;</span><span class="v2-visually-hidden">{% tr "분류 없음" %}</span></button>
+                        {% for n in category_choices %}
+                        <button type="button" role="menuitem" data-category-value="{{ n }}" title="{% tr "분류" %} {{ n }}"><span class="v2-heart v2-heart-{{ n }}" aria-hidden="true">&#9829;</span><span class="v2-visually-hidden">{% tr "분류" %} {{ n }}</span></button>
+                        {% endfor %}
+                    </div>
+                </div>
                 <div class="v2-collection-count">
                     <button type="button" class="v2-count-button" onclick="dec({{ c.id }})">-</button>
                     <input type="number" name="{{ c.id }}" id="cc_input_{{ c.id }}" class="cc_input" value="{{ c.amount|default_if_none:0 }}" min="0" max="99">
@@ -138,5 +174,5 @@
         }
     };
 </script>
-<script src="{% static "v2/collection.js" %}?v=20260520-i18n"></script>
+<script src="{% static "v2/collection.js" %}?v=20261112-category"></script>
 {% endblock content %}

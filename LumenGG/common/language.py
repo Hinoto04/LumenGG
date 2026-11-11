@@ -1553,6 +1553,28 @@ UI_TRANSLATIONS[LANGUAGE_JAPANESE].update({
 })
 
 
+# 컬렉션 분류(하트)와 덱 북마크
+UI_TRANSLATIONS[LANGUAGE_ENGLISH].update({
+    '분류': 'Category',
+    '분류된 카드': 'Categorized',
+    '분류 지정': 'Set category',
+    '분류 없음': 'No category',
+    '수량이나 분류(하트)를 변경한 뒤 저장 버튼을 눌러주세요. 카드명 또는 코드를 누르면 정렬 기준이 바뀝니다.': 'After changing counts or categories (hearts), press Save. Click card name or code to change sorting.',
+    '북마크': 'Bookmark',
+    '북마크한 덱만': 'Bookmarked only',
+    '북마크한 덱': 'Bookmarked deck',
+})
+UI_TRANSLATIONS[LANGUAGE_JAPANESE].update({
+    '분류': '分類',
+    '분류된 카드': '分類済み',
+    '분류 지정': '分類を指定',
+    '분류 없음': '分類なし',
+    '수량이나 분류(하트)를 변경한 뒤 저장 버튼을 눌러주세요. 카드명 또는 코드를 누르면 정렬 기준이 바뀝니다.': '数量や分類（ハート）を変更したら保存ボタンを押してください。カード名またはコードを押すと並び替え基準が変わります。',
+    '북마크': 'ブックマーク',
+    '북마크한 덱만': 'ブックマークのみ',
+    '북마크한 덱': 'ブックマークしたデッキ',
+})
+
 def normalize_language(language):
     if not language:
         return DEFAULT_LANGUAGE

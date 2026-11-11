@@ -8,8 +8,8 @@ from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from card.models import Character
-from collection.models import Collected, CollectionCard
-from deck.models import Deck
+from collection.models import COLLECTION_CATEGORY_COUNT, Collected, CollectionCard
+from deck.models import Deck, DeckLike
 from deck.services import (
     is_deck_locked_by_tournament, normalize_submitted_deck, merge_deck_entries,
     validate_submitted_deck_size, replace_deck_cards,
@@ -43,7 +43,10 @@ def account_snapshot(user):
     return {
         'user': {'id': user.pk, 'username': user.username},
         'decks': [deck_payload(d) for d in Deck.objects.filter(author=user).select_related('author').prefetch_related('cids').order_by('id')],
-        'collection': list(Collected.objects.filter(user=user).order_by('card_id').values('card_id', 'amount')),
+        'collection': list(Collected.objects.filter(user=user).order_by('card_id').values('card_id', 'amount', 'category')),
+        # 앱이 덱 목록에 북마크 표시를 하고 내 덱을 북마크로 거를 수 있도록 덱 ID만 보낸다.
+        'deck_bookmarks': list(DeckLike.objects.filter(author=user, bookmark=True, deck__deleted=False)
+                               .order_by('deck_id').values_list('deck_id', flat=True).distinct()),
     }
 
 
@@ -158,10 +161,13 @@ def apply_sync(user, operations):
                         card_id = _integer(operation.get('entity_id'), 'entity_id', 1, 2147483647)
                         if not isinstance(operation.get('data'), dict):
                             raise ValidationError('Collection data is required.')
-                        amount = _integer(operation['data'].get('amount'), 'amount')
+                        defaults = {'amount': _integer(operation['data'].get('amount'), 'amount')}
+                        # 예전 앱은 category를 보내지 않으므로, 없으면 기존 분류를 그대로 둔다.
+                        if 'category' in operation['data']:
+                            defaults['category'] = _integer(operation['data']['category'], 'category', 0, COLLECTION_CATEGORY_COUNT)
                         if not CollectionCard.objects.filter(pk=card_id).exists():
                             raise ValidationError('Collection item not found.')
-                        Collected.objects.update_or_create(user=user, card_id=card_id, defaults={'amount': amount})
+                        Collected.objects.update_or_create(user=user, card_id=card_id, defaults=defaults)
                         result = {'card_id': card_id}
                     else:
                         raise ValidationError('Unknown synchronization operation.')

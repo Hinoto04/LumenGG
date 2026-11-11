@@ -115,7 +115,7 @@ export function FilterChoices({
 }: {
   title: string;
   value: string;
-  values: { key: string; label: string }[];
+  values: { key: string; label: string; color?: string; a11y?: string }[];
   onChange: (value: string) => void;
 }) {
   const { t } = useApp();
@@ -132,7 +132,7 @@ export function FilterChoices({
           <Pressable
             key={option.key}
             accessibilityRole="radio"
-            accessibilityLabel={`${t(title)}: ${option.label}`}
+            accessibilityLabel={`${t(title)}: ${option.a11y || option.label}`}
             accessibilityState={{ checked: value === option.key }}
             onPress={() => onChange(option.key)}
             style={[
@@ -143,7 +143,9 @@ export function FilterChoices({
             <Text
               style={[
                 filterStyles.chipText,
-                value === option.key && { color: colors.accent },
+                !!option.color && { color: option.color },
+                value === option.key &&
+                  !option.color && { color: colors.accent },
               ]}
             >
               {option.label}

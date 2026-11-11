@@ -89,6 +89,55 @@ export function matchingDecks(
   );
 }
 
+/** 북마크 필터가 켜져 있으면 북마크한 덱 ID만 남긴다. */
+export function bookmarkedDecks<T extends { id?: number }>(
+  decks: T[],
+  bookmarks: readonly number[],
+  only: boolean,
+): T[] {
+  if (!only) return decks;
+  const ids = new Set(bookmarks);
+  return decks.filter((d) => d.id !== undefined && ids.has(d.id));
+}
+
+/** 서버가 알려 준 북마크 상태(bookmarked)를 로컬 북마크 목록에 반영한다. 바뀌지 않으면 null. */
+export function mergeBookmarks(
+  current: readonly number[],
+  decks: readonly { id?: number; bookmarked?: boolean }[],
+): number[] | null {
+  const next = new Set(current);
+  for (const deck of decks) {
+    if (deck.id === undefined || typeof deck.bookmarked !== "boolean") continue;
+    if (deck.bookmarked) next.add(deck.id);
+    else next.delete(deck.id);
+  }
+  const list = [...next].sort((a, b) => a - b);
+  const same =
+    list.length === current.length &&
+    [...current].sort((a, b) => a - b).every((id, n) => id === list[n]);
+  return same ? null : list;
+}
+
+/** 공개 덱 목록 요청 경로. 북마크 필터는 로그인했을 때만 보낸다. */
+export function publicDeckPath(params: {
+  query: string;
+  character: string;
+  trait?: string;
+  regulation?: string;
+  sort?: string;
+  bookmarked?: boolean;
+  page?: number;
+}) {
+  return (
+    `/decks?scope=public&q=${encodeURIComponent(params.query.trim())}` +
+    `&character_id=${params.character}&trait_card_id=${params.trait || ""}` +
+    `&regulation_version_id=${params.regulation || ""}` +
+    (params.sort ? `&sort=${params.sort}` : "") +
+    (params.bookmarked ? "&bookmarked=1" : "") +
+    (params.page ? `&page=${params.page}` : "")
+  );
+}
+
 // Web descriptions contain editor HTML. Display readable text without running HTML.
 export function deckDescription(value: string) {
   return value
@@ -118,4 +167,31 @@ export function deckDescription(value: string) {
     )
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+/** 웹 덱 목록과 같은 정렬 키(서버 /api/mobile/v1/decks?sort=). */
+export type DeckSort = "recent" | "version" | "like";
+export const DECK_SORTS: { key: DeckSort; label: string }[] = [
+  { key: "recent", label: "최신순" },
+  { key: "version", label: "버전순" },
+  { key: "like", label: "좋아요순" },
+];
+export function isDeckSort(value: unknown): value is DeckSort {
+  return value === "recent" || value === "version" || value === "like";
+}
+/**
+ * 내 덱(기기에 저장된 목록)의 정렬. 입력은 이미 최신순이다.
+ * 버전순은 웹과 같이 버전 문자열 내림차순이고 같은 버전은 최신순을 유지한다.
+ * 좋아요 수는 기기에 없으므로 좋아요순은 최신순으로 둔다.
+ */
+export function sortMyDecks(decks: Deck[], sort: DeckSort): Deck[] {
+  if (sort !== "version") return decks;
+  return decks
+    .map((deck, index) => ({ deck, index }))
+    .sort(
+      (a, b) =>
+        (b.deck.version || "").localeCompare(a.deck.version || "") ||
+        a.index - b.index,
+    )
+    .map((row) => row.deck);
 }

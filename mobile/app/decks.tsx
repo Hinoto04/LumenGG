@@ -12,7 +12,16 @@ import {
 import { router } from "expo-router";
 import { useApp } from "../src/provider";
 import { localized } from "../src/core";
-import { matchingDecks } from "../src/deck-display";
+import {
+  DECK_SORTS,
+  bookmarkedDecks,
+  isDeckSort,
+  matchingDecks,
+  publicDeckPath,
+  sortMyDecks,
+  type DeckSort,
+} from "../src/deck-display";
+import { BottomSheet } from "../src/character-picker";
 import { request } from "../src/api";
 import { preference, setPreference } from "../src/storage";
 import { userMessage } from "../src/errors";
@@ -42,7 +51,18 @@ import {
 import { cellStyle, listColumns, useScreen } from "../src/layout";
 
 export default function Decks() {
-  const { decks, catalog, language, user, scope, sync, status, t } = useApp();
+  const {
+    decks,
+    catalog,
+    language,
+    user,
+    scope,
+    sync,
+    status,
+    bookmarks,
+    rememberBookmarks,
+    t,
+  } = useApp();
   // 가로 화면이나 넓은 화면에서는 목록을 여러 칸으로 놓는다.
   const { width, height } = useScreen();
   const listCols = listColumns(width);
@@ -51,6 +71,22 @@ export default function Decks() {
     ...defaultDeckFilters,
   });
   const [filterVisible, setFilterVisible] = useState(false);
+  const [sort, setSort] = useState<DeckSort>("recent");
+  const [sortVisible, setSortVisible] = useState(false);
+  const sortTouched = useRef(false);
+  useEffect(() => {
+    preference<unknown>("deck-list-sort", "recent")
+      .then((saved) => {
+        if (!sortTouched.current && isDeckSort(saved)) setSort(saved);
+      })
+      .catch(() => undefined);
+  }, []);
+  const chooseSort = (next: DeckSort) => {
+    sortTouched.current = true;
+    setSort(next);
+    setSortVisible(false);
+    setPreference("deck-list-sort", next).catch(() => undefined);
+  };
   const { mode, character, trait = "", regulation = "" } = filters;
   const [query, setQuery] = useState(""),
     [results, setResults] = useState<Deck[]>([]),
@@ -59,6 +95,20 @@ export default function Decks() {
     [message, setMessage] = useState(""),
     [retry, setRetry] = useState(0);
   const generation = useRef(0);
+  // 북마크는 계정에 저장되므로 로그인했을 때만 거른다.
+  const onlyBookmarked = !!user && !!filters.bookmarked;
+  const bookmarkSet = new Set(user ? bookmarks : []);
+  const listPath = (page?: number) =>
+    publicDeckPath({
+      query,
+      character,
+      trait,
+      regulation,
+      sort,
+      bookmarked: onlyBookmarked,
+      page,
+    });
+  const cacheKey = `public-decks:${scope}:${query.trim()}:${character}:${trait}:${regulation}:${sort}:${onlyBookmarked ? "bookmarked" : ""}`;
   useEffect(() => {
     const ticket = ++generation.current;
     setResults([]);
@@ -66,21 +116,17 @@ export default function Decks() {
     setMessage("");
     setBusy(false);
     if (mode !== "public") return;
-    const cacheKey = `public-decks:${scope}:${query.trim()}:${character}:${trait}:${regulation}`;
     setBusy(true);
     const timer = setTimeout(async () => {
       try {
         const cached = await preference<Deck[]>(cacheKey, []);
         if (ticket !== generation.current) return;
         setResults(cached);
-        const page = await request(
-          `/decks?scope=public&q=${encodeURIComponent(query.trim())}&character_id=${character}&trait_card_id=${trait}&regulation_version_id=${regulation}`,
-          {},
-          false,
-        );
+        const page = await request(listPath(), {}, !!user, false, user?.id);
         if (ticket !== generation.current) return;
         setResults(page.decks);
         setNextPage(page.next_page);
+        if (user) void rememberBookmarks(page.decks);
         await setPreference(cacheKey, page.decks);
       } catch (err) {
         if (ticket === generation.current) setMessage(userMessage(err));
@@ -92,20 +138,39 @@ export default function Decks() {
       clearTimeout(timer);
       generation.current++;
     };
-  }, [mode, query, character, trait, regulation, scope, retry]);
-  const data =
+  }, [
+    mode,
+    query,
+    character,
+    trait,
+    regulation,
+    scope,
+    retry,
+    sort,
+    onlyBookmarked,
+  ]);
+  // 상세 화면에서 북마크를 끈 덱은 다시 불러오기 전에도 목록에서 뺀다.
+  const data = bookmarkedDecks(
     mode === "mine"
-      ? matchingDecks(decks, query, character, trait, regulation).reverse()
-      : results;
+      ? sortMyDecks(
+          matchingDecks(decks, query, character, trait, regulation).reverse(),
+          sort,
+        )
+      : results,
+    [...bookmarkSet],
+    onlyBookmarked,
+  );
   async function more() {
     if (!nextPage || busy) return;
     const ticket = generation.current;
     setBusy(true);
     try {
       const page = await request(
-        `/decks?scope=public&q=${encodeURIComponent(query.trim())}&character_id=${character}&trait_card_id=${trait}&regulation_version_id=${regulation}&page=${nextPage}`,
+        listPath(nextPage),
         {},
+        !!user,
         false,
+        user?.id,
       );
       if (ticket !== generation.current) return;
       const merged = [
@@ -114,10 +179,8 @@ export default function Decks() {
       setResults(merged);
       setNextPage(page.next_page);
       setMessage("");
-      await setPreference(
-        `public-decks:${scope}:${query.trim()}:${character}:${trait}:${regulation}`,
-        merged,
-      );
+      if (user) void rememberBookmarks(page.decks);
+      await setPreference(cacheKey, merged);
     } catch (err) {
       if (ticket === generation.current) setMessage(userMessage(err));
     } finally {
@@ -125,7 +188,10 @@ export default function Decks() {
     }
   }
   const filterCount =
-    Number(!!character) + Number(!!trait) + Number(!!regulation);
+    Number(!!character) +
+    Number(!!trait) +
+    Number(!!regulation) +
+    Number(onlyBookmarked);
   const characterName = (id: number) => {
     const c = catalog?.characters.find((c) => c.id === id);
     return c ? localized(c, language) : "";
@@ -169,7 +235,17 @@ export default function Decks() {
           <Text style={[styles.muted, !landscape && { flex: 1 }]}>
             {busy ? t("불러오는 중") : data.length + " " + t("덱")}
             {character ? " · " + characterName(Number(character)) : ""}
+            {onlyBookmarked ? " · " + t("북마크") : ""}
           </Text>
+          <IconButton
+            icon="swap-vertical"
+            label="정렬"
+            filled
+            onPress={() => {
+              Keyboard.dismiss();
+              setSortVisible(true);
+            }}
+          />
           <IconButton
             icon="refresh"
             label="새로고침"
@@ -255,10 +331,13 @@ export default function Decks() {
         renderItem={({ item: d }) => {
           const c = catalog?.characters.find((c) => c.id === d.character_id);
           const total = d.cards.reduce((n, e) => n + e.count, 0);
+          const marked = d.id !== undefined && bookmarkSet.has(d.id);
           return (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={d.name}
+              accessibilityLabel={
+                marked ? d.name + ", " + t("북마크한 덱") : d.name
+              }
               onPress={async () => {
                 if (mode === "public")
                   await setPreference(`deck-view:${scope}:${d.id}`, d).catch(
@@ -283,9 +362,17 @@ export default function Decks() {
                 )}
               </View>
               <View style={{ flex: 1, gap: 4 }}>
-                <Text numberOfLines={1} style={deckListStyles.name}>
-                  {d.name}
-                </Text>
+                <View style={deckListStyles.nameRow}>
+                  {marked && (
+                    <Icon name="bookmark" size={16} color={colors.accent} />
+                  )}
+                  <Text
+                    numberOfLines={1}
+                    style={[deckListStyles.name, { flexShrink: 1 }]}
+                  >
+                    {d.name}
+                  </Text>
+                </View>
                 <Text numberOfLines={1} style={styles.muted}>
                   {(c ? localized(c, language) : "") +
                     " · " +
@@ -293,6 +380,9 @@ export default function Decks() {
                 </Text>
                 <View style={deckListStyles.badges}>
                   <Badge label={total + " " + t("장")} />
+                  {mode === "public" && !!d.like_count && (
+                    <Badge label={"♥ " + d.like_count} tone="danger" />
+                  )}
                   <Badge
                     label={d.visibility}
                     tone={visibilityTone(d.visibility)}
@@ -305,6 +395,49 @@ export default function Decks() {
           );
         }}
       />
+      <BottomSheet
+        visible={sortVisible}
+        title="정렬"
+        onClose={() => setSortVisible(false)}
+      >
+        {() => (
+          <View style={{ paddingBottom: space.md }}>
+            {DECK_SORTS.map((option) => {
+              const unavailable = option.key === "like" && mode === "mine";
+              const selected = sort === option.key;
+              return (
+                <Pressable
+                  key={option.key}
+                  accessibilityRole="radio"
+                  accessibilityState={{
+                    checked: selected,
+                    disabled: unavailable,
+                  }}
+                  disabled={unavailable}
+                  onPress={() => chooseSort(option.key)}
+                  style={[
+                    deckListStyles.sortRow,
+                    selected && { backgroundColor: colors.accentSoft },
+                    unavailable && { opacity: 0.4 },
+                  ]}
+                >
+                  <Text style={[styles.text, { flex: 1 }]}>
+                    {t(option.label)}
+                  </Text>
+                  {selected && (
+                    <Icon name="checkmark" size={20} color={colors.accent} />
+                  )}
+                </Pressable>
+              );
+            })}
+            {mode === "mine" && (
+              <Text style={[styles.muted, { marginTop: space.sm }]}>
+                {t("좋아요순은 공개 덱에서만 쓸 수 있습니다.")}
+              </Text>
+            )}
+          </View>
+        )}
+      </BottomSheet>
       <Fab
         label="덱 만들기"
         icon="add"
@@ -315,6 +448,13 @@ export default function Decks() {
 }
 
 const deckListStyles = StyleSheet.create({
+  sortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 48,
+    paddingHorizontal: 14,
+    borderRadius: radius.sm,
+  },
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
@@ -342,6 +482,7 @@ const deckListStyles = StyleSheet.create({
     justifyContent: "center",
   },
   name: { color: colors.text, fontSize: 17, fontWeight: "700" },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   badges: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 2 },
 });
 

@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 
-from ..models import CollectionCard, Collected
+from ..models import CollectionCard, Collected, COLLECTION_CATEGORY_COUNT
 from django.db.models import OuterRef, Subquery, IntegerField, Q, Case, When
 from django.http import Http404, JsonResponse
 from card.models import Card
@@ -14,6 +14,26 @@ import re, random, os, json
 from decorators import permission_required
 
 from PIL import Image
+
+
+def parse_category_filter(value):
+    """'any'(분류 있는 카드 전체) 또는 '1'~'5'만 받는다."""
+    value = str(value or '').strip()
+    if value == 'any':
+        return value
+    if value.isdigit() and 1 <= int(value) <= COLLECTION_CATEGORY_COUNT:
+        return value
+    return ''
+
+
+def parse_category(value):
+    if isinstance(value, bool):
+        return None
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return None
+    return value if 0 <= value <= COLLECTION_CATEGORY_COUNT else None
 
 
 # Create your views here.
@@ -38,14 +58,21 @@ def index(req, template_name='collection/index.html'):
     if form.data.get('code'):
         q.add(Q(pack=form.data.get('code')), q.AND)
     
+    category_filter = ''
     if req.user.is_authenticated:
-        collected = Collected.objects.filter(user=req.user, card=OuterRef('pk')).values('amount')
+        collected = Collected.objects.filter(user=req.user, card=OuterRef('pk'))
         collection = CollectionCard.objects.filter(q).annotate(
-            amount=Subquery(collected, output_field=IntegerField())
+            amount=Subquery(collected.values('amount'), output_field=IntegerField()),
+            category=Subquery(collected.values('category'), output_field=IntegerField()),
         )
         if 'onlyZero' in form.data.keys():
             q = Q(amount=None) | Q(amount=0)
             collection = collection.filter(q)
+        category_filter = parse_category_filter(req.GET.get('category', ''))
+        if category_filter == 'any':
+            collection = collection.filter(category__gte=1)
+        elif category_filter:
+            collection = collection.filter(category=int(category_filter))
         #print(collection.values())
     else:
         collection = CollectionCard.objects.filter(q)
@@ -82,6 +109,8 @@ def index(req, template_name='collection/index.html'):
     context = {
         'data': page_data,
         'form': form,
+        'category_filter': category_filter,
+        'category_choices': list(range(1, COLLECTION_CATEGORY_COUNT + 1)),
     }
     
     return render(req, template_name, context=context)
@@ -162,22 +191,31 @@ def updateCollected(req):
     if req.method == 'GET':
         raise Http404()
     if req.method == 'POST':
-        data = json.loads(req.body)
+        try:
+            data = json.loads(req.body)
+        except (TypeError, ValueError):
+            return JsonResponse({'result': 'fail', 'message': '잘못된 요청입니다.'}, status=400)
         failed = []
-        for key, value in data['collected'].items():
-            try:
-                c = Collected.objects.get(user=req.user, card=key)
-            except:
+        amounts = data.get('collected') or {}
+        categories = data.get('categories') or {}
+        if not isinstance(amounts, dict) or not isinstance(categories, dict):
+            return JsonResponse({'result': 'fail', 'message': '잘못된 요청입니다.'}, status=400)
+        for key in set(amounts) | set(categories):
+            defaults = {}
+            if key in amounts:
                 try:
-                    c = Collected(
-                        user=req.user,
-                        card_id=key,
-                        amount=value
-                    )
-                    c.save()
-                except:
+                    defaults['amount'] = max(0, min(32767, int(amounts[key])))
+                except (TypeError, ValueError):
                     failed.append(key)
-            else:
-                c.amount = value
-                c.save()
+                    continue
+            if key in categories:
+                category = parse_category(categories[key])
+                if category is None:
+                    failed.append(key)
+                    continue
+                defaults['category'] = category
+            if not str(key).isdigit() or not CollectionCard.objects.filter(pk=int(key)).exists():
+                failed.append(key)
+                continue
+            Collected.objects.update_or_create(user=req.user, card_id=int(key), defaults=defaults)
         return JsonResponse({'result': 'ok', 'failed': failed})
