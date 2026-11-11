@@ -3,7 +3,7 @@ import {
   Animated,
   Easing,
   FlatList,
-  PanResponder,
+  type GestureResponderEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -999,9 +999,8 @@ function ListPage({
     grids: {} as Partial<Record<DeckZone, Rect>>,
     root: { x: 0, y: 0 },
     start: { x: 0, y: 0 },
-    timer: null as ReturnType<typeof setTimeout> | null,
-    moved: false,
-    granted: false,
+    /** 누르고 있는 카드. 움직이면 바로 드래그가 된다. */
+    pressed: null as Drag | null,
     drag: null as Drag | null,
   }).current;
   const latest = useRef({ tiles, deck, columns, tileWidth, tileHeight });
@@ -1032,18 +1031,6 @@ function ListPage({
     !!r && x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height;
   const zoneAt = (x: number, y: number) =>
     DECK_ZONES.find((zone) => inside(state.zones[zone], x, y)) || null;
-  const tileAt = (x: number, y: number): Drag | null => {
-    const { tiles, columns, tileWidth, tileHeight } = latest.current;
-    for (const zone of DECK_ZONES) {
-      const grid = state.grids[zone];
-      if (!inside(grid, x, y)) continue;
-      const col = Math.floor((x - grid!.x) / (tileWidth + gap));
-      const row = Math.floor((y - grid!.y) / (tileHeight + gap));
-      const tile = tiles[zone][row * columns + col];
-      if (col < columns && tile) return { tile, zone };
-    }
-    return null;
-  };
   const moveGhost = (x: number, y: number) => {
     const { tileWidth, tileHeight } = latest.current;
     ghost.setValue({
@@ -1054,7 +1041,7 @@ function ListPage({
   const endDrag = (x?: number, y?: number) => {
     const current = state.drag;
     state.drag = null;
-    state.granted = false;
+    state.pressed = null;
     setDrag(null);
     setHover(null);
     onDragging(false);
@@ -1066,30 +1053,60 @@ function ListPage({
       moveCopy(latest.current.deck.cards, current.tile.card, current.zone, to),
     );
   };
-  const responder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: () => !!state.drag,
-      onMoveShouldSetPanResponderCapture: () => !!state.drag,
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => {
-        state.granted = true;
-      },
-      onPanResponderMove: (e) => {
-        const { pageX, pageY } = e.nativeEvent;
-        moveGhost(pageX, pageY);
-        setHover(zoneAt(pageX, pageY));
-      },
-      onPanResponderRelease: (e) =>
-        endDrag(e.nativeEvent.pageX, e.nativeEvent.pageY),
-      onPanResponderTerminate: () => endDrag(),
-    }),
-  ).current;
-  const clearTimer = () => {
-    if (state.timer) clearTimeout(state.timer);
-    state.timer = null;
-  };
-  useEffect(() => clearTimer, []);
+  // 카드 위에서 시작한 터치는 항상 그 카드의 드래그 앤 드롭으로 다룬다.
+  // 카드가 터치 응답자가 되고 응답자 승인에서 true를 돌려주면, 바깥 가로 스와이프(네이티브
+  // 스크롤)가 이 터치를 가로채지 못한다. 카드가 없는 빈 곳에서 시작하면 스와이프로 화면이 넘어간다.
+  const DRAG_SLOP = 6;
+  const tileResponder = (tile: ZoneTile, zone: DeckZone) => ({
+    onStartShouldSetResponder: () => true,
+    onResponderTerminationRequest: () => false,
+    onResponderGrant: (e: GestureResponderEvent) => {
+      const { pageX, pageY } = e.nativeEvent;
+      state.start = { x: pageX, y: pageY };
+      state.pressed = { tile, zone };
+      state.drag = null;
+      measureAll();
+      return true;
+    },
+    onResponderMove: (e: GestureResponderEvent) => {
+      const { pageX, pageY } = e.nativeEvent;
+      if (!state.drag) {
+        const pressed = state.pressed;
+        if (
+          !pressed?.tile.card ||
+          !isMovable(pressed.tile.card) ||
+          (Math.abs(pageX - state.start.x) < DRAG_SLOP &&
+            Math.abs(pageY - state.start.y) < DRAG_SLOP)
+        )
+          return;
+        state.drag = pressed;
+        onDragging(true);
+        tapFeedback("light");
+        setSelected(null);
+        setDrag(pressed);
+      }
+      moveGhost(pageX, pageY);
+      const over = zoneAt(pageX, pageY);
+      setHover((previous) => (previous === over ? previous : over));
+    },
+    onResponderRelease: (e: GestureResponderEvent) => {
+      if (state.drag) {
+        endDrag(e.nativeEvent.pageX, e.nativeEvent.pageY);
+        return;
+      }
+      // 움직이지 않고 뗐으면 카드 선택(동작 바)을 켜고 끈다.
+      const pressed = state.pressed;
+      state.pressed = null;
+      if (!pressed) return;
+      setSelected((previous) =>
+        previous?.tile.key === pressed.tile.key &&
+        previous.zone === pressed.zone
+          ? null
+          : pressed,
+      );
+    },
+    onResponderTerminate: () => endDrag(),
+  });
 
   const entryOf = (id: number) => deck.cards.find((e) => e.card_id === id);
   const selectedCard = selected?.tile.card;
@@ -1099,67 +1116,7 @@ function ListPage({
 
   return (
     <View ref={pageRef} style={{ flex: 1, padding: pad }}>
-      <View
-        {...responder.panHandlers}
-        onTouchStart={(e) => {
-          const { pageX, pageY } = e.nativeEvent;
-          state.start = { x: pageX, y: pageY };
-          state.moved = false;
-          clearTimer();
-          const measured = measureAll();
-          state.timer = setTimeout(() => {
-            state.timer = null;
-            measured.then(() => {
-              if (state.moved) return;
-              const hit = tileAt(state.start.x, state.start.y);
-              if (!hit?.tile.card || !isMovable(hit.tile.card)) return;
-              // 가로 스와이프를 가장 먼저 막는다.
-              onDragging(true);
-              tapFeedback("light");
-              state.drag = hit;
-              setSelected(null);
-              setDrag(hit);
-              setHover(hit.zone);
-              moveGhost(state.start.x, state.start.y);
-            });
-          }, 260);
-        }}
-        onTouchMove={(e) => {
-          const { pageX, pageY } = e.nativeEvent;
-          if (
-            Math.abs(pageX - state.start.x) > 8 ||
-            Math.abs(pageY - state.start.y) > 8
-          ) {
-            state.moved = true;
-            if (!state.drag) clearTimer();
-          }
-        }}
-        onTouchEnd={() => {
-          const tapped = !!state.timer && !state.moved;
-          clearTimer();
-          // 움직이지 않고 놓은 드래그는 취소한다. 끌던 중이면 응답자가 놓는 위치를 처리한다.
-          if (state.drag) {
-            if (!state.granted) endDrag();
-            return;
-          }
-          if (!tapped) return;
-          measureAll().then(() => {
-            const hit = tileAt(state.start.x, state.start.y);
-            setSelected((previous) =>
-              hit &&
-              (previous?.tile.key !== hit.tile.key ||
-                previous.zone !== hit.zone)
-                ? hit
-                : null,
-            );
-          });
-        }}
-        onTouchCancel={() => {
-          clearTimer();
-          if (state.drag) endDrag();
-        }}
-        style={{ flex: 1, gap: zoneGap }}
-      >
+      <View style={{ flex: 1, gap: zoneGap }}>
         {DECK_ZONES.map((zone, zoneIndex) => {
           const list = tiles[zone];
           const counter = counters[zone];
@@ -1214,6 +1171,7 @@ function ListPage({
                   return (
                     <View
                       key={tile.key}
+                      {...tileResponder(tile, zone)}
                       accessible
                       accessibilityRole="button"
                       accessibilityLabel={
