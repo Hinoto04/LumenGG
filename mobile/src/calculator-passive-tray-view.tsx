@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, Text, TextInput, View } from "react-nativ
 import type { Action, PassiveDefinition, Player } from "./types";
 import { passiveTray, pipValue, trayAction, type TrayItem } from "./calculator-passive-tray";
 import { passiveLineIcons } from "./calculator-line-icons";
+import { passiveArtImages } from "./calculator-clean-art";
 import { useApp } from "./provider";
 
 const WORDS: Record<string, Record<string, string>> = {
@@ -42,16 +43,19 @@ export function PassiveTray({
   };
   const [box, setBox] = useState(0);
   const [content, setContent] = useState(0);
-  const [level, setLevel] = useState(0);
+  // 0 크게 · 1 넉넉하게 · 2 기본 · 3 안내 숨김 · 4 두 칸 배치. 들어가는 가장 큰 단계를 고른다.
+  const [step, setStep] = useState(0);
+  const grow = Math.max(0, 2 - step);
+  const level = Math.max(0, step - 2);
   const shape = items.map((i) => i.key + (i.hint ? "+" : "")).join(",");
-  // 항목 구성이나 공간이 바뀌면 다시 넓은 모양부터 맞춰 본다.
-  useEffect(() => setLevel(0), [shape, box]);
+  // 항목 구성이나 공간이 바뀌면 가장 큰 모양부터 다시 맞춰 본다.
+  useEffect(() => setStep(0), [shape, box]);
   useEffect(() => {
-    if (box > 0 && content > box + 1 && level < 2) setLevel(level + 1);
-  }, [content, box, level]);
+    if (box > 0 && content > box + 1 && step < 4) setStep(step + 1);
+  }, [content, box, step]);
   return (
     <View style={s.box} onLayout={(e) => setBox(Math.round(e.nativeEvent.layout.height))}>
-      <View style={[s.tray, level === 2 && { gap: 4 }]} onLayout={(e) => setContent(Math.round(e.nativeEvent.layout.height))}>
+      <View style={[s.tray, level === 2 && { gap: 4 }, grow > 0 && { gap: 8 }]} onLayout={(e) => setContent(Math.round(e.nativeEvent.layout.height))}>
         {items.map((item) => (
           <Item
             key={item.key}
@@ -60,6 +64,7 @@ export function PassiveTray({
             accent={accent}
             secondary={secondary}
             level={level}
+            grow={grow}
             locked={disabled}
             send={send}
           />
@@ -76,6 +81,7 @@ function Item({
   accent,
   secondary,
   level,
+  grow,
   locked,
   send,
 }: {
@@ -84,6 +90,7 @@ function Item({
   accent: string;
   secondary: string;
   level: number;
+  grow: number;
   locked: boolean;
   send: (key: string, value: unknown) => void;
 }) {
@@ -94,11 +101,15 @@ function Item({
     half ? s.half : s.full,
     level >= 1 && { paddingVertical: 5 },
     level === 2 && { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 9 },
+    grow > 0 && { paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderRadius: 14 },
     item.active && { borderColor: accent + "c0", backgroundColor: accent + "33" },
     item.kind === "status" && s.status,
     item.attention && { borderColor: GOLD, borderWidth: 2 },
   ];
-  const icon = item.symbol && level < 2 ? passiveLineIcons[item.symbol] : undefined;
+  // 넉넉한 단계에서는 선 아이콘 대신 패시브 그림을 크게 보여 버튼을 구분하게 한다.
+  const picture = grow > 0 && item.art ? passiveArtImages[item.art] : undefined;
+  const pictureSize = grow === 2 ? 60 : 44;
+  const icon = !picture && item.symbol && level < 2 ? passiveLineIcons[item.symbol] : undefined;
   const pill = (text: string) => (
     <Text
       style={[
@@ -111,14 +122,25 @@ function Item({
     </Text>
   );
   const head = (extra?: React.ReactNode, inline = false) => (
-    <View style={[s.head, inline && level < 2 && { flexShrink: 1, maxWidth: "42%" }]}>
+    <View style={[s.head, inline && level < 2 && !grow && { flexShrink: 1, maxWidth: "42%" }]}>
+      {picture !== undefined && (
+        <Image
+          source={picture}
+          resizeMode="contain"
+          style={[
+            { width: pictureSize, height: pictureSize, borderRadius: 10, opacity: item.active ? 1 : 0.55 },
+            item.active && { borderWidth: 2, borderColor: accent },
+          ]}
+          accessibilityIgnoresInvertColors
+        />
+      )}
       {icon !== undefined && (
-        <Image source={icon} style={[s.icon, { opacity: item.active ? 1 : 0.55 }]} accessibilityIgnoresInvertColors />
+        <Image source={icon} style={[s.icon, grow > 0 && { width: 24, height: 24 }, { opacity: item.active ? 1 : 0.55 }]} accessibilityIgnoresInvertColors />
       )}
       <Text
         numberOfLines={1}
         maxFontSizeMultiplier={1.2}
-        style={[s.name, level === 2 && { fontSize: 12 }, !item.enabled && !item.active && item.kind !== "status" && s.muted]}
+        style={[s.name, level === 2 && { fontSize: 12 }, grow > 0 && { fontSize: grow === 2 ? 17 : 15.5 }, !item.enabled && !item.active && item.kind !== "status" && s.muted]}
       >
         {item.label}
       </Text>
@@ -132,6 +154,17 @@ function Item({
       </Text>
     ) : null;
   const small = level === 2;
+  // 확대 단계에서 누르는 칸의 높이
+  const tap = grow === 2 ? 58 : grow === 1 ? 44 : 0;
+  const pressHeight = grow === 2 ? 84 : grow === 1 ? 64 : small ? 32 : level ? 38 : 46;
+  // 확대 단계에서는 이름 줄 아래에 조작 줄을 통째로 둔다.
+  const stacked = small || grow > 0;
+  const lineStyle = stacked ? { gap: grow ? 8 : 3 } : s.line;
+  // 세로로 쌓을 때 flex: 1이 남으면 높이 기준이 0이 되어 칸 줄이 카드 밖으로 넘친다(이름 줄과 겹침).
+  // 세로로 쌓을 때는 flex를 아예 쓰지 않고(높이 기준 0 방지) 줄 높이를 명시한다.
+  const rowFill = stacked
+    ? { flexGrow: 0, flexShrink: 0, flexBasis: "auto" as const, alignSelf: "stretch" as const }
+    : { flexGrow: 1, flexShrink: 1, flexBasis: 0 };
 
   if (item.kind === "toggle" || item.kind === "trigger") {
     const trigger = item.kind === "trigger";
@@ -146,7 +179,7 @@ function Item({
         accessibilityState={{ disabled: blocked, checked: trigger ? undefined : item.active, selected: trigger ? item.active : undefined }}
         disabled={blocked}
         onPress={() => send(item.key, !item.active)}
-        style={({ pressed }) => [card, { minHeight: small ? 32 : level ? 38 : 46, justifyContent: "center" }, pressed && { opacity: 0.8 }]}
+        style={({ pressed }) => [card, { minHeight: pressHeight, justifyContent: "center" }, pressed && { opacity: 0.8 }]}
       >
         {head(pill(state!))}
         {hint}
@@ -159,7 +192,7 @@ function Item({
         accessible
         accessibilityRole="text"
         accessibilityLabel={`${item.label} ${item.active ? words.on : words.off}. ${item.hint}`}
-        style={[card, { minHeight: small ? 32 : level ? 38 : 46, justifyContent: "center" }]}
+        style={[card, { minHeight: grow ? 52 : small ? 32 : level ? 38 : 46, justifyContent: "center" }]}
       >
         {head(pill((item.active ? words.on : words.off)!))}
         {hint}
@@ -168,13 +201,13 @@ function Item({
   if (item.kind === "counter") {
     const value = Number(item.value) || 0;
     const count = item.max ? `${value}/${item.max}` : `${value}${item.unit || ""}`;
-    const pipHeight = small ? 20 : level ? 24 : 28;
+    const pipHeight = tap || (small ? 20 : level ? 24 : 28);
     return (
       <View style={card}>
-        <View style={small ? { gap: 3 } : s.line}>
-          {head(<Text style={[s.count, item.active && { color: secondary }]}>{count}</Text>, true)}
-          <View style={s.counter}>
-            <Step small={small} label={`${item.label} −1`} text="−" disabled={blocked || value <= 0} onPress={() => send(item.key, value - 1)} />
+        <View style={lineStyle}>
+          {head(<Text style={[s.count, grow > 0 && { fontSize: 16 }, item.active && { color: secondary }]}>{count}</Text>, true)}
+          <View style={[s.counter, rowFill, { minHeight: Math.max(pipHeight, tap || (small ? 26 : 32)) }, grow > 0 && { gap: 8 }]}>
+            <Step small={small} size={tap} label={`${item.label} −1`} text="−" disabled={blocked || value <= 0} onPress={() => send(item.key, value - 1)} />
             {item.max && item.max <= 12 ? (
               <View style={s.pips}>
                 {Array.from({ length: item.max }, (_, index) => (
@@ -200,6 +233,7 @@ function Item({
             )}
             <Step
               small={small}
+              size={tap}
               label={`${item.label} +1`}
               text="+"
               disabled={blocked || (item.max != null && value >= item.max)}
@@ -214,9 +248,12 @@ function Item({
   if (item.kind === "choice")
     return (
       <View style={card}>
-        <View style={small ? { gap: 3 } : s.line}>
+        <View style={lineStyle}>
           {head(undefined, true)}
-          <View accessibilityRole="radiogroup" style={s.choices}>
+          <View
+            accessibilityRole="radiogroup"
+            style={[s.choices, rowFill, { minHeight: (tap || (small ? 24 : level ? 28 : 32)) + 6 }]}
+          >
             {(item.choices || []).map((choice) => (
               <Pressable
                 key={choice.value}
@@ -227,11 +264,20 @@ function Item({
                 onPress={() => send(item.key, choice.value)}
                 style={[
                   s.choice,
-                  { minHeight: small ? 24 : level ? 28 : 32 },
+                  { minHeight: tap || (small ? 24 : level ? 28 : 32) },
+                  grow > 0 && !!choice.art && { minHeight: grow === 2 ? 86 : 70, gap: 3, paddingVertical: 4 },
                   choice.selected && { backgroundColor: accent },
                   blocked && !choice.selected && { opacity: 0.4 },
                 ]}
               >
+                {grow > 0 && choice.art && passiveArtImages[choice.art] !== undefined && (
+                  <Image
+                    source={passiveArtImages[choice.art]!}
+                    resizeMode="contain"
+                    style={{ width: grow === 2 ? 48 : 36, height: grow === 2 ? 48 : 36, borderRadius: 8, opacity: choice.selected ? 1 : 0.6 }}
+                    accessibilityIgnoresInvertColors
+                  />
+                )}
                 <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.2} style={[s.choiceText, choice.selected && { color: "#111" }]}>
                   {choice.label}
                 </Text>
@@ -256,7 +302,7 @@ function Item({
   );
 }
 
-function Step({ label, text, disabled, small, onPress }: { label: string; text: string; disabled: boolean; small: boolean; onPress: () => void }) {
+function Step({ label, text, disabled, small, size = 0, onPress }: { label: string; text: string; disabled: boolean; small: boolean; size?: number; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -265,9 +311,9 @@ function Step({ label, text, disabled, small, onPress }: { label: string; text: 
       disabled={disabled}
       hitSlop={4}
       onPress={onPress}
-      style={[s.step, small && { width: 26, height: 26 }, disabled && { opacity: 0.35 }]}
+      style={[s.step, small && { width: 26, height: 26 }, size > 0 && { width: size, height: size, borderRadius: 12 }, disabled && { opacity: 0.35 }]}
     >
-      <Text style={s.stepText}>{text}</Text>
+      <Text style={[s.stepText, size > 0 && { fontSize: size > 50 ? 26 : 22 }]}>{text}</Text>
     </Pressable>
   );
 }
@@ -309,7 +355,7 @@ const s = StyleSheet.create({
   },
   count: { color: "#9ba4b4", fontSize: 13.5, fontWeight: "900", fontVariant: ["tabular-nums"] },
   line: { flexDirection: "row", alignItems: "center", gap: 10 },
-  counter: { flex: 1, flexDirection: "row", alignItems: "center", gap: 5, minWidth: 0 },
+  counter: { flexDirection: "row", alignItems: "center", gap: 5, minWidth: 0 },
   counterValue: { flex: 1, color: "#f2f0ea", fontSize: 20, fontWeight: "900", textAlign: "center", fontVariant: ["tabular-nums"] },
   pips: { flex: 1, flexDirection: "row", gap: 4, minWidth: 0 },
   pip: {
@@ -330,7 +376,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   stepText: { color: "#f2f0ea", fontSize: 17, fontWeight: "800" },
-  choices: { flex: 1, flexDirection: "row", gap: 3, padding: 3, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)" },
+  choices: { flexDirection: "row", gap: 3, padding: 3, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.05)" },
   choice: { flex: 1, borderRadius: 8, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
   choiceText: { color: "#9ba4b4", fontSize: 12.5, fontWeight: "800" },
   input: {

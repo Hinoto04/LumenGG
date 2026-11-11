@@ -8,6 +8,7 @@ import {
   Share,
   AppState,
   BackHandler,
+  StyleSheet,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useApp } from "../src/provider";
@@ -22,10 +23,7 @@ import {
   storedShared,
   parseShareLink,
 } from "../src/shared";
-import {
-  calculatorUi,
-  calculatorLink,
-} from "../src/calculator-ui";
+import { calculatorUi, calculatorLink } from "../src/calculator-ui";
 const CharacterCalculatorBoard = React.lazy(
   () => import("../src/calculator-character-board"),
 );
@@ -35,7 +33,19 @@ import {
   isPassiveInput,
   projectPassiveInputs,
 } from "../src/calculator-passive-queue";
-import { styles, Button, Input, Choices, Notice, colors } from "../src/ui";
+import {
+  styles,
+  Badge,
+  Button,
+  Chip,
+  IconButton,
+  Input,
+  Notice,
+  Segmented,
+  colors,
+} from "../src/ui";
+import { CharacterGrid, PlayerSlot, Versus } from "../src/character-picker";
+import { SettingColumn, SettingRow, SettingSection } from "../src/setting-rows";
 import { characterWithTrait } from "../src/deck-rules";
 import { TournamentCalculatorControls } from "../src/tournament-calculator-controls";
 
@@ -60,6 +70,8 @@ export default function Calculator() {
     [p2, setP2] = useState(""),
     [now, setNow] = useState(Date.now()),
     [settings, setSettings] = useState(false),
+    [picking, setPicking] = useState<"p1" | "p2" | null>(null),
+    [gridWidth, setGridWidth] = useState(0),
     [ready, setReady] = useState(false);
   const [p1Trait, setP1Trait] = useState(""),
     [p2Trait, setP2Trait] = useState("");
@@ -396,12 +408,18 @@ export default function Calculator() {
         state?.players.p2.character?.id || catalog?.characters[0]?.id || "",
       ),
     );
+    setPicking(null);
     setSettings(true);
   }
-  const choices = (catalog?.characters || []).map((c) => ({
-    key: String(c.id),
-    label: localized(c, language),
-  }));
+  const defaultId = String(
+    catalog?.characters.find((c) => c.traits?.length)?.id ||
+      catalog?.characters[0]?.id ||
+      "",
+  );
+  const p1Id = p1 || defaultId,
+    p2Id = p2 || defaultId;
+  const p1Character = catalog?.characters.find((c) => String(c.id) === p1Id);
+  const p2Character = catalog?.characters.find((c) => String(c.id) === p2Id);
   if (params.tournament && (!user || !session?.tournament || !state)) {
     return (
       <View
@@ -511,161 +529,201 @@ export default function Calculator() {
           }
         }}
         setup={
-          <>
-            <Choices
-              value={mode}
-              onChange={changeMode}
-              values={[
-                { key: "local", label: t("로컬") },
-                { key: "shared", label: t("공유") },
-              ]}
-            />
-            <View style={{ flexDirection: "row", gap: 16 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.title}>{t("플레이어1")}</Text>
-                <CharacterStrip
-                  value={
-                    p1 ||
-                    String(
-                      catalog?.characters.find((c) => c.traits?.length)?.id ||
-                        catalog?.characters[0]?.id ||
-                        "",
-                    )
-                  }
-                  onChange={(id) => {
-                    setP1(id);
-                    setP1Trait("");
-                  }}
-                  values={choices}
-                  label={t("플레이어1")}
-                />
-                <Choices
-                  value={p1Trait}
-                  onChange={setP1Trait}
-                  values={(
-                    catalog?.characters.find(
-                      (c) =>
-                        String(c.id) ===
-                        (p1 ||
-                          String(
-                            catalog.characters.find((c) => c.traits?.length)
-                              ?.id || catalog.characters[0]?.id,
-                          )),
-                    )?.traits || []
-                  ).map((t) => ({
-                    key: String(t.id),
-                    label: localized(t, language) || t.name,
-                  }))}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.title}>{t("플레이어2")}</Text>
-                <CharacterStrip
-                  value={
-                    p2 ||
-                    String(
-                      catalog?.characters.find((c) => c.traits?.length)?.id ||
-                        catalog?.characters[0]?.id ||
-                        "",
-                    )
-                  }
-                  onChange={(id) => {
-                    setP2(id);
-                    setP2Trait("");
-                  }}
-                  values={choices}
-                  label={t("플레이어2")}
-                />
-                <Choices
-                  value={p2Trait}
-                  onChange={setP2Trait}
-                  values={(
-                    catalog?.characters.find(
-                      (c) =>
-                        String(c.id) ===
-                        (p2 ||
-                          String(
-                            catalog.characters.find((c) => c.traits?.length)
-                              ?.id || catalog.characters[0]?.id,
-                          )),
-                    )?.traits || []
-                  ).map((t) => ({
-                    key: String(t.id),
-                    label: localized(t, language) || t.name,
-                  }))}
-                />
-              </View>
-            </View>
-            <Button
-              label={state ? "새 계산기 시작" : "시작"}
-              disabled={
-                !ready ||
-                !catalog?.characters.length ||
-                (mode === "shared" && !online)
-              }
-              onPress={async () => {
-                if (await create(mode === "shared")) setSettings(false);
-              }}
-            />
-            {mode === "shared" && (
-              <View style={[styles.panel, { marginTop: 16 }]}>
-                {!!session && (
-                  <Notice
-                    text={
-                      connected && online ? "연결됨" : "재연결 중 · 제어 잠금"
+          <SettingColumn>
+            <SettingSection title="계산기">
+              <SettingRow
+                title="계산기 방식"
+                description={
+                  mode === "local"
+                    ? "이 기기에서만 기록합니다. 인터넷이 없어도 됩니다."
+                    : "링크로 다른 기기와 같은 계산기를 함께 보고 조작합니다."
+                }
+              >
+                <View style={{ width: 240 }}>
+                  <Segmented
+                    value={mode}
+                    onChange={changeMode}
+                    values={[
+                      {
+                        key: "local",
+                        label: "로컬",
+                        icon: "phone-portrait-outline",
+                      },
+                      { key: "shared", label: "공유", icon: "people-outline" },
+                    ]}
+                  />
+                </View>
+              </SettingRow>
+            </SettingSection>
+            <SettingSection title="플레이어">
+              {picking ? (
+                <View style={{ marginBottom: 16 }}>
+                  <View style={setupStyles.pickHeader}>
+                    <IconButton
+                      icon="chevron-back"
+                      label="뒤로"
+                      onPress={() => setPicking(null)}
+                    />
+                    <Text style={setupStyles.pickTitle}>
+                      {t(picking === "p1" ? "플레이어1" : "플레이어2") +
+                        " · " +
+                        t("캐릭터 선택")}
+                    </Text>
+                  </View>
+                  <View
+                    onLayout={(event) =>
+                      setGridWidth(event.nativeEvent.layout.width)
                     }
-                  />
-                )}
-                <Input
-                  accessibilityLabel={t("공유 링크")}
-                  value={link}
-                  onChangeText={setLink}
-                  placeholder={t("공유 링크")}
-                />
-                <View style={styles.row}>
-                  <Button
-                    label="참여"
-                    disabled={!online}
-                    onPress={async () => {
-                      try {
-                        const next = parseShareLink(link);
-                        await saveShared(next);
-                        setSession(next);
-                        setShared(null);
-                        setError("");
-                      } catch (err) {
-                        setError(userMessage(err));
-                      }
-                    }}
-                  />
-                  {session && (
-                    <>
-                      <Button
-                        label="조회 링크"
-                        onPress={() =>
-                          Share.share({
-                            message: absoluteUrl(
-                              calculatorLink(
-                                "/battlelog/session/" +
-                                  session.view_token +
-                                  "/",
-                                ui,
-                              ),
-                            ),
-                          })
-                        }
+                  >
+                    {gridWidth > 0 && (
+                      <CharacterGrid
+                        characters={catalog?.characters || []}
+                        value={picking === "p1" ? p1Id : p2Id}
+                        width={gridWidth}
+                        size={56}
+                        onChange={(id) => {
+                          if (picking === "p1") {
+                            setP1(id);
+                            setP1Trait("");
+                          } else {
+                            setP2(id);
+                            setP2Trait("");
+                          }
+                          setPicking(null);
+                        }}
                       />
-                      {!!session.control_token && (
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <View style={setupStyles.versusRow}>
+                  {(["p1", "p2"] as const).map((side) => {
+                    const character = side === "p1" ? p1Character : p2Character;
+                    const trait = side === "p1" ? p1Trait : p2Trait;
+                    const setTrait = side === "p1" ? setP1Trait : setP2Trait;
+                    const slot = (
+                      <PlayerSlot
+                        key={side}
+                        label={side === "p1" ? "플레이어1" : "플레이어2"}
+                        character={character}
+                        accent={side === "p1" ? "#5fc8c0" : colors.accent}
+                        onPress={() => setPicking(side)}
+                      >
+                        {!!character?.traits?.length && (
+                          <View style={setupStyles.traits}>
+                            {character.traits.map((item) => (
+                              <Chip
+                                key={item.id}
+                                label={localized(item, language) || item.name}
+                                selected={trait === String(item.id)}
+                                onPress={() =>
+                                  setTrait(
+                                    trait === String(item.id)
+                                      ? ""
+                                      : String(item.id),
+                                  )
+                                }
+                              />
+                            ))}
+                          </View>
+                        )}
+                      </PlayerSlot>
+                    );
+                    return side === "p1" ? (
+                      slot
+                    ) : (
+                      <React.Fragment key="p2">
+                        <Versus />
+                        {slot}
+                      </React.Fragment>
+                    );
+                  })}
+                </View>
+              )}
+              <Button
+                label={state ? "새 계산기 시작" : "시작"}
+                icon="play"
+                variant="primary"
+                block
+                disabled={
+                  !ready ||
+                  !catalog?.characters.length ||
+                  (mode === "shared" && !online)
+                }
+                onPress={async () => {
+                  if (await create(mode === "shared")) setSettings(false);
+                }}
+              />
+            </SettingSection>
+            {mode === "shared" && (
+              <SettingSection title="공유">
+                {!!session && (
+                  <SettingRow
+                    title="연결 상태"
+                    description={
+                      connected && online
+                        ? "다른 기기와 실시간으로 맞춰집니다."
+                        : "다시 연결하는 동안 조작이 잠깁니다."
+                    }
+                  >
+                    <Badge
+                      label={connected && online ? "연결됨" : "재연결 중"}
+                      tone={connected && online ? "success" : "danger"}
+                    />
+                  </SettingRow>
+                )}
+                <SettingRow
+                  title="링크로 참여"
+                  description="받은 공유 링크를 붙여 넣고 참여합니다."
+                  below={
+                    <View style={setupStyles.linkRow}>
+                      <View style={{ flex: 1 }}>
+                        <Input
+                          accessibilityLabel={t("공유 링크")}
+                          value={link}
+                          onChangeText={setLink}
+                          placeholder={t("공유 링크")}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          style={{ marginBottom: 0 }}
+                        />
+                      </View>
+                      <Button
+                        label="참여"
+                        icon="enter-outline"
+                        disabled={!online || !link.trim()}
+                        onPress={async () => {
+                          try {
+                            const next = parseShareLink(link);
+                            await saveShared(next);
+                            setSession(next);
+                            setShared(null);
+                            setError("");
+                          } catch (err) {
+                            setError(userMessage(err));
+                          }
+                        }}
+                      />
+                    </View>
+                  }
+                />
+                {session && (
+                  <>
+                    <SettingRow
+                      title="링크 보내기"
+                      description="조회 링크는 보기만, 제어 링크는 HP·FP 조작까지 할 수 있습니다."
+                    >
+                      <View style={setupStyles.buttons}>
                         <Button
-                          label="제어 링크"
+                          label="조회 링크"
+                          icon="eye-outline"
+                          size="sm"
                           onPress={() =>
                             Share.share({
                               message: absoluteUrl(
                                 calculatorLink(
                                   "/battlelog/session/" +
                                     session.view_token +
-                                    "/control/" +
-                                    session.control_token +
                                     "/",
                                   ui,
                                 ),
@@ -673,63 +731,77 @@ export default function Calculator() {
                             })
                           }
                         />
-                      )}
+                        {!!session.control_token && (
+                          <Button
+                            label="제어 링크"
+                            icon="game-controller-outline"
+                            size="sm"
+                            onPress={() =>
+                              Share.share({
+                                message: absoluteUrl(
+                                  calculatorLink(
+                                    "/battlelog/session/" +
+                                      session.view_token +
+                                      "/control/" +
+                                      session.control_token +
+                                      "/",
+                                    ui,
+                                  ),
+                                ),
+                              })
+                            }
+                          />
+                        )}
+                      </View>
+                    </SettingRow>
+                    <SettingRow
+                      title="공유 계산기 나가기"
+                      description="이 기기에서 연결만 끊습니다. 계산기 기록은 남습니다."
+                      danger
+                    >
                       <Button
                         label="나가기"
+                        icon="exit-outline"
+                        danger
+                        size="sm"
                         onPress={async () => {
                           await saveShared(null);
                           setSession(null);
                           setShared(null);
                         }}
                       />
-                    </>
-                  )}
-                </View>
-              </View>
+                    </SettingRow>
+                  </>
+                )}
+              </SettingSection>
             )}
-          </>
+          </SettingColumn>
         }
       />
     </Suspense>
   );
 }
 
-function CharacterStrip({
-  value,
-  values,
-  onChange,
-  label,
-}: {
-  value: string;
-  values: { key: string; label: string }[];
-  onChange: (value: string) => void;
-  label: string;
-}) {
-  return (
-    <ScrollView
-      horizontal
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ gap: 8, paddingBottom: 14 }}
-    >
-      {values.map((item) => (
-        <Pressable
-          key={item.key}
-          accessibilityRole="radio"
-          accessibilityState={{ checked: value === item.key }}
-          accessibilityLabel={`${label}: ${item.label}`}
-          onPress={() => onChange(item.key)}
-          style={[
-            styles.button,
-            {
-              minHeight: 44,
-              justifyContent: "center",
-              backgroundColor: value === item.key ? "#4b3d24" : colors.panel,
-            },
-          ]}
-        >
-          <Text style={styles.buttonText}>{item.label}</Text>
-        </Pressable>
-      ))}
-    </ScrollView>
-  );
-}
+const setupStyles = StyleSheet.create({
+  versusRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 12,
+    marginBottom: 16,
+  },
+  traits: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
+  },
+  pickHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 8,
+  },
+  pickTitle: { color: colors.text, fontSize: 17, fontWeight: "700" },
+  linkRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  buttons: { flexDirection: "row", gap: 8 },
+});

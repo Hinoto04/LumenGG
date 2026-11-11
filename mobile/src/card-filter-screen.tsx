@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Text, View } from "react-native";
-import { FilterChoices, FilterSheet, filterStyles } from "./filter-sheet";
+import {
+  FilterChoices,
+  FilterCharacters,
+  FilterSheet,
+  filterStyles,
+} from "./filter-sheet";
 import { useApp } from "./provider";
 import { localized, normalizeSearch } from "./core";
 import {
@@ -93,13 +98,11 @@ export function CardFilterScreen({
       onReset={() => setDraft({ ...emptyCardFilters })}
       onApply={() => onApply({ ...draft })}
     >
-      {choices("캐릭터", "character", [
-        { key: "", label: t("전체") },
-        ...(catalog?.characters || []).map((c) => ({
-          key: String(c.id),
-          label: localized(c, language),
-        })),
-      ])}
+      <FilterCharacters
+        value={draft.character}
+        characters={catalog?.characters || []}
+        onChange={(value) => set("character", value)}
+      />
       {choices("카드 종류", "type", [
         { key: "", label: t("전체") },
         ...[...new Set(catalog?.cards.map((c) => c.type) || [])]

@@ -9,10 +9,13 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "./provider";
-import { colors } from "./ui";
+import { Icon, colors, radius } from "./ui";
+import { CharacterGrid } from "./character-picker";
+import type { Character } from "./types";
 
 export function FilterSheet({
   visible,
@@ -56,7 +59,7 @@ export function FilterSheet({
               onPress={onClose}
               style={filterStyles.close}
             >
-              <Text style={filterStyles.back}>‹</Text>
+              <Icon name="chevron-back" size={26} color={colors.text} />
             </Pressable>
             <Text style={filterStyles.title}>{t(title)}</Text>
             <Pressable
@@ -151,6 +154,36 @@ export function FilterChoices({
     </View>
   );
 }
+/** 필터 화면의 캐릭터 선택. PC 캐릭터 선택처럼 얼굴 격자로 보여 준다. */
+export function FilterCharacters({
+  title = "캐릭터",
+  value,
+  characters,
+  onChange,
+}: {
+  title?: string;
+  value: string;
+  characters: Character[];
+  onChange: (value: string) => void;
+}) {
+  const { t } = useApp();
+  const { width } = useWindowDimensions();
+  return (
+    <View style={filterStyles.section}>
+      <Text style={filterStyles.heading}>{t(title)}</Text>
+      <View style={{ paddingHorizontal: 16 }}>
+        <CharacterGrid
+          characters={characters}
+          value={value}
+          onChange={onChange}
+          allLabel="전체"
+          width={Math.min(width, 720) - 32}
+          size={52}
+        />
+      </View>
+    </View>
+  );
+}
 export const filterStyles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   header: {
@@ -170,10 +203,10 @@ export const filterStyles = StyleSheet.create({
   back: { color: colors.text, fontSize: 38, lineHeight: 40 },
   title: { flex: 1, color: colors.text, fontSize: 21, fontWeight: "700" },
   reset: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12 },
-  section: { marginBottom: 16 },
+  section: { marginBottom: 22 },
   heading: {
-    color: colors.text,
-    fontSize: 16,
+    color: colors.muted,
+    fontSize: 13,
     fontWeight: "700",
     marginHorizontal: 16,
     marginBottom: 9,
@@ -185,16 +218,16 @@ export const filterStyles = StyleSheet.create({
     paddingBottom: 4,
   },
   chip: {
-    minHeight: 44,
+    minHeight: 40,
     justifyContent: "center",
     paddingHorizontal: 16,
     backgroundColor: colors.panel,
     borderColor: colors.line,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: radius.pill,
   },
-  chipText: { color: colors.text, fontSize: 15 },
-  selected: { borderColor: colors.accent, backgroundColor: "#392e1c" },
+  chipText: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  selected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   range: {
     flexDirection: "row",
     alignItems: "center",
@@ -212,9 +245,9 @@ export const filterStyles = StyleSheet.create({
     minHeight: 52,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
+    borderRadius: radius.md,
     backgroundColor: colors.accent,
   },
-  applyText: { color: colors.bg, fontSize: 17, fontWeight: "800" },
+  applyText: { color: colors.onAccent, fontSize: 17, fontWeight: "800" },
   error: { color: colors.danger, marginBottom: 10 },
 });

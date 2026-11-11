@@ -6,7 +6,7 @@ import {
   emptyCollectionFilters,
   type CollectionFilters,
 } from "./collection-data";
-import { FilterChoices, FilterSheet } from "./filter-sheet";
+import { FilterChoices, FilterCharacters, FilterSheet } from "./filter-sheet";
 
 export function CollectionFilterScreen({
   visible,
@@ -54,17 +54,10 @@ export function CollectionFilterScreen({
           })),
         ]}
       />
-      <FilterChoices
-        title="캐릭터"
+      <FilterCharacters
         value={draft.character}
+        characters={catalog?.characters || []}
         onChange={(value) => set("character", value)}
-        values={[
-          all,
-          ...(catalog?.characters || []).map((character) => ({
-            key: String(character.id),
-            label: localized(character, language),
-          })),
-        ]}
       />
       <FilterChoices
         title="레어도"

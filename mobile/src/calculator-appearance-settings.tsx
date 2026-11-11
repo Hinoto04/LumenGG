@@ -1,5 +1,5 @@
 import React, { useEffect, useSyncExternalStore } from "react";
-import { Pressable, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import {
   calculatorAppearance,
   defaultAppearance,
@@ -8,7 +8,8 @@ import {
 } from "./calculator-appearance";
 import { preference, setPreference } from "./storage";
 import { useApp } from "./provider";
-import { Choices, styles } from "./ui";
+import { Button, IconButton, Segmented, colors, radius } from "./ui";
+import { SettingColumn, SettingRow, SettingSection } from "./setting-rows";
 
 let current = defaultAppearance,
   loaded = false,
@@ -52,76 +53,97 @@ export function useCalculatorAppearance() {
 export function CalculatorAppearanceSettings() {
   const { t } = useApp();
   const value = useCalculatorAppearance();
+  const step = (delta: number) =>
+    setCalculatorAppearance({ brightness: value.brightness + delta });
   return (
-    <View style={{ gap: 8, marginBottom: 16 }}>
-      <Text style={styles.title}>{t("화면 스타일")}</Text>
-      <Choices
-        value={value.style}
-        onChange={(style) =>
-          setCalculatorAppearance({
-            style: style === "clean" ? "clean" : "illustrated",
-          })
-        }
-        values={[
-          { key: "illustrated", label: t("일러스트") },
-          { key: "clean", label: t("깔끔하게") },
-        ]}
-      />
-      {value.style === "illustrated" && (
-        <>
-          <Text style={styles.text}>
-            {t("배경 밝기")} · {value.brightness}%
-          </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            {[-10, 10].map((step) => (
-              <Pressable
-                key={step}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  t("배경 밝기") + (step < 0 ? " −10" : " +10")
-                }
-                disabled={
-                  step < 0 ? value.brightness === 0 : value.brightness === 100
-                }
-                onPress={() =>
-                  setCalculatorAppearance({
-                    brightness: value.brightness + step,
-                  })
-                }
-                style={{
-                  minWidth: 64,
-                  minHeight: 44,
-                  borderRadius: 8,
-                  backgroundColor: "#23324a",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={styles.text}>{step < 0 ? "−" : "+"}</Text>
-              </Pressable>
-            ))}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("권장 밝기")}
-              onPress={() =>
+    <SettingColumn>
+      <SettingSection
+        title="화면"
+        footer="화면 설정은 이 기기에만 저장됩니다."
+        first
+      >
+        <SettingRow
+          title="화면 스타일"
+          description={
+            value.style === "illustrated"
+              ? "캐릭터 일러스트를 배경에 깔고 패시브를 그림으로 보여 줍니다."
+              : "배경 그림 없이 단색 화면으로 숫자만 또렷하게 보여 줍니다."
+          }
+        >
+          <View style={{ width: 260 }}>
+            <Segmented
+              value={value.style}
+              onChange={(style) =>
                 setCalculatorAppearance({
-                  brightness: defaultAppearance.brightness,
+                  style: style === "clean" ? "clean" : "illustrated",
                 })
               }
-              style={{
-                minHeight: 44,
-                paddingHorizontal: 14,
-                justifyContent: "center",
-              }}
-            >
-              <Text style={styles.text}>{t("권장 밝기")} · 35%</Text>
-            </Pressable>
+              values={[
+                {
+                  key: "illustrated",
+                  label: "일러스트",
+                  icon: "image-outline",
+                },
+                { key: "clean", label: "깔끔하게", icon: "contrast-outline" },
+              ]}
+            />
           </View>
-        </>
-      )}
-      <Text style={styles.muted}>
-        {t("화면 설정은 이 기기에만 저장됩니다.")}
-      </Text>
-    </View>
+        </SettingRow>
+        {value.style === "illustrated" && (
+          <SettingRow
+            title={t("배경 밝기") + " · " + value.brightness + "%"}
+            description="배경 그림이 숫자를 가리면 낮추세요. 권장 35%"
+          >
+            <View style={appearanceStyles.brightness}>
+              <IconButton
+                icon="remove"
+                label={t("배경 밝기") + " −10"}
+                filled
+                disabled={value.brightness === 0}
+                onPress={() => step(-10)}
+              />
+              <View style={appearanceStyles.meter}>
+                <View
+                  style={[
+                    appearanceStyles.fill,
+                    { width: `${value.brightness}%` },
+                  ]}
+                />
+              </View>
+              <IconButton
+                icon="add"
+                label={t("배경 밝기") + " +10"}
+                filled
+                disabled={value.brightness === 100}
+                onPress={() => step(10)}
+              />
+              <Button
+                label="권장 밝기"
+                variant="ghost"
+                size="sm"
+                disabled={value.brightness === defaultAppearance.brightness}
+                onPress={() =>
+                  setCalculatorAppearance({
+                    brightness: defaultAppearance.brightness,
+                  })
+                }
+              />
+            </View>
+          </SettingRow>
+        )}
+      </SettingSection>
+    </SettingColumn>
   );
 }
+
+const appearanceStyles = StyleSheet.create({
+  brightness: { flexDirection: "row", alignItems: "center", gap: 6 },
+  meter: {
+    width: 90,
+    height: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface2,
+    overflow: "hidden",
+  },
+  fill: { height: "100%", backgroundColor: colors.accent },
+});

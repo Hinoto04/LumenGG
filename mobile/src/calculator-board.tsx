@@ -20,12 +20,13 @@ import type { Action, CalcState, Player } from "./types";
 import { useApp } from "./provider";
 import { localized } from "./core";
 import { PassivePanel } from "./passive-panel";
-import { CalculatorHistory } from "./calculator-history";
+import { CalculatorHistoryPanel } from "./calculator-history";
 import { hpAppearance } from "./calculator-display";
 import { shieldAmount } from "./calculator-shield";
 import { ShieldPassiveRow } from "./calculator-shield-controls";
 import type { PendingHp, HpTarget } from "./hp-queue";
-import { Button, CachedImage, Input, Notice, colors, styles } from "./ui";
+import { Button, CachedImage, IconButton, Input, Notice, colors, styles } from "./ui";
+import { SettingColumn, SettingRow, SettingSection } from "./setting-rows";
 
 const CharacterFrame = React.createContext(false);
 
@@ -89,6 +90,8 @@ export function CalculatorBoard({
   const [damageTarget, setDamageTarget] = useState<"p1" | "p2" | null>(null);
   const [damage, setDamage] = useState("100");
   const characterFrame = appearance === "character";
+  // 세로 화면: [P1 / 가운데 띠 / P2]로 쌓는다(웹 세로 화면과 같은 구성).
+  const portrait = height > width;
   const compact = height < 390;
   const centerWidth = characterFrame
     ? width < 900
@@ -115,9 +118,9 @@ export function CalculatorBoard({
         (error && !setupOpen ? 44 : 0),
     ),
   );
-  const timerFontSize = Math.floor(
-    Math.min(96, timerHeight * 0.56, (centerWidth - 24) * 0.75),
-  );
+  const timerFontSize = portrait
+    ? 30
+    : Math.floor(Math.min(96, timerHeight * 0.56, (centerWidth - 24) * 0.75));
   function confirmReset(sudden: boolean) {
     if (!state) return;
     Alert.alert(
@@ -388,7 +391,7 @@ export function CalculatorBoard({
       >
         <StatusBar hidden />
         {!!error && !setupOpen && <Notice text={error} />}
-        <View style={board.layout}>
+        <View style={[board.layout, portrait && { flexDirection: "column", gap: 6 }]}>
           {state ? (
             renderPlayer ? (
               renderPlayer("p1", () => setDamageTarget("p1"))
@@ -403,7 +406,7 @@ export function CalculatorBoard({
           <View
             style={[
               board.center,
-              { width: centerWidth },
+              portrait ? board.centerPortrait : { width: centerWidth },
               characterFrame && {
                 padding: 6,
                 backgroundColor: "#131823",
@@ -414,7 +417,7 @@ export function CalculatorBoard({
               },
             ]}
           >
-            <View style={board.centerTop}>
+            <View style={[board.centerTop, portrait && { width: 150 }]}>
               <SmallButton
                 label={
                   state?.party
@@ -475,7 +478,9 @@ export function CalculatorBoard({
                   borderRadius: 16,
                 },
                 state?.timer.is_running && { borderColor: colors.accent },
-                { height: timerHeight, minHeight: timerHeight },
+                portrait
+                  ? { flexGrow: 1, flexDirection: "row", gap: 8, height: 44, minHeight: 44 }
+                  : { height: timerHeight, minHeight: timerHeight },
               ]}
             >
               <Text
@@ -497,6 +502,7 @@ export function CalculatorBoard({
             <View
               style={[
                 board.centerActions,
+                portrait && { gap: 6 },
                 characterFrame && { gap: 2, justifyContent: "center" },
               ]}
             >
@@ -541,6 +547,7 @@ export function CalculatorBoard({
                 onPress={() => confirmReset(true)}
                 style={[
                   board.sudden,
+                  portrait && { flexGrow: 1, minWidth: 110, paddingHorizontal: 12 },
                   characterFrame && { minHeight: 44 },
                   state?.sudden_death && { backgroundColor: "#592631" },
                   disabled && { opacity: 0.4 },
@@ -578,23 +585,30 @@ export function CalculatorBoard({
           <Notice text={error} />
           {setup}
           {!!state && (
-            <View style={{ marginTop: 14 }}>
-              <Button
-                label="전체 초기화"
-                disabled={disabled}
-                danger
-                onPress={() => confirmReset(false)}
-              />
-            </View>
+            <SettingColumn>
+              <SettingSection title="초기화">
+                <SettingRow
+                  title="전체 초기화"
+                  description="HP·FP·패시브·기록을 처음 상태로 되돌립니다."
+                  danger
+                >
+                  <Button
+                    label="초기화"
+                    size="sm"
+                    disabled={disabled}
+                    danger
+                    onPress={() => confirmReset(false)}
+                  />
+                </SettingRow>
+              </SettingSection>
+            </SettingColumn>
           )}
         </LandscapeModal>
-        <LandscapeModal
+        <CalculatorHistoryPanel
+          state={state}
           visible={historyOpen}
-          title={t("기록")}
           onClose={() => setHistoryOpen(false)}
-        >
-          <CalculatorHistory state={state} />
-        </LandscapeModal>
+        />
         <LandscapeModal
           visible={!!damageTarget}
           title={t("대미지 적용")}
@@ -689,12 +703,12 @@ export function LandscapeModal({
       onRequestClose={onClose}
       presentationStyle="fullScreen"
       animationType="fade"
-      supportedOrientations={["landscape", "landscape-left", "landscape-right"]}
+      supportedOrientations={["portrait", "landscape", "landscape-left", "landscape-right"]}
     >
       <SafeAreaView style={board.modal}>
         <View style={board.modalHead}>
           <Text style={board.modalTitle}>{title}</Text>
-          <SmallButton label={t("닫기")} icon="×" onPress={onClose} />
+          <IconButton icon="close" label={t("닫기")} onPress={onClose} />
         </View>
         <ScrollView
           keyboardShouldPersistTaps="handled"
@@ -804,6 +818,13 @@ const board = StyleSheet.create({
   fpNumber: { color: colors.accent, fontSize: 23, fontWeight: "800" },
   passives: { flex: 1, marginTop: 4 },
   center: { gap: 8 },
+  // 세로 화면의 가운데 띠: 한두 줄로 감아 플레이어 칸에 높이를 남긴다.
+  centerPortrait: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   centerTop: {
     flexDirection: "row",
     justifyContent: "space-between",

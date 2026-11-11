@@ -5,7 +5,7 @@ import { matchingDecks } from "./deck-display";
 import { request } from "./api";
 import { userMessage } from "./errors";
 import { Notice } from "./ui";
-import { FilterChoices, FilterSheet } from "./filter-sheet";
+import { FilterChoices, FilterCharacters, FilterSheet } from "./filter-sheet";
 
 export interface DeckFilters {
   mode: "mine" | "public";
@@ -98,17 +98,13 @@ export function DeckFilterScreen({
           { key: "public", label: t("공개 덱") },
         ]}
       />
-      <FilterChoices
-        title="캐릭터"
+      <FilterCharacters
         value={draft.character}
-        onChange={(character) => setDraft((d) => ({ ...d, character }))}
-        values={[
-          { key: "", label: t("전체") },
-          ...(catalog?.characters || []).map((c) => ({
-            key: String(c.id),
-            label: localized(c, language),
-          })),
-        ]}
+        characters={catalog?.characters || []}
+        onChange={(character) =>
+          // 캐릭터를 바꾸면 다른 캐릭터의 특성 조건은 의미가 없으므로 지운다.
+          setDraft((d) => ({ ...d, character, trait: "" }))
+        }
       />
       <FilterChoices
         title="특성"
@@ -116,12 +112,16 @@ export function DeckFilterScreen({
         onChange={(trait) => setDraft((d) => ({ ...d, trait }))}
         values={[
           { key: "", label: t("전체") },
-          ...(catalog?.characters.flatMap((c) => c.traits || []) || []).map(
-            (trait) => ({
-              key: String(trait.id),
-              label: localized(trait, language) || trait.name,
-            }),
-          ),
+          ...(
+            catalog?.characters
+              .filter(
+                (c) => !draft.character || String(c.id) === draft.character,
+              )
+              .flatMap((c) => c.traits || []) || []
+          ).map((trait) => ({
+            key: String(trait.id),
+            label: localized(trait, language) || trait.name,
+          })),
         ]}
       />
       <FilterChoices

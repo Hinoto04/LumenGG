@@ -74,7 +74,8 @@ function Navigation() {
         name="calculator"
         options={{
           title: t("계산기"),
-          orientation: "landscape",
+          // 기기 방향을 따른다. 세로에서는 보드가 위아래로 쌓인다.
+          orientation: "default",
           headerShown: false,
         }}
       />

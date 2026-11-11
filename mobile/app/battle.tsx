@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Share, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { ApiError } from "../src/api";
 import {
@@ -33,7 +33,22 @@ import {
   type RoomView,
 } from "../src/battle-room";
 import { useApp } from "../src/provider";
-import { Button, Choices, Input, Notice, colors, styles } from "../src/ui";
+import {
+  Badge,
+  Button,
+  Choices,
+  Icon,
+  Input,
+  Notice,
+  SearchInput,
+  Segmented,
+  colors,
+  radius,
+  space,
+  styles,
+} from "../src/ui";
+import { BottomSheet, CharacterAvatar, PlayerSlot, Versus } from "../src/character-picker";
+import type { Character } from "../src/types";
 
 interface DeckOption {
   id: number;
@@ -59,11 +74,13 @@ function errorText(error: unknown): string {
 function DeckRow({
   deck,
   selected,
+  character,
   characterName,
   onPress,
 }: {
   deck: DeckOption;
   selected: boolean;
+  character?: Character;
   characterName: string;
   onPress: () => void;
 }) {
@@ -71,20 +88,25 @@ function DeckRow({
     <Pressable
       accessibilityRole="radio"
       accessibilityState={{ selected }}
+      accessibilityLabel={`${characterName} · ${deck.name}`}
       onPress={onPress}
-      style={{
-        padding: 12,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: selected ? colors.accent : colors.line,
-        backgroundColor: selected ? "#2a2215" : colors.panel,
-        marginBottom: 6,
-      }}
+      style={({ pressed }) => [
+        battleStyles.deckRow,
+        selected && battleStyles.deckRowSelected,
+        pressed && { opacity: 0.8 },
+      ]}
     >
-      <Text style={[styles.text, { fontWeight: "700" }]}>
-        {characterName} · {deck.name}
-      </Text>
-      {deck.note ? <Text style={styles.muted}>{deck.note}</Text> : null}
+      <CharacterAvatar character={character} size={44} selected={selected} />
+      <View style={{ flex: 1 }}>
+        <Text style={battleStyles.deckName} numberOfLines={1}>
+          {deck.name}
+        </Text>
+        <Text style={styles.muted} numberOfLines={1}>
+          {characterName}
+          {deck.note ? ` · ${deck.note}` : ""}
+        </Text>
+      </View>
+      {selected && <Icon name="checkmark-circle" size={22} color={colors.accent} />}
     </Pressable>
   );
 }
@@ -216,27 +238,21 @@ function useRoom(onStart: (url: string, room: RoomView) => void) {
   return { joined, room, closed, error, enter, act, leave };
 }
 
-function SeatCard({ seat, label }: { seat: RoomSeat; label: string }) {
+function SeatCard({ seat, label, character }: { seat: RoomSeat; label: string; character?: Character }) {
   const { t } = useApp();
   return (
-    <View
-      style={{
-        flex: 1,
-        padding: 10,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: seat.me ? colors.accent : colors.line,
-        backgroundColor: colors.panel,
-      }}
-    >
-      <Text style={styles.muted}>{t(label)}</Text>
-      {seat.present && <Text style={[styles.text, { fontWeight: "700" }]}>{seat.name || t("플레이어")}</Text>}
-      <Text style={styles.muted}>{t(seatDeckText(seat))}</Text>
+    <View style={[battleStyles.seat, seat.me && { borderColor: colors.accent }]}>
+      <Text style={battleStyles.seatLabel}>{t(label)}</Text>
+      <CharacterAvatar character={seat.present ? character : null} size={56} selected={!!seat.me} dim={!seat.present} />
       {seat.present && (
-        <Text style={[styles.text, { color: seat.ready ? colors.accent : colors.muted, fontWeight: "700" }]}>
-          {seat.ready ? t("준비 완료") : t("준비 전")}
+        <Text style={[styles.text, { fontWeight: "700" }]} numberOfLines={1}>
+          {seat.name || t("플레이어")}
         </Text>
       )}
+      <Text style={[styles.muted, { textAlign: "center" }]} numberOfLines={2}>
+        {t(seatDeckText(seat))}
+      </Text>
+      {seat.present && <Badge label={seat.ready ? "준비 완료" : "준비 전"} tone={seat.ready ? "success" : "neutral"} />}
     </View>
   );
 }
@@ -274,6 +290,21 @@ export default function Battle() {
 
   const characterName = (id: number) =>
     catalog?.characters.find((c) => c.id === id)?.localized?.[language]?.name ?? `#${id}`;
+  const characterOf = (id?: number | null) => catalog?.characters.find((c) => c.id === id);
+  // 방 좌석에는 캐릭터 이름만 오므로 이름으로 얼굴을 찾는다.
+  const characterNamed = (name?: string | null) =>
+    name
+      ? catalog?.characters.find((c) =>
+          Object.values(c.localized || {}).some((l: any) => l?.name === name),
+        )
+      : undefined;
+  const [picker, setPicker] = useState<{
+    kind: "mine" | "rival";
+    title: string;
+    selected: number | null | undefined;
+    onPick: (id: number) => void;
+  } | null>(null);
+  const [rivalInfo, setRivalInfo] = useState<DeckOption | null>(null);
 
   // 서버 id가 있는(동기화된) 덱만 대전에 쓸 수 있다.
   const synced: DeckOption[] = useMemo(
@@ -365,6 +396,7 @@ export default function Battle() {
           key={deck.id}
           deck={deck}
           selected={selected === deck.id}
+          character={characterOf(deck.character_id)}
           characterName={characterName(deck.character_id)}
           onPress={() => onPress(deck.id)}
         />
@@ -373,55 +405,63 @@ export default function Battle() {
     </>
   );
 
+  const deckSlot = (
+    label: string,
+    selected: number | null | undefined,
+    onPick: (id: number) => void,
+    accent?: string,
+  ) => {
+    const deck = synced.find((d) => d.id === selected);
+    return (
+      <PlayerSlot
+        label={label}
+        accent={accent}
+        character={characterOf(deck?.character_id)}
+        title={deck ? deck.name : t("덱 선택")}
+        subtitle={deck ? characterName(deck.character_id) : t("눌러서 덱을 고릅니다.")}
+        onPress={() => setPicker({ kind: "mine", title: "내 덱", selected, onPick })}
+      />
+    );
+  };
+  const rivalOption =
+    rivalSource === "same" ? synced.find((d) => d.id === mine) : rivalSource === "mine" ? synced.find((d) => d.id === rival) : rivalInfo;
+
   const aiTab = (
     <>
-      <View style={styles.panel}>
-        <Text style={styles.title}>{t("내 덱")}</Text>
-        {myDecks(mine, setMine)}
+      {!user && <Notice text={t("로그인하고 덱을 동기화하면 내 덱으로 대전할 수 있습니다.")} />}
+      {user && !synced.length && <Notice text={t("서버에 저장된 덱이 없습니다. 덱 화면에서 덱을 만들어 주세요.")} />}
+      <View style={battleStyles.versus}>
+        {deckSlot("나", mine, setMine)}
+        <Versus />
+        <PlayerSlot
+          label="AI"
+          accent="#5fc8c0"
+          character={characterOf(rivalOption?.character_id)}
+          title={rivalOption ? rivalOption.name : t("덱 선택")}
+          subtitle={
+            rivalSource === "same"
+              ? t("같은 덱")
+              : rivalOption
+                ? characterName(rivalOption.character_id)
+                : t("눌러서 덱을 고릅니다.")
+          }
+          onPress={() => setPicker({ kind: "rival", title: "AI가 쓸 덱", selected: rival, onPick: setRival })}
+        />
       </View>
       <View style={styles.panel}>
-        <Text style={styles.title}>{t("AI가 쓸 덱")}</Text>
-        <Choices
-          values={[
-            { key: "same", label: t("같은 덱") },
-            { key: "mine", label: t("내 덱") },
-            { key: "public", label: t("공개 덱") },
-          ]}
-          value={rivalSource}
-          onChange={(v) => {
-            setRivalSource(v as typeof rivalSource);
-            setRival(null);
-          }}
-        />
-        {rivalSource === "mine" &&
-          synced.map((deck) => (
-            <DeckRow
-              key={deck.id}
-              deck={deck}
-              selected={rival === deck.id}
-              characterName={characterName(deck.character_id)}
-              onPress={() => setRival(deck.id)}
-            />
-          ))}
-        {rivalSource === "public" && (
-          <>
-            <Input value={query} onChangeText={setQuery} placeholder={t("덱 이름·작성자 (2글자 이상)")} />
-            {results.map((deck) => (
-              <DeckRow
-                key={deck.id}
-                deck={{ ...deck, note: deck.author?.username }}
-                selected={rival === deck.id}
-                characterName={characterName(deck.character_id)}
-                onPress={() => setRival(deck.id)}
-              />
-            ))}
-          </>
-        )}
         <TimerChoices label={t("레디 제한 시간")} value={aiReadyTimer} onChange={setAiReadyTimer} />
         <TimerChoices label={t("효과 선택 제한 시간")} value={aiEffectTimer} onChange={setAiEffectTimer} />
       </View>
       {error ? <Notice text={error} /> : null}
-      <Button label={busy ? "만드는 중…" : "대전 시작"} disabled={busy || !mine || !rivalDeck} onPress={startAi} />
+      <Button
+        label={busy ? "만드는 중…" : "대전 시작"}
+        icon="flash"
+        variant="primary"
+        block
+        loading={busy}
+        disabled={!mine || !rivalDeck}
+        onPress={startAi}
+      />
     </>
   );
 
@@ -444,13 +484,21 @@ export default function Battle() {
             />
           ) : null}
         </View>
-        <View style={[styles.panel, styles.row, { alignItems: "stretch" }]}>
-          <SeatCard seat={current.seats.host} label="방장 (P1)" />
-          <SeatCard seat={current.seats.guest} label="참가자 (P2)" />
+        <View style={battleStyles.versus}>
+          <SeatCard
+            seat={current.seats.host}
+            label="방장 (P1)"
+            character={characterNamed(current.seats.host.deck?.character)}
+          />
+          <Versus />
+          <SeatCard
+            seat={current.seats.guest}
+            label="참가자 (P2)"
+            character={characterNamed(current.seats.guest.deck?.character)}
+          />
         </View>
-        <View style={styles.panel}>
-          <Text style={styles.title}>{t("내 덱")}</Text>
-          {myDecks(me.deck?.id, (id) => {
+        <View style={{ flexDirection: "row", marginBottom: space.md }}>
+          {deckSlot("내 덱", me.deck?.id, (id) => {
             setMine(id);
             void lobby.act((target) => chooseRoomDeck(target, id));
           })}
@@ -460,6 +508,9 @@ export default function Battle() {
           <Button label={current.seat === "host" ? "방 닫기" : "나가기"} danger onPress={() => void lobby.leave()} />
           <Button
             label={me.ready ? "준비 취소" : "준비 완료"}
+            icon={me.ready ? "close-circle-outline" : "checkmark-circle-outline"}
+            variant={me.ready ? "secondary" : "primary"}
+            style={{ flex: 1 }}
             disabled={!me.deck}
             onPress={() => void lobby.act((target) => setRoomReady(target, !me.ready))}
           />
@@ -475,11 +526,10 @@ export default function Battle() {
     ) : (
       <>
         {lobby.closed && <Notice text={t("방이 닫혔습니다.")} />}
-        <View style={styles.panel}>
-          <Text style={styles.title}>{t("내 덱")}</Text>
-          {myDecks(mine, setMine)}
-          <Text style={styles.muted}>{t("덱은 방에 들어간 뒤에 골라도 됩니다. 상대에게는 내 덱의 캐릭터만 보입니다.")}</Text>
-        </View>
+        <View style={{ flexDirection: "row" }}>{deckSlot("내 덱", mine, setMine)}</View>
+        <Text style={[styles.muted, { marginVertical: space.sm }]}>
+          {t("덱은 방에 들어간 뒤에 골라도 됩니다. 상대에게는 내 덱의 캐릭터만 보입니다.")}
+        </Text>
         <View style={styles.panel}>
           <Text style={styles.title}>{t("방 만들기")}</Text>
           <Choices
@@ -502,6 +552,9 @@ export default function Battle() {
           )}
           <Button
             label="방 만들기"
+            icon="add-circle-outline"
+            variant="primary"
+            block
             disabled={busy || !!joined}
             onPress={() =>
               void run(() =>
@@ -520,6 +573,7 @@ export default function Battle() {
         <View style={styles.panel}>
           <Text style={styles.title}>{t("코드로 참가")}</Text>
           <Input
+            style={{ fontSize: 22, letterSpacing: 6, textAlign: "center" }}
             value={code}
             onChangeText={(text) => setCode(normalizeRoomCode(text))}
             autoCapitalize="characters"
@@ -551,9 +605,8 @@ export default function Battle() {
     </View>
   ) : (
     <>
-      <View style={styles.panel}>
-        <Text style={styles.title}>{t("내 덱")}</Text>
-        {myDecks(mine, setMine)}
+      <View style={{ flexDirection: "row" }}>{deckSlot("내 덱", mine, setMine)}</View>
+      <View style={[styles.panel, { marginTop: space.md }]}>
         <Text style={styles.muted}>
           {t("덱만 정하면 지금 퀵 매치를 기다리는 다른 플레이어와 자동 판정으로 대전합니다(레디 10초 · 효과 선택 30초).")}
         </Text>
@@ -561,6 +614,9 @@ export default function Battle() {
       {lobby.error ? <Notice text={lobby.error} /> : null}
       <Button
         label={busy ? "찾는 중…" : "퀵 매치 시작"}
+        icon="search"
+        variant="primary"
+        block
         disabled={busy || !mine || !!joined}
         onPress={() =>
           void run(async () => {
@@ -575,19 +631,28 @@ export default function Battle() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       {resume && (
-        <View style={[styles.panel, styles.row, { justifyContent: "space-between" }]}>
-          <Text style={styles.text}>
-            {t("진행 중이던 대전")} · {resume.label}
-          </Text>
-          <Button label="이어하기" onPress={() => router.push({ pathname: "/play", params: { url: resume.url } })} />
+        <View style={battleStyles.resume}>
+          <Icon name="play-circle" size={28} color={colors.accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.muted}>{t("진행 중이던 대전")}</Text>
+            <Text style={[styles.text, { fontWeight: "700" }]} numberOfLines={1}>
+              {resume.label}
+            </Text>
+          </View>
+          <Button
+            label="이어하기"
+            variant="primary"
+            size="sm"
+            onPress={() => router.push({ pathname: "/play", params: { url: resume.url } })}
+          />
         </View>
       )}
 
-      <Choices
+      <Segmented
         values={[
-          { key: "ai", label: t("AI와 대전") },
-          { key: "room", label: t("방") },
-          { key: "quick", label: t("퀵 매치") },
+          { key: "ai", label: "AI와 대전", icon: "hardware-chip-outline" },
+          { key: "room", label: "방", icon: "people-outline" },
+          { key: "quick", label: "퀵 매치", icon: "flash-outline" },
         ]}
         value={tab}
         onChange={(v) => {
@@ -601,6 +666,119 @@ export default function Battle() {
       {tab === "ai" && aiTab}
       {tab === "room" && roomTab}
       {tab === "quick" && quickTab}
+
+      <BottomSheet
+        visible={!!picker}
+        title={picker?.title || ""}
+        onClose={() => setPicker(null)}
+        header={
+          picker?.kind === "rival" ? (
+            <>
+              <Segmented
+                values={[
+                  { key: "same", label: "같은 덱" },
+                  { key: "mine", label: "내 덱" },
+                  { key: "public", label: "공개 덱" },
+                ]}
+                value={rivalSource}
+                onChange={(v) => {
+                  setRivalSource(v as typeof rivalSource);
+                  setRival(null);
+                  setRivalInfo(null);
+                }}
+              />
+              {rivalSource === "public" && (
+                <SearchInput value={query} onChangeText={setQuery} placeholder="덱 이름·작성자 (2글자 이상)" />
+              )}
+            </>
+          ) : null
+        }
+      >
+        {() =>
+          picker?.kind === "rival" ? (
+            rivalSource === "same" ? (
+              <View style={{ gap: space.md, paddingBottom: space.md }}>
+                <Text style={styles.muted}>{t("AI도 내가 고른 덱과 같은 덱을 씁니다.")}</Text>
+                <Button label="확인" variant="primary" block onPress={() => setPicker(null)} />
+              </View>
+            ) : rivalSource === "mine" ? (
+              myDecks(rival, (id) => {
+                setRival(id);
+                setPicker(null);
+              })
+            ) : (
+              <>
+                {query.trim().length >= 2 && !results.length && (
+                  <Notice text={t("검색 결과가 없습니다.")} />
+                )}
+                {results.map((deck) => (
+                  <DeckRow
+                    key={deck.id}
+                    deck={{ ...deck, note: deck.author?.username }}
+                    selected={rival === deck.id}
+                    character={characterOf(deck.character_id)}
+                    characterName={characterName(deck.character_id)}
+                    onPress={() => {
+                      setRival(deck.id);
+                      setRivalInfo({ id: deck.id, name: deck.name, character_id: deck.character_id });
+                      setPicker(null);
+                    }}
+                  />
+                ))}
+              </>
+            )
+          ) : picker ? (
+            myDecks(picker.selected, (id) => {
+              picker.onPick(id);
+              setPicker(null);
+            })
+          ) : null
+        }
+      </BottomSheet>
     </ScrollView>
   );
 }
+
+const battleStyles = StyleSheet.create({
+  versus: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: space.sm,
+    marginBottom: space.md,
+  },
+  deckRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    padding: space.md,
+    marginBottom: space.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.panel,
+  },
+  deckRowSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  deckName: { color: colors.text, fontSize: 15, fontWeight: "700" },
+  seat: {
+    flex: 1,
+    alignItems: "center",
+    gap: 6,
+    padding: space.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.panel,
+  },
+  seatLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  resume: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    padding: space.md,
+    marginBottom: space.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
+});

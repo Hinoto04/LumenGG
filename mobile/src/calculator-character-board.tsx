@@ -3,7 +3,6 @@ import {
   AccessibilityInfo,
   Animated,
   AppState,
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -12,7 +11,6 @@ import {
 } from "react-native";
 import { CalculatorBoard, type CalculatorBoardProps } from "./calculator-board";
 import { calculatorTheme } from "./calculator-ui";
-import { calculatorArt } from "./calculator-art";
 import { localized } from "./core";
 import { PassiveTray } from "./calculator-passive-tray-view";
 import { hpAppearance } from "./calculator-display";
@@ -181,11 +179,11 @@ function CharacterPlayer({
   display,
 }: PlayerProps) {
   const { t } = useApp();
-  const { height } = useWindowDimensions();
-  const compact = height < 500;
+  const { width, height } = useWindowDimensions();
+  // 세로 화면에서는 패널 높이가 화면의 절반 남짓이라 작은 크기로 그린다.
+  const compact = height < 500 || height > width;
   const mirrored = target === "p2";
   const theme = calculatorTheme(player.character);
-  const art = calculatorArt[theme.theme_key];
   const health = hpAppearance(player.hp, player.initial_hp);
   const label = t(target === "p1" ? "플레이어1" : "플레이어2");
   const table = player.character?.hand_table || {};
@@ -226,14 +224,6 @@ function CharacterPlayer({
         importantForAccessibility="no-hide-descendants"
       >
         <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.accent, opacity: 0.1 }]} />
-        {illustrated && art && (
-          <Image
-            key={"scene-" + theme.theme_key}
-            source={art.background}
-            resizeMode="cover"
-            style={[StyleSheet.absoluteFill, { width: "100%", height: "100%", opacity: 0.15 + 0.85 * (display.brightness / 100) }]}
-          />
-        )}
         {illustrated && !!player.character?.img && (
           <View style={[s.portrait, mirrored && { left: "-10%", right: undefined }, { opacity: 0.3 + 0.7 * (display.brightness / 100) }]}>
             <CachedImage
