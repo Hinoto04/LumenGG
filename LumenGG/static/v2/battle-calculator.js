@@ -1246,7 +1246,11 @@
             const root = document.querySelector("[data-battle-session]") || document.documentElement;
             if (!document.fullscreenElement) {
                 if (root.requestFullscreen) {
-                    root.requestFullscreen().catch(() => {});
+                    // 전체 화면이 되면 가능한 브라우저(안드로이드 크롬 등)에서 가로로 잠근다.
+                    // 잠그지 못하는 브라우저는 calculator.css의 세로 화면 회전이 가로 배치를 맡는다.
+                    root.requestFullscreen()
+                        .then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock("landscape"))
+                        .catch(() => {});
                 }
                 return;
             }

@@ -698,37 +698,56 @@
     .lc-pip { height: 34px; }
     .lc-passive-press { min-height: 54px; }
 }
-/* 세로 화면: P1 · 가운데 · P2를 위아래로 나누되 전체가 한 화면에 들어온다. */
+/*
+ * 세로로 든 휴대폰: 세로 배치는 자리가 모자라므로 계산기 전체를 90° 돌려 항상 가로 배치로 보여 준다.
+ * 브라우저 대부분(특히 iOS Safari)은 화면 방향을 잠글 수 없어 CSS로 돌린다. 전체 화면 버튼은
+ * 가능한 브라우저에서 방향 잠금도 시도하며(battle-calculator.js), 잠기면 이 규칙은 적용되지 않는다.
+ * 미디어 쿼리는 여전히 세로 화면 기준이므로 작은 가로 화면 규칙을 여기서 다시 적용한다.
+ * 돌린 상자 안에서는 vw가 짧은 변, vh가 긴 변이다.
+ */
 @media (max-width: 700px) and (orientation: portrait) {
-    .lc-board { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr); }
+    .lc {
+        position: fixed;
+        z-index: 50;
+        top: 0;
+        left: 100vw;
+        width: 100vh;
+        width: 100dvh;
+        height: 100vw;
+        transform-origin: top left;
+        transform: rotate(90deg);
+        /* 돌린 상자의 위·오른쪽·아래·왼쪽은 화면의 오른쪽·아래·왼쪽·위에 해당한다. */
+        padding: max(var(--lc-gap), env(safe-area-inset-right)) max(var(--lc-gap), env(safe-area-inset-bottom)) max(var(--lc-gap), env(safe-area-inset-left)) max(var(--lc-gap), env(safe-area-inset-top));
+    }
+    .lc-mode { overflow: hidden; }
+    /* 작은 가로 화면(높이 460px 이하)과 같은 크기 */
     .lc { --lc-gap: 6px; }
-    .lc-player { padding: 6px 7px; gap: 4px; }
-    .lc-avatar { width: 24px; height: 24px; }
+    .lc-board { grid-template-columns: minmax(0, 1fr) 118px minmax(0, 1fr); }
+    .lc-player { padding: 7px; gap: 6px; }
+    .lc-avatar { width: 26px; height: 26px; }
     .lc-ident h2 { font-size: 14px; }
-    .lc-hp { padding: 2px 10px 7px; }
-    .lc-hp-value { font-size: clamp(30px, 6vh, 60px); }
-    .lc-hp-step { min-height: clamp(32px, 4.6vh, 44px); font-size: 15px; }
-    .lc-fp { width: 50px; }
-    .lc-fp .lc-step { min-height: 30px; }
+    .lc-hp { padding: 4px 10px 8px; }
+    .lc-hp-value { font-size: clamp(34px, 11vw, 52px); }
+    .lc-hp-steps { gap: 4px; }
+    .lc-hp-step { min-height: 38px; font-size: 13px; letter-spacing: -.03em; padding: 0; }
+    .lc-fp { width: 44px; }
+    .lc-fp .lc-step { min-height: 36px; }
     .lc-fp-value { font-size: 20px; }
-    /* 가운데는 두 줄: [뒤로 · 게임 시간 · 10초 · 설정] / [서든 데스 · 도구] */
-    .lc-center { flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 6px; padding: 6px; overflow: hidden; }
-    .lc-center-top, .lc-tools { display: contents; }
-    .lc-center > *, .lc-center-top > *, .lc-tools > * { min-width: 0; }
-    .lc-center > :not(.lc-center-top):not(.lc-tools):not(.lc-timer):not(.lc-sudden) { flex: 1 1 100%; }
-    .lc-icon { width: 36px; height: 36px; flex: none; }
-    .lc-center-top > .lc-icon:first-child { order: 1; }
-    .lc-clock { order: 2; flex: 1 1 110px; justify-content: center; }
-    .lc-timer { order: 3; flex: 0 0 96px; flex-direction: row; gap: 6px; min-height: 36px; padding: 0; }
+    .lc-controls { gap: 5px; }
+    .lc-hand { padding: 3px 6px; font-size: 11px; }
+    .lc-center { padding: 6px; gap: 6px; }
+    .lc-icon { width: 36px; height: 36px; }
+    .lc-center-top { grid-template-columns: 36px minmax(0, 1fr) 36px; }
+    .lc-timer { min-height: 60px; }
     .lc-timer span { display: none; }
-    .lc-timer strong { font-size: 26px; }
-    .lc-center-top > [data-display-open] { order: 4; }
-    .lc-center > .lc-party, .lc-set, .lc-center > [data-report-set], .lc-extra, .lc-selectors { order: 5; }
-    .lc-sudden { order: 6; flex: 1 1 96px; width: auto; min-height: 34px; padding: 0 8px; }
-    .lc-tools > button { order: 7; flex: 0 0 40px; min-height: 34px; padding: 0; }
+    .lc-wide-button { min-height: 36px; }
+    .lc-tools { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+    .lc-tools button { min-height: 36px; padding: 0; }
     .lc-tools button span { display: none; }
-    .lc-tools svg { width: 17px; height: 17px; }
-    .lc-wide-button { min-height: 34px; }
+    /* 기록은 돌린 화면의 오른쪽 패널로 */
+    .lc-history { top: 8px; right: 8px; bottom: 8px; left: auto; width: min(380px, 45vh); max-height: none; border-radius: 14px; }
+    /* showModal() 대화상자는 최상위 층에 그려져 부모 회전을 따르지 않으므로 따로 돌린다. */
+    .lc-dialog { transform: rotate(90deg); max-height: calc(100vw - 24px); overflow: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
     .lc *, .lc *::before, .lc *::after { animation: none !important; transition: none !important; }

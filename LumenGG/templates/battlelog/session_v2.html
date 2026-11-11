@@ -3,7 +3,7 @@
 {% load language_tags %}
 {% block title %}{{ session.player1_name }} vs {{ session.player2_name }} - {% tr "대전 계산기" %}{% endblock title %}
 {% block body_class %}v2-battle-mode lc-mode{% endblock body_class %}
-{% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}"><link rel="stylesheet" href="{% static 'v2/calculator.css' %}?v=20261118c">{% endblock %}
+{% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}"><link rel="stylesheet" href="{% static 'v2/calculator.css' %}?v=20261119a">{% endblock %}
 {% block content %}
 {% include "battlelog/_preparation.html" %}
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -158,8 +158,8 @@
 <script src="{% static 'v2/calculator-shield-model.js' %}"></script>
 <script src="{% static 'v2/calculator-passive-input-model.js' %}"></script>
 <script src="{% static 'v2/calculator-appearance-model.js' %}"></script>
-<script src="{% static 'v2/calculator-log.js' %}?v=20261118c"></script>
-<script src="{% static 'v2/calculator-passive-tray.js' %}?v=20261118c"></script>
-<script src="{% static 'v2/calculator-hud.js' %}?v=20261118c"></script>
-<script src="{% static "v2/battle-calculator.js" %}?v=20261118c"></script>
+<script src="{% static 'v2/calculator-log.js' %}?v=20261119a"></script>
+<script src="{% static 'v2/calculator-passive-tray.js' %}?v=20261119a"></script>
+<script src="{% static 'v2/calculator-hud.js' %}?v=20261119a"></script>
+<script src="{% static "v2/battle-calculator.js" %}?v=20261119a"></script>
 {% endblock content %}
