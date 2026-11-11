@@ -9,7 +9,7 @@ import {
 import { preference, setPreference } from "./storage";
 import { useApp } from "./provider";
 import { Button, IconButton, Segmented, colors, radius } from "./ui";
-import { SettingColumn, SettingRow, SettingSection } from "./setting-rows";
+import { SettingRow } from "./setting-rows";
 
 let current = defaultAppearance,
   loaded = false,
@@ -50,89 +50,70 @@ export function useCalculatorAppearance() {
   }, []);
   return value;
 }
-export function CalculatorAppearanceSettings() {
+/** 계산기 설정 안의 화면 옵션 두 줄(화면 스타일·배경 밝기). 이 기기에만 저장된다. */
+export function CalculatorAppearanceRows() {
   const { t } = useApp();
   const value = useCalculatorAppearance();
   const step = (delta: number) =>
     setCalculatorAppearance({ brightness: value.brightness + delta });
   return (
-    <SettingColumn>
-      <SettingSection
-        title="화면"
-        footer="화면 설정은 이 기기에만 저장됩니다."
-        first
-      >
-        <SettingRow
-          title="화면 스타일"
-          description={
-            value.style === "illustrated"
-              ? "캐릭터 일러스트를 배경에 깔고 패시브를 그림으로 보여 줍니다."
-              : "배경 그림 없이 단색 화면으로 숫자만 또렷하게 보여 줍니다."
-          }
-        >
-          <View style={{ width: 260 }}>
-            <Segmented
-              value={value.style}
-              onChange={(style) =>
+    <>
+      <SettingRow title="화면 스타일">
+        <View style={{ width: 260 }}>
+          <Segmented
+            value={value.style}
+            onChange={(style) =>
+              setCalculatorAppearance({
+                style: style === "clean" ? "clean" : "illustrated",
+              })
+            }
+            values={[
+              { key: "illustrated", label: "일러스트", icon: "image-outline" },
+              { key: "clean", label: "깔끔하게", icon: "contrast-outline" },
+            ]}
+          />
+        </View>
+      </SettingRow>
+      {value.style === "illustrated" && (
+        <SettingRow title={t("배경 밝기") + " · " + value.brightness + "%"}>
+          <View style={appearanceStyles.brightness}>
+            <IconButton
+              icon="remove"
+              label={t("배경 밝기") + " −10"}
+              filled
+              disabled={value.brightness === 0}
+              onPress={() => step(-10)}
+            />
+            <View style={appearanceStyles.meter}>
+              <View
+                style={[
+                  appearanceStyles.fill,
+                  { width: `${value.brightness}%` },
+                ]}
+              />
+            </View>
+            <IconButton
+              icon="add"
+              label={t("배경 밝기") + " +10"}
+              filled
+              disabled={value.brightness === 100}
+              onPress={() => step(10)}
+            />
+            <Button
+              label="권장 밝기"
+              variant="ghost"
+              size="sm"
+              disabled={value.brightness === defaultAppearance.brightness}
+              onPress={() =>
                 setCalculatorAppearance({
-                  style: style === "clean" ? "clean" : "illustrated",
+                  brightness: defaultAppearance.brightness,
                 })
               }
-              values={[
-                {
-                  key: "illustrated",
-                  label: "일러스트",
-                  icon: "image-outline",
-                },
-                { key: "clean", label: "깔끔하게", icon: "contrast-outline" },
-              ]}
             />
           </View>
         </SettingRow>
-        {value.style === "illustrated" && (
-          <SettingRow
-            title={t("배경 밝기") + " · " + value.brightness + "%"}
-            description="배경 그림이 숫자를 가리면 낮추세요. 권장 35%"
-          >
-            <View style={appearanceStyles.brightness}>
-              <IconButton
-                icon="remove"
-                label={t("배경 밝기") + " −10"}
-                filled
-                disabled={value.brightness === 0}
-                onPress={() => step(-10)}
-              />
-              <View style={appearanceStyles.meter}>
-                <View
-                  style={[
-                    appearanceStyles.fill,
-                    { width: `${value.brightness}%` },
-                  ]}
-                />
-              </View>
-              <IconButton
-                icon="add"
-                label={t("배경 밝기") + " +10"}
-                filled
-                disabled={value.brightness === 100}
-                onPress={() => step(10)}
-              />
-              <Button
-                label="권장 밝기"
-                variant="ghost"
-                size="sm"
-                disabled={value.brightness === defaultAppearance.brightness}
-                onPress={() =>
-                  setCalculatorAppearance({
-                    brightness: defaultAppearance.brightness,
-                  })
-                }
-              />
-            </View>
-          </SettingRow>
-        )}
-      </SettingSection>
-    </SettingColumn>
+      )}
+    </>
   );
 }
 

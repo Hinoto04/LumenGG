@@ -45,6 +45,7 @@ import {
   colors,
 } from "../src/ui";
 import { CharacterGrid, PlayerSlot, Versus } from "../src/character-picker";
+import { CalculatorAppearanceRows } from "../src/calculator-appearance-settings";
 import { SettingColumn, SettingRow, SettingSection } from "../src/setting-rows";
 import { characterWithTrait } from "../src/deck-rules";
 import { TournamentCalculatorControls } from "../src/tournament-calculator-controls";
@@ -530,32 +531,7 @@ export default function Calculator() {
         }}
         setup={
           <SettingColumn>
-            <SettingSection title="계산기">
-              <SettingRow
-                title="계산기 방식"
-                description={
-                  mode === "local"
-                    ? "이 기기에서만 기록합니다. 인터넷이 없어도 됩니다."
-                    : "링크로 다른 기기와 같은 계산기를 함께 보고 조작합니다."
-                }
-              >
-                <View style={{ width: 240 }}>
-                  <Segmented
-                    value={mode}
-                    onChange={changeMode}
-                    values={[
-                      {
-                        key: "local",
-                        label: "로컬",
-                        icon: "phone-portrait-outline",
-                      },
-                      { key: "shared", label: "공유", icon: "people-outline" },
-                    ]}
-                  />
-                </View>
-              </SettingRow>
-            </SettingSection>
-            <SettingSection title="플레이어">
+            <SettingSection first>
               {picking ? (
                 <View style={{ marginBottom: 16 }}>
                   <View style={setupStyles.pickHeader}>
@@ -655,17 +631,29 @@ export default function Calculator() {
                 }}
               />
             </SettingSection>
+            <SettingSection>
+              <SettingRow title="계산기 방식">
+                <View style={{ width: 240 }}>
+                  <Segmented
+                    value={mode}
+                    onChange={changeMode}
+                    values={[
+                      {
+                        key: "local",
+                        label: "로컬",
+                        icon: "phone-portrait-outline",
+                      },
+                      { key: "shared", label: "공유", icon: "people-outline" },
+                    ]}
+                  />
+                </View>
+              </SettingRow>
+              <CalculatorAppearanceRows />
+            </SettingSection>
             {mode === "shared" && (
               <SettingSection title="공유">
                 {!!session && (
-                  <SettingRow
-                    title="연결 상태"
-                    description={
-                      connected && online
-                        ? "다른 기기와 실시간으로 맞춰집니다."
-                        : "다시 연결하는 동안 조작이 잠깁니다."
-                    }
-                  >
+                  <SettingRow title="연결 상태">
                     <Badge
                       label={connected && online ? "연결됨" : "재연결 중"}
                       tone={connected && online ? "success" : "danger"}
@@ -674,7 +662,6 @@ export default function Calculator() {
                 )}
                 <SettingRow
                   title="링크로 참여"
-                  description="받은 공유 링크를 붙여 넣고 참여합니다."
                   below={
                     <View style={setupStyles.linkRow}>
                       <View style={{ flex: 1 }}>
@@ -709,10 +696,7 @@ export default function Calculator() {
                 />
                 {session && (
                   <>
-                    <SettingRow
-                      title="링크 보내기"
-                      description="조회 링크는 보기만, 제어 링크는 HP·FP 조작까지 할 수 있습니다."
-                    >
+                    <SettingRow title="링크 보내기">
                       <View style={setupStyles.buttons}>
                         <Button
                           label="조회 링크"
@@ -754,11 +738,7 @@ export default function Calculator() {
                         )}
                       </View>
                     </SettingRow>
-                    <SettingRow
-                      title="공유 계산기 나가기"
-                      description="이 기기에서 연결만 끊습니다. 계산기 기록은 남습니다."
-                      danger
-                    >
+                    <SettingRow title="공유 계산기 나가기" danger>
                       <Button
                         label="나가기"
                         icon="exit-outline"

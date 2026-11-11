@@ -19,10 +19,7 @@ import { ShieldPassiveRow } from "./calculator-shield-controls";
 import { useApp } from "./provider";
 import { CachedImage } from "./ui";
 import type { Action, Player } from "./types";
-import {
-  CalculatorAppearanceSettings,
-  useCalculatorAppearance,
-} from "./calculator-appearance-settings";
+import { useCalculatorAppearance } from "./calculator-appearance-settings";
 import type { CalculatorAppearance } from "./calculator-appearance";
 
 export default function CharacterCalculatorBoard(props: CalculatorBoardProps) {
@@ -70,12 +67,7 @@ export default function CharacterCalculatorBoard(props: CalculatorBoardProps) {
       {...props}
       onAction={action}
       appearance="character"
-      setup={
-        <>
-          <CalculatorAppearanceSettings />
-          {props.setup}
-        </>
-      }
+      setup={props.setup}
       renderPlayer={(target, onDamage) => {
         const stored = props.state?.players[target];
         if (!stored) return null;

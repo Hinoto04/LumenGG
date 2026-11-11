@@ -97,7 +97,7 @@ submission are account-specific and are not embedded in the repository.
 
 ### Local Play Store bundle
 
-The application ID is `kr.hinoto.lumen`, version `1.3.0`, versionCode 13.
+The application ID is `kr.hinoto.lumen`, version `1.3.2`, versionCode 14.
 The upload keystore is `C:\Hinoto\lumen-upload.keystore`; the configured alias is
 `HInoto_key`. Its RSA-3072 certificate expires on December 31, 9999. The passwords
 are stored outside the repository in Windows-encrypted SecureStrings at
@@ -112,7 +112,7 @@ From the repository root:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1
 # For a later upload, use a greater versionCode:
-powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1 -VersionCode 13
+powershell -NoProfile -ExecutionPolicy Bypass -File mobile/scripts/build-play-bundle.ps1 -VersionCode 15
 ```
 
 The default versionCode comes from app.config.ts. The script regenerates Android

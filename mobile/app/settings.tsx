@@ -21,6 +21,7 @@ import {
   ListRow,
   ListSection,
   Notice,
+  PasswordInput,
   Segmented,
   colors,
   space,
@@ -232,10 +233,9 @@ export default function Settings() {
               autoComplete="username"
               placeholder={t("아이디")}
             />
-            <Input
+            <PasswordInput
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
               autoComplete={signup ? "new-password" : "current-password"}
               placeholder={t("비밀번호")}
             />
@@ -318,10 +318,9 @@ export default function Settings() {
             <Text style={[styles.muted, { marginBottom: space.sm }]}>
               {t("계정과 저장된 데이터를 삭제합니다.")}
             </Text>
-            <Input
+            <PasswordInput
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
               autoComplete="current-password"
               placeholder={t("비밀번호")}
             />

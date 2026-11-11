@@ -132,12 +132,53 @@ export function copyAvailability(deck: Deck, catalog: Catalog) {
 export const remainingCopies = (card: Card, deck: Deck, catalog: Catalog) =>
   copyAvailability(deck, catalog)(card);
 
+/** 덱 작성 화면에 보여 주는 편성 수치. 기준은 deckIssues의 검사와 같다. */
+export interface DeckStats {
+  /** 얼티밋을 뺀 기술 카드 매수와 허용 범위. */
+  total: number;
+  minimum: number;
+  maximum: number;
+  /** 캐릭터 마크 기술 매수(보충 카드 제외)와 최소 매수. */
+  own: number;
+  ownMinimum: number;
+  /** 시작 배치(얼티밋·특수 기술 제외). */
+  hand: number;
+  handTarget: number;
+  list: number;
+  listTarget: number;
+}
+
 export function deckIssues(
   deck: Deck,
   catalog: Catalog,
   stage: "draft" | "registration" | "replacement" | "setup" = "registration",
   active: Pick<Deck, "character_id" | "trait_card_id" | "cards"> = deck,
 ): ValidationIssue[] {
+  return analyzeDeck(deck, catalog, stage, active).issues;
+}
+
+/** 덱 작성 화면의 매수 표시용 수치. */
+export function deckStats(deck: Deck, catalog: Catalog): DeckStats {
+  return analyzeDeck(deck, catalog, "draft", deck).stats;
+}
+
+function analyzeDeck(
+  deck: Deck,
+  catalog: Catalog,
+  stage: "draft" | "registration" | "replacement" | "setup",
+  active: Pick<Deck, "character_id" | "trait_card_id" | "cards">,
+): { issues: ValidationIssue[]; stats: DeckStats } {
+  const stats: DeckStats = {
+    total: 0,
+    minimum: 20,
+    maximum: 20,
+    own: 0,
+    ownMinimum: 10,
+    hand: 0,
+    handTarget: 5,
+    list: 0,
+    listTarget: 9,
+  };
   const issues: ValidationIssue[] = [],
     cards = new Map(catalog.cards.map((c) => [c.id, c]));
   const add = (code: string, message: string, ids: number[] = []) =>
@@ -292,7 +333,7 @@ export function deckIssues(
       ["invalid_count", "unknown_card", "invalid_placement"].includes(i.code),
     )
   )
-    return issues;
+    return { issues, stats };
   const rules = deckRulesFor(
     catalog,
     deck.character_id,
@@ -459,7 +500,18 @@ export function deckIssues(
         `시작 리스트는 ${rules.opening_list_size ?? 9}장이어야 합니다.`,
       );
   }
-  return issues;
+  Object.assign(stats, {
+    total,
+    minimum,
+    maximum,
+    own: ownBase,
+    ownMinimum: rules.character_card_minimum ?? 10,
+    hand,
+    handTarget: rules.opening_hand_size ?? 5,
+    list,
+    listTarget: rules.opening_list_size ?? 9,
+  });
+  return { issues, stats };
 }
 
 export function characterWithTrait(

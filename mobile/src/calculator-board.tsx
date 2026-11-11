@@ -586,12 +586,8 @@ export function CalculatorBoard({
           {setup}
           {!!state && (
             <SettingColumn>
-              <SettingSection title="초기화">
-                <SettingRow
-                  title="전체 초기화"
-                  description="HP·FP·패시브·기록을 처음 상태로 되돌립니다."
-                  danger
-                >
+              <SettingSection>
+                <SettingRow title="전체 초기화" danger>
                   <Button
                     label="초기화"
                     size="sm"

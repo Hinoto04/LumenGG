@@ -312,6 +312,50 @@ export function Input(props: React.ComponentProps<typeof TextInput>) {
     />
   );
 }
+/** 눈 아이콘으로 입력한 비밀번호를 보이거나 숨길 수 있는 입력칸. */
+export function PasswordInput(
+  props: Omit<React.ComponentProps<typeof TextInput>, "secureTextEntry">,
+) {
+  const { t } = useApp();
+  const [visible, setVisible] = useState(false);
+  const [focused, setFocused] = useState(false);
+  return (
+    <View
+      style={[inputStyles.search, focused && { borderColor: colors.accent }]}
+    >
+      <TextInput
+        placeholderTextColor={colors.subtle}
+        selectionColor={colors.accent}
+        autoCapitalize="none"
+        autoCorrect={false}
+        {...props}
+        secureTextEntry={!visible}
+        onFocus={(e) => {
+          setFocused(true);
+          props.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          props.onBlur?.(e);
+        }}
+        style={[inputStyles.searchField, props.style]}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t(visible ? "비밀번호 숨기기" : "비밀번호 표시")}
+        accessibilityState={{ checked: visible }}
+        onPress={() => setVisible((v) => !v)}
+        hitSlop={10}
+      >
+        <Ionicons
+          name={visible ? "eye-off-outline" : "eye-outline"}
+          size={20}
+          color={visible ? colors.accent : colors.subtle}
+        />
+      </Pressable>
+    </View>
+  );
+}
 /** 돋보기 아이콘과 지우기 버튼이 있는 검색창. */
 export function SearchInput({
   value,

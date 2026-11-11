@@ -22,7 +22,7 @@ import { localized, normalizeSearch } from "../src/core";
 import {
   copyAvailability,
   deckIssues,
-  deckRulesFor,
+  deckStats,
   isTrait,
 } from "../src/deck-rules";
 import {
@@ -115,6 +115,8 @@ export default function DeckEditor() {
   const [pager, setPager] = useState({ width: 0, height: 0 });
   const [dragging, setDragging] = useState(false);
   const [flyers, setFlyers] = useState<Flyer[]>([]);
+  // 헤더 매수 칸을 눌렀을 때 보여 주는 설명.
+  const [guide, setGuide] = useState<"own" | "total" | null>(null);
   const pagerRef = useRef<ScrollView>(null);
   const rootRef = useRef<View>(null);
   const tabRef = useRef(tab);
@@ -255,6 +257,25 @@ export default function DeckEditor() {
     setTab(index);
     pagerRef.current?.scrollTo({ x: index * pager.width, animated });
   };
+  const stats = deckStats(current, data);
+  const range =
+    stats.minimum === stats.maximum
+      ? String(stats.minimum)
+      : `${stats.minimum}~${stats.maximum}`;
+  const meters = {
+    own: {
+      value: `${stats.own}/${stats.ownMinimum}`,
+      ok: stats.own >= stats.ownMinimum,
+      title: "캐릭터 마크 기술",
+      detail: `${t("현재")} ${stats.own} · ${t("최소")} ${stats.ownMinimum}`,
+    },
+    total: {
+      value: `${stats.total}/${range}`,
+      ok: stats.total >= stats.minimum && stats.total <= stats.maximum,
+      title: "기술 카드 전체",
+      detail: `${t("현재")} ${stats.total} · ${t("필요")} ${range} (${t("얼티밋 제외")})`,
+    },
+  };
   const missing = !current.character_id
     ? INFO
     : !current.name.trim()
@@ -322,33 +343,68 @@ export default function DeckEditor() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("저장")}
-              accessibilityState={{ disabled: missing >= 0, busy }}
-              disabled={busy}
-              onPress={save}
-              hitSlop={8}
-              style={({ pressed }) => [
-                editorStyles.save,
-                missing >= 0 && editorStyles.saveBlocked,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Icon
-                name="save-outline"
-                size={16}
-                color={missing >= 0 ? colors.subtle : colors.onAccent}
-              />
-              <Text
-                style={[
-                  editorStyles.saveText,
-                  missing >= 0 && { color: colors.subtle },
+            <View style={editorStyles.headerRight}>
+              {current.character_id > 0 &&
+                (["own", "total"] as const).map((key) => {
+                  const meter = meters[key];
+                  return (
+                    <Pressable
+                      key={key}
+                      accessibilityRole="button"
+                      accessibilityLabel={t(meter.title) + " " + meter.value}
+                      onPress={() =>
+                        setGuide((previous) => (previous === key ? null : key))
+                      }
+                      hitSlop={4}
+                      style={[
+                        editorStyles.meter,
+                        {
+                          backgroundColor: meter.ok
+                            ? colors.accentSoft
+                            : colors.dangerSoft,
+                          borderColor: meter.ok ? colors.accent : colors.danger,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          editorStyles.meterText,
+                          { color: meter.ok ? colors.accent : colors.danger },
+                        ]}
+                      >
+                        {meter.value}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("저장")}
+                accessibilityState={{ disabled: missing >= 0, busy }}
+                disabled={busy}
+                onPress={save}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  editorStyles.save,
+                  missing >= 0 && editorStyles.saveBlocked,
+                  pressed && { opacity: 0.7 },
                 ]}
               >
-                {busy ? t("저장 중") : t("저장")}
-              </Text>
-            </Pressable>
+                <Icon
+                  name="save-outline"
+                  size={16}
+                  color={missing >= 0 ? colors.subtle : colors.onAccent}
+                />
+                <Text
+                  style={[
+                    editorStyles.saveText,
+                    missing >= 0 && { color: colors.subtle },
+                  ]}
+                >
+                  {busy ? t("저장 중") : t("저장")}
+                </Text>
+              </Pressable>
+            </View>
           ),
         }}
       />
@@ -443,7 +499,6 @@ export default function DeckEditor() {
                 catalog={data}
                 width={pager.width}
                 height={pager.height}
-                issues={issues}
                 onChangeCards={(cards) => change({ cards })}
                 onDragging={setDragging}
               />
@@ -454,6 +509,7 @@ export default function DeckEditor() {
                 catalog={data}
                 width={pager.width}
                 versions={versions}
+                issues={issues}
                 onChange={change}
                 onImport={(imported) => {
                   setDeck(imported);
@@ -548,6 +604,26 @@ export default function DeckEditor() {
           );
         })}
       </View>
+      {guide && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("닫기")}
+          onPress={() => setGuide(null)}
+          style={StyleSheet.absoluteFill}
+        >
+          <View style={editorStyles.guide}>
+            <Text style={editorStyles.guideTitle}>
+              {t(meters[guide].title) + "  " + meters[guide].value}
+            </Text>
+            <Text style={editorStyles.guideText}>{meters[guide].detail}</Text>
+            <Text style={[editorStyles.guideText, { color: colors.subtle }]}>
+              {meters[guide].ok
+                ? t("노란색: 조건을 만족합니다.")
+                : t("빨간색: 조건을 만족하지 않습니다.")}
+            </Text>
+          </View>
+        </Pressable>
+      )}
       {flyers.map((f) => (
         <Animated.View
           key={f.key}
@@ -829,7 +905,6 @@ function ListPage({
   catalog,
   width,
   height,
-  issues,
   onChangeCards,
   onDragging,
 }: {
@@ -837,7 +912,6 @@ function ListPage({
   catalog: Catalog;
   width: number;
   height: number;
-  issues: ReturnType<typeof deckIssues>;
   onChangeCards: (cards: Deck["cards"]) => void;
   onDragging: (value: boolean) => void;
 }) {
@@ -853,36 +927,45 @@ function ListPage({
     hand: sections[1]!.tiles,
     side: sections[2]!.tiles,
   };
-  const rules = deckRulesFor(
-    catalog,
-    deck.character_id,
-    deck.trait_card_id,
-    deck.cards,
-  );
-  const targets: Partial<Record<DeckZone, number>> = {
-    hand: rules.opening_hand_size ?? 5,
-    list: rules.opening_list_size ?? 9,
+  const stats = deckStats(deck, catalog);
+  // 영역 오른쪽 아래에 붙는 영역명·매수. 리스트·손패는 시작 배치 기준과 맞는지 색으로 보여 준다.
+  const counters: Record<DeckZone, { value: string; ok: boolean }> = {
+    list: {
+      value: `${stats.list}/${stats.listTarget}`,
+      ok: stats.list === stats.listTarget,
+    },
+    hand: {
+      value: `${stats.hand}/${stats.handTarget}`,
+      ok: stats.hand === stats.handTarget,
+    },
+    side: { value: String(tiles.side.length), ok: true },
   };
-  const total = deck.cards.reduce((n, e) => n + e.count, 0);
 
-  // 세 영역의 카드가 모두 한 화면에 들어가는 가장 큰 카드 크기를 고른다.
+  // 페이지 높이 안에 세 영역이 스크롤 없이 들어가는 가장 큰 카드 크기를 고른다.
+  // 각 영역의 마지막 줄 오른쪽 끝 한 칸은 영역명·매수 표시 자리로 비워 둔다.
   const gap = 4;
-  // 화면 좌우 여백, 영역 안쪽 여백, 영역 테두리(1px × 2)를 뺀 폭.
-  const inner = width - space.lg * 2 - space.sm * 2 - 2;
-  const chrome = 44 + 3 * (22 + space.sm * 2 + space.sm);
-  let columns = 5;
-  for (; columns < 12; columns++) {
-    const tileWidth = Math.floor((inner - gap * (columns - 1)) / columns);
-    const rows = DECK_ZONES.reduce(
-      (n, zone) => n + Math.max(1, Math.ceil(tiles[zone].length / columns)),
+  const pad = space.md;
+  const zonePad = space.sm;
+  const zoneGap = space.sm;
+  // 화면 여백, 영역 안쪽 여백, 영역 테두리(1px × 2)를 뺀 폭과 높이.
+  const inner = width - pad * 2 - zonePad * 2 - 2;
+  const available = height - pad * 2 - zoneGap * 2 - 3 * (zonePad * 2 + 2);
+  const rowsFor = (columns: number) =>
+    DECK_ZONES.map((zone) => Math.ceil((tiles[zone].length + 1) / columns));
+  const heightFor = (tileWidth: number, columns: number) =>
+    rowsFor(columns).reduce(
+      (sum, rows) => sum + rows * tileWidth * CARD_RATIO + (rows - 1) * gap,
       0,
     );
-    if (rows * (tileWidth * CARD_RATIO + gap) + chrome <= height - space.md)
-      break;
+  // 덱이 비어 있어도 카드가 지나치게 커지지 않게 한 줄에 최소 5장은 둔다.
+  let tileWidth = Math.floor((inner - gap * 4) / 5);
+  let columns = 5;
+  for (; tileWidth > 16; tileWidth--) {
+    columns = Math.max(1, Math.floor((inner + gap) / (tileWidth + gap)));
+    if (heightFor(tileWidth, columns) <= available) break;
   }
-  // 소수점 반올림으로 마지막 칸이 다음 줄로 밀리지 않게 내림한다.
-  const tileWidth = Math.floor((inner - gap * (columns - 1)) / columns);
   const tileHeight = tileWidth * CARD_RATIO;
+  const zoneRows = rowsFor(columns);
 
   // 드래그 앤 드롭. 카드를 잠깐 누르고 있으면 들어 올려지고, 다른 영역에 놓으면 옮겨진다.
   const zoneRefs = {
@@ -999,217 +1082,175 @@ function ListPage({
     tiles[selected.zone].some((tile) => tile.card_id === selected.tile.card_id);
 
   return (
-    <View ref={pageRef} style={{ flex: 1 }}>
-      <ScrollView
-        scrollEnabled={!drag}
-        contentContainerStyle={{
-          padding: space.lg,
-          paddingTop: space.md,
-          paddingBottom: selectedStillThere ? 140 : space.xl,
-        }}
-      >
-        <View style={editorStyles.listHead}>
-          <Text style={editorStyles.listTotal}>{total + " " + t("장")}</Text>
-          <Text style={[styles.muted, { flex: 1 }]} numberOfLines={1}>
-            {t("길게 눌러 끌어서 영역을 옮깁니다.")}
-          </Text>
-        </View>
-        <View
-          {...responder.panHandlers}
-          onTouchStart={(e) => {
-            const { pageX, pageY } = e.nativeEvent;
-            state.start = { x: pageX, y: pageY };
-            state.moved = false;
-            clearTimer();
-            const measured = measureAll();
-            state.timer = setTimeout(() => {
-              state.timer = null;
-              measured.then(() => {
-                if (state.moved) return;
-                const hit = tileAt(state.start.x, state.start.y);
-                if (!hit?.tile.card || !isMovable(hit.tile.card)) return;
-                // 가로 스와이프를 가장 먼저 막는다.
-                onDragging(true);
-                tapFeedback("light");
-                state.drag = hit;
-                setSelected(null);
-                setDrag(hit);
-                setHover(hit.zone);
-                moveGhost(state.start.x, state.start.y);
-              });
-            }, 260);
-          }}
-          onTouchMove={(e) => {
-            const { pageX, pageY } = e.nativeEvent;
-            if (
-              Math.abs(pageX - state.start.x) > 8 ||
-              Math.abs(pageY - state.start.y) > 8
-            ) {
-              state.moved = true;
-              if (!state.drag) clearTimer();
-            }
-          }}
-          onTouchEnd={() => {
-            const tapped = !!state.timer && !state.moved;
-            clearTimer();
-            // 움직이지 않고 놓은 드래그는 취소한다. 끌던 중이면 응답자가 놓는 위치를 처리한다.
-            if (state.drag) {
-              if (!state.granted) endDrag();
-              endDrag();
-              return;
-            }
-            if (!tapped) return;
-            measureAll().then(() => {
+    <View ref={pageRef} style={{ flex: 1, padding: pad }}>
+      <View
+        {...responder.panHandlers}
+        onTouchStart={(e) => {
+          const { pageX, pageY } = e.nativeEvent;
+          state.start = { x: pageX, y: pageY };
+          state.moved = false;
+          clearTimer();
+          const measured = measureAll();
+          state.timer = setTimeout(() => {
+            state.timer = null;
+            measured.then(() => {
+              if (state.moved) return;
               const hit = tileAt(state.start.x, state.start.y);
-              setSelected((previous) =>
-                hit &&
-                (previous?.tile.key !== hit.tile.key ||
-                  previous.zone !== hit.zone)
-                  ? hit
-                  : null,
-              );
+              if (!hit?.tile.card || !isMovable(hit.tile.card)) return;
+              // 가로 스와이프를 가장 먼저 막는다.
+              onDragging(true);
+              tapFeedback("light");
+              state.drag = hit;
+              setSelected(null);
+              setDrag(hit);
+              setHover(hit.zone);
+              moveGhost(state.start.x, state.start.y);
             });
-          }}
-          onTouchCancel={() => {
-            clearTimer();
-            if (state.drag) endDrag();
-          }}
-          style={{ gap: space.sm }}
-        >
-          {DECK_ZONES.map((zone) => {
-            const list = tiles[zone];
-            const target = targets[zone];
-            const active = !!drag && hover === zone && drag.zone !== zone;
-            return (
-              <View
-                key={zone}
-                ref={zoneRefs[zone]}
-                style={[editorStyles.zone, active && editorStyles.zoneActive]}
-              >
-                <View style={editorStyles.zoneHead}>
-                  <Text style={editorStyles.zoneTitle}>
-                    {t(ZONE_LABEL[zone])}
-                  </Text>
-                  <Badge
-                    label={
-                      target === undefined
-                        ? String(list.length)
-                        : `${list.length - (zone === "list" ? countUltimates(list) : 0)} / ${target}`
-                    }
-                    tone={
-                      target !== undefined &&
-                      list.length -
-                        (zone === "list" ? countUltimates(list) : 0) !==
-                        target
-                        ? "danger"
-                        : "accent"
-                    }
-                  />
-                </View>
-                <View
-                  ref={gridRefs[zone]}
-                  style={[editorStyles.grid, { gap, minHeight: tileHeight }]}
-                >
-                  {list.length === 0 && (
-                    <View
-                      style={[editorStyles.emptyZone, { height: tileHeight }]}
-                    >
-                      <Text style={styles.muted}>
-                        {t(
-                          zone === "list"
-                            ? "카드 검색에서 넣어 주세요."
-                            : "비어 있음",
-                        )}
-                      </Text>
-                    </View>
-                  )}
-                  {list.map((tile) => {
-                    const lifted =
-                      drag?.tile.key === tile.key && drag.zone === zone;
-                    const picked =
-                      selected?.tile.key === tile.key && selected.zone === zone;
-                    return (
-                      <View
-                        key={tile.key}
-                        accessible
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          (tile.card ? localized(tile.card, language) : "") +
-                          ", " +
-                          t(ZONE_LABEL[zone])
-                        }
-                        onAccessibilityTap={() => setSelected({ tile, zone })}
-                        style={[
-                          {
-                            width: tileWidth,
-                            height: tileHeight,
-                            borderRadius: 6,
-                          },
-                          lifted && { opacity: 0.3 },
-                          picked && editorStyles.picked,
-                        ]}
-                      >
-                        <CachedImage
-                          url={
-                            tile.card ? cardImageFor(tile.card, tileWidth) : ""
-                          }
-                          fill
-                          height={tileHeight}
-                        />
-                        {!!tile.card && !isMovable(tile.card) && (
-                          <View style={editorStyles.lock}>
-                            <Icon
-                              name="lock-closed"
-                              size={10}
-                              color={colors.text}
-                            />
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
+          }, 260);
+        }}
+        onTouchMove={(e) => {
+          const { pageX, pageY } = e.nativeEvent;
+          if (
+            Math.abs(pageX - state.start.x) > 8 ||
+            Math.abs(pageY - state.start.y) > 8
+          ) {
+            state.moved = true;
+            if (!state.drag) clearTimer();
+          }
+        }}
+        onTouchEnd={() => {
+          const tapped = !!state.timer && !state.moved;
+          clearTimer();
+          // 움직이지 않고 놓은 드래그는 취소한다. 끌던 중이면 응답자가 놓는 위치를 처리한다.
+          if (state.drag) {
+            if (!state.granted) endDrag();
+            return;
+          }
+          if (!tapped) return;
+          measureAll().then(() => {
+            const hit = tileAt(state.start.x, state.start.y);
+            setSelected((previous) =>
+              hit &&
+              (previous?.tile.key !== hit.tile.key ||
+                previous.zone !== hit.zone)
+                ? hit
+                : null,
             );
-          })}
-        </View>
-        {(deck.reserve_cards || []).length > 0 && (
-          <Text style={[styles.muted, { marginTop: space.md }]}>
-            {t("교체 덱") +
-              " " +
-              (deck.reserve_cards || []).reduce((n, e) => n + e.count, 0) +
-              t("장") +
-              " · " +
-              t("교체 덱은 웹에서 편집할 수 있습니다.")}
-          </Text>
-        )}
-        <View style={[editorStyles.section, { marginTop: space.lg }]}>
-          <Text style={editorStyles.sectionTitle}>{t("편성 확인")}</Text>
-          {issues.length === 0 ? (
-            <View style={editorStyles.issue}>
-              <Icon name="checkmark-circle" size={18} color={colors.success} />
-              <Text style={[styles.text, { flex: 1 }]}>
-                {t("문제가 없습니다.")}
-              </Text>
-            </View>
-          ) : (
-            issues.map((issue, n) => (
-              <View key={n} style={editorStyles.issue}>
-                <Icon
-                  name={issue.severity === "error" ? "alert-circle" : "warning"}
-                  size={18}
-                  color={
-                    issue.severity === "error" ? colors.danger : colors.accent
-                  }
-                />
-                <Text style={[styles.text, { flex: 1, fontSize: 14 }]}>
-                  {t(issue.message)}
+          });
+        }}
+        onTouchCancel={() => {
+          clearTimer();
+          if (state.drag) endDrag();
+        }}
+        style={{ flex: 1, gap: zoneGap }}
+      >
+        {DECK_ZONES.map((zone, zoneIndex) => {
+          const list = tiles[zone];
+          const counter = counters[zone];
+          const active = !!drag && hover === zone && drag.zone !== zone;
+          const rows = zoneRows[zoneIndex]!;
+          return (
+            <View
+              key={zone}
+              ref={zoneRefs[zone]}
+              style={[
+                editorStyles.zone,
+                {
+                  padding: zonePad,
+                  minHeight:
+                    rows * tileHeight + (rows - 1) * gap + zonePad * 2 + 2,
+                },
+                // 남는 높이는 리스트 영역이 차지한다.
+                zone === "list" && { flexGrow: 1 },
+                active && editorStyles.zoneActive,
+              ]}
+            >
+              <View ref={gridRefs[zone]} style={[editorStyles.grid, { gap }]}>
+                {list.length === 0 && (
+                  <View
+                    style={[
+                      editorStyles.emptyZone,
+                      { height: tileHeight, width: inner - tileWidth - gap },
+                    ]}
+                  >
+                    <Text style={styles.muted} numberOfLines={2}>
+                      {t(
+                        zone === "list"
+                          ? "카드 검색에서 넣어 주세요."
+                          : "비어 있음",
+                      )}
+                    </Text>
+                  </View>
+                )}
+                {list.map((tile) => {
+                  const lifted =
+                    drag?.tile.key === tile.key && drag.zone === zone;
+                  const picked =
+                    selected?.tile.key === tile.key && selected.zone === zone;
+                  return (
+                    <View
+                      key={tile.key}
+                      accessible
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        (tile.card ? localized(tile.card, language) : "") +
+                        ", " +
+                        t(ZONE_LABEL[zone])
+                      }
+                      onAccessibilityTap={() => setSelected({ tile, zone })}
+                      style={[
+                        {
+                          width: tileWidth,
+                          height: tileHeight,
+                          borderRadius: 6,
+                        },
+                        lifted && { opacity: 0.3 },
+                        picked && editorStyles.picked,
+                      ]}
+                    >
+                      <CachedImage
+                        url={
+                          tile.card ? cardImageFor(tile.card, tileWidth) : ""
+                        }
+                        fill
+                        height={tileHeight}
+                      />
+                      {!!tile.card && !isMovable(tile.card) && (
+                        <View style={editorStyles.lock}>
+                          <Icon
+                            name="lock-closed"
+                            size={10}
+                            color={colors.text}
+                          />
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+              <View
+                pointerEvents="none"
+                style={[
+                  editorStyles.counter,
+                  { right: zonePad, bottom: zonePad },
+                ]}
+              >
+                <Text style={editorStyles.counterName}>
+                  {t(ZONE_LABEL[zone])}
+                </Text>
+                <Text
+                  style={[
+                    editorStyles.counterValue,
+                    { color: counter.ok ? colors.accent : colors.danger },
+                  ]}
+                >
+                  {counter.value}
                 </Text>
               </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
+            </View>
+          );
+        })}
+      </View>
 
       {selectedStillThere && selectedCard && (
         <View style={editorStyles.actionBar}>
@@ -1314,6 +1355,7 @@ function InfoPage({
   catalog,
   width,
   versions,
+  issues,
   onChange,
   onImport,
   onError,
@@ -1322,6 +1364,7 @@ function InfoPage({
   catalog: Catalog;
   width: number;
   versions: RegulationVersion[];
+  issues: ReturnType<typeof deckIssues>;
   onChange: (patch: Partial<Deck>) => void;
   onImport: (deck: Deck) => void;
   onError: (message: string) => void;
@@ -1456,6 +1499,42 @@ function InfoPage({
         />
       </EditorSection>
 
+      <EditorSection title="편성 확인">
+        {issues.length === 0 ? (
+          <View style={editorStyles.issue}>
+            <Icon name="checkmark-circle" size={18} color={colors.success} />
+            <Text style={[styles.text, { flex: 1 }]}>
+              {t("문제가 없습니다.")}
+            </Text>
+          </View>
+        ) : (
+          issues.map((issue, n) => (
+            <View key={n} style={editorStyles.issue}>
+              <Icon
+                name={issue.severity === "error" ? "alert-circle" : "warning"}
+                size={18}
+                color={
+                  issue.severity === "error" ? colors.danger : colors.accent
+                }
+              />
+              <Text style={[styles.text, { flex: 1, fontSize: 14 }]}>
+                {t(issue.message)}
+              </Text>
+            </View>
+          ))
+        )}
+        {(deck.reserve_cards || []).length > 0 && (
+          <Text style={[styles.muted, { marginTop: space.sm }]}>
+            {t("교체 덱") +
+              " " +
+              (deck.reserve_cards || []).reduce((n, e) => n + e.count, 0) +
+              t("장") +
+              " · " +
+              t("교체 덱은 웹에서 편집할 수 있습니다.")}
+          </Text>
+        )}
+      </EditorSection>
+
       <EditorSection title="덱 코드로 가져오기">
         <Input
           accessibilityLabel={t("가져올 덱 코드")}
@@ -1579,13 +1658,34 @@ const editorStyles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   countBadgeText: { color: colors.onAccent, fontSize: 11, fontWeight: "800" },
-  listHead: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: space.sm,
-    marginBottom: space.sm,
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 6 },
+  meter: {
+    minWidth: 44,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    alignItems: "center",
   },
-  listTotal: { color: colors.text, fontSize: 18, fontWeight: "800" },
+  meterText: { fontSize: 13, fontWeight: "800" },
+  guide: {
+    position: "absolute",
+    top: space.xs,
+    right: space.md,
+    maxWidth: 260,
+    padding: space.md,
+    gap: 4,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+    elevation: 8,
+  },
+  guideTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
+  guideText: { color: colors.muted, fontSize: 13 },
+  counter: { position: "absolute", alignItems: "flex-end" },
+  counterName: { color: colors.muted, fontSize: 10, fontWeight: "700" },
+  counterValue: { fontSize: 13, fontWeight: "800" },
   zone: {
     padding: space.sm,
     borderRadius: radius.md,
@@ -1607,7 +1707,6 @@ const editorStyles = StyleSheet.create({
   zoneTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   emptyZone: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 6,
