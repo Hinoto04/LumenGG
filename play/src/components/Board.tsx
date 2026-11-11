@@ -279,7 +279,7 @@ function Field({ side, player, actions, envelope, onAction, mine }: FieldProps) 
             ))}
           </div>
         </div>
-        <Piles side={side} player={player} actions={actions} />
+        <Piles side={side} player={player} actions={actions} onAction={onAction} />
       </div>
     </section>
   );
@@ -295,8 +295,19 @@ function listGrid(count: number): CSSProperties {
   return { "--rows": rows, "--cols": cols } as CSSProperties;
 }
 
-function Piles({ side, player, actions }: { side: Side; player: PlayerState; actions: ActionIndex }) {
+function Piles({
+  side,
+  player,
+  actions,
+  onAction,
+}: {
+  side: Side;
+  player: PlayerState;
+  actions: ActionIndex;
+  onAction: (action: LegalAction) => void;
+}) {
   const setOpenZone = usePlay((s) => s.setOpenZone);
+  const ultimateHandlers = useCardHandlers(side, "ultimate", actions, onAction);
   const envelope = usePlay((s) => s.envelope);
   const picks = usePlay((s) => s.decisionPicks);
   const candidates = useMemo(() => (envelope ? decisionCandidates(envelope) : null), [envelope]);
@@ -311,6 +322,15 @@ function Piles({ side, player, actions }: { side: Side; player: PlayerState; act
         });
         const hasStaged = cards.some((card) => !card.hidden && staged.has(String(card.instance_id)));
         const top = cards[cards.length - 1];
+        // 얼티밋은 1장뿐이라 장 수 대신 카드 자체를 보여 주고, 바로 끌어 쓸 수 있게 한다(겟 페이즈 등).
+        if (zone === "ultimate" && cards.length === 1) {
+          return (
+            <div key={zone} className="pile pile-ultimate" data-drop-owner={side} data-drop-zone={zone}>
+              <Card card={cards[0]} size="mini" {...ultimateHandlers(cards[0], 0)} />
+              <span className="pile-label">{ZONE_LABELS[zone]}</span>
+            </div>
+          );
+        }
         return (
           <button
             key={zone}
@@ -321,7 +341,9 @@ function Piles({ side, player, actions }: { side: Side; player: PlayerState; act
             onClick={() => setOpenZone({ owner: side, zone })}
             aria-label={`${ZONE_LABELS[zone]} ${cards.length}장`}
           >
-            <span className={`pile-thumb ${top && !top.hidden ? "is-face" : ""}`}>{cards.length}</span>
+            <span className={`pile-thumb ${top && !top.hidden ? "is-face" : ""}`}>
+              {zone === "ultimate" ? (cards.length ? cards.length : "—") : cards.length}
+            </span>
             <span className="pile-label">{ZONE_LABELS[zone]}</span>
           </button>
         );

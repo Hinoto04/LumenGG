@@ -909,6 +909,32 @@ def perform_automatic_command(session, body, *, allow_ai=False):
         raise AutomaticRuntimeFailure('자동 실행 오류로 명령을 롤백하고 세션을 수동 모드로 전환했습니다.') from exc
 
 
+def acknowledge_automatic_clock(session, role, clock_id):
+    """차례인 좌석의 화면이 제한 시간을 표시했다. 그때부터 시간을 세도록 마감을 다시 잡는다.
+
+    바뀌었으면 새 세션을, 아니면 None을 돌려준다.
+    """
+    from .game.engine import acknowledge_clock
+
+    if role not in ('p1', 'p2') or session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
+        return None
+    clock = (((session.document or {}).get('state') or {}).get('engine') or {}).get('clock') or {}
+    if not clock or clock.get('seen', True):
+        return None
+    with transaction.atomic():
+        locked = LumenSimulatorSession.objects.select_for_update().get(id=session.id)
+        if locked.mode != LumenSimulatorSession.MODE_AUTOMATIC:
+            return None
+        document = copy.deepcopy(locked.document or {})
+        engine_state = (document.get('state') or {}).get('engine') or {}
+        if not acknowledge_clock(engine_state, role, str(clock_id or ''), timezone.now()):
+            return None
+        locked.document = document
+        locked.version += 1
+        locked.save(update_fields=['document', 'version', 'updated_at'])
+        return locked
+
+
 def reconcile_automatic_session(session, *, both_players_disconnected=False):
     """Lazily settle an elapsed deadline on reconnect/read/command boundaries."""
     if session.mode != LumenSimulatorSession.MODE_AUTOMATIC or (session.document or {}).get('preparation', {}).get('status') == 'editing':

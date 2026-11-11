@@ -9,6 +9,14 @@ from .regulations import DEFAULT_RULES
 CARD_FIELDS = ('id', 'name', 'code', 'character_id', 'type', 'ultimate', 'text', 'detail_text', 'effect_definition', 'trait_config', 'frame', 'damage', 'pos', 'body', 'special', 'hit', 'guard', 'counter', 'g_top', 'g_mid', 'g_bot', 'img', 'img_mid', 'img_sm')
 
 
+def fixed_placement(card, count, hand, side):
+    if getattr(card, 'ultimate', False):
+        return {'hand': 0, 'side': 0}
+    if not is_passive_card(card) and '특수' in str(getattr(card, 'type', '') or ''):
+        return {'hand': 0, 'side': count}
+    return {'hand': hand, 'side': side}
+
+
 def card_snapshot(card):
     return {key: copy.deepcopy(getattr(card, key, None)) for key in CARD_FIELDS}
 
@@ -25,7 +33,9 @@ def snapshot_deck(deck, regulation=None):
     return {'schema_version': 2, 'deck_id': deck.pk, 'name': deck.name,
             'character_id': deck.character_id, 'character': {'id': deck.character_id, 'name': deck.character.name, 'datas': copy.deepcopy(deck.character.datas), **{k: getattr(deck.character, k, '') for k in ('img', 'sd_img', 'body_img', 'icon_img', 'color')}},
             'trait_card_id': trait.id if trait else None,
-            'cards': [{'card_id': e.card_id, 'count': e.count, 'hand': e.hand, 'side': e.side} for e in entries],
+            # 예전 덱은 얼티밋·특수 기술 위치를 다르게 저장한 경우가 있다.
+            # 얼티밋은 항상 얼티밋 영역, 특수 기술은 항상 사이드 덱이다(룰북 p20).
+            'cards': [{'card_id': e.card_id, 'count': e.count, **fixed_placement(e.card, e.count, e.hand, e.side)} for e in entries],
             'reserve_cards': [{'card_id': e.card_id, 'count': e.count} for e in reserve],
             'catalog': cards, 'regulation_version_id': version.pk if version else None,
             'regulation_rules': copy.deepcopy(version.rules) if version else None}
@@ -162,6 +172,18 @@ def validate(snapshot, *, stage='registration', active=None, ruleset=None):
         report = validate_automatic_deck(deck, entries=rows, ruleset=ruleset, check_setup=stage == 'setup')
         for message in report.errors:
             issue('deck_composition', message, [int(pk) for pk, c in catalog.items() if c.get('name') and c['name'] in message])
+    if unrestricted and stage == 'setup':
+        # 무금제여도 시작 배치 규칙(룰북 p20)은 적용한다.
+        for row in current.get('cards', []) if isinstance(current.get('cards'), list) else []:
+            card = catalog.get(str((row or {}).get('card_id'))) if isinstance(row, dict) else None
+            if not card or is_passive_card(card):
+                continue
+            count, hand, side = (int(row.get(key) or 0) for key in ('count', 'hand', 'side'))
+            if card.get('ultimate'):
+                if hand or side:
+                    issue('setup_placement', f'{card.get("name")}: 얼티밋은 패·사이드 대신 얼티밋 영역에 배치해주세요.', [row['card_id']])
+            elif '특수' in str(card.get('type') or '') and (hand or side != count):
+                issue('setup_placement', f'{card.get("name")}: 특수 기술은 전부 사이드 덱에 있어야 합니다.', [row['card_id']])
     if stage == 'draft':
         for item in issues:
             if item['code'] not in ('invalid_count', 'unknown_card', 'invalid_entry', 'invalid_entries', 'invalid_placement', 'duplicate_entry'):

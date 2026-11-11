@@ -178,11 +178,19 @@ def simulatorDeckSearch(req):
 def deck_search_rows(req, query):
     query = str(query or '').strip()
     query_is_id = query.isdigit()
-    if len(query) < 2 and not query_is_id:
+    if not query:
         return []
 
     if query_is_id:
         search_q = Q(id=int(query))
+    elif len(query) < 2:
+        # 한 글자는 결과가 너무 넓어지지 않도록 작성자명·캐릭터명 일치와 덱 이름 시작만 찾는다.
+        search_q = (
+            Q(author__username__iexact=query)
+            | Q(author__username__istartswith=query)
+            | Q(character__name__iexact=query)
+            | Q(name__istartswith=query)
+        )
     else:
         search_q = (
             Q(name__icontains=query)

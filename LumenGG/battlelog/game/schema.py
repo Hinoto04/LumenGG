@@ -1766,6 +1766,11 @@ def validate_effect_definition(definition, *, require_coverage=False, card_has_t
                     issues, f'{path}.numbered_effect',
                     '카드 사용 비용의 번호 효과 여부는 불리언이어야 합니다.',
                 )
+            if 'best_effort' in cost and not isinstance(cost.get('best_effort'), bool):
+                _issue(
+                    issues, f'{path}.best_effort',
+                    '가능한 만큼 지불하는 비용 여부는 불리언이어야 합니다.',
+                )
             _validate_selector(cost.get('selector'), f'{path}.selector', issues)
             use_contexts = cost.get('use_contexts')
             if use_contexts is not None and (

@@ -132,16 +132,16 @@ def merge_deck_entries(deck_entries):
     return result, None
 
 def build_card_in_deck(deck, deck_entries):
-    return [
-        CardInDeck(
-            card_id=card_id,
-            deck=deck,
-            count=count,
-            hand=hand,
-            side=side,
-        )
-        for card_id, count, hand, side in deck_entries
-    ]
+    deck_entries = list(deck_entries)
+    from .validation import fixed_placement
+    # 얼티밋은 항상 얼티밋 영역, 특수 기술은 항상 사이드 덱으로 저장한다.
+    cards = Card.objects.in_bulk([entry[0] for entry in deck_entries])
+    rows = []
+    for card_id, count, hand, side in deck_entries:
+        card = cards.get(card_id)
+        placement = fixed_placement(card, count, hand, side) if card else {'hand': hand, 'side': side}
+        rows.append(CardInDeck(card_id=card_id, deck=deck, count=count, **placement))
+    return rows
 
 def replace_deck_cards(deck, deck_entries):
     CardInDeck.objects.filter(deck_id=deck.id).delete()

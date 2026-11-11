@@ -31933,7 +31933,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(definition['play_costs'], [{
             'operation': 'discard',
             'use_contexts': ['combo'], 'source_zones': ['list'],
-            'numbered_effect': True,
+            'numbered_effect': True, 'best_effort': True,
             'selector': {
                 'kind': 'card', 'player': {'controller': True},
                 'zones': ['hand'], 'min': 2, 'max': 2,
@@ -31999,11 +31999,16 @@ class AutomaticEngineTests(SimpleTestCase):
             'used': ['resolved-two', 'resolved-three'],
             'next_penalty': 300, 'max_combo': 4,
         })
-        self.assertFalse(any(
+        # 패가 부족해도 사용할 수 있고, 있는 만큼만 버린다(가능한 만큼 버리는 효과).
+        self.assertTrue(any(
             action['type'] == 'play_combo_card'
             and action['payload']['card_instance_id'] == 'st4-insufficient'
             for action in insufficient.legal_actions('p1')
         ))
+        insufficient._play_combo('p1', ['st4-insufficient'])
+        partial = insufficient.engine_state['pending_decision']
+        self.assertEqual(partial['kind'], 'play_cost')
+        self.assertEqual((partial['minimum'], partial['maximum']), (1, 1))
 
         hand_source = attack(
             'st4-hand', 'p1', code='ST4-004', frame=8, damage=600,
@@ -32075,7 +32080,7 @@ class AutomaticEngineTests(SimpleTestCase):
             instance_id in chosen['list_ids']
             for instance_id in chosen['selected_ids']
         ))
-        self.assertFalse(cost_scenarios['list-insufficient-cost']['legal'])
+        self.assertTrue(cost_scenarios['list-insufficient-cost-discards-what-it-can']['legal'])
         self.assertFalse(cost_scenarios['hand-combo-no-list-cost']['skip_get'])
         self.assertFalse(
             cost_scenarios[

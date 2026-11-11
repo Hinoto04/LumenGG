@@ -11,6 +11,7 @@ from tournament.models import Tournament
 
 from .automatic_services import (
     AutomaticRuntimeFailure,
+    acknowledge_automatic_clock,
     advance_ai_session,
     perform_automatic_command,
     reconcile_automatic_session,
@@ -282,6 +283,17 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
             return
         if message_type == 'log_unsubscribe':
             self.log_subscribed = False
+            return
+        if message_type == 'clock_seen':
+            # 차례인 플레이어 화면에 제한 시간이 표시되었다. 그때부터 시간을 센다.
+            if self.presence_role in ('p1', 'p2'):
+                try:
+                    session = simulator_queryset().get(view_token=self.view_token)
+                    session = acknowledge_automatic_clock(session, self.presence_role, content.get('clock_id'))
+                except LumenSimulatorSession.DoesNotExist:
+                    return
+                if session is not None:
+                    broadcast_simulator_session(session)
             return
 
         if message_type not in {'action', 'command'}:

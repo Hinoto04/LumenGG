@@ -117,6 +117,32 @@ export function setPlacement(active: PrepActive, cardId: number, hand: number, s
   };
 }
 
+/** 준비 화면의 영역. ultimate는 얼티밋 카드의 자리, reserve는 교체 덱이다. */
+export type PrepZone = Placement | "ultimate" | "reserve";
+
+/** 카드 한 장을 from에서 to로 옮길 수 있는지(얼티밋은 얼티밋 자리와 교체 덱 사이만) */
+export function canMove(card: PrepCatalogCard | undefined, from: PrepZone, to: PrepZone): boolean {
+  if (from === to || !card) return false;
+  if (isUltimate(card)) return (from === "ultimate" || from === "reserve") && (to === "ultimate" || to === "reserve");
+  return from !== "ultimate" && to !== "ultimate";
+}
+
+/** 카드 한 장을 옮긴다. 교체 덱에서 오면 덱에 넣고, 교체 덱으로 가면 덱에서 뺀다. */
+export function moveCopy(active: PrepActive, cardId: number, from: PrepZone, to: PrepZone): PrepActive {
+  if (from === to) return active;
+  let next = from === "reserve" ? addCard(active, cardId) : active;
+  const row = next.cards.find((item) => item.card_id === cardId);
+  if (!row) return active;
+  let hand = row.hand ?? 0;
+  let side = row.side ?? 0;
+  if (from === "hand") hand -= 1;
+  if (from === "side") side -= 1;
+  if (to === "hand") hand += 1;
+  if (to === "side") side += 1;
+  next = setPlacement(next, cardId, Math.max(0, hand), Math.max(0, side));
+  return to === "reserve" ? removeCard(next, cardId) : next;
+}
+
 export function totals(active: PrepActive, registered: PrepRegistered) {
   let hand = 0;
   let side = 0;

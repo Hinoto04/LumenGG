@@ -524,9 +524,11 @@ def get_initial_cards_for_language(card_in_deck, language):
                 'hand': 0,
                 'side': 0,
             }
+        from deck.validation import fixed_placement
+        placement = fixed_placement(cid.card, cid.count, cid.hand, cid.side)
         cards[key]['count'] += cid.count
-        cards[key]['hand'] += cid.hand
-        cards[key]['side'] += cid.side
+        cards[key]['hand'] += placement['hand']
+        cards[key]['side'] += placement['side']
     return list(cards.values())
 
 @deck_validation_response

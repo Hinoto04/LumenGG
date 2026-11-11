@@ -3194,3 +3194,229 @@ body.play-lobby-page #root.play-embedded {
   color: var(--faint);
   background: rgba(32, 36, 43, 0.05);
 }
+
+/* ------------------------------------------------------------------ 덱 준비: 덱 화면 같은 배치판 */
+/* 덱 상세(detail_v2)처럼 리스트·손패는 왼쪽, 사이드는 오른쪽 세로 줄, 교체 덱은 아래 가로 줄 */
+
+.prep-help {
+  margin: 0;
+  font-size: 0.85em;
+}
+
+.prep-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10em, 15em);
+  grid-template-areas:
+    "list side"
+    "hand side";
+  gap: 0.75em;
+  align-items: stretch;
+}
+
+.prep-board.has-ultimate {
+  grid-template-areas:
+    "list side"
+    "hand side"
+    "ultimate side";
+}
+
+.prep-board.has-reserve {
+  grid-template-areas:
+    "list side"
+    "hand side"
+    "reserve reserve";
+}
+
+.prep-board.has-reserve.has-ultimate {
+  grid-template-areas:
+    "list side"
+    "hand side"
+    "ultimate side"
+    "reserve reserve";
+}
+
+.prep-zone {
+  min-width: 0;
+  min-height: 0;
+  padding: 0.75em;
+  border: 1px solid var(--line-solid);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  transition: border-color 0.12s, box-shadow 0.12s, opacity 0.12s;
+}
+
+.prep-zone-list { grid-area: list; }
+.prep-zone-hand { grid-area: hand; }
+.prep-zone-ultimate { grid-area: ultimate; }
+.prep-zone-reserve { grid-area: reserve; }
+.prep-zone-side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.prep-zone.is-target {
+  border-color: rgba(77, 155, 255, 0.55);
+}
+
+.prep-zone.is-over {
+  border-color: #4d9bff;
+  box-shadow: 0 0 0 1px rgba(77, 155, 255, 0.3), inset 0 0 1.2em rgba(77, 155, 255, 0.12);
+}
+
+.prep-zone.is-from {
+  border-color: rgba(255, 90, 95, 0.7);
+}
+
+.prep-zone.is-blocked {
+  opacity: 0.45;
+}
+
+.prep-zone-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75em;
+  margin-bottom: 0.6em;
+}
+
+.prep-zone-head h2 {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 900;
+}
+
+.prep-zone-head span {
+  color: var(--faint);
+  font-size: 0.82em;
+  font-weight: 800;
+}
+
+.prep-zone-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  min-height: 4em;
+}
+
+/* 사이드: 덱 화면처럼 윗부분만 겹쳐 세로로 쌓는다 */
+.prep-zone-cards.is-side {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 6em;
+  padding-right: 3px;
+}
+
+.prep-zone-cards.is-side .prep-copy {
+  flex: none;
+  max-height: 4.5em;
+}
+
+.prep-zone-cards.is-side .prep-copy:hover {
+  max-height: 20em;
+}
+
+.prep-zone-cards.is-reserve {
+  display: flex;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.prep-zone-cards.is-reserve .prep-copy {
+  flex: 0 0 clamp(5.5em, 11vw, 8.5em);
+}
+
+.prep-zone-empty {
+  grid-column: 1 / -1;
+  align-self: center;
+  margin: 0;
+  color: var(--faint);
+  font-size: 0.85em;
+  text-align: center;
+}
+
+.prep-copy {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  cursor: grab;
+  touch-action: pan-x pan-y;
+  -webkit-touch-callout: none;
+  transition: max-height 0.18s ease, opacity 0.12s;
+}
+
+.prep-copy img {
+  display: block;
+  width: 100%;
+  pointer-events: none;
+}
+
+.prep-copy > span {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 5 / 7;
+  padding: 0.3em;
+  font-size: 0.75em;
+  text-align: center;
+}
+
+.prep-copy.is-problem {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.prep-copy.is-dragging {
+  opacity: 0.3;
+}
+
+.prep-drag-ghost {
+  position: fixed;
+  z-index: 60;
+  width: 6em;
+  pointer-events: none;
+  transform: translate(-50%, -60%) rotate(-3deg);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 0.8em 1.6em rgba(0, 0, 0, 0.55);
+}
+
+.prep-drag-ghost img {
+  display: block;
+  width: 100%;
+}
+
+@media (max-width: 760px) {
+  .prep-board,
+  .prep-board.has-ultimate,
+  .prep-board.has-reserve,
+  .prep-board.has-reserve.has-ultimate {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "list" "hand" "side" "ultimate" "reserve";
+  }
+
+  .prep-zone-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .prep-zone-cards.is-side {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .prep-zone-cards.is-side .prep-copy,
+  .prep-zone-cards.is-side .prep-copy:hover {
+    max-height: none;
+  }
+}
+
+/* 얼티밋: 장 수 대신 카드 한 장을 그대로 보여 준다 */
+.pile.pile-ultimate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2em;
+}

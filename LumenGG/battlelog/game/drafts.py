@@ -1617,6 +1617,9 @@ def infer_catch_rules(text):
             body,
         )
     rule = {'fixed_speed': int(match.group(1))} if match else {}
+    if match and match.group(0).endswith('사용한다'):
+        # "N속도로 사용한다"만 강제다. "사용할 수 있다"는 원래 속도로도 쓸 수 있다.
+        rule['speed_required'] = True
     if re.search(r'캐치\s*시,?\s*루멘 존의 이 기술로 캐치할 수 있다', body):
         rule['allow_zones'] = ['lumen']
     if rule and re.search(
@@ -5379,7 +5382,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         after_use = by_id.get('crs-at-002-n2')
         broken = by_id.get('crs-at-002-n3')
         definition['deck_limit'] = 3
-        definition['catch_rules'] = [{'fixed_speed': 8}]
+        definition['catch_rules'] = [{'fixed_speed': 8, 'speed_required': True}]
         if deck_limit:
             deck_limit.update({
                 'kind': 'function', 'mode': 'continuous',
@@ -5741,8 +5744,9 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             'condition': copy.deepcopy(combo_condition),
             'numbered_effect': True,
         }]
+        # 리스트 1장을 사이드로 보내는 비용과 8속도가 한 묶음이다(원래 속도로 비용 없이 쓰지 않는다).
         definition['catch_rules'] = [{
-            'fixed_speed': 8, 'numbered_effect': True,
+            'fixed_speed': 8, 'numbered_effect': True, 'speed_required': True,
         }]
         definition['play_costs'] = [{
             'operation': 'move_card', 'to_zone': 'side',
@@ -6743,6 +6747,8 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         }]
         for cost in definition.get('play_costs') or []:
             cost['numbered_effect'] = True
+            # 패가 부족하면 부족한 만큼만 버린다(가능한 만큼 버리는 효과).
+            cost['best_effort'] = True
         function = next((
             ability for ability in abilities
             if ability.get('id') == 'st4-004-function'
@@ -7362,6 +7368,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             })
         definition['catch_rules'] = [{
             'fixed_speed': 10, 'numbered_effect': True,
+            'speed_required': True,
         }]
     if normalized_code == 'ST2-008':
         qna_ids = [568, 692]
@@ -15035,6 +15042,15 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                             'selection_key': own_selection,
                             'to_zone': 'hand',
                         }],
+                    },
+                    {
+                        # 효과 처리 전에 남은 배틀 존 기술을 리스트로 정리한다(패로 고른 카드는 이미 패에 있다).
+                        'op': 'move_card',
+                        'selector': {
+                            'kind': 'card', 'player': 'any', 'zones': ['battle'],
+                            'all': True, 'where': {'is_technique': True},
+                        },
+                        'to_zone': 'list',
                     },
                     {
                         'op': 'request_choice',

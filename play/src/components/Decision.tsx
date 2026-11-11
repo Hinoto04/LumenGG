@@ -161,7 +161,14 @@ function groupOptions(options: DecisionOption[], me: string): [string, DecisionO
 function optionCard(envelope: PlayEnvelope, option: DecisionOption): BoardCard | null {
   const ref = option.ui?.card;
   if (!ref) return null;
-  return envelope.state.players[ref.owner]?.zones[ref.zone]?.[ref.index] ?? null;
+  const board = envelope.state.players[ref.owner]?.zones[ref.zone]?.[ref.index] ?? null;
+  // 대응 없음 강제 레디처럼 서버가 고르는 사람에게만 카드 정보를 함께 준 선택지는
+  // 보드에서 뒷면이어도 그 정보를 보여 준다.
+  const disclosed = option.card as BoardCard | undefined;
+  if ((!board || board.hidden) && disclosed && typeof disclosed === "object" && !disclosed.hidden) {
+    return { ...disclosed, kind: "card", owner: ref.owner, zone: ref.zone, face_up: true, hidden: false } as BoardCard;
+  }
+  return board;
 }
 
 /**

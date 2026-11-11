@@ -78,6 +78,7 @@ interface Connection {
   manual: (action: string, payload: Record<string, unknown>) => void;
   submit: (action: LegalAction, selections?: Selections) => void;
   apply: (envelope: PlayEnvelope) => void;
+  seen: (clockId: string) => void;
   close: () => void;
 }
 
@@ -125,6 +126,18 @@ export function isPreparing(envelope: PlayEnvelope | null): boolean {
   return envelope?.preparation?.status === "editing";
 }
 
+/** 내 차례의 제한 시간이 화면에 표시되었다고 알린다. 서버는 그때부터 시간을 센다. */
+export function clockSeen(clockId: string): void {
+  current?.seen(clockId);
+}
+
+/** 서버 시각 대신 받은 순간 + 남은 시간으로 마감을 잡는다(기기 시계 차이 보정). */
+export function clockDeadline(clock: PlayEnvelope["clocks"]): number | null {
+  if (!clock) return null;
+  if (typeof clock.local_deadline === "number") return clock.local_deadline;
+  return clock.deadline ? Date.parse(String(clock.deadline)) : null;
+}
+
 /** 지금 연결로 행동을 보낸다. 연결이 없으면 무시한다. */
 export function submitAction(action: LegalAction, selections?: Selections): void {
   current?.submit(action, selections);
@@ -148,7 +161,11 @@ export function connectLive(target: LiveTarget): () => void {
   let requestedVersion = 0;
   /** 받은 상태 중 가장 새 버전. 화면은 재생 중이라 이보다 뒤처질 수 있다. */
   let latestVersion = 0;
+  /** 받은 상태 중 가장 새 것. 연출 재생 중에 행동하면 이것으로 따라잡는다. */
+  let latestEnvelope: PlayEnvelope | null = null;
   let lastSeq = 0;
+  /** 표시했다고 이미 알린 제한 시간 */
+  const seenClocks = new Set<string>();
 
   const send = (message: ClientMessage) => {
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -163,8 +180,12 @@ export function connectLive(target: LiveTarget): () => void {
 
   const applyEnvelope = (incoming: PlayEnvelope) => {
     if (incoming.version < latestVersion) return;
+    if (incoming.clocks && typeof incoming.clocks.remaining_ms === "number") {
+      incoming = { ...incoming, clocks: { ...incoming.clocks, local_deadline: Date.now() + incoming.clocks.remaining_ms } };
+    }
     const envelope = normalizeEnvelope(incoming);
     latestVersion = envelope.version;
+    latestEnvelope = envelope;
     if (envelope.event_count < lastSeq) {
       // 수동 모드 되돌리기: 서버 이벤트가 줄었다. 기록을 잘라 내고 구독 위치를 다시 맞춘다.
       // 그대로 두면 서버가 이전 위치 이후의 새 이벤트를 보내지 않는다.
@@ -193,7 +214,7 @@ export function connectLive(target: LiveTarget): () => void {
     clearTimeout(clockTimer);
     const clock = envelope.clocks;
     if (!clock?.deadline || clock.paused || envelope.engine_status.status !== "running") return;
-    const due = Date.parse(clock.deadline) - Date.now() + 400;
+    const due = (clockDeadline(clock) ?? Date.now()) - Date.now() + 400;
     clockTimer = setTimeout(() => send({ type: "state" }), due > 0 ? due : 2000);
   };
 
@@ -313,9 +334,36 @@ export function connectLive(target: LiveTarget): () => void {
       send({ type: "action", request_id: requestId, payload: { action, payload } });
     },
     apply: (envelope) => applyEnvelope(envelope),
+    seen(clockId) {
+      if (seenClocks.has(clockId)) return;
+      seenClocks.add(clockId);
+      send({ type: "clock_seen", clock_id: clockId });
+    },
     submit(action, selections) {
-      const envelope = usePlay.getState().envelope;
-      if (!envelope || envelope.version !== latestVersion || useLive.getState().busy || socket?.readyState !== WebSocket.OPEN) return;
+      let envelope = usePlay.getState().envelope;
+      if (!envelope) return;
+      if (socket?.readyState !== WebSocket.OPEN) {
+        usePlay.getState().flash("연결이 끊겨 있습니다. 다시 연결되면 시도해 주세요.");
+        return;
+      }
+      if (useLive.getState().busy) {
+        usePlay.getState().flash("앞선 행동을 처리하는 중입니다.");
+        return;
+      }
+      if (envelope.version !== latestVersion && latestEnvelope) {
+        // 연출 재생 중이라 화면이 최신 상태보다 뒤처져 있다. 예전에는 여기서 행동을 조용히 버려
+        // 짧은 레디 제한 시간 안에 레디할 수 없는 일이 생겼다. 연출을 건너뛰고 최신 상태의 같은 행동을 보낸다.
+        const latest: PlayEnvelope = latestEnvelope;
+        const key = (item: LegalAction) => `${item.type}:${JSON.stringify(item.payload ?? {})}`;
+        const match = latest.legal_actions.find((item) => key(item) === key(action));
+        resetPlayback(latest);
+        if (!match) {
+          usePlay.getState().flash("상황이 바뀌었습니다. 최신 화면에서 다시 선택해 주세요.");
+          return;
+        }
+        action = match;
+        envelope = latest;
+      }
       const requestId = uid();
       pendingRequest = requestId;
       awaitingAbove = envelope.version;

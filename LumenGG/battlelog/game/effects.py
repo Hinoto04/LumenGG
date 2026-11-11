@@ -833,7 +833,15 @@ class EffectResolver:
                     scope = str(limit.get('scope') or 'game')
                     key = _ability_limit_key(ability, context)
                     used = state_path(self.state, f'engine.usage.{scope}.{controller}.{key}', 0) or 0
-                    if int(used) >= int(limit.get('max', 1)):
+                    # 같은 이름 카드 여러 장이 같은 시점에 유발돼도 남은 횟수만큼만 모은다.
+                    # (예: 사이드의 드리프트 컨버전 2장이 순서 선택으로 강제 발동되던 문제)
+                    pending = sum(
+                        1 for item in collected
+                        if item['controller'] == controller
+                        and (item['ability'].get('limit') or {}).get('scope', 'game') == limit.get('scope', 'game')
+                        and _ability_limit_key(item['ability'], item['context']) == key
+                    )
+                    if int(used) + pending >= int(limit.get('max', 1)):
                         continue
                 if (
                     condition_matches(ability.get('condition'), self.state, context)
@@ -1864,6 +1872,12 @@ class EffectResolver:
                 )
         elif op == 'guess_hand_parity':
             self.begin_hand_parity_guess(effect, context)
+        elif op == 'offer_hand_guess_repeat':
+            # 내부 명령: 적중 처리 중 다른 선택이 열려 있어 미뤄 둔 재사용 제안.
+            self._offer_hand_guess_repeat(
+                effect.get('guess_effect') or {}, effect.get('guess_context') or {},
+                int(effect.get('attempt') or 1),
+            )
         elif op == 'modify_hand_guess_categories':
             event_card = context.get('event_card') or {}
             instance_id = (
@@ -2437,23 +2451,37 @@ class EffectResolver:
                 or (correct and effect.get('repeat_on_correct'))
             )
             and attempt < maximum
-            and not self.engine.is_waiting
         ):
-            self.engine.create_decision(
-                owner=controller, kind='hand_guess_repeat',
-                prompt='추측 효과를 다시 사용하시겠습니까?',
-                options=[
-                    {'id': 'accept', 'label': '다시 사용'},
-                    {'id': 'decline', 'label': '종료'},
-                ],
-                minimum=1, maximum=1, default=['decline'],
-                continuation={
-                    'type': 'hand_guess_repeat',
-                    'effect': copy.deepcopy(effect),
+            if self.engine.is_waiting:
+                # 적중 후 처리(상대 반응 등)가 선택을 열었다면 그 뒤에 재사용을 제안한다.
+                self.state['engine'].setdefault('deferred_effects', []).append({
+                    'effects': [{
+                        'op': 'offer_hand_guess_repeat',
+                        'guess_effect': copy.deepcopy(effect),
+                        'guess_context': copy.deepcopy(context),
+                        'attempt': attempt,
+                    }],
                     'context': copy.deepcopy(context),
-                    'attempt': attempt,
-                },
-            )
+                })
+                return
+            self._offer_hand_guess_repeat(effect, context, attempt)
+
+    def _offer_hand_guess_repeat(self, effect, context, attempt):
+        self.engine.create_decision(
+            owner=context.get('controller'), kind='hand_guess_repeat',
+            prompt='추측 효과를 다시 사용하시겠습니까?',
+            options=[
+                {'id': 'accept', 'label': '다시 사용'},
+                {'id': 'decline', 'label': '종료'},
+            ],
+            minimum=1, maximum=1, default=['decline'],
+            continuation={
+                'type': 'hand_guess_repeat',
+                'effect': copy.deepcopy(effect),
+                'context': copy.deepcopy(context),
+                'attempt': attempt,
+            },
+        )
 
     def continue_hand_guess_repeat(self, effect, context, attempt, accepted):
         if not accepted:

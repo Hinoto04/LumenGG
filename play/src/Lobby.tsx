@@ -78,7 +78,8 @@ export function DeckPicker({
 
   useEffect(() => {
     const text = query.trim();
-    if (text.length < 2 && !/^\d+$/.test(text)) {
+    // 한 글자 작성자명도 검색할 수 있다.
+    if (!text) {
       setResults(null);
       return;
     }

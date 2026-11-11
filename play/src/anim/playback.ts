@@ -299,6 +299,18 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
       if (!players[from] || !players[to] || !players[from].zones[fromZone] || !players[to].zones[toZone]) {
         return { envelope, ms: 0 };
       }
+      // 사이드 덱에서 패로 가져가는 카드는 공개된다: 상대(관전자 포함)에게 잠시 보여 준다.
+      if (!isPrivate && payload.revealed && to !== me) {
+        showBanner(
+          {
+            kind: "card",
+            title: "상대가 사이드 덱에서 패로 가져간 카드",
+            card: { ...visibleStub(to, toZone, payload), face_up: true, hidden: false },
+            tone: "neutral",
+          },
+          dur(1800),
+        );
+      }
       const found = isPrivate ? null : locate(envelope, payload.card_instance_id);
       let moved: BoardCard | null;
       if (found) {
@@ -417,7 +429,7 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
         },
         dur(2200),
       );
-      return { envelope, ms: 2000 };
+      return { envelope, ms: 1200 };
     }
 
     default:

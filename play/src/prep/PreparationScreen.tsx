@@ -3,23 +3,78 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlayEnvelope, PrepActive, PrepCatalogCard } from "../protocol";
 import { perspective, usePlay } from "../store";
 import {
-  addCard,
   available,
+  canMove,
   checkPreparation,
   isTrait,
   isUltimate,
-  placementOf,
-  removeCard,
+  moveCopy,
   sendPreparation,
-  setPlacement,
   swapCounts,
   totals,
   traitChoices,
-  type Placement,
+  type PrepZone,
   type ValidationReport,
 } from "./model";
 
-const PLACEMENT_LABELS: Record<Placement, string> = { list: "리스트", hand: "손패", side: "사이드" };
+const ZONE_LABELS: Record<PrepZone, string> = {
+  list: "리스트",
+  hand: "손패",
+  side: "사이드",
+  ultimate: "얼티밋",
+  reserve: "교체 덱",
+};
+
+/** 화면 좌표 아래의 영역 */
+function zoneAt(x: number, y: number): PrepZone | null {
+  const element = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-prep-zone]");
+  return (element?.dataset.prepZone as PrepZone | undefined) ?? null;
+}
+
+interface DragState {
+  cardId: number;
+  from: PrepZone;
+  x: number;
+  y: number;
+  over: PrepZone | null;
+}
+
+/** 영역 안의 카드 한 장. 끌어서 다른 영역으로 옮기고, 누르면 크게 본다. */
+function CopyTile({
+  card,
+  zone,
+  problem,
+  dragging,
+  onPointerDown,
+  onPreview,
+}: {
+  card: PrepCatalogCard;
+  zone: PrepZone;
+  problem: boolean;
+  dragging: boolean;
+  onPointerDown: (event: React.PointerEvent) => void;
+  onPreview: () => void;
+}) {
+  const image = card.img_mid || card.img_sm || card.img;
+  return (
+    <div
+      className={`prep-copy is-${zone} ${problem ? "is-problem" : ""} ${dragging ? "is-dragging" : ""}`}
+      onPointerDown={onPointerDown}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onPreview();
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`${card.name} (${ZONE_LABELS[zone]})`}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") onPreview();
+      }}
+    >
+      {image ? <img src={String(image)} alt="" draggable={false} loading="lazy" /> : <span>{card.name}</span>}
+    </div>
+  );
+}
 
 function cardText(card: PrepCatalogCard): string {
   return String(card.text ?? "").replace(/\[\[[a-z_]+:([^\]]+)\]\]/g, "「$1」");
@@ -80,6 +135,7 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [sending, setSending] = useState(false);
   const [preview, setPreview] = useState<PrepCatalogCard | null>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
   const checkSeq = useRef(0);
 
   // 서버의 준비 버전이 바뀌면(저장·준비·게임 번호) 서버 구성으로 다시 맞춘다.
@@ -151,6 +207,126 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
     if (!ready) setDraft(next);
   };
 
+  const startDrag = (event: React.PointerEvent, cardId: number, from: PrepZone) => {
+    if (event.button !== 0) return;
+    const card = catalog[cardId];
+    const sx = event.clientX;
+    const sy = event.clientY;
+    const touch = event.pointerType !== "mouse";
+    let armed = !touch;
+    let active = false;
+    let cancelled = false;
+    const hold = touch
+      ? setTimeout(() => {
+          armed = true;
+          if (!ready) {
+            active = true;
+            setDrag({ cardId, from, x: sx, y: sy, over: from });
+          }
+        }, 220)
+      : undefined;
+    const block = (e: TouchEvent) => {
+      if (active) e.preventDefault();
+    };
+    // 끄는 중 화면 위·아래 끝에 가면 저절로 스크롤한다(휴대폰에서 아래 영역으로 옮길 때).
+    const scroller = (event.currentTarget as HTMLElement).closest<HTMLElement>(".prep");
+    let lastY = sy;
+    let lastX = sx;
+    let frame = 0;
+    const tick = () => {
+      if (active && scroller) {
+        const edge = 70;
+        const step = lastY < edge ? -14 : lastY > window.innerHeight - edge ? 14 : 0;
+        if (step) {
+          scroller.scrollTop += step;
+          setDrag({ cardId, from, x: lastX, y: lastY, over: zoneAt(lastX, lastY) });
+        }
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    const finish = () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(hold);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("touchmove", block);
+      setDrag(null);
+    };
+    const move = (e: PointerEvent) => {
+      const far = Math.hypot(e.clientX - sx, e.clientY - sy) > 6;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      if (!armed) {
+        // 길게 누르기 전에 움직였다: 스크롤로 본다.
+        if (far) {
+          cancelled = true;
+          finish();
+        }
+        return;
+      }
+      if (!active && far && !ready) active = true;
+      if (active) setDrag({ cardId, from, x: e.clientX, y: e.clientY, over: zoneAt(e.clientX, e.clientY) });
+    };
+    const up = (e: PointerEvent) => {
+      finish();
+      if (cancelled) return;
+      if (!active) {
+        setPreview(card);
+        return;
+      }
+      const to = zoneAt(e.clientX, e.clientY);
+      if (to && canMove(card, from, to)) setDraft((current) => (current ? moveCopy(current, cardId, from, to) : current));
+    };
+    const cancel = () => {
+      cancelled = true;
+      finish();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("touchmove", block, { passive: false });
+  };
+
+  const dragCard = drag ? catalog[drag.cardId] : undefined;
+  const zoneClass = (zone: PrepZone) => {
+    if (!drag || !dragCard) return "";
+    if (!canMove(dragCard, drag.from, zone)) return drag.from === zone ? "is-from" : "is-blocked";
+    return drag.over === zone ? "is-over" : "is-target";
+  };
+  const copies = (zone: PrepZone, ids: number[]) =>
+    ids.map((cardId, index) => (
+      <CopyTile
+        key={`${zone}-${cardId}-${index}`}
+        card={catalog[cardId]}
+        zone={zone}
+        problem={problemCards.has(cardId)}
+        dragging={!!drag && drag.cardId === cardId && drag.from === zone && index === ids.indexOf(cardId)}
+        onPointerDown={(event) => startDrag(event, cardId, zone)}
+        onPreview={() => setPreview(catalog[cardId])}
+      />
+    ));
+  const repeat = (rows: { card_id: number; n: number }[]) => rows.flatMap((row) => Array<number>(Math.max(0, row.n)).fill(row.card_id));
+  const listIds = repeat(techniqueRows.map((row) => ({ card_id: row.card_id, n: row.count - (row.hand ?? 0) - (row.side ?? 0) })));
+  const handIds = repeat(techniqueRows.map((row) => ({ card_id: row.card_id, n: row.hand ?? 0 })));
+  const sideIds = repeat(techniqueRows.map((row) => ({ card_id: row.card_id, n: row.side ?? 0 })));
+  const ultimateIds = repeat(ultimateRows.map((row) => ({ card_id: row.card_id, n: row.count })));
+  const reserveIds = repeat(spare.map(([id, left]) => ({ card_id: id, n: left })));
+  const hasReserve = registered.reserve_cards.length > 0;
+  const zone = (id: PrepZone, ids: number[], extra = "") => (
+    <section className={`prep-zone prep-zone-${id} ${zoneClass(id)} ${extra}`} data-prep-zone={id}>
+      <header className="prep-zone-head">
+        <h2>{ZONE_LABELS[id]}</h2>
+        <span>{ids.length}장</span>
+      </header>
+      <div className={`prep-zone-cards is-${id}`}>
+        {copies(id, ids)}
+        {!ids.length && <p className="prep-zone-empty">{ready ? "없음" : "여기로 끌어 놓기"}</p>}
+      </div>
+    </section>
+  );
+
   return (
     <main className="prep">
       <header className="prep-head">
@@ -205,105 +381,16 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
         </section>
       )}
 
-      <section className="prep-section">
-        <h2>덱 · 시작 배치</h2>
-        <div className="prep-grid">
-          {techniqueRows.map((row) => {
-            const card = catalog[row.card_id];
-            const single = row.count === 1;
-            return (
-              <div key={row.card_id} className={`prep-tile ${problemCards.has(row.card_id) ? "is-problem" : ""}`}>
-                <Thumb card={card} onPreview={setPreview} />
-                <span className="prep-tile-name">
-                  {card?.name}
-                  {row.count > 1 ? ` ×${row.count}` : ""}
-                </span>
-                {single ? (
-                  <div className="prep-placement" role="radiogroup" aria-label={`${card?.name} 시작 위치`}>
-                    {(Object.keys(PLACEMENT_LABELS) as Placement[]).map((place) => (
-                      <button
-                        key={place}
-                        type="button"
-                        role="radio"
-                        aria-checked={placementOf(row) === place}
-                        className={placementOf(row) === place ? "is-active" : ""}
-                        disabled={ready}
-                        onClick={() =>
-                          edit(setPlacement(draft, row.card_id, place === "hand" ? 1 : 0, place === "side" ? 1 : 0))
-                        }
-                      >
-                        {PLACEMENT_LABELS[place]}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="prep-steppers">
-                    {(["hand", "side"] as const).map((key) => (
-                      <label key={key}>
-                        {PLACEMENT_LABELS[key]}
-                        <input
-                          type="number"
-                          min={0}
-                          max={row.count}
-                          value={row[key] ?? 0}
-                          disabled={ready}
-                          onChange={(event) =>
-                            edit(
-                              setPlacement(
-                                draft,
-                                row.card_id,
-                                key === "hand" ? Number(event.target.value) : row.hand ?? 0,
-                                key === "side" ? Number(event.target.value) : row.side ?? 0,
-                              ),
-                            )
-                          }
-                        />
-                      </label>
-                    ))}
-                  </div>
-                )}
-                {spare.length > 0 && (
-                  <button type="button" className="prep-remove" disabled={ready} onClick={() => edit(removeCard(draft, row.card_id))}>
-                    빼기
-                  </button>
-                )}
-              </div>
-            );
-          })}
-          {ultimateRows.map((row) => (
-            <div key={row.card_id} className="prep-tile is-ultimate">
-              <Thumb card={catalog[row.card_id]} onPreview={setPreview} />
-              <span className="prep-tile-name">얼티밋 · {catalog[row.card_id]?.name}</span>
-              {spare.some(([id]) => isUltimate(catalog[id])) && (
-                <button type="button" className="prep-remove" disabled={ready} onClick={() => edit(removeCard(draft, row.card_id))}>
-                  빼기
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {spare.length > 0 && (
-        <section className="prep-section">
-          <h2>교체 덱</h2>
-          <div className="prep-grid">
-            {spare.map(([id, left]) => (
-              <div key={id} className="prep-tile is-spare">
-                <Thumb card={catalog[id]} onPreview={setPreview} />
-                <span className="prep-tile-name">
-                  {isUltimate(catalog[id]) ? "얼티밋 · " : ""}
-                  {catalog[id]?.name}
-                  {left > 1 ? ` ×${left}` : ""}
-                </span>
-                <button type="button" className="prep-add" disabled={ready} onClick={() => edit(addCard(draft, id))}>
-                  넣기
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <p className="prep-help muted">
+        카드를 끌어서 리스트·손패·사이드로 옮기세요{hasReserve ? ". 교체 덱과도 주고받을 수 있습니다" : ""}. 누르면 크게 봅니다.
+      </p>
+      <div className={`prep-board ${hasReserve ? "has-reserve" : ""} ${ultimateIds.length || spare.some(([id]) => isUltimate(catalog[id])) ? "has-ultimate" : ""}`}>
+        {zone("list", listIds)}
+        {zone("hand", handIds)}
+        {zone("side", sideIds)}
+        {(ultimateIds.length > 0 || spare.some(([id]) => isUltimate(catalog[id]))) && zone("ultimate", ultimateIds)}
+        {hasReserve && zone("reserve", reserveIds)}
+      </div>
 
       <footer className="prep-footer">
         <ul className="prep-issues" aria-live="polite">
@@ -333,6 +420,11 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
         </div>
       </footer>
       <Preview card={preview} onClose={() => setPreview(null)} />
+      {drag && dragCard && (
+        <div className="prep-drag-ghost" style={{ left: drag.x, top: drag.y }} aria-hidden>
+          {(dragCard.img_mid || dragCard.img_sm || dragCard.img) && <img src={String(dragCard.img_mid || dragCard.img_sm || dragCard.img)} alt="" />}
+        </div>
+      )}
     </main>
   );
 }

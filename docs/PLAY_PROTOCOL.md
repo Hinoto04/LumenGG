@@ -47,7 +47,7 @@ HTTP로는 `GET simulator/<view_token>/state/`, `POST simulator/<view_token>/com
 | `state` | 역할별로 가린 보드 상태 |
 | `legal_actions` | 지금 이 역할이 할 수 있는 행동. 관전자와 AI 좌석은 항상 빈 목록 |
 | `pending_decision` | 효과 선택 요청. 상대의 선택이면 `owner`와 `prompt`만 온다 |
-| `clocks` | 진행 중인 타이머 `{kind, owner, deadline, paused}` |
+| `clocks` | 진행 중인 타이머 `{id, kind, owner, deadline, remaining_ms, seen, paused}` (kind: ready·decision·action·rewind) |
 | `engine_status` | `{status, step, winner, reason}` |
 | `events` | HTTP 응답에만 포함. WebSocket은 `log_events`로 받는다 |
 
@@ -237,6 +237,10 @@ cd play; npm run build:django   # → LumenGG/static/play/play.js, play.css
 `legal_actions`, `engine_status`, `clocks`가 없으므로 클라이언트가 빈 값으로 채우고(`normalizeEnvelope`) 준비 화면을 보여 준다.
 
 - 등록 덱과 교체 덱 범위에서 기술·특성·얼티밋을 바꾸고, 카드별 시작 위치(리스트·손패·사이드)를 정한다.
+- 화면은 덱 상세(`deck/detail_v2.html`)처럼 리스트·손패(왼쪽), 사이드(오른쪽 세로 줄), 얼티밋, 교체 덱(아래 가로 줄) 영역에
+  카드를 한 장씩 펼친다. 처음 배치는 덱에 저장된 손패·사이드 장수다(`snapshot_deck`).
+  카드 한 장을 다른 영역으로 끌어 놓아 옮긴다(`moveCopy`): 교체 덱에서 오면 덱에 넣고, 교체 덱으로 가면 뺀다.
+  얼티밋은 얼티밋 자리와 교체 덱 사이만 오간다. 터치는 잠깐 눌렀다가 끌고, 화면 끝에 가면 저절로 스크롤한다. 누르면 크게 본다.
 - 고칠 때마다 `preparation/check/`로 검사만 받아 오류를 보여 주고, 교체 횟수는 클라이언트도 같은 규칙으로 센다(`play/src/prep/model.ts`).
 - "준비 완료"는 기존 `preparation/` 엔드포인트(`preparation_action: ready`)로 보낸다. AI 좌석은 처음부터 준비 완료다.
 - 대전이 끝나면 종료 화면의 "다음 게임"(`next_game`)으로 같은 상대와 다시 준비한다.
@@ -296,6 +300,16 @@ cd play; npm run dev                  # 클라이언트 127.0.0.1:5175 (/battlel
   관전은 `?game=<view_token>`만으로 열린다.
 - **타이머**: 사람과 대전할 때 기본은 레디 10초, 효과 선택 30초다(로비에서 10~120초 또는 제한 없음). AI 대전도 같은 기본값을 쓴다.
   `clocks`로 누구의 어떤 타이머인지와 남은 초를 보여 주고, 10초 이하면 붉게 깜빡인다.
+  - **효과 처리 제한(`kind: action`)**: 레디가 아닌 모든 행동 창(상대 시작 패 확인·루멘/회복 페이즈 종료·획득·콤보·캐치)에
+    효과 처리 제한 시간이 걸린다. 결정(`kind: decision`)도 같은 시간을 쓴다. 행동을 하나 할 때마다 새로 센다
+    (동시에 유발된 효과를 하나씩 고르면 고를 때마다 다시 30초). 카드 여러 장을 옮기는 결정은 확정 한 번이 한 행동이다.
+    두 플레이어가 각자 해야 하는 창은 `owner: "both"`. 시간이 지나면 그 창을 끝내는 기본 행동을 대신 한다
+    (시작 패 확인 완료·페이즈 종료·획득 안 함(필수면 첫 카드)·콤보 종료·캐치 종료), 이벤트는 `action_timeout`.
+  - **표시 뒤부터 센다**: 새 타이머는 `seen: false`로 시작하고 마감은 `시작 + 제한 + CLOCK_ACK_WAIT_SECONDS(15초)`다.
+    차례인 플레이어 화면이 연출 재생을 마치고 타이머를 표시하면 `{type: "clock_seen", clock_id}`를 보내고,
+    서버는 마감을 `그때 + 제한`(원래 마감보다 늦추지 않음)으로 다시 잡는다. 표시 전에는 모두에게 제한 시간 그대로 멈춰 보인다.
+    상대가 레디한 소식이 늦게 와도 받는 쪽은 레디 표시를 본 뒤부터 10초를 온전히 쓴다.
+  - 서버는 `remaining_ms`(보낼 때 남은 밀리초)를 함께 보내고, 클라이언트는 받은 순간 + `remaining_ms`로 마감을 잡아 기기 시계 차이를 피한다.
   서버는 시간 초과를 읽기·명령 때 정산하므로, 클라이언트가 마감 0.4초 뒤 `state`를 요청해 정산을 일으킨다.
   시계 차이로 아직이면 2초 뒤 다시 묻는다.
 - **정산 알림**: 좌석의 `state` 요청에서 타이머 정산이나 AI 진행으로 버전이 오르면 consumer가 그룹 전체에

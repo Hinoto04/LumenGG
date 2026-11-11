@@ -656,6 +656,100 @@ class ClockGraceAndTimerChoiceTests(SimpleTestCase):
         self.assertEqual(settings['effect_timeout_seconds'], 30)
 
 
+class ActionClockTests(SimpleTestCase):
+    """레디가 아닌 모든 행동에 효과 처리 제한 시간. 행동할 때마다 새로 세고, 화면 표시 뒤부터 흐른다."""
+
+    start = datetime(2026, 8, 17, tzinfo=dt_timezone.utc)
+
+    def engine(self):
+        p1, p2 = attack('p1-a', 'p1'), attack('p2-a', 'p2')
+        return AutomaticGameEngine.initialize(
+            base_state([p1], [p2]), ruleset(p1, p2), now=self.start, seed='action-clock',
+            settings={'ready_timeout_seconds': 10, 'effect_timeout_seconds': 30},
+        )
+
+    def act(self, engine, role, action_type):
+        action = next(item for item in engine.legal_actions(role) if item['type'] == action_type)
+        engine.submit_action(role, action['action_id'])
+
+    def test_phase_end_window_has_effect_clock_for_both_players(self):
+        engine = self.engine()
+        clock = engine.engine_state['clock']
+        self.assertEqual((clock['kind'], clock['owner'], clock['duration_seconds']), ('action', 'both', 30))
+        self.assertFalse(clock['seen'])
+
+    def test_each_action_restarts_the_clock(self):
+        from datetime import timedelta
+
+        engine = self.engine()
+        first = engine.engine_state['clock']['id']
+        engine.now = self.start + timedelta(seconds=20)
+        self.act(engine, 'p1', 'pass_phase')
+        clock = engine.engine_state['clock']
+        # 남은 상대에게 새 30초가 걸린다(이전 시계의 남은 시간을 이어 쓰지 않는다).
+        self.assertNotEqual(clock['id'], first)
+        self.assertEqual(clock['owner'], 'p2')
+        self.assertEqual(clock['duration_seconds'], 30)
+
+    def test_clock_counts_from_when_the_owner_saw_it(self):
+        from datetime import timedelta
+        from .game.engine import CLOCK_ACK_WAIT_SECONDS, acknowledge_clock
+
+        engine = self.engine()
+        clock = engine.engine_state['clock']
+        # 표시 알림 전에는 대기 여유만큼 더 기다린다.
+        self.assertEqual(
+            datetime.fromisoformat(clock['deadline']),
+            self.start + timedelta(seconds=30 + CLOCK_ACK_WAIT_SECONDS),
+        )
+        seen_at = self.start + timedelta(seconds=4)
+        self.assertFalse(acknowledge_clock(engine.engine_state, 'p1', 'wrong-id', seen_at))
+        self.assertTrue(acknowledge_clock(engine.engine_state, 'p1', clock['id'], seen_at))
+        self.assertEqual(datetime.fromisoformat(clock['deadline']), seen_at + timedelta(seconds=30))
+        self.assertTrue(clock['seen'])
+        # 두 번째 알림은 무시한다.
+        self.assertFalse(acknowledge_clock(engine.engine_state, 'p2', clock['id'], seen_at + timedelta(seconds=9)))
+
+    def test_ready_clock_after_opponent_ready_starts_when_seen(self):
+        from datetime import timedelta
+        from .game.engine import acknowledge_clock
+
+        engine = self.engine()
+        self.act(engine, 'p1', 'pass_phase')
+        self.act(engine, 'p2', 'pass_phase')
+        self.assertEqual(engine.state['phase'], 'ready')
+        self.act(engine, 'p2', 'ready_card')
+        clock = engine.engine_state['clock']
+        self.assertEqual((clock['kind'], clock['owner'], clock['duration_seconds']), ('ready', 'p1', 10))
+        # 상대 레디 소식이 7초 늦게 도착해 화면에 표시되어도 10초가 온전히 남는다.
+        seen_at = self.start + timedelta(seconds=7)
+        acknowledge_clock(engine.engine_state, 'p1', clock['id'], seen_at)
+        engine.now = seen_at
+        self.assertEqual(engine.observe('p1')['clocks']['remaining_ms'], 10000)
+
+    def test_timeout_ends_the_window_with_the_default_action(self):
+        from datetime import timedelta
+        from .game.engine import CLOCK_ACK_WAIT_SECONDS, CLOCK_GRACE_SECONDS
+
+        engine = self.engine()
+        engine.now = self.start + timedelta(seconds=30 + CLOCK_ACK_WAIT_SECONDS + CLOCK_GRACE_SECONDS + 1)
+        self.assertTrue(engine.reconcile_clock())
+        # 두 플레이어 모두 페이즈 종료로 처리되어 다음 페이즈로 넘어간다.
+        self.assertNotEqual(engine.state['phase'], 'lumen')
+        self.assertEqual(
+            sorted(event['actor'] for event in engine.events if event['type'] == 'action_timeout'),
+            ['p1', 'p2'],
+        )
+
+    def test_unlimited_effect_time_has_no_action_clock(self):
+        p1, p2 = attack('p1-u', 'p1'), attack('p2-u', 'p2')
+        engine = AutomaticGameEngine.initialize(
+            base_state([p1], [p2]), ruleset(p1, p2), now=self.start, seed='unlimited-action',
+            settings={'ready_timeout_seconds': None, 'effect_timeout_seconds': None},
+        )
+        self.assertIsNone(engine.engine_state['clock'])
+
+
 class OpeningReviewRevealsHandsTests(SimpleTestCase):
     """상대 시작 패 확인 단계에서는 두 플레이어가 서로의 손패를 본다(관전자는 보지 않는다)."""
 

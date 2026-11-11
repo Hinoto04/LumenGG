@@ -222,8 +222,9 @@ export interface PendingDecision {
 }
 
 export interface Clock {
-  owner?: Side | null;
-  /** ready · decision · rewind */
+  /** both: 두 플레이어가 각자 행동해야 하는 창(시작 패 확인·페이즈 종료) */
+  owner?: Side | "both" | null;
+  /** ready · decision · rewind · action(레디가 아닌 행동) */
   kind?: string;
   /** 서버 시각 ISO. 일시정지 중에는 null */
   deadline?: string | null;
@@ -231,6 +232,13 @@ export interface Clock {
   paused?: boolean;
   /** 일시정지 중일 때 남은 초 */
   remaining_seconds?: number | null;
+  /** 서버가 보낼 때의 남은 밀리초 */
+  remaining_ms?: number;
+  /** 받은 순간 + remaining_ms (클라이언트가 채운다) */
+  local_deadline?: number;
+  /** 차례인 플레이어 화면이 표시했다고 알렸는지. false면 아직 시간이 흐르지 않는다. */
+  seen?: boolean;
+  id?: string;
   pause_reason?: string;
   paused_by?: Side | null;
   [extra: string]: unknown;
@@ -414,6 +422,7 @@ export type ClientMessage =
   | { type: "presence" }
   | { type: "log_subscribe"; since_seq: number }
   | { type: "log_unsubscribe" }
+  | { type: "clock_seen"; clock_id: string }
   | { type: "command"; request_id?: string; payload: PlayCommand }
   /** 수동 모드 행동. payload.action은 move_card, hp, set_phase 등 */
   | { type: "action"; request_id?: string; payload: { action: string; payload: Record<string, unknown> } };

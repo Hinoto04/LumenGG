@@ -31,6 +31,36 @@ class EngineError(ValueError):
 
 # 제한 시간이 0이 된 뒤에도 이만큼은 행동을 받아 준다(통신 지연 여유).
 CLOCK_GRACE_SECONDS = 2
+# 제한 시간은 그 차례의 플레이어 화면에 표시된 뒤(clock_seen)부터 흐른다.
+# 화면이 알려 오지 않으면(연결 끊김·AI) 이만큼 더 기다렸다가 정산한다.
+CLOCK_ACK_WAIT_SECONDS = 15
+# 레디가 아닌 행동(콤보·캐치·페이즈 종료·획득·시작 패 확인)의 제한 시간 종류
+ACTION_CLOCK_SYSTEM_TYPES = {
+    'pause_clock', 'resume_clock', 'request_rewind', 'answer_rewind', 'concede',
+}
+
+
+def acknowledge_clock(engine_state, role, clock_id, now):
+    """차례인 플레이어 화면이 제한 시간을 표시했다. 그때부터 제한 시간을 센다.
+
+    처음 한 번만 적용하고, 원래 마감(시작 + 제한 + 대기 여유)보다 늦추지는 않는다.
+    바뀌었으면 True.
+    """
+    clock = (engine_state or {}).get('clock') or {}
+    if not clock or clock.get('seen', True) or clock.get('paused'):
+        return False
+    if clock_id and clock.get('id') and clock.get('id') != clock_id:
+        return False
+    if clock.get('owner') not in (role, 'both'):
+        return False
+    deadline = _as_datetime(clock.get('deadline'))
+    now = _as_datetime(now) or _utc_now()
+    seen_deadline = now + timedelta(seconds=_number(clock.get('duration_seconds')))
+    if deadline is None or seen_deadline < deadline:
+        deadline = seen_deadline
+    clock['deadline'] = deadline.isoformat()
+    clock['seen'] = True
+    return True
 
 
 class IllegalAction(EngineError):
@@ -86,6 +116,10 @@ ACTION_UI_KINDS = {
     'concede': 'system',
 }
 ACTION_UI_DEFAULT_KIND = 'secondary'
+
+# 사이드 덱에서 꺼내 쓰는 토큰(이제벨 거미, 검은 깃털 단검)의 공급 재고.
+# 토큰은 덱에 등록되지 않으므로 엔진이 이 수만큼 사이드에 채워 둔다.
+TOKEN_SUPPLY_SIZE = 8
 
 
 def opponent(side):
@@ -263,6 +297,7 @@ class AutomaticGameEngine:
         }
         engine = cls(state, ruleset, version=1, now=now, seed=seed)
         engine._reconcile_trait_states()
+        engine._replenish_token_supplies()
         if run_startup:
             engine.emit('setup_completed', 'system', {
                 side: {
@@ -647,6 +682,11 @@ class AutomaticGameEngine:
                             suffix += f'·{cost.get("counter")} {cost.get("amount")}개'
                         suffix += ')'
                     payload = {'card_instance_id': card.get('instance_id')}
+                    if option.get('original_speed'):
+                        payload['original_speed'] = True
+                        suffix += ' (원래 속도)'
+                    elif option.get('fixed_speed') is not None and optional_speed is None:
+                        suffix += f" ({option['fixed_speed']}속도)"
                     choice_speed = (
                         option.get('fixed_speed')
                         if option.get('fixed_speed') is not None
@@ -681,6 +721,8 @@ class AutomaticGameEngine:
                             'card_instance_id': card.get('instance_id'),
                             'source_break_counter_exemption': counter_key,
                         }
+                        if option.get('original_speed'):
+                            payload['original_speed'] = True
                         choice_speed = (
                             option.get('fixed_speed')
                             if option.get('fixed_speed') is not None
@@ -726,6 +768,10 @@ class AutomaticGameEngine:
             'command_id': str(command_id or ''),
             'action_type': action['type'],
         })
+        if action['type'] not in ACTION_CLOCK_SYSTEM_TYPES:
+            clock = self.engine_state.get('clock') or {}
+            if clock.get('kind') == 'action' and not clock.get('paused'):
+                self._clear_clock()
         self._dispatch(role, action, selections)
         self._continue()
         return self.state, self.events
@@ -791,6 +837,7 @@ class AutomaticGameEngine:
             self._play_catch(
                 role, payload['card_instance_id'],
                 catch_rule_index=payload.get('catch_rule_index'),
+                original_speed=bool(payload.get('original_speed')),
                 source_break_counter_exemption=payload.get(
                     'source_break_counter_exemption',
                 ),
@@ -816,9 +863,105 @@ class AutomaticGameEngine:
     # Phase machine and battle pipeline
 
     def _continue(self):
+        try:
+            self._continue_steps()
+        finally:
+            self._sync_action_clock()
+
+    def _action_window_owners(self):
+        """레디가 아닌, 플레이어의 행동을 기다리는 창과 그 플레이어들."""
+        engine = self.engine_state
+        if (
+            engine.get('status') != 'running'
+            or engine.get('pending_decision')
+            or engine.get('rewind_request')
+        ):
+            return None, []
+        if engine.get('startup_stage') == 'opening_review':
+            confirmed = (engine.get('opening_review') or {}).get('confirmed') or []
+            return 'opening_review', [side for side in PLAYER_SIDES if side not in confirmed]
+        phase = self.state.get('phase')
+        step = engine.get('step')
+        if phase in {'lumen', 'recovery'} and step == 'phase_actions':
+            passed = engine.get('phase_passes') or []
+            return 'phase', [side for side in PLAYER_SIDES if side not in passed]
+        if phase == 'get' and step == 'get_actions':
+            actor = engine.get('current_actor')
+            if actor in PLAYER_SIDES and actor not in (engine.get('forced_get_designators') or {}):
+                return 'get', [actor]
+            return None, []
+        if phase == 'battle' and step == 'combo':
+            combo = engine.get('combo') or {}
+            if combo.get('owner') in PLAYER_SIDES and not combo.get('proposal_submitted'):
+                return 'combo', [combo['owner']]
+            return None, []
+        if phase == 'battle' and step == 'catch':
+            catch = engine.get('catch') or {}
+            if catch.get('owner') in PLAYER_SIDES:
+                return 'catch', [catch['owner']]
+        return None, []
+
+    def _sync_action_clock(self):
+        """레디가 아닌 모든 행동에 효과 처리 제한 시간을 건다(행동할 때마다 새로 센다)."""
+        clock = self.engine_state.get('clock') or {}
+        if clock.get('paused'):
+            return
+        if clock.get('kind') in {'ready', 'rewind'}:
+            return
+        if clock.get('kind') == 'decision' and self.engine_state.get('pending_decision'):
+            return
+        window, owners = self._action_window_owners()
+        if not owners or not any(self.legal_actions(side) for side in owners):
+            if clock.get('kind') in {'action', 'decision'}:
+                self._clear_clock()
+            return
+        owner = owners[0] if len(owners) == 1 else 'both'
+        if clock.get('kind') == 'action' and clock.get('owner') == owner and clock.get('window') == window:
+            return
+        self._start_clock(
+            'action', owner=owner,
+            seconds=self._timeout_seconds(
+                'effect_timeout_seconds', DEFAULT_EFFECT_CHOICE_SECONDS,
+            ),
+        )
+        if self.engine_state.get('clock'):
+            self.engine_state['clock']['window'] = window
+
+    def _action_timeout(self):
+        """행동 제한 시간이 지났다: 그 창을 끝내는 기본 행동을 대신 한다."""
+        window, owners = self._action_window_owners()
+        for role in owners:
+            self.emit('action_timeout', role, {'window': window})
+            if window == 'opening_review':
+                self._confirm_opening_review(role)
+            elif window == 'phase':
+                self._pass_phase(role)
+            elif window == 'get':
+                types = {action['type']: action for action in self.legal_actions(role)}
+                if 'pass_phase' in types:
+                    self._finish_get_action(role, None)
+                else:
+                    pick = next(
+                        (
+                            action for action in self.legal_actions(role)
+                            if action['type'] in {'select_get_card', 'select_ultimate'}
+                        ),
+                        None,
+                    )
+                    if pick:
+                        self._get_card(role, pick['payload']['card_instance_id'])
+                    else:
+                        self._finish_get_action(role, None)
+            elif window == 'combo':
+                self.end_combo()
+            elif window == 'catch':
+                self.end_catch()
+
+    def _continue_steps(self):
         for _ in range(MAX_RESOLUTION_STEPS):
             if self.engine_state.get('status') != 'running' or self.is_waiting:
                 return
+            self._replenish_token_supplies()
             hand_adjustments = self.engine_state.get(
                 'hand_adjustment_queue',
             ) or []
@@ -864,6 +1007,7 @@ class AutomaticGameEngine:
                             role, play.get('card_instance_id'),
                             cost_paid=bool(play.get('cost_paid', True)),
                             catch_rule_index=play.get('catch_rule_index'),
+                            original_speed=bool(play.get('original_speed')),
                             source_break_counter_exemption=play.get(
                                 'source_break_counter_exemption',
                             ),
@@ -4716,30 +4860,39 @@ class AutomaticGameEngine:
                 if self._rule_blocked('catch', role, card, opponent_card):
                     continue
                 maximum = catch.get('max_speed')
-                fixed_speed = next((
-                    rule.get('fixed_speed') for rule in catch_rules
+                fixed_rule = next((
+                    rule for rule in catch_rules
                     if rule.get('fixed_speed') is not None
                     and rule.get('optional_fixed_speed') is None
                 ), None)
-                effective_speed = (
-                    _number(fixed_speed) if fixed_speed is not None
-                    else self.card_stat(
-                        projected_card, 'frame', role, include_fp=False,
-                    )
-                )
+                fixed_speed = fixed_rule.get('fixed_speed') if fixed_rule else None
                 minimum = catch.get('min_speed')
-                base_speed_allowed = not (
-                    minimum is not None and effective_speed < _number(minimum)
-                ) and not (
-                    maximum is not None and effective_speed > _number(maximum)
-                )
-                if base_speed_allowed and card_matches(
+                matches_catch = card_matches(
                     projected_card, catch.get('where'), self.state,
                     {'controller': role, 'source_card': projected_card},
-                ):
+                )
+                # "캐치 시 N속도로 사용할 수 있다"는 N속도 또는 원래 속도 중 고른다.
+                # "N속도로 사용한다"(speed_required)만 N속도로 강제한다.
+                speed_choices = [fixed_speed]
+                if fixed_speed is not None and not fixed_rule.get('speed_required'):
+                    speed_choices.append(None)
+                for choice in speed_choices:
+                    effective_speed = (
+                        _number(choice) if choice is not None
+                        else self.card_stat(
+                            projected_card, 'frame', role, include_fp=False,
+                        )
+                    )
+                    if (
+                        minimum is not None and effective_speed < _number(minimum)
+                    ) or (
+                        maximum is not None and effective_speed > _number(maximum)
+                    ) or not matches_catch:
+                        continue
                     options.append({
                         'card': card, 'catch_rule_index': None,
-                        'fixed_speed': fixed_speed,
+                        'fixed_speed': choice,
+                        **({'original_speed': True} if choice is None and fixed_speed is not None else {}),
                     })
                 for rule_index, rule in enumerate(catch_rules):
                     optional_speed = rule.get('optional_fixed_speed')
@@ -4864,11 +5017,13 @@ class AutomaticGameEngine:
         catch.update(pinned)
         self._play_catch(
             role, chosen_id, catch_rule_index=option.get('catch_rule_index'),
+            original_speed=bool(option.get('original_speed')),
         )
 
     def _play_catch(
         self, role, instance_id, *, cost_paid=False, catch_rule_index=None,
         source_break_counter_exemption=None, source_break_paid=False,
+        original_speed=False,
     ):
         catch = self.engine_state.get('catch') or {}
         card = self._find_card(instance_id, owner=role)
@@ -4883,6 +5038,7 @@ class AutomaticGameEngine:
             )
             if (option.get('card') or {}).get('instance_id') == instance_id
             and option.get('catch_rule_index') == catch_rule_index
+            and bool(option.get('original_speed')) == bool(original_speed)
         ]
         selected_option = options[0] if options else None
         resolved_catch_rules = self._catch_rules(role, card)
@@ -4910,6 +5066,7 @@ class AutomaticGameEngine:
             resume_play = {
                 'kind': 'catch', 'card_instance_id': instance_id,
                 'catch_rule_index': catch_rule_index,
+                'original_speed': bool(original_speed),
                 'source_break_counter_exemption': source_break_counter_exemption,
                 'source_break_paid': True, 'cost_paid': bool(cost_paid),
             }
@@ -4940,6 +5097,7 @@ class AutomaticGameEngine:
             role, card, 'catch', {
                 'kind': 'catch', 'card_instance_id': instance_id,
                 'catch_rule_index': catch_rule_index,
+                'original_speed': bool(original_speed),
                 'source_break_counter_exemption': source_break_counter_exemption,
                 'source_break_paid': bool(source_break_paid),
                 'cost_paid': True,
@@ -5679,16 +5837,32 @@ class AutomaticGameEngine:
         if seconds is None or _number(seconds) <= 0:
             self._clear_clock()
             return
+        # 화면에 표시되었다는 알림(acknowledge_clock)을 받으면 그때부터 seconds가 흐른다.
+        # 알림이 없으면 대기 여유만큼 더 기다린다.
         self.engine_state['clock'] = {
+            'id': f'{kind}:{owner}:{self.now.isoformat()}:{_number(self.engine_state.get("command_count"))}',
             'kind': kind, 'owner': owner, 'duration_seconds': int(seconds),
-            'deadline': (self.now + timedelta(seconds=int(seconds))).isoformat(),
+            'deadline': (
+                self.now + timedelta(seconds=int(seconds) + CLOCK_ACK_WAIT_SECONDS)
+            ).isoformat(),
+            'seen': False,
             'grace_seconds': CLOCK_GRACE_SECONDS,
             'paused': False, 'pause_reason': '', 'paused_by': None,
         }
-        self.emit('clock_started', 'system', {'kind': kind, 'owner': owner, 'seconds': int(seconds)})
+        if kind != 'action':
+            self.emit('clock_started', 'system', {'kind': kind, 'owner': owner, 'seconds': int(seconds)})
 
     def _clear_clock(self):
         self.engine_state['clock'] = None
+
+    def _observed_clock(self):
+        """화면용 제한 시간. 기기 시계가 서버와 달라도 맞도록 남은 밀리초를 함께 보낸다."""
+        clock = copy.deepcopy(self.engine_state.get('clock'))
+        if clock and not clock.get('paused'):
+            deadline = _as_datetime(clock.get('deadline'))
+            if deadline is not None:
+                clock['remaining_ms'] = max(0, int((deadline - self.now).total_seconds() * 1000))
+        return clock
 
     def reconcile_clock(self, *, both_disconnected=False):
         clock = self.engine_state.get('clock') or {}
@@ -5706,6 +5880,8 @@ class AutomaticGameEngine:
             self._ready_timeout(owner)
         elif kind == 'decision':
             self._decision_timeout(owner)
+        elif kind == 'action':
+            self._action_timeout()
         elif kind == 'rewind':
             self.emit('rewind_expired', 'system', {'requested_by': (self.engine_state.get('rewind_request') or {}).get('requested_by')})
             self.engine_state['rewind_request'] = None
@@ -5720,6 +5896,7 @@ class AutomaticGameEngine:
             raise IllegalAction('일시정지 사유가 필요합니다.')
         deadline = _as_datetime(clock.get('deadline'))
         remaining = max(0, int((deadline - self.now).total_seconds())) if deadline else 0
+        remaining = min(remaining, int(_number(clock.get('duration_seconds'), remaining)))
         clock.update({'paused': True, 'remaining_seconds': remaining, 'pause_reason': reason, 'paused_by': role, 'deadline': None})
         self.emit('clock_paused', role, {'kind': clock.get('kind'), 'reason': reason, 'remaining_seconds': remaining})
 
@@ -5728,7 +5905,7 @@ class AutomaticGameEngine:
         if not clock.get('paused'):
             raise IllegalAction('일시정지된 타이머가 없습니다.')
         remaining = max(0, _number(clock.get('remaining_seconds')))
-        clock.update({'paused': False, 'deadline': (self.now + timedelta(seconds=remaining)).isoformat(), 'remaining_seconds': None})
+        clock.update({'paused': False, 'seen': True, 'deadline': (self.now + timedelta(seconds=remaining)).isoformat(), 'remaining_seconds': None})
         self.emit('clock_resumed', role, {'kind': clock.get('kind'), 'remaining_seconds': remaining})
 
     def create_decision(
@@ -5935,6 +6112,8 @@ class AutomaticGameEngine:
             minimum = _number(resolve_value(
                 selector.get('min', 1), self.state, cost_context,
             ), 1)
+            if cost.get('best_effort'):
+                minimum = min(minimum, len(decision.get('options') or []))
             if len(successful) >= minimum:
                 self.emit('play_cost_paid', decision.get('owner'), {
                     'card_instance_id': cost_context.get(
@@ -6109,7 +6288,7 @@ class AutomaticGameEngine:
                 'missing': continuation.get('missing'),
                 'result': selected[0] if selected else 'hit',
             }
-            self._advance_phase('battle')
+            self._advance_after_no_response(continuation.get('missing'))
         elif continuation.get('type') == 'break_replenish':
             if selected and selected[0] != 'decline':
                 card = self._find_card(selected[0], owner=decision.get('owner'), zone='side')
@@ -6204,6 +6383,26 @@ class AutomaticGameEngine:
         self.move_card(instance_id, 'battle', reason='no_response')
         card['face_up'] = False
         self.engine_state['ready_cards'][missing] = instance_id
+        self._advance_after_no_response(missing)
+
+    def _advance_after_no_response(self, missing):
+        """Start the Battle only after the other player has also readied.
+
+        A Ready timeout normally fires after the opponent already readied, but
+        with "the opponent must Ready first" (Yohan's Third Eye) the waiting
+        player has not chosen a card yet.  Opening the Battle then failed with
+        "배틀 카드가 없습니다".
+        """
+        chooser = opponent(missing)
+        if chooser not in (self.engine_state.get('ready_cards') or {}):
+            self._start_clock(
+                'ready', owner=chooser,
+                seconds=self._timeout_seconds(
+                    'ready_timeout_seconds', DEFAULT_READY_SECONDS,
+                ),
+            )
+            return
+        self._clear_clock()
         self._advance_phase('battle')
 
     def _create_virtual_no_response(self, missing, chooser):
@@ -6725,12 +6924,15 @@ class AutomaticGameEngine:
                     defer_triggers=defer_triggers,
                     trigger_queue=trigger_queue,
                 )
+        # 사이드 덱에서 패로 가져가는 카드는 공개한 뒤 패에 넣는다. 패에서는 다시 비공개다.
+        revealed_on_move = from_zone == 'side' and to_zone == 'hand'
         self.emit('card_moved', owner, {
             'card_instance_id': instance_id, 'from_player': from_player, 'from_zone': from_zone,
             'to_player': target, 'to_zone': to_zone, 'reason': reason,
             'card_id': card.get('card_id'), 'card_code': card.get('code'),
             'card_label': card.get('name') or card.get('code') or '카드',
-        }, visibility='public' if card.get('face_up') else 'private')
+            **({'revealed': True} if revealed_on_move else {}),
+        }, visibility='public' if card.get('face_up') or revealed_on_move else 'private')
         self._enforce_list_limit(target)
         self._reconcile_trait_states()
         moved_context = {
@@ -8634,6 +8836,79 @@ class AutomaticGameEngine:
         })
         return cards
 
+    def _supplied_token_cards(self):
+        """Token cards that card effects take from the owner's Side Deck.
+
+        Effects such as Jezebel's spiders or the Black Feather daggers move a
+        physical token card out of the Side Deck, but tokens are never part of
+        a registered deck.  The Side Deck therefore keeps a token supply for
+        every printed token whose key some released effect selects there.
+        """
+        cached = getattr(self, '_token_supply_cache', None)
+        if cached is not None:
+            return cached
+        side_keys = set()
+
+        def walk(value):
+            if isinstance(value, dict):
+                where = value.get('where')
+                if (
+                    isinstance(where, dict) and where.get('token_key')
+                    and 'side' in (value.get('zones') or [value.get('zone')])
+                ):
+                    side_keys.add(str(where['token_key']))
+                for item in value.values():
+                    walk(item)
+            elif isinstance(value, list):
+                for item in value:
+                    walk(item)
+
+        cards = self.ruleset.get('cards') or {}
+        for released in cards.values():
+            walk((released or {}).get('effect_definition') or {})
+        supplies = []
+        for code, released in cards.items():
+            definition = (released or {}).get('effect_definition') or {}
+            token_key = str(definition.get('token_key') or '')
+            if (
+                token_key in side_keys
+                and '토큰' in str((released or {}).get('type') or '')
+            ):
+                supplies.append((code, token_key, released))
+        self._token_supply_cache = supplies
+        return supplies
+
+    def _replenish_token_supplies(self):
+        for code, token_key, released in self._supplied_token_cards():
+            for side in PLAYER_SIDES:
+                player = (self.state.get('players') or {}).get(side) or {}
+                character_id = (player.get('character') or {}).get('id')
+                if character_id is None:
+                    character_id = next((
+                        card.get('character_id')
+                        for card in (player.get('zones') or {}).get('character') or []
+                    ), None)
+                if character_id is None or released.get('character_id') != character_id:
+                    continue
+                zone = self._zone(side, 'side')
+                stocked = sum(1 for card in zone if card.get('token_key') == token_key)
+                for _ in range(max(0, TOKEN_SUPPLY_SIZE - stocked)):
+                    # Inert supply cards: no event, so the log is not flooded.
+                    zone.append({
+                        'instance_id': f'token-{self._next_id("token")}',
+                        'kind': 'token', 'owner': side, 'code': code,
+                        'card_id': released.get('id'),
+                        'name': released.get('name') or '토큰',
+                        'type': released.get('type') or '토큰',
+                        'face_up': True, 'token_key': token_key,
+                        'token_supply': True,
+                        **{
+                            key: copy.deepcopy(released.get(key))
+                            for key in ('character_id', 'img', 'img_mid', 'img_sm', 'text')
+                            if released.get(key) is not None
+                        },
+                    })
+
     def create_token(self, side, definition):
         token = {
             'instance_id': f'token-{self._next_id("token")}', 'kind': 'token', 'owner': side,
@@ -9039,6 +9314,9 @@ class AutomaticGameEngine:
     def _play_costs_affordable(self, card, owner, use_context):
         context = self._play_cost_context(card, owner, use_context)
         for cost in self._applicable_play_costs(card, use_context):
+            if cost.get('best_effort'):
+                # "그 경우 패 2장을 버린다"처럼 가능한 만큼만 지불하는 비용은 사용을 막지 않는다.
+                continue
             selector = self._play_cost_selector(cost)
             minimum = _number(selector.get('min'), 1)
             if len(self.selector_options(selector, context)) < minimum:
@@ -9058,6 +9336,11 @@ class AutomaticGameEngine:
         options = self.selector_options(selector, context)
         minimum = _number(selector.get('min'), 1)
         maximum = _number(selector.get('max'), minimum)
+        if cost.get('best_effort'):
+            minimum = min(minimum, len(options))
+            maximum = min(maximum, len(options))
+            if not options:
+                return False
         if len(options) < minimum:
             raise IllegalAction('카드 사용 비용을 지불할 수 없습니다.')
         self.create_decision(
@@ -9853,7 +10136,7 @@ class AutomaticGameEngine:
             'state': self._observation_state(role) if include_state else None,
             'legal_actions': self._with_action_ui(role, self.legal_actions(role)),
             'pending_decision': decision_payload,
-            'clocks': copy.deepcopy(self.engine_state.get('clock')),
+            'clocks': self._observed_clock(),
             'timer_settings': {
                 'ready_timeout_seconds': self._timeout_seconds(
                     'ready_timeout_seconds', DEFAULT_READY_SECONDS,

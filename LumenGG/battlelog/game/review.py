@@ -1918,7 +1918,7 @@ def _review_st4_004_definition(definition, card_snapshot, extra_root):
     expected_cost = [{
         'operation': 'discard',
         'use_contexts': ['combo'], 'source_zones': ['list'],
-        'numbered_effect': True,
+        'numbered_effect': True, 'best_effort': True,
         'selector': {
             'kind': 'card', 'player': {'controller': True},
             'zones': ['hand'], 'min': 2, 'max': 2,
@@ -2031,7 +2031,8 @@ def _review_st4_004_definition(definition, card_snapshot, extra_root):
     cost_specs = (
         ('owner-p1-list-pays-two', 'p1', 'list', 2, False, (0, 1), True, True),
         ('owner-p2-list-chooses-nonadjacent-two-of-three', 'p2', 'list', 3, False, (0, 2), True, True),
-        ('list-insufficient-cost', 'p1', 'list', 1, False, (0, 1), False, False),
+        # 패가 부족하면 있는 만큼만 버리고 사용한다(가능한 만큼 버리는 효과).
+        ('list-insufficient-cost-discards-what-it-can', 'p1', 'list', 1, False, (0,), True, True),
         ('hand-combo-no-list-cost', 'p1', 'hand', 0, False, (0, 1), True, False),
         ('numbered-negation-removes-list-combo-permission', 'p2', 'list', 2, True, (0, 1), False, False),
         ('numbered-negation-keeps-normal-hand-combo', 'p1', 'hand', 0, True, (0, 1), True, False),
@@ -2082,12 +2083,14 @@ def _review_st4_004_definition(definition, card_snapshot, extra_root):
                 or (
                     first['source_used']
                     and first['skip_get'] is expected_cost
-                    and first['discarded_count'] == (2 if expected_cost else 0)
+                    and first['discarded_count'] == (
+                        min(2, cost_count) if expected_cost else 0
+                    )
                     and first['decision_kind'] == (
                         'play_cost' if expected_cost else None
                     )
                     and first['decision_range'] == (
-                        (2, 2) if expected_cost else None
+                        (min(2, cost_count),) * 2 if expected_cost else None
                     )
                     and (
                         not expected_cost
@@ -11581,7 +11584,8 @@ def _run_st3_017_scenario(
     fixed_eight_definition = {
         'schema_version': 1, 'reviewed': True, 'no_effect': False,
         'source_refs': {'rulebook_pages': [49], 'qna_ids': [223]},
-        'abilities': [], 'catch_rules': [{'fixed_speed': 8}],
+        # Q&A 223 극염옥: "캐치 시 8속도로 사용한다"(강제)
+        'abilities': [], 'catch_rules': [{'fixed_speed': 8, 'speed_required': True}],
     }
     cards = [
         source, opposing, printed_five, printed_four, printed_six,
@@ -63988,6 +63992,14 @@ def _review_dfr_at_020_definition(definition, card_snapshot, extra_root):
             }],
         },
         {
+            'op': 'move_card',
+            'selector': {
+                'kind': 'card', 'player': 'any', 'zones': ['battle'],
+                'all': True, 'where': {'is_technique': True},
+            },
+            'to_zone': 'list',
+        },
+        {
             'op': 'request_choice', 'player': {'opponent': True},
             'prompt': '리스트에서 획득할 기술을 1장까지 선택하세요.',
             'selector': {
@@ -74641,6 +74653,7 @@ def _review_st2_005_definition(definition, card_snapshot, extra_root):
         )
         and definition.get('catch_rules') == [{
             'fixed_speed': 10, 'numbered_effect': True,
+            'speed_required': True,
         }]
         and catch and catch.get('mode') == 'mandatory'
         and catch.get('timing') == 'catch'
@@ -131384,7 +131397,7 @@ def _review_crs_at_002_definition(definition, card_snapshot, extra_root):
     valid = bool(
         extra_root == {'catch_rules', 'deck_limit'}
         and definition.get('deck_limit') == 3
-        and definition.get('catch_rules') == [{'fixed_speed': 8}]
+        and definition.get('catch_rules') == [{'fixed_speed': 8, 'speed_required': True}]
         and set(by_id) == {
             'crs-at-002-function', 'crs-at-002-function-2',
             'crs-at-002-n1', 'crs-at-002-n2', 'crs-at-002-n3',
@@ -133622,7 +133635,7 @@ def _review_crs_at_017_definition(definition, card_snapshot, extra_root):
         'zones': ['list'], 'min': 1, 'max': 1,
         'where': {'is_technique': True}, 'exclude_source': True,
     }
-    catch_rules = [{'fixed_speed': 8, 'numbered_effect': True}]
+    catch_rules = [{'fixed_speed': 8, 'numbered_effect': True, 'speed_required': True}]
     play_costs = [{
         'operation': 'move_card', 'to_zone': 'side',
         'use_contexts': ['catch'], 'numbered_effect': True,
@@ -144712,9 +144725,10 @@ def _review_pmp_at_044_definition(definition, card_snapshot, extra_root):
             ('maximum-seven-rejects-fixed-eight', 'p1', {
                 'max_speed': 7,
             }, {'legal': False, 'fixed_speed': None}),
-            ('minimum-nine-rejects-fixed-eight', 'p2', {
+            # "8속도로 사용할 수 있다": 원래 속도(9)로도 쓸 수 있다.
+            ('minimum-nine-allows-printed-nine', 'p2', {
                 'min_speed': 9, 'max_speed': None,
-            }, {'legal': False, 'fixed_speed': None}),
+            }, {'legal': True, 'fixed_speed': None}),
             ('qna-646-break-zone-grant-can-catch-at-eight', 'p1', {
                 'source_zone': 'break', 'allow_zones': ['break'],
             }, {'legal': True, 'fixed_speed': 8, 'resolved': 1}),
@@ -148621,9 +148635,10 @@ def _review_cb01_at_030_definition(definition, card_snapshot, extra_root):
             ('maximum-eight-rejects-fixed-nine', 'p1', {
                 'max_speed': 8,
             }, {'legal': False, 'fixed_speed': None}),
-            ('minimum-ten-rejects-fixed-nine', 'p2', {
+            # "9속도로 사용할 수 있다": 원래 속도(12)로도 쓸 수 있다.
+            ('minimum-ten-allows-printed-twelve', 'p2', {
                 'min_speed': 10, 'max_speed': None,
-            }, {'legal': False, 'fixed_speed': None}),
+            }, {'legal': True, 'fixed_speed': None}),
             ('numbered-negation-uses-printed-twelve', 'p1', {
                 'numbered_negated': True,
             }, {'legal': False, 'rules': [], 'resolved': 0}),

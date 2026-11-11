@@ -62,12 +62,18 @@ export function ZoneDock({
       add(card.owner, card.zone, "from");
       add(card.owner, option.ui.to_zone!, "to");
     }
+    // 더미 안의 카드로 쓸 수 있는 행동(예: 린 크라우칭 스타트로 브레이크 존에서 캐치)이 있으면
+    // 그 더미를 출발 패널로 펼쳐 끌어 쓸 수 있게 한다.
+    for (const action of envelope.legal_actions) {
+      if (action.ui.kind !== "card") continue;
+      for (const ref of action.ui.cards) if (ref.owner === me && ref.zone !== "ultimate") add(ref.owner, ref.zone, "from");
+    }
     if (drag?.active) {
       const piles = drag.targets.filter((target) => DOCK_ZONES.has(target.zone));
       if (piles.length <= MAX_DRAG_DOCKS) piles.forEach((target) => add(target.owner, target.zone, "to"));
     }
     return [...found.values()];
-  }, [decision, drag]);
+  }, [decision, drag, envelope.legal_actions, me]);
 
   const title = (zone: DockZone) => `${zone.owner === me ? "내" : "상대"} ${ZONE_LABELS[zone.zone]}`;
 

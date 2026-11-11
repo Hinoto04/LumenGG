@@ -119,7 +119,8 @@
         window.clearTimeout(timerId);
         const query = searchInput.value.trim();
         const isDeckId = /^\d+$/.test(query);
-        if (query.length < 2 && !isDeckId) {
+        // 한 글자 작성자명도 검색할 수 있다.
+        if (!query.length && !isDeckId) {
             results.replaceChildren();
             return;
         }
