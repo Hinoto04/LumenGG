@@ -1,5 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, Pressable, Keyboard } from "react-native";
+import {
+  ActivityIndicator,
+  View,
+  Text,
+  FlatList,
+  Pressable,
+  Keyboard,
+  RefreshControl,
+  StyleSheet,
+} from "react-native";
 import { router } from "expo-router";
 import { useApp } from "../src/provider";
 import { localized } from "../src/core";
@@ -13,7 +22,23 @@ import {
   defaultDeckFilters,
   type DeckFilters,
 } from "../src/deck-filter-screen";
-import { styles, colors, Button, Input, CachedImage, Notice } from "../src/ui";
+import {
+  Badge,
+  CachedImage,
+  EmptyState,
+  Fab,
+  FilterButton,
+  Icon,
+  IconButton,
+  Notice,
+  SearchInput,
+  Segmented,
+  Skeleton,
+  colors,
+  radius,
+  space,
+  styles,
+} from "../src/ui";
 
 export default function Decks() {
   const { decks, catalog, language, user, scope, sync, status, t } = useApp();
@@ -94,45 +119,56 @@ export default function Decks() {
       if (ticket === generation.current) setBusy(false);
     }
   }
+  const filterCount =
+    Number(!!character) + Number(!!trait) + Number(!!regulation);
+  const characterName = (id: number) => {
+    const c = catalog?.characters.find((c) => c.id === id);
+    return c ? localized(c, language) : "";
+  };
+  const visibilityTone = (v: Deck["visibility"]) =>
+    v === "public" ? "success" : v === "unlisted" ? "accent" : "neutral";
+  const refreshList = () => (mode === "mine" ? sync() : setRetry((v) => v + 1));
   return (
-    <View style={styles.screen}>
-      <Button label="덱 만들기" onPress={() => router.push("/deck-editor")} />
-      <Input
+    <View style={[styles.screen, { paddingBottom: 0 }]}>
+      <Segmented
+        value={mode}
+        onChange={(next) =>
+          setFilters((current) => ({
+            ...current,
+            mode: next as DeckFilters["mode"],
+          }))
+        }
+        values={[
+          { key: "mine", label: "내 덱", icon: "person-outline" },
+          { key: "public", label: "공개 덱", icon: "globe-outline" },
+        ]}
+      />
+      <SearchInput
         value={query}
         onChangeText={setQuery}
-        placeholder={t("덱 이름 · 작성자 · 키워드 검색")}
+        placeholder="덱 이름 · 작성자 · 키워드 검색"
         accessibilityLabel={t("덱 검색")}
       />
-      <View style={[styles.row, { marginBottom: 8 }]}>
-        <Button
-          label={`${t("필터")}${character || mode !== "mine" ? ` (${Number(!!character) + Number(mode !== "mine")})` : ""}`}
+      <View style={deckListStyles.toolbar}>
+        <FilterButton
+          count={filterCount}
           onPress={() => {
             Keyboard.dismiss();
             setFilterVisible(true);
           }}
         />
-        <Text style={styles.muted}>
-          {busy ? t("불러오는 중") : `${data.length} ${t("덱")}`}
+        <Text style={[styles.muted, { flex: 1 }]}>
+          {busy ? t("불러오는 중") : data.length + " " + t("덱")}
+          {character ? " · " + characterName(Number(character)) : ""}
         </Text>
-        <View style={{ marginLeft: "auto" }}>
-          <Button
-            label="새로고침"
-            disabled={busy}
-            onPress={() => (mode === "mine" ? sync() : setRetry((v) => v + 1))}
-          />
-        </View>
+        <IconButton
+          icon="refresh"
+          label="새로고침"
+          filled
+          disabled={busy}
+          onPress={refreshList}
+        />
       </View>
-      <Text style={[styles.muted, { marginBottom: 10 }]}>
-        {t(mode === "mine" ? "내 덱" : "공개 덱")} ·{" "}
-        {character
-          ? localized(
-              catalog?.characters.find((c) => String(c.id) === character) || {
-                localized: {},
-              },
-              language,
-            )
-          : t("전체 캐릭터")}
-      </Text>
       <DeckFilterScreen
         visible={filterVisible}
         value={filters}
@@ -143,33 +179,71 @@ export default function Decks() {
           setFilterVisible(false);
         }}
       />
-      {mode === "mine" && !user && (
-        <View style={styles.panel}>
-          <Notice text="내 덱을 확인하려면 로그인해주세요." />
-          <Button label="로그인" onPress={() => router.push("/settings")} />
-        </View>
-      )}
       <Notice text={mode === "mine" && user ? status : message} />
       <FlatList
-        data={data}
+        data={mode === "mine" && !user ? [] : data}
         keyExtractor={(d) => d.uuid}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingTop: space.sm, paddingBottom: 110 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={false}
+            onRefresh={refreshList}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+            progressBackgroundColor={colors.panel}
+          />
+        }
+        onEndReachedThreshold={0.4}
+        onEndReached={() => {
+          if (mode === "public" && nextPage && !busy) void more();
+        }}
         ListEmptyComponent={
-          !busy && (mode !== "mine" || !!user) ? (
-            <Notice text="표시할 덱이 없습니다." />
-          ) : null
+          mode === "mine" && !user ? (
+            <EmptyState
+              icon="person-circle-outline"
+              title="내 덱을 확인하려면 로그인해주세요."
+              action={{
+                label: "로그인",
+                icon: "log-in-outline",
+                onPress: () => router.push("/settings"),
+              }}
+            />
+          ) : busy ? (
+            <View style={{ gap: space.md }}>
+              {[0, 1, 2].map((n) => (
+                <Skeleton key={n} height={96} rounded={16} />
+              ))}
+            </View>
+          ) : (
+            <EmptyState
+              icon="layers-outline"
+              title="표시할 덱이 없습니다."
+              action={
+                mode === "mine"
+                  ? {
+                      label: "덱 만들기",
+                      icon: "add",
+                      onPress: () => router.push("/deck-editor"),
+                    }
+                  : undefined
+              }
+            />
+          )
         }
         ListFooterComponent={
           mode === "public" && nextPage ? (
-            <Button label="더 보기" onPress={more} disabled={busy} />
+            <View style={{ paddingVertical: space.lg }}>
+              <ActivityIndicator color={colors.accent} />
+            </View>
           ) : null
         }
         renderItem={({ item: d }) => {
           const c = catalog?.characters.find((c) => c.id === d.character_id);
+          const total = d.cards.reduce((n, e) => n + e.count, 0);
           return (
             <Pressable
-              style={styles.panel}
               accessibilityRole="button"
               accessibilityLabel={d.name}
               onPress={async () => {
@@ -182,34 +256,77 @@ export default function Decks() {
                   params: { id: String(d.id) },
                 });
               }}
+              style={({ pressed }) => [
+                deckListStyles.item,
+                pressed && { backgroundColor: colors.surface2 },
+              ]}
             >
-              <View style={styles.row}>
-                {c && (
-                  <View style={{ width: 56 }}>
-                    <CachedImage url={c.img_sm || c.img} height={70} fill />
-                  </View>
+              <View style={deckListStyles.portrait}>
+                {c ? (
+                  <CachedImage url={c.img_sm || c.img} height={88} fill />
+                ) : (
+                  <Icon name="person-outline" size={28} color={colors.subtle} />
                 )}
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[styles.title, { fontSize: 18, marginBottom: 6 }]}
-                  >
-                    {d.name}
-                  </Text>
-                  <Text style={styles.muted}>
-                    {d.author?.username || user?.username} ·{" "}
-                    {c ? localized(c, language) : ""}
-                  </Text>
-                  <Text style={[styles.muted, { marginTop: 5 }]}>
-                    {d.cards.reduce((n, e) => n + e.count, 0)} {t("장")} ·{" "}
-                    {t(d.visibility)}
-                  </Text>
-                </View>
-                <Text style={{ color: colors.accent, fontSize: 24 }}>›</Text>
               </View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text numberOfLines={1} style={deckListStyles.name}>
+                  {d.name}
+                </Text>
+                <Text numberOfLines={1} style={styles.muted}>
+                  {(c ? localized(c, language) : "") +
+                    " · " +
+                    (d.author?.username || user?.username || "")}
+                </Text>
+                <View style={deckListStyles.badges}>
+                  <Badge label={total + " " + t("장")} />
+                  <Badge
+                    label={d.visibility}
+                    tone={visibilityTone(d.visibility)}
+                  />
+                  {!!d.locked && <Badge label="대회 제출" tone="danger" />}
+                </View>
+              </View>
+              <Icon name="chevron-forward" size={18} color={colors.subtle} />
             </Pressable>
           );
         }}
       />
+      <Fab
+        label="덱 만들기"
+        icon="add"
+        onPress={() => router.push("/deck-editor")}
+      />
     </View>
   );
 }
+
+const deckListStyles = StyleSheet.create({
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    marginBottom: space.xs,
+  },
+  item: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    padding: space.md,
+    marginBottom: space.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.panel,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+  },
+  portrait: {
+    width: 64,
+    height: 88,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    backgroundColor: colors.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  name: { color: colors.text, fontSize: 17, fontWeight: "700" },
+  badges: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 2 },
+});

@@ -1,6 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, ScrollView, Pressable, Share } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  Share,
+  StyleSheet,
+} from "react-native";
+import { useLocalSearchParams, router, Stack } from "expo-router";
 import type { Deck } from "../../src/types";
 import { useApp } from "../../src/provider";
 import { deckIssues } from "../../src/deck-rules";
@@ -15,12 +22,21 @@ import { request, ApiError } from "../../src/api";
 import { preference, setPreference } from "../../src/storage";
 import { userMessage } from "../../src/errors";
 import {
-  styles,
-  colors,
-  Choices,
-  CachedImage,
-  Notice,
+  Badge,
   Button,
+  CachedImage,
+  Chip,
+  EmptyState,
+  Icon,
+  IconButton,
+  Notice,
+  Segmented,
+  Skeleton,
+  colors,
+  radius,
+  space,
+  styles,
+  type,
 } from "../../src/ui";
 
 export default function DeckDetail() {
@@ -99,14 +115,23 @@ export default function DeckDetail() {
   if (!deck)
     return (
       <View style={styles.screen}>
-        <Notice
-          text={busy ? "불러오는 중" : message || "덱을 볼 수 없습니다."}
-        />
-        <Button
-          label="재시도"
-          disabled={busy}
-          onPress={() => setRetry((n) => n + 1)}
-        />
+        {busy ? (
+          <View style={{ gap: space.md }}>
+            <Skeleton height={120} rounded={radius.lg} />
+            <Skeleton height={44} />
+            <Skeleton height={260} rounded={radius.lg} />
+          </View>
+        ) : (
+          <EmptyState
+            icon="lock-closed-outline"
+            title={message || "덱을 볼 수 없습니다."}
+            action={{
+              label: "재시도",
+              icon: "refresh",
+              onPress: () => setRetry((n) => n + 1),
+            }}
+          />
+        )}
       </View>
     );
   const displayCatalog =
@@ -139,43 +164,99 @@ export default function DeckDetail() {
       1,
       Math.floor(((width - gap * (columns - 1)) / columns) * 100) / 100,
     );
+  const total = deck.cards.reduce((n, e) => n + e.count, 0);
+  const reserveTotal = (deck.reserve_cards || []).reduce(
+    (n, e) => n + e.count,
+    0,
+  );
+  const judged = deck.validation?.is_valid;
+  const shareDeck = () => {
+    void Share.share({
+      message: JSON.stringify({
+        ...deck,
+        schema_version: 2,
+        id: undefined,
+        uuid: undefined,
+        author: undefined,
+        locked: undefined,
+      }),
+    });
+  };
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      contentContainerStyle={{ paddingBottom: 48 }}
     >
-      <Text style={styles.title}>{deck.name}</Text>
-      <Text style={styles.muted}>
-        {deck.author?.username || user?.username} ·{" "}
-        {character ? localized(character, language) : ""} · {t(deck.visibility)}
-      </Text>
+      <Stack.Screen options={{ title: deck.name }} />
+      <View style={detailStyles.hero}>
+        <View style={detailStyles.portrait}>
+          {character ? (
+            <CachedImage
+              url={character.img_sm || character.img}
+              height={112}
+              fill
+            />
+          ) : (
+            <Icon name="person-outline" size={32} color={colors.subtle} />
+          )}
+        </View>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text style={type.title} numberOfLines={2}>
+            {deck.name}
+          </Text>
+          <Text style={styles.muted} numberOfLines={1}>
+            {(character ? localized(character, language) : "") +
+              " · " +
+              (deck.author?.username || user?.username || "")}
+          </Text>
+          <View style={detailStyles.badges}>
+            <Badge label={total + " " + t("장")} />
+            {reserveTotal > 0 && (
+              <Badge label={t("교체 덱") + " " + reserveTotal} />
+            )}
+            <Badge
+              label={deck.visibility}
+              tone={
+                deck.visibility === "public"
+                  ? "success"
+                  : deck.visibility === "unlisted"
+                    ? "accent"
+                    : "neutral"
+              }
+            />
+            {!!submission && (
+              <Badge
+                label={
+                  t("대회 당시 판정") +
+                  " · " +
+                  t(
+                    judged === true
+                      ? "적합"
+                      : judged === false
+                        ? "위반"
+                        : "미검사",
+                  )
+                }
+                tone={
+                  judged === true
+                    ? "success"
+                    : judged === false
+                      ? "danger"
+                      : "neutral"
+                }
+              />
+            )}
+          </View>
+        </View>
+      </View>
       <Notice text={message} />
-      {!!submission && (
-        <Notice
-          text={`대회 당시 판정: ${deck.validation?.is_valid === true ? "적합" : deck.validation?.is_valid === false ? "위반" : "미검사"}`}
-        />
-      )}
-      <Choices
-        value={checkRegulation}
-        onChange={setCheckRegulation}
-        values={[
-          { key: "", label: "다른 규정으로 확인" },
-          ...(catalog?.rules.regulations || []).map((v) => ({
-            key: String(v.id),
-            label: `${v.name} / ${v.version}`,
-          })),
-        ]}
-      />
-      {!!checked &&
-        (checked.length ? (
-          checked.map((i, n) => <Notice key={n} text={i.message} />)
-        ) : (
-          <Notice text="선택한 규정에 적합한 구성입니다." />
-        ))}
-      <View style={styles.row}>
+      <View style={detailStyles.actions}>
         {!!own && !deck.locked && (
           <Button
             label="덱 수정"
+            icon="create-outline"
+            variant="primary"
+            style={{ flex: 1 }}
             onPress={() =>
               router.push({
                 pathname: "/deck-editor",
@@ -185,22 +266,9 @@ export default function DeckDetail() {
           />
         )}
         <Button
-          label="덱 코드 공유"
-          onPress={() => {
-            void Share.share({
-              message: JSON.stringify({
-                ...deck,
-                schema_version: 2,
-                id: undefined,
-                uuid: undefined,
-                author: undefined,
-                locked: undefined,
-              }),
-            });
-          }}
-        />
-        <Button
           label="복사해서 편집"
+          icon="copy-outline"
+          style={{ flex: 1 }}
           onPress={() =>
             router.push({
               pathname: "/deck-editor",
@@ -212,32 +280,97 @@ export default function DeckDetail() {
             })
           }
         />
-      </View>
-      <View style={{ marginTop: 16 }}>
-        <Choices
-          value={size}
-          onChange={(v) => {
-            sizeEdited.current = true;
-            setSize(v as DeckSize);
-            setPreference("deck-card-size", v).catch(() => undefined);
-          }}
-          values={[
-            { key: "small", label: t("작게") },
-            { key: "medium", label: t("보통") },
-            { key: "large", label: t("크게") },
-          ]}
+        <IconButton
+          icon="share-social-outline"
+          label="덱 코드 공유"
+          filled
+          onPress={shareDeck}
         />
+      </View>
+
+      {!!catalog?.rules.regulations?.length && (
+        <>
+          <Text style={detailStyles.heading}>{t("다른 규정으로 확인")}</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: space.sm }}
+            style={{ flexGrow: 0 }}
+          >
+            <Chip
+              label="확인 안 함"
+              selected={!checkRegulation}
+              onPress={() => setCheckRegulation("")}
+            />
+            {catalog.rules.regulations.map((v) => (
+              <Chip
+                key={v.id}
+                label={v.name + " / " + v.version}
+                selected={checkRegulation === String(v.id)}
+                onPress={() => setCheckRegulation(String(v.id))}
+              />
+            ))}
+          </ScrollView>
+        </>
+      )}
+      {!!checked && (
+        <View
+          style={[
+            detailStyles.check,
+            checked.length ? detailStyles.checkBad : detailStyles.checkGood,
+          ]}
+        >
+          {checked.length ? (
+            checked.map((issue, n) => (
+              <View key={n} style={detailStyles.issue}>
+                <Icon name="alert-circle" size={16} color={colors.danger} />
+                <Text style={[styles.text, { flex: 1, fontSize: 14 }]}>
+                  {t(issue.message)}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <View style={detailStyles.issue}>
+              <Icon name="checkmark-circle" size={16} color={colors.success} />
+              <Text style={[styles.text, { flex: 1, fontSize: 14 }]}>
+                {t("선택한 규정에 적합한 구성입니다.")}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      <View style={detailStyles.sizeRow}>
+        <Text
+          style={[
+            detailStyles.heading,
+            { marginTop: 0, marginBottom: 0, flex: 1 },
+          ]}
+        >
+          {t("카드 구성")}
+        </Text>
+        <View style={{ width: 168 }}>
+          <Segmented
+            value={size}
+            onChange={(v) => {
+              sizeEdited.current = true;
+              setSize(v as DeckSize);
+              setPreference("deck-card-size", v).catch(() => undefined);
+            }}
+            values={[
+              { key: "small", label: "작게" },
+              { key: "medium", label: "보통" },
+              { key: "large", label: "크게" },
+            ]}
+          />
+        </View>
       </View>
       <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
         {deckSections(deck, displayCatalog).map((section) => (
-          <View key={section.title} style={{ marginBottom: 22 }}>
-            <View style={[styles.row, { marginBottom: 10 }]}>
-              <Text style={[styles.title, { marginBottom: 0, fontSize: 18 }]}>
-                {t(section.title)}
-              </Text>
-              <Text style={styles.muted}>
-                {section.tiles.length} {t("장")}
-              </Text>
+          <View key={section.title} style={{ marginBottom: space.xl }}>
+            <View style={detailStyles.sectionHeader}>
+              <Text style={type.heading}>{t(section.title)}</Text>
+              <Badge label={String(section.tiles.length)} tone="accent" />
             </View>
             {!section.tiles.length && <Notice text="카드가 없습니다." />}
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap }}>
@@ -245,7 +378,10 @@ export default function DeckDetail() {
                 section.tiles.map((tile, index) => (
                   <Pressable
                     key={tile.key}
-                    style={{ width: tileWidth }}
+                    style={({ pressed }) => [
+                      { width: tileWidth, borderRadius: 6, overflow: "hidden" },
+                      pressed && { opacity: 0.8 },
+                    ]}
                     accessibilityRole="button"
                     accessibilityLabel={`${t(section.title)} ${index + 1}: ${tile.card ? localized(tile.card, language) : `#${tile.card_id}`}`}
                     disabled={!tile.card}
@@ -269,11 +405,12 @@ export default function DeckDetail() {
                       <View
                         style={{
                           height: tileWidth * 1.4,
-                          backgroundColor: colors.line,
+                          backgroundColor: colors.surface2,
                           justifyContent: "center",
                           alignItems: "center",
                         }}
                       >
+                        <Icon name="help" size={16} color={colors.subtle} />
                         <Text style={styles.muted}>#{tile.card_id}</Text>
                       </View>
                     )}
@@ -283,8 +420,8 @@ export default function DeckDetail() {
           </View>
         ))}
       </View>
+      <Text style={detailStyles.heading}>{t("덱 설명")}</Text>
       <View style={styles.panel}>
-        <Text style={[styles.title, { fontSize: 18 }]}>{t("덱 설명")}</Text>
         <Text selectable style={[styles.text, { lineHeight: 23 }]}>
           {deckDescription(deck.description) || t("설명이 없습니다.")}
         </Text>
@@ -292,3 +429,65 @@ export default function DeckDetail() {
     </ScrollView>
   );
 }
+
+const detailStyles = StyleSheet.create({
+  hero: {
+    flexDirection: "row",
+    gap: space.lg,
+    alignItems: "center",
+    padding: space.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.panel,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+  },
+  portrait: {
+    width: 80,
+    height: 112,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    backgroundColor: colors.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badges: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+    marginTop: space.md,
+  },
+  heading: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: space.xl,
+    marginBottom: space.sm,
+    marginLeft: space.xs,
+  },
+  check: {
+    marginTop: space.md,
+    padding: space.md,
+    gap: space.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  checkBad: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
+  checkGood: {
+    borderColor: colors.success,
+    backgroundColor: "rgba(127, 209, 166, 0.10)",
+  },
+  issue: { flexDirection: "row", gap: space.sm, alignItems: "flex-start" },
+  sizeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: space.xl,
+    marginBottom: -space.xs,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+    marginBottom: space.sm,
+  },
+});

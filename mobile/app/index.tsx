@@ -3,22 +3,22 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../src/provider";
-import { colors } from "../src/ui";
+import { Icon, colors, radius, tapFeedback, type IconName } from "../src/ui";
 
 import { useCalculatorEntry } from "../src/calculator-entry";
 
 const gap = 12;
 // 루멘 파티는 미공개 기능이라 메인화면이 아닌 유틸리티 아래에 둔다.
-const menus = [
-  { label: "계산기", icon: "±", href: "/calculator" },
-  { label: "시뮬", icon: "⚔", href: "/battle" },
-  { label: "카드", icon: "▣", href: "/cards" },
-  { label: "덱", icon: "▤", href: "/decks" },
-  { label: "컬렉션", icon: "▦", href: "/collection" },
-  { label: "QNA", icon: "?", href: "/qna" },
-  { label: "대회", icon: "♜", href: "/tournaments" },
-  { label: "유틸리티", icon: "✦", href: "/utilities" },
-] as const;
+const menus: { label: string; icon: IconName; href: string }[] = [
+  { label: "계산기", icon: "calculator-outline", href: "/calculator" },
+  { label: "시뮬", icon: "flash-outline", href: "/battle" },
+  { label: "카드", icon: "albums-outline", href: "/cards" },
+  { label: "덱", icon: "layers-outline", href: "/decks" },
+  { label: "컬렉션", icon: "grid-outline", href: "/collection" },
+  { label: "QNA", icon: "help-circle-outline", href: "/qna" },
+  { label: "대회", icon: "trophy-outline", href: "/tournaments" },
+  { label: "유틸리티", icon: "apps-outline", href: "/utilities" },
+];
 
 export default function Home() {
   const { t } = useApp();
@@ -35,6 +35,7 @@ export default function Home() {
                 accessibilityRole="button"
                 accessibilityLabel={t(menu.label)}
                 onPress={async () => {
+                  tapFeedback();
                   if (menu.href === "/calculator") {
                     const ui = await chooseUi();
                     if (ui)
@@ -47,10 +48,25 @@ export default function Home() {
                   homeStyles.tile,
                   homeStyles.smallTile,
                   menu.href === "/calculator" && homeStyles.calculator,
-                  { opacity: pressed ? 0.75 : 1 },
+                  pressed && homeStyles.pressed,
                 ]}
               >
-                <Text style={homeStyles.icon}>{menu.icon}</Text>
+                <View
+                  style={[
+                    homeStyles.iconWrap,
+                    menu.href === "/calculator" && homeStyles.calculatorIcon,
+                  ]}
+                >
+                  <Icon
+                    name={menu.icon}
+                    size={30}
+                    color={
+                      menu.href === "/calculator"
+                        ? colors.onAccent
+                        : colors.accent
+                    }
+                  />
+                </View>
                 <Text style={homeStyles.title}>{t(menu.label)}</Text>
               </Pressable>
             ))}
@@ -67,8 +83,8 @@ const homeStyles = StyleSheet.create({
   grid: { flex: 1, gap },
   row: { flex: 1, flexDirection: "row", gap },
   tile: {
-    borderRadius: 18,
-    borderWidth: 1,
+    borderRadius: radius.lg + 2,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
     backgroundColor: colors.panel,
     alignItems: "center",
@@ -78,10 +94,20 @@ const homeStyles = StyleSheet.create({
   },
   calculator: { backgroundColor: "#2a2215", borderColor: colors.accent },
   smallTile: { flex: 1 },
-  icon: { fontSize: 38, color: colors.accent },
+  iconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calculatorIcon: { backgroundColor: colors.accent },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   title: {
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: "700",
+    letterSpacing: -0.2,
     color: colors.text,
     textAlign: "center",
   },

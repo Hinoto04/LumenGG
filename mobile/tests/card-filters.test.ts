@@ -1,9 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  activeCardFilters,
   emptyCardFilters,
   filterError,
   matchesCardFilters,
+  rangeLabel,
+  withoutCardFilter,
 } from "../src/card-filters";
 import type { Card } from "../src/types";
 
@@ -66,4 +69,32 @@ test("invalid and reversed bounds cannot be applied as an empty result", () => {
     filterError({ ...emptyCardFilters, damageMin: "100", damageMax: "100" }),
     null,
   );
+});
+
+test("active filter chips list only set conditions and clear ranges together", () => {
+  const filters = {
+    ...emptyCardFilters,
+    character: "3",
+    pos: "상단",
+    frameMin: "2",
+    damageMax: "4",
+  };
+  assert.deepEqual(activeCardFilters(emptyCardFilters), []);
+  assert.deepEqual(
+    activeCardFilters(filters).map((f) => f.key),
+    ["character", "pos", "frame", "damage"],
+  );
+  const cleared = withoutCardFilter({ ...filters, frameMax: "5" }, "frame");
+  assert.equal(cleared.frameMin, "");
+  assert.equal(cleared.frameMax, "");
+  assert.equal(cleared.character, "3");
+  assert.equal(withoutCardFilter(filters, "pos").pos, "");
+});
+
+test("range labels collapse equal bounds and one-sided ranges", () => {
+  const t = (key: string) => ({ 이상: "or more", 이하: "or less" })[key] ?? key;
+  assert.equal(rangeLabel("3", "5", t), "3–5");
+  assert.equal(rangeLabel("4", "4", t), "4");
+  assert.equal(rangeLabel("2", "", t), "2 or more");
+  assert.equal(rangeLabel("", "6", t), "6 or less");
 });

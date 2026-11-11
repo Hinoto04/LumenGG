@@ -19,7 +19,12 @@ export default function Tournaments() {
       {!user ? (
         <View style={styles.panel}>
           <Notice text="참가한 대회를 확인하려면 로그인해주세요." />
-          <Button label="로그인" onPress={() => router.push("/settings")} />
+          <Button
+            label="로그인"
+            variant="primary"
+            icon="log-in-outline"
+            onPress={() => router.push("/settings")}
+          />
         </View>
       ) : (
         <>

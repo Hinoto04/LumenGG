@@ -3,7 +3,7 @@ import { Stack, router, usePathname } from "expo-router";
 import { BackHandler, Pressable, Text } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { AppProvider, useApp } from "../src/provider";
-import { colors } from "../src/ui";
+import { Icon, colors } from "../src/ui";
 export default function RootLayout() {
   return (
     <AppProvider>
@@ -56,7 +56,7 @@ function Navigation() {
             onPress={() => router.push("/settings")}
             style={{ padding: 12 }}
           >
-            <Text style={{ color: colors.accent, fontSize: 22 }}>⚙</Text>
+            <Icon name="settings-outline" size={22} color={colors.accent} />
           </Pressable>
         ),
       }}
@@ -81,12 +81,16 @@ function Navigation() {
       <Stack.Screen name="battle" options={{ title: t("시뮬") }} />
       <Stack.Screen
         name="play"
-        options={{ title: t("대전"), orientation: "default", headerShown: false }}
+        options={{
+          title: t("대전"),
+          orientation: "default",
+          headerShown: false,
+        }}
       />
       <Stack.Screen name="card/[id]" options={{ title: "LumenDB" }} />
       <Stack.Screen name="qna/[id]" options={{ title: "Q&A" }} />
-      <Stack.Screen name="regulations" options={{title: "대회 규정"}} />
-      <Stack.Screen name="deck-editor" options={{title: "덱 작성"}} />
+      <Stack.Screen name="regulations" options={{ title: "대회 규정" }} />
+      <Stack.Screen name="deck-editor" options={{ title: "덱 작성" }} />
       <Stack.Screen name="deck/[id]" options={{ title: t("덱") }} />
       <Stack.Screen
         name="settings"

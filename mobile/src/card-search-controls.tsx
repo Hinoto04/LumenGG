@@ -10,8 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "./provider";
-import { colors } from "./ui";
-import { ListIcon } from "./icons";
+import { Icon, colors, radius } from "./ui";
 import {
   CARD_SORT_OPTIONS,
   type CardDisplay,
@@ -42,9 +41,12 @@ export function CardSearchToolbar({
             onSort(y + height + 8),
           )
         }
-        style={controlStyles.button}
+        style={({ pressed }) => [
+          controlStyles.button,
+          (pressed || expanded) && controlStyles.buttonActive,
+        ]}
       >
-        <ListIcon kind="sort" />
+        <Icon name="swap-vertical" size={20} color={colors.text} />
       </Pressable>
       <Pressable
         accessibilityRole="button"
@@ -55,7 +57,11 @@ export function CardSearchToolbar({
         onPress={onToggle}
         style={controlStyles.button}
       >
-        <ListIcon kind={display} />
+        <Icon
+          name={display === "grid" ? "list-outline" : "grid-outline"}
+          size={20}
+          color={colors.text}
+        />
       </Pressable>
     </View>
   );
@@ -129,7 +135,7 @@ export function CardSortMenu({
               hitSlop={8}
               onPress={onClose}
             >
-              <Text style={controlStyles.label}>✕</Text>
+              <Icon name="close" size={20} color={colors.muted} />
             </Pressable>
           </View>
           <ScrollView keyboardShouldPersistTaps="handled">
@@ -147,7 +153,7 @@ export function CardSortMenu({
               >
                 <Text style={controlStyles.optionText}>{t(option.label)}</Text>
                 {option.key === value && (
-                  <Text style={controlStyles.label}>✓</Text>
+                  <Icon name="checkmark" size={20} color={colors.accent} />
                 )}
               </Pressable>
             ))}
@@ -164,9 +170,12 @@ const controlStyles = StyleSheet.create({
     height: 44,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8,
-    backgroundColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
   },
+  buttonActive: { borderColor: colors.accent },
   label: { color: colors.accent, fontWeight: "600", fontSize: 14 },
   overlay: {
     flex: 1,
@@ -178,8 +187,8 @@ const controlStyles = StyleSheet.create({
     backgroundColor: colors.panel,
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: radius.lg,
+    padding: 8,
   },
   menuHeader: {
     flexDirection: "row",
@@ -193,9 +202,10 @@ const controlStyles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 13,
-    borderRadius: 8,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    borderRadius: radius.sm,
   },
   optionText: { color: colors.text, fontSize: 15 },
-  selected: { backgroundColor: "#4b3d24" },
+  selected: { backgroundColor: colors.accentSoft },
 });

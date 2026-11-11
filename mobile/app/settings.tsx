@@ -1,4 +1,5 @@
 import { userMessage } from "../src/errors";
+import Constants from "expo-constants";
 import React, { useState, useEffect } from "react";
 import { ScrollView, View, Text, Alert, Linking } from "react-native";
 import { useApp } from "../src/provider";
@@ -187,7 +188,8 @@ export default function Settings() {
             <View style={styles.row}>
               <Button
                 label={signup ? "가입" : "로그인"}
-                disabled={busy}
+                variant="primary"
+                loading={busy}
                 onPress={authenticate}
               />
               <Button
@@ -196,6 +198,7 @@ export default function Settings() {
               />
               <Button
                 label="비밀번호 재설정"
+                variant="ghost"
                 onPress={() => Linking.openURL(absoluteUrl("/password_reset/"))}
               />
             </View>
@@ -238,7 +241,9 @@ export default function Settings() {
         </View>
       </View>
       <Notice text={app.online ? "인터넷 연결됨" : "오프라인"} />
-      <Text style={styles.muted}>LumenDB 1.0.8</Text>
+      <Text style={styles.muted}>
+        LumenDB {Constants.expoConfig?.version ?? ""}
+      </Text>
     </ScrollView>
   );
 }
