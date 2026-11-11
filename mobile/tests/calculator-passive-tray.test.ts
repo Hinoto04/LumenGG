@@ -93,6 +93,8 @@ test("counters clamp to their range and pips toggle the last filled cell", () =>
   assert.equal(pipValue(3, 0), 1);
   assert.equal(pipValue(0, 4), 5);
   assert.equal(passiveTray(p, wolf)[0]!.symbol, "claw");
+  assert.equal(passiveTray(p, wolf)[0]!.art, "claw");
+  assert.equal(passiveTray(p, wolf)[1]!.art, "pressure");
 });
 
 test("tao harmony becomes an automatic status and locks counters until an effect is chosen", () => {

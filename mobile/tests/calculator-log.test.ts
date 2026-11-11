@@ -69,6 +69,13 @@ test("FP deltas and reset logs preserve zero and old/new quantities", () => {
     calculatorLogRows(state, identity).map((row) => row.detail),
     ["3 → 0", "0 → 3"],
   );
+  assert.deepEqual(
+    calculatorLogRows(state, identity).map((row) => row.delta),
+    [
+      { label: "FP", amount: -3 },
+      { label: "FP", amount: 3 },
+    ],
+  );
 });
 test("shared event payloads and choice values display meaningful names rather than internal values", () => {
   const state = newCalculator(character, character, "ko");
@@ -113,7 +120,7 @@ test("legacy passive events with missing values are marked unknown instead of in
   state.events = [{ type: "passive", target: "p1", amount: 0 }];
   assert.equal(
     calculatorLogRows(state, identity)[0]!.detail,
-    "기록 없음 → 기록 없음",
+    "기록 없음",
   );
 });
 test("undo is attributed to the player whose HP changed", () => {

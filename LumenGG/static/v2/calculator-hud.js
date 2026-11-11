@@ -5,9 +5,9 @@
     if (!root || !tray) return;
     const language = window.v2BattleConfig?.language || 'ko';
     const words = {
-        ko: {settings: '화면 설정', style: '배경', illustrated: '일러스트', clean: '단색', brightness: '배경 밝기', reset: '권장값', close: '닫기', local: '이 기기에만 저장됩니다.', passive: '패시브', none: '조작할 패시브가 없습니다.', on: 'ON', off: 'OFF', use: '발동', using: '발동 중', ready: '사용 가능'},
-        en: {settings: 'Display', style: 'Background', illustrated: 'Illustrated', clean: 'Solid', brightness: 'Brightness', reset: 'Default', close: 'Close', local: 'Saved on this device only.', passive: 'Passive', none: 'No passive to track.', on: 'ON', off: 'OFF', use: 'Use', using: 'Active', ready: 'Ready'},
-        ja: {settings: '表示設定', style: '背景', illustrated: 'イラスト', clean: '単色', brightness: '背景の明るさ', reset: '推奨値', close: '閉じる', local: 'この端末にのみ保存されます。', passive: 'パッシブ', none: '操作するパッシブはありません。', on: 'ON', off: 'OFF', use: '発動', using: '発動中', ready: '使用可'},
+        ko: {settings: '화면 설정', style: '배경', illustrated: '일러스트', clean: '단색', brightness: '일러스트 밝기', reset: '권장값', close: '닫기', local: '이 기기에만 저장됩니다.', passive: '패시브', none: '조작할 패시브가 없습니다.', on: 'ON', off: 'OFF', use: '발동', using: '발동 중', ready: '사용 가능'},
+        en: {settings: 'Display', style: 'Background', illustrated: 'Illustrated', clean: 'Solid', brightness: 'Illustration brightness', reset: 'Default', close: 'Close', local: 'Saved on this device only.', passive: 'Passive', none: 'No passive to track.', on: 'ON', off: 'OFF', use: 'Use', using: 'Active', ready: 'Ready'},
+        ja: {settings: '表示設定', style: '背景', illustrated: 'イラスト', clean: '単色', brightness: 'イラストの明るさ', reset: '推奨値', close: '閉じる', local: 'この端末にのみ保存されます。', passive: 'パッシブ', none: '操作するパッシブはありません。', on: 'ON', off: 'OFF', use: '発動', using: '発動中', ready: '使用可'},
     }[language] || {};
     const w = (key) => words[key] || key;
 
@@ -103,8 +103,6 @@
             panel.dataset.theme = theme.theme_key || 'default';
             panel.style.setProperty('--lc-accent', theme.accent || character?.color || '#c9a45c');
             panel.style.setProperty('--lc-accent-2', theme.secondary || '#f1e7d2');
-            if (theme.background) panel.style.setProperty('--lc-scene', cssUrl(theme.background));
-            else panel.style.removeProperty('--lc-scene');
             if (character?.img) panel.style.setProperty('--lc-art', cssUrl(character.img));
             else panel.style.removeProperty('--lc-art');
             const label = panel.querySelector(`[data-player-character="${target}"]`);
@@ -118,6 +116,8 @@
                     avatar.replaceChildren(img);
                 } else if (!src) { avatar.dataset.src = ''; avatar.replaceChildren(); }
             }
+            // 기록 패널의 플레이어 색
+            root.style.setProperty(`--lc-${target}`, theme.accent || character?.color || (target === 'p1' ? '#45d0a0' : '#b892ff'));
             const player = state.players?.[target];
             const ratio = player && player.initial_hp ? player.hp / player.initial_hp : 1;
             panel.classList.toggle('is-low', ratio <= 0.3);
@@ -155,17 +155,34 @@
         const list = holder.querySelector('.lc-tray');
         return !!list && list.scrollHeight > list.clientHeight + 1;
     }
+    /* 들어가는 가장 큰 단계를 고른다: 여유가 있으면 누르는 칸을 키우고, 넘치면 줄인다. */
+    const LEVELS = ['is-roomiest', 'is-roomy', '', 'is-tight', 'is-tighter', 'is-tightest'];
     function fit(holder) {
-        holder.classList.remove('is-tight', 'is-tighter', 'is-tightest');
-        for (const level of ['is-tight', 'is-tighter', 'is-tightest']) {
-            if (!overflowing(holder)) return;
-            holder.classList.add(level);
+        for (const level of LEVELS) {
+            const classes = level === 'is-roomiest' ? ['is-roomy', 'is-roomiest'] : level ? [level] : [];
+            holder.classList.remove(...LEVELS.filter(Boolean));
+            if (level === 'is-tighter') classes.unshift('is-tight');
+            if (level === 'is-tightest') classes.unshift('is-tight', 'is-tighter');
+            holder.classList.add(...classes);
+            if (!overflowing(holder) || level === 'is-tightest') return;
         }
     }
     window.addEventListener('resize', () => apis.forEach((api) => fit(api.root)));
 
+    /* 넉넉한 단계(is-roomy)에서만 보이는 패시브 그림. 버튼을 그림으로 구분하게 한다. */
+    function art(name, cls) {
+        const file = name && tray.artFile(name);
+        if (!file) return null;
+        const img = el('img', cls || 'lc-passive-art');
+        img.src = `/static/v2/calculator-character/clean/${file}`;
+        img.alt = ''; img.draggable = false; img.loading = 'lazy';
+        img.addEventListener('error', () => img.remove());
+        return img;
+    }
     function head(item, extra) {
         const top = el('span', 'lc-passive-head');
+        const picture = art(item.art);
+        if (picture) top.append(picture);
         const ico = icon(item.symbol);
         if (ico) top.append(ico);
         const name = el('span', 'lc-passive-name', item.label);
@@ -238,7 +255,9 @@
             group.setAttribute('aria-label', item.label);
             for (const choice of item.choices || []) {
                 const option = button('lc-choice' + (choice.selected ? ' is-on' : ''), `${item.label} ${choice.label}`, () => send(item.key, choice.value), locked || !item.enabled);
-                option.textContent = choice.label;
+                const choiceArt = art(choice.art, 'lc-choice-art');
+                if (choiceArt) option.append(choiceArt);
+                option.append(el('span', '', choice.label));
                 option.setAttribute('role', 'radio');
                 option.setAttribute('aria-checked', String(choice.selected));
                 group.append(option);

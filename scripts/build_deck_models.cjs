@@ -6,4 +6,5 @@ for (const [source, globalName, target] of [
   ['calculator-trait-model.ts', 'CalculatorTraitModel', 'calculator-trait-model.js'],
   ['deck-rules.ts', 'DeckRules', 'deck-rules-model.js'],
   ['calculator-passive-tray.ts', 'CalculatorPassiveTray', 'calculator-passive-tray.js'],
+  ['calculator-log.ts', 'CalculatorLog', 'calculator-log.js'],
 ]) esbuild.buildSync({entryPoints:[path.join(root,'mobile/src',source)],bundle:true,format:'iife',globalName,target:'es2021',minify:true,outfile:path.join(root,'LumenGG/static/v2',target)});

@@ -5,6 +5,7 @@
 import { conditionMet, passiveActions, passiveGet } from "./core";
 import { passiveActive, nextTaoEffect } from "./calculator-display";
 import presentations from "./calculator-passive-visuals.json";
+import cleanArt from "./calculator-clean-icons.json";
 import type {
   Action,
   Condition,
@@ -24,7 +25,7 @@ type Control = Omit<PassiveControl, "choices"> & {
   }[];
 };
 
-export type TrayChoice = { value: string; label: string; selected: boolean };
+export type TrayChoice = { value: string; label: string; selected: boolean; art?: string };
 export type TrayItem = {
   key: string;
   kind: "toggle" | "counter" | "trigger" | "status" | "choice" | "text";
@@ -43,8 +44,10 @@ export type TrayItem = {
   choices?: TrayChoice[];
   /** 조건·자동 발동 안내. 빈 문자열이면 표시하지 않는다. */
   hint: string;
-  /** 일러스트 심볼 이름(calculator-clean-icons). 없으면 undefined. */
+  /** 선 아이콘 이름(calculator-clean-icons의 키). 없으면 undefined. */
   symbol?: string;
+  /** 공간이 넉넉할 때 버튼에 크게 보여 줄 패시브 그림(calculator-clean-icons의 키). */
+  art?: string;
 };
 
 const TEXT: Record<string, Record<string, string>> = {
@@ -155,6 +158,20 @@ function symbolFor(player: Player, key: string): string | undefined {
   const entry = (presentations as Record<string, any>)[theme(player)];
   return entry?.controls?.[key]?.symbol;
 }
+// 선 아이콘은 없지만 그림이 있는 패시브
+const EXTRA_ART: Record<string, Record<string, string>> = {
+  viola: { silver_counter: "viola" },
+  rita: { light_lumen: "condenser" },
+};
+const hasArt = (name: string | undefined) => !!name && name in (cleanArt as Record<string, unknown>);
+function artFor(player: Player, key: string): string | undefined {
+  const name = EXTRA_ART[theme(player)]?.[key] || symbolFor(player, key);
+  return hasArt(name) ? name : undefined;
+}
+/** 그림 이름 → 웹 정적 파일 이름(LumenGG/static/v2/calculator-character/clean/). */
+export function artFile(name: string): string | undefined {
+  return (cleanArt as Record<string, { file?: string }>)[name]?.file;
+}
 
 function isTao(definition: PassiveDefinition): boolean {
   return (
@@ -198,7 +215,7 @@ export function passiveTray(
     const label = controlLabel(control, language);
     const current = value(player, control);
     const gate = !control.enableWhen || conditionMet(control.enableWhen, player);
-    const base = { key: control.key, label, symbol: symbolFor(player, control.key) };
+    const base = { key: control.key, label, symbol: symbolFor(player, control.key), art: artFor(player, control.key) };
     switch (control.type) {
       case "counter": {
         const locked = tao && ["yang_counter", "yin_counter"].includes(control.key) && taoLocked(player);
@@ -272,7 +289,12 @@ export function passiveTray(
           enabled,
           choices: (control.choices || []).map((choice) => {
             const v = String(choice.value ?? choice.key ?? "");
-            return { value: v, label: choice.labels?.[language] || choice.label, selected: String(current ?? "") === v };
+            return {
+              value: v,
+              label: choice.labels?.[language] || choice.label,
+              selected: String(current ?? "") === v,
+              art: hasArt(v) ? v : undefined,
+            };
           }),
           hint: enabled
             ? ""

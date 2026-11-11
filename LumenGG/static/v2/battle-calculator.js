@@ -459,38 +459,48 @@
         const holder = document.querySelector("[data-battle-history]");
         if (!holder) return;
         holder.replaceChildren();
-
-        const events = (state.events || []).filter((event) => {
-            if (historyFilter === "all") return true;
-            return event.target === historyFilter && ["hp", "fp", "undo", "set_report"].includes(event.type);
+        document.querySelectorAll("[data-history-target]").forEach((button) => {
+            button.setAttribute("aria-pressed", String(button.dataset.historyTarget === historyFilter));
         });
-
-        if (!events.length) {
-            const empty = document.createElement("p");
-            empty.className = "v2-battle-empty";
+        // 시뮬레이터 기록과 같은 형식: 최신이 위, 플레이어별 색 배경, 오른쪽에 증감치, 전체 사건은 구분선.
+        const model = window.CalculatorLog;
+        const rows = model
+            ? model.calculatorLogRows({ ...state, events: state.events || [] }, t)
+            : [];
+        const visible = rows.filter((row) => historyFilter === "all" || row.target === historyFilter);
+        if (!visible.length) {
+            const empty = document.createElement("li");
+            empty.className = "lc-log-empty";
             empty.textContent = t("표시할 기록이 없습니다.");
             holder.appendChild(empty);
             return;
         }
-
-        events.forEach((event) => {
-            const row = document.createElement("div");
-            row.className = "v2-battle-history-row";
-            if (event.target === "p1") {
-                row.classList.add("is-p1");
-            } else if (event.target === "p2") {
-                row.classList.add("is-p2");
-            } else {
-                row.classList.add("is-global");
+        visible.forEach((row) => {
+            const item = document.createElement("li");
+            if (!row.target) {
+                item.className = "lc-log-divider" + (row.undone ? " is-undone" : "");
+                const text = document.createElement("span");
+                text.textContent = [row.title, row.detail].filter(Boolean).join(" · ");
+                item.appendChild(text);
+                holder.appendChild(item);
+                return;
             }
-            if (event.undone) row.classList.add("is-undone");
-            const label = document.createElement("strong");
-            label.textContent = t(actionLabel(event));
-            const meta = document.createElement("span");
-            const created = new Date(event.created_at);
-            meta.textContent = `${Number.isNaN(created.getTime()) ? "" : created.toLocaleTimeString()} / ${event.actor}`;
-            row.append(label, meta);
-            holder.appendChild(row);
+            item.className = `lc-log is-${row.target}` + (row.undone ? " is-undone" : "");
+            const body = document.createElement("span");
+            body.className = "lc-log-text";
+            const title = document.createElement("strong");
+            title.textContent = row.title + (row.undone ? ` · ${t("되돌림")}` : "");
+            const meta = document.createElement("small");
+            meta.textContent = [state.players?.[row.target]?.name, row.detail, row.time].filter(Boolean).join(" · ");
+            body.append(title, meta);
+            item.appendChild(body);
+            if (row.delta) {
+                const delta = document.createElement("b");
+                delta.className = "lc-log-delta " + (row.delta.amount > 0 ? "is-plus" : "is-minus");
+                delta.textContent = `${row.delta.label} ${row.delta.amount > 0 ? "+" : "−"}${Math.abs(row.delta.amount)}`.trim();
+                item.appendChild(delta);
+            }
+            holder.appendChild(item);
         });
     }
 

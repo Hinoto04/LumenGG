@@ -3,7 +3,7 @@
 {% load language_tags %}
 {% block title %}{{ session.player1_name }} vs {{ session.player2_name }} - {% tr "대전 계산기" %}{% endblock title %}
 {% block body_class %}v2-battle-mode lc-mode{% endblock body_class %}
-{% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}"><link rel="stylesheet" href="{% static 'v2/calculator.css' %}?v=20261111e">{% endblock %}
+{% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}"><link rel="stylesheet" href="{% static 'v2/calculator.css' %}?v=20261118c">{% endblock %}
 {% block content %}
 {% include "battlelog/_preparation.html" %}
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -33,16 +33,16 @@
     </div>
 
     <aside class="lc-sheet lc-history" aria-label="{% tr "기록" %}">
-        <div class="lc-sheet-head" data-history-panel>
-            <strong>{% tr "기록" %}</strong>
-            <div class="lc-history-filter" role="group">
-                <button class="lc-chip" type="button" data-history-target="all">{% tr "전체" %}</button>
-                <button class="lc-chip" type="button" data-history-target="p1" data-player-name="p1">{{ session.player1_name }}</button>
-                <button class="lc-chip" type="button" data-history-target="p2" data-player-name="p2">{{ session.player2_name }}</button>
-            </div>
+        <header class="lc-log-head">
+            <h2>{% tr "기록" %}</h2>
             <button class="lc-chip" type="button" data-history-toggle>{% tr "닫기" %}</button>
+        </header>
+        <div class="lc-log-filter" role="group" aria-label="{% tr "기록" %}">
+            <button type="button" data-history-target="all">{% tr "전체" %}</button>
+            <button type="button" data-history-target="p1"><i class="is-p1"></i><span data-player-name="p1">{{ session.player1_name }}</span></button>
+            <button type="button" data-history-target="p2"><i class="is-p2"></i><span data-player-name="p2">{{ session.player2_name }}</span></button>
         </div>
-        <div class="lc-history-list" data-battle-history data-history-panel></div>
+        <ol class="lc-log-list" data-battle-history></ol>
         {% if not session.tournament_match and control_token and not state.party %}
         <button class="lc-wide-button is-danger" type="button" data-battle-reset>{% tr "초기화" %}</button>
         {% endif %}
@@ -51,7 +51,7 @@
     <div class="lc-board">
         {% for target, player_name in players %}
         <article class="lc-player" data-player-panel="{{ target }}">
-            <div class="lc-scene" aria-hidden="true"><i class="lc-scene-bg"></i><i class="lc-scene-art"></i></div>
+            <div class="lc-scene" aria-hidden="true"><i class="lc-scene-art"></i></div>
             <header class="lc-player-head">
                 <span class="lc-avatar" data-player-avatar="{{ target }}" aria-hidden="true"></span>
                 <div class="lc-ident">
@@ -158,7 +158,8 @@
 <script src="{% static 'v2/calculator-shield-model.js' %}"></script>
 <script src="{% static 'v2/calculator-passive-input-model.js' %}"></script>
 <script src="{% static 'v2/calculator-appearance-model.js' %}"></script>
-<script src="{% static 'v2/calculator-passive-tray.js' %}?v=20261111e"></script>
-<script src="{% static 'v2/calculator-hud.js' %}?v=20261111e"></script>
-<script src="{% static "v2/battle-calculator.js" %}?v=20261111e"></script>
+<script src="{% static 'v2/calculator-log.js' %}?v=20261118c"></script>
+<script src="{% static 'v2/calculator-passive-tray.js' %}?v=20261118c"></script>
+<script src="{% static 'v2/calculator-hud.js' %}?v=20261118c"></script>
+<script src="{% static "v2/battle-calculator.js" %}?v=20261118c"></script>
 {% endblock content %}

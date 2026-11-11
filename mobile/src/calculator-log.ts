@@ -8,6 +8,8 @@ export interface CalculatorLogRow {
   detail: string;
   time: string;
   undone: boolean;
+  /** 숫자 변화(HP·FP·카운터). 시뮬레이터 기록처럼 오른쪽에 +초록/−빨강으로 보여준다. */
+  delta: { label: string; amount: number } | null;
 }
 const own = (value: any, key: string) =>
   value && Object.prototype.hasOwnProperty.call(value, key);
@@ -78,6 +80,9 @@ export function calculatorLogRows(
             sudden_death: "서든 데스",
             sudden_turn: "남은 턴",
             character: "캐릭터 변경",
+            set_start: "세트 시작",
+            set_report: "세트 결과",
+            extra_time: "추가 시간",
           } as Record<string, string>
         )[event.type] || event.type,
       );
@@ -106,9 +111,30 @@ export function calculatorLogRows(
         before = stateValue(payload.before_state);
         after = stateValue(payload.after_state || payload.state);
         if (after === undefined && own(payload, "value")) after = payload.value;
-        detail = `${format(before)} → ${format(after)}`;
+        // 처음 바뀐 값은 이전 기록이 없으니 바뀐 값만 보여 준다.
+        detail = before === undefined ? format(after) : `${format(before)} → ${format(after)}`;
+      } else if (event.type === "sudden_death") {
+        detail = payload.turn_advanced
+          ? `${t("남은 턴")} ${payload.turns_remaining ?? ""}`
+          : t(payload.enabled ? "진입" : "해제");
+      } else if (event.type === "set_start" || event.type === "set_report") {
+        const set = payload.set_number ? `${payload.set_number}S` : "";
+        const winner = event.type === "set_report" && target ? `${player?.name || ""} ${t("승")}` : "";
+        detail = [set, winner].filter(Boolean).join(" · ");
+      } else if (event.type === "extra_time") {
+        detail = `+${Math.round(Number(event.amount || 0) / 60)}${t("분")}`;
       } else if (payload.note) detail = String(payload.note);
       const date = new Date(event.created_at);
+      const numeric = (value: unknown) =>
+        typeof value === "number" || (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value)));
+      const change =
+        numeric(before) && numeric(after) ? Number(after) - Number(before) : 0;
+      const deltaLabel =
+        event.type === "hp" || event.type === "undo"
+          ? "HP"
+          : event.type === "fp" || event.type === "fp_reset"
+            ? "FP"
+            : "";
       return {
         id: String(event.id ?? `log-${index}`),
         target,
@@ -126,6 +152,7 @@ export function calculatorLogRows(
             })
           : "",
         undone: !!event.undone,
+        delta: change ? { label: deltaLabel, amount: change } : null,
       };
     });
 }

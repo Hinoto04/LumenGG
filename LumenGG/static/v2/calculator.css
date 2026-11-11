@@ -46,7 +46,13 @@
     gap: var(--lc-gap);
     height: 100%;
     min-height: 0;
+    /* 큰 PC 화면에서 지나치게 넓어지지 않게 크기를 제한하고 가운데에 둔다. */
+    max-width: 1360px;
+    max-height: 860px;
+    margin: auto;
 }
+.lc { display: flex; }
+.lc > .lc-board { flex: 1; align-self: center; }
 
 /* ---------- 플레이어 ---------- */
 .lc-player {
@@ -68,7 +74,6 @@
 }
 .lc-scene { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
 .lc-scene i { position: absolute; inset: 0; background-repeat: no-repeat; }
-.lc-scene-bg { background-image: var(--lc-scene); background-size: cover; background-position: center; opacity: calc(.15 + .85 * (1 - var(--lc-shade, .65))); }
 .lc-scene-art {
     background-image: var(--lc-art);
     background-size: auto 108%;
@@ -344,6 +349,47 @@
 .lc-choice:disabled:not(.is-on) { opacity: .4; }
 .lc-text { width: 100%; min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--lc-line); background: rgba(0, 0, 0, .3); color: var(--lc-text); box-sizing: border-box; }
 
+/* 공간이 남을 때의 확대 단계: 누르는 칸을 키운다. calculator-hud.js가 들어가는 가장 큰 단계를 고른다. */
+.lc-passives.is-roomy .lc-tray { gap: 8px; }
+.lc-passives.is-roomy .lc-passive { padding: 10px 12px; gap: 8px; border-radius: 14px; }
+.lc-passives.is-roomy .lc-passive.is-toggle, .lc-passives.is-roomy .lc-passive.is-trigger { padding: 0; }
+.lc-passives.is-roomy .lc-passive-press { min-height: 64px; padding: 10px 14px; gap: 5px; }
+.lc-passives.is-roomy .lc-passive-name { font-size: 15.5px; }
+.lc-passives.is-roomy .lc-passive-hint { font-size: 12px; }
+.lc-passives.is-roomy .lc-passive-icon { width: 24px; height: 24px; }
+.lc-passives.is-roomy .lc-pill { min-width: 44px; padding: 4px 10px; font-size: 12px; }
+.lc-passives.is-roomy .lc-count { font-size: 16px; }
+/* 카운터·선택지는 이름 줄 아래에 조작 줄을 통째로 두어 칸을 넓힌다. */
+.lc-passives.is-roomy .lc-passive.is-counter .lc-passive-head,
+.lc-passives.is-roomy .lc-passive.is-choice .lc-passive-head { flex-basis: 100%; max-width: none; }
+.lc-passives.is-roomy .lc-counter, .lc-passives.is-roomy .lc-choices { flex-basis: 100%; }
+.lc-passives.is-roomy .lc-counter { gap: 8px; }
+.lc-passives.is-roomy .lc-counter .lc-step { min-height: 44px; min-width: 44px; font-size: 22px; border-radius: 12px; }
+.lc-passives.is-roomy .lc-pips { gap: 6px; }
+.lc-passives.is-roomy .lc-pip { height: 44px; border-radius: 10px; }
+.lc-passives.is-roomy .lc-counter-value { font-size: 26px; }
+.lc-passives.is-roomy .lc-choice { min-height: 44px; font-size: 14px; border-radius: 10px; }
+.lc-passives.is-roomiest .lc-passive-press { min-height: 84px; }
+.lc-passives.is-roomiest .lc-passive-name { font-size: 17px; }
+.lc-passives.is-roomiest .lc-pill { padding: 5px 12px; font-size: 13px; }
+.lc-passives.is-roomiest .lc-counter .lc-step { min-height: 58px; min-width: 58px; font-size: 26px; }
+.lc-passives.is-roomiest .lc-pip { height: 58px; border-radius: 12px; }
+.lc-passives.is-roomiest .lc-choice { min-height: 56px; font-size: 15.5px; }
+
+/* 패시브 그림: 넉넉할 때만 선 아이콘 대신 크게 보여 준다. */
+.lc-passive-art, .lc-choice-art { display: none; flex: none; object-fit: contain; border-radius: 10px; filter: saturate(.35) brightness(.75); transition: filter .2s, transform .2s; }
+.lc-passive.is-active .lc-passive-art, .lc-choice.is-on .lc-choice-art { filter: none; }
+.lc-passives.is-roomy .lc-passive-art { display: block; width: 44px; height: 44px; }
+.lc-passives.is-roomy .lc-passive-head:has(.lc-passive-art) .lc-passive-icon { display: none; }
+.lc-passives.is-roomy .lc-passive.is-active .lc-passive-art { box-shadow: 0 0 0 2px var(--lc-accent); }
+.lc-passives.is-roomiest .lc-passive-art { width: 60px; height: 60px; border-radius: 12px; }
+.lc-choice > span { overflow: hidden; text-overflow: ellipsis; }
+.lc-passives.is-roomy .lc-choice:has(.lc-choice-art) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 4px; }
+.lc-passives.is-roomy .lc-choice-art { display: block; width: 36px; height: 36px; border-radius: 8px; }
+.lc-passives.is-roomiest .lc-choice-art { width: 48px; height: 48px; }
+.lc-passives.is-roomy .lc-choice:has(.lc-choice-art) { min-height: 70px; }
+.lc-passives.is-roomiest .lc-choice:has(.lc-choice-art) { min-height: 86px; }
+
 /* 공간이 모자랄 때의 압축 단계 */
 .lc-passives.is-tight .lc-passive-hint { display: none; }
 .lc-passives.is-tight .lc-passive { padding-top: 5px; padding-bottom: 5px; }
@@ -536,19 +582,45 @@
 }
 .lc-sheet-head { display: flex; align-items: center; gap: 8px; }
 .lc-sheet-head > strong { flex: 1; font-size: 16px; }
-.lc-history { top: 0; right: 0; bottom: 0; width: min(380px, 92vw); border-radius: 18px 0 0 18px; }
+/* 기록: 시뮬레이터(대전 클라이언트) 기록과 같은 모양. 넓은 화면은 오른쪽 떠 있는 패널, 좁은 화면은 아래 시트. */
+.lc-history { top: 8px; right: 8px; bottom: 8px; width: min(380px, 34vw); padding: 0; gap: 0; border-radius: 14px; background: rgba(20, 24, 33, .97); overflow: hidden; }
 .v2-battle-history-open .lc-history { display: flex; }
-.lc-history .lc-sheet-head { flex-wrap: wrap; }
-.lc-history-filter { display: flex; gap: 4px; order: 3; width: 100%; overflow-x: auto; }
-.lc-history-filter .lc-chip { max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
-.lc-history-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
-.lc-history-list .v2-battle-history-row { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--lc-raise); border-left: 3px solid var(--lc-faint); }
-.lc-history-list .v2-battle-history-row.is-p1 { border-left-color: var(--lc-heal); }
-.lc-history-list .v2-battle-history-row.is-p2 { border-left-color: var(--lc-fp); }
-.lc-history-list .v2-battle-history-row.is-undone { opacity: .45; text-decoration: line-through; }
-.lc-history-list .v2-battle-history-row strong { font-size: 13px; }
-.lc-history-list .v2-battle-history-row span { font-size: 11px; color: var(--lc-muted); }
-.lc-history-list .v2-battle-empty { color: var(--lc-faint); font-size: 12px; text-align: center; }
+.lc-log-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--lc-line); }
+.lc-log-head h2 { flex: 1; margin: 0; font-size: 16px; }
+.lc-log-filter { display: flex; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--lc-line); overflow: hidden; }
+.lc-log-filter button {
+    display: inline-flex; align-items: center; gap: 6px; min-width: 0; min-height: 30px; padding: 0 10px;
+    border: 1px solid var(--lc-line); border-radius: 999px; background: none; color: var(--lc-muted); font-size: 12px; font-weight: 700;
+}
+.lc-log-filter button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-log-filter button[aria-pressed="true"] { color: var(--lc-text); border-color: var(--lc-line-strong); background: var(--lc-raise-strong); }
+.lc-log-filter i { flex: none; width: 10px; height: 10px; border-radius: 3px; }
+.lc-log-filter i.is-p1 { background: var(--lc-p1, var(--lc-heal)); }
+.lc-log-filter i.is-p2 { background: var(--lc-p2, var(--lc-fp)); }
+.lc-log-list { flex: 1; min-height: 0; margin: 0; padding: 8px; list-style: none; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.lc-log {
+    display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 9px;
+    border: 1px solid rgba(255, 255, 255, .05); user-select: text;
+}
+.lc-log.is-p1 { background: color-mix(in srgb, var(--lc-p1, var(--lc-heal)) 14%, transparent); box-shadow: inset 3px 0 0 var(--lc-p1, var(--lc-heal)); }
+.lc-log.is-p2 { background: color-mix(in srgb, var(--lc-p2, var(--lc-fp)) 14%, transparent); box-shadow: inset 3px 0 0 var(--lc-p2, var(--lc-fp)); }
+.lc-log-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.lc-log-text strong { font-weight: 700; word-break: keep-all; overflow-wrap: break-word; }
+.lc-log-text small { color: var(--lc-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.lc-log-delta { flex: none; font-size: 14px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.lc-log-delta.is-plus { color: #4fdc86; }
+.lc-log-delta.is-minus { color: #ff6470; }
+.lc-log.is-undone, .lc-log-divider.is-undone { opacity: .45; }
+.lc-log.is-undone .lc-log-text strong, .lc-log.is-undone .lc-log-delta { text-decoration: line-through; }
+.lc-log-divider { display: flex; align-items: center; gap: 8px; margin: 4px 0 2px; color: var(--lc-muted); font-size: 11.5px; }
+.lc-log-divider::before, .lc-log-divider::after { content: ""; flex: 1; height: 1px; background: var(--lc-line); }
+.lc-log-empty { padding: 20px; text-align: center; color: var(--lc-faint); font-size: 12px; }
+.lc-history > .lc-wide-button { width: auto; margin: 8px; }
+/* 넓은 화면에서는 기록을 연 채로 계속 조작할 수 있게 뒤를 가리지 않는다. */
+@media (min-width: 900px) { .lc-history-backdrop { display: none !important; } }
+@media (max-width: 899px) {
+    .lc-history { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 78dvh; border-radius: 18px 18px 0 0; }
+}
 .lc-share { top: 50%; left: 50%; width: min(360px, calc(100vw - 32px)); transform: translate(-50%, -50%); border-radius: 18px; }
 .v2-battle-share-open .lc-share { display: flex; }
 .lc-wide-button.is-copied { border-color: var(--lc-heal); color: var(--lc-heal); }
