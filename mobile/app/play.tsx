@@ -40,7 +40,7 @@ export default function Play() {
   }
 
   return (
-    <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1, backgroundColor: "#070b14" }}>
+    <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1, backgroundColor: "#111111" }}>
       {failed ? (
         <View style={[styles.screen, { justifyContent: "center", alignItems: "center", gap: 12 }]}>
           <Text style={styles.text}>대전 화면을 불러오지 못했습니다.</Text>
@@ -87,7 +87,7 @@ export default function Play() {
             else void Linking.openURL(request.url);
             return false;
           }}
-          style={{ flex: 1, backgroundColor: "#070b14" }}
+          style={{ flex: 1, backgroundColor: "#111111" }}
         />
       )}
       {loading && !failed && (

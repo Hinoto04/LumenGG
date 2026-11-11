@@ -28,11 +28,28 @@ def _json_body(request):
     return body if isinstance(body, dict) else {}
 
 
+def _bundle_version():
+    """번들 파일의 수정 시각. 주소에 붙여 배포 뒤 브라우저가 예전 번들을 계속 쓰지 않게 한다."""
+    import os
+
+    from django.contrib.staticfiles import finders
+
+    path = finders.find('play/play.js')
+    try:
+        return str(int(os.path.getmtime(path))) if path else ''
+    except OSError:
+        return ''
+
+
 @ensure_csrf_cookie
 @require_GET
 def play(req):
     """Single page: lobby without a query, a game with ?game=&seat=&token=."""
-    return render(req, 'battlelog/play.html', {})
+    context = {'bundle_version': _bundle_version()}
+    if not req.GET.get('game') and 'fixtures' not in req.GET:
+        # 대전 전 화면(로비)은 다른 DB 화면처럼 사이트 머리글(navbar) 아래에 둔다.
+        return render(req, 'battlelog/play_lobby.html', context)
+    return render(req, 'battlelog/play.html', context)
 
 
 @require_GET
@@ -129,3 +146,84 @@ def play_preparation_check(req, view_token):
         return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
     return JsonResponse({'ok': True, 'report': report})
 
+
+
+# ---------------------------------------------------------------------------
+# 방 · 퀵 매치 (play_rooms.py). 자리 토큰은 주소에 싣지 않고 POST 본문으로만 주고받는다.
+
+def _room_endpoint(handler):
+    """RoomError를 {ok: false, error} 400 응답으로 바꾼다."""
+    from functools import wraps
+
+    from .play_rooms import RoomError
+
+    @wraps(handler)
+    def wrapped(req, *args, **kwargs):
+        try:
+            return handler(req, _json_body(req), *args, **kwargs)
+        except RoomError as exc:
+            return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
+
+    return require_POST(wrapped)
+
+
+def _room_json(room, token, status=200):
+    from .play_rooms import room_view
+
+    return JsonResponse({'ok': True, 'token': token, 'room': room_view(room, token)}, status=status)
+
+
+@_room_endpoint
+def play_room_create(req, body):
+    from .play_rooms import create_room
+
+    room = create_room(req.user, body)
+    return _room_json(room, room.host_token, status=201)
+
+
+@_room_endpoint
+def play_room_state(req, body, code):
+    from .play_rooms import poll_room
+
+    token = str(body.get('token') or '')
+    return _room_json(poll_room(code, token), token)
+
+
+@_room_endpoint
+def play_room_join(req, body, code):
+    from .play_rooms import join_room
+
+    room, token = join_room(req.user, code, body)
+    return _room_json(room, token)
+
+
+@_room_endpoint
+def play_room_deck(req, body, code):
+    from .play_rooms import set_deck
+
+    token = str(body.get('token') or '')
+    return _room_json(set_deck(req.user, code, token, body.get('deck_id')), token)
+
+
+@_room_endpoint
+def play_room_ready(req, body, code):
+    from .play_rooms import set_ready
+
+    token = str(body.get('token') or '')
+    return _room_json(set_ready(code, token, bool(body.get('ready'))), token)
+
+
+@_room_endpoint
+def play_room_leave(req, body, code):
+    from .play_rooms import leave_room
+
+    token = str(body.get('token') or '')
+    return _room_json(leave_room(code, token), token)
+
+
+@_room_endpoint
+def play_quick(req, body):
+    from .play_rooms import quick_match
+
+    room, token = quick_match(req.user, body)
+    return _room_json(room, token, status=201)

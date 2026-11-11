@@ -512,3 +512,72 @@ class RealtimePresence(models.Model):
 
     def __str__(self):
         return f'{self.scope}:{self.view_token}:{self.role}'
+
+
+class SimulatorRoom(models.Model):
+    """사람끼리 대전하기 전 대기실: 방(코드로 참가)과 퀵 매치(무작위 상대).
+
+    각 플레이어는 자기 덱만 고른다. 두 자리가 모두 덱을 고르고 준비하면(퀵 매치는
+    짝이 맞는 즉시) 시뮬레이터 대전을 만든다. 방장이 p1, 참가자가 p2 좌석이다.
+    자리마다 토큰을 주고 브라우저가 보관한다(로그인하지 않아도 된다).
+    """
+
+    KIND_ROOM = 'room'
+    KIND_QUICK = 'quick'
+    KIND_CHOICES = ((KIND_ROOM, '방'), (KIND_QUICK, '퀵 매치'))
+
+    STATUS_WAITING = 'waiting'
+    STATUS_STARTED = 'started'
+    STATUS_CLOSED = 'closed'
+    STATUS_CHOICES = (
+        (STATUS_WAITING, '대기'),
+        (STATUS_STARTED, '시작'),
+        (STATUS_CLOSED, '닫힘'),
+    )
+
+    code = models.CharField(max_length=8, unique=True)
+    kind = models.CharField(max_length=8, choices=KIND_CHOICES, default=KIND_ROOM)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_WAITING)
+    # 대전 설정: mode(automatic/manual), ready_timeout_seconds, effect_timeout_seconds
+    options = models.JSONField(default=dict, blank=True)
+
+    host_token = models.CharField(max_length=64, unique=True)
+    host_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='+',
+    )
+    host_name = models.CharField(max_length=40, blank=True, default='')
+    host_deck = models.ForeignKey(
+        'deck.Deck', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+    )
+    host_ready = models.BooleanField(default=False)
+    host_seen_at = models.DateTimeField(default=timezone.now)
+
+    guest_token = models.CharField(max_length=64, null=True, blank=True, unique=True)
+    guest_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='+',
+    )
+    guest_name = models.CharField(max_length=40, blank=True, default='')
+    guest_deck = models.ForeignKey(
+        'deck.Deck', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+    )
+    guest_ready = models.BooleanField(default=False)
+    guest_seen_at = models.DateTimeField(null=True, blank=True)
+
+    session = models.ForeignKey(
+        'LumenSimulatorSession', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='+',
+    )
+    error = models.CharField(max_length=200, blank=True, default='')
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['kind', 'status', 'created_at'], name='battlelog_room_queue_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.kind}:{self.code}:{self.status}'

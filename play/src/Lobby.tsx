@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { liveUrl } from "./mode";
 import { getJson, postJson } from "./net/http";
 import { lastGame } from "./net/live";
+import { QuickPanel, RoomPanel, rememberedRoom } from "./RoomLobby";
 
-interface DeckRow {
+export interface DeckRow {
   id: number;
   name: string;
   author: string;
@@ -20,7 +21,7 @@ interface NewGame {
   urls: { p1: string; p2?: string; viewer: string };
 }
 
-const TIMER_CHOICES = [0, 15, 30, 45, 60, 90, 120];
+const TIMER_CHOICES = [0, 10, 15, 30, 45, 60, 90, 120];
 const RECENT_KEY = "lumen-play-recent-decks";
 
 function recentDecks(): DeckRow[] {
@@ -41,7 +42,7 @@ function rememberDeck(deck: DeckRow) {
   }
 }
 
-function TimerSelect({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+export function TimerSelect({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return (
     <label>
       <span>{label}</span>
@@ -57,7 +58,7 @@ function TimerSelect({ label, value, onChange }: { label: string; value: number;
 }
 
 /** 덱 고르기: 내 덱(로그인), 최근에 쓴 덱, 검색(이름·작성자·캐릭터 2글자 이상 또는 덱 ID) */
-function DeckPicker({
+export function DeckPicker({
   label,
   value,
   onChange,
@@ -163,19 +164,40 @@ function DeckPicker({
   );
 }
 
-/** 새 대전 만들기. 사이트(/battlelog/play/)와 개발 서버 모두 같은 API를 쓴다. */
+type LobbyTab = "ai" | "room" | "quick";
+
+const TABS: [LobbyTab, string][] = [
+  ["ai", "AI와 대전"],
+  ["room", "방"],
+  ["quick", "퀵 매치"],
+];
+
+function initialTab(): LobbyTab {
+  if (new URLSearchParams(location.search).get("room") || rememberedRoom("room")) return "room";
+  if (rememberedRoom("quick")) return "quick";
+  return "ai";
+}
+
+/**
+ * 대전 로비. 사이트의 시뮬레이터 시작 화면(/battlelog/simulator/)과 이 클라이언트(/battlelog/play/)가 같은 화면이다.
+ * - AI와 대전: 내 덱과 AI가 쓸 덱을 고른다.
+ * - 방: 방을 만들거나 코드로 들어가 각자 자기 덱을 고른다(RoomLobby.tsx).
+ * - 퀵 매치: 내 덱만 정하면 기다리는 다른 플레이어와 짝을 짓는다.
+ */
 export function Lobby() {
+  const [tab, setTab] = useState<LobbyTab>(initialTab);
   const [mine, setMine] = useState<DeckRow[]>([]);
   const [loginRequired, setLoginRequired] = useState(false);
   const [p1, setP1] = useState<DeckRow | null>(null);
   const [p2, setP2] = useState<DeckRow | null>(null);
-  const [opponent, setOpponent] = useState<"ai" | "human">("ai");
-  const [mode, setMode] = useState<"automatic" | "manual">("automatic");
+  // 사람끼리는 방·퀵 매치에서 만든다. 이 탭은 AI 대전만 만든다.
+  const opponent = "ai" as const;
+  const mode = "automatic" as const;
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [rivalUrl, setRivalUrl] = useState<{ mine: string; rival: string; watch: string } | null>(null);
-  const [readyTimer, setReadyTimer] = useState(0);
-  const [effectTimer, setEffectTimer] = useState(0);
+  const [readyTimer, setReadyTimer] = useState(10);
+  const [effectTimer, setEffectTimer] = useState(30);
   const [resume] = useState(lastGame);
 
   useEffect(() => {
@@ -186,14 +208,6 @@ export function Lobby() {
       })
       .catch(() => setError("서버에 연결하지 못했습니다."));
   }, []);
-
-  // 사람과 대전할 때만 기본 제한 시간을 둔다. AI는 기다려 주므로 없음.
-  const chooseOpponent = (value: "ai" | "human") => {
-    setOpponent(value);
-    if (value === "ai") setMode("automatic");
-    setReadyTimer(value === "human" ? 30 : 0);
-    setEffectTimer(value === "human" ? 60 : 0);
-  };
 
   const start = async () => {
     if (!p1 || !p2) return;
@@ -228,7 +242,10 @@ export function Lobby() {
 
   return (
     <main className="lobby">
-      <h1>루멘콘덴서 대전</h1>
+      <header className="lobby-head">
+        <span className="lobby-kicker">LUMEN CONDENSOR SIMULATOR</span>
+        <h1>루멘콘덴서 대전</h1>
+      </header>
       {resume && !rivalUrl && (
         <section className="lobby-card lobby-resume">
           <p>진행 중이던 대전이 있습니다.</p>
@@ -237,67 +254,27 @@ export function Lobby() {
           </a>
         </section>
       )}
-      {rivalUrl ? (
-        <section className="lobby-card">
-          <p>상대 좌석 주소입니다. 상대에게 보내거나 다른 창·기기에서 여세요.</p>
-          <code className="lobby-link">{location.origin + rivalUrl.rival}</code>
-          <p className="muted">관전 주소</p>
-          <code className="lobby-link">{location.origin + rivalUrl.watch}</code>
-          <div className="lobby-row">
-            <a className="btn-secondary" href={rivalUrl.rival} target="_blank" rel="noreferrer">
-              상대 좌석 새 창
-            </a>
-            <a className="btn-primary" href={rivalUrl.mine}>
-              내 좌석으로
-            </a>
-          </div>
-        </section>
-      ) : (
+      <div className="lobby-row segmented lobby-tabs" role="tablist" aria-label="대전 종류">
+        {TABS.map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            className={tab === value ? "is-active" : ""}
+            onClick={() => setTab(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === "room" && <RoomPanel mine={mine} loginRequired={loginRequired} />}
+      {tab === "quick" && <QuickPanel mine={mine} loginRequired={loginRequired} />}
+      {tab === "ai" && (
         <section className="lobby-card">
           <DeckPicker label="내 덱" value={p1} onChange={setP1} mine={mine} loginRequired={loginRequired} />
-          <DeckPicker label="상대 덱" value={p2} onChange={setP2} mine={mine} loginRequired={false} />
-          <div className="lobby-row segmented" role="radiogroup" aria-label="상대">
-            {(
-              [
-                ["ai", "AI와 대전"],
-                ["human", "사람과 대전"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={opponent === value}
-                className={opponent === value ? "is-active" : ""}
-                onClick={() => chooseOpponent(value)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {opponent === "human" && (
-            <div className="lobby-row segmented" role="radiogroup" aria-label="대전 방식">
-              {(
-                [
-                  ["automatic", "자동 판정"],
-                  ["manual", "수동(샌드박스)"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={mode === value}
-                  className={mode === value ? "is-active" : ""}
-                  onClick={() => setMode(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          {mode === "manual" && <p className="muted">수동 대전은 규칙을 판정하지 않습니다. 카드 이동과 HP·FP를 직접 조작합니다.</p>}
-          <div className="lobby-row lobby-timers" hidden={mode === "manual"}>
+          <DeckPicker label="AI 덱" value={p2} onChange={setP2} mine={mine} loginRequired={false} />
+          <div className="lobby-row lobby-timers">
             <TimerSelect label="레디 제한" value={readyTimer} onChange={setReadyTimer} />
             <TimerSelect label="효과 선택 제한" value={effectTimer} onChange={setEffectTimer} />
           </div>

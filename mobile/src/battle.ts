@@ -1,4 +1,5 @@
 import { BASE_URL, request } from "./api";
+import type { JoinedRoom, RoomResponse } from "./battle-room";
 import { preference, setPreference } from "./storage";
 
 /**
@@ -28,6 +29,43 @@ export interface BattleSession {
 
 export async function createBattle(body: BattleRequest): Promise<BattleSession> {
   return request("/simulator/sessions", { method: "POST", body: JSON.stringify(body) });
+}
+
+// ---------------------------------------------------------------------------
+// 사람끼리 대전: 방(코드로 참가)과 퀵 매치. 각자 자기 덱만 고른다. 자리 토큰은 본문 `token`으로만 보낸다.
+
+const roomPath = (code: string, action: string) => `/simulator/rooms/${encodeURIComponent(code)}/${action}`;
+
+function post(path: string, body: Record<string, unknown>): Promise<RoomResponse> {
+  return request(path, { method: "POST", body: JSON.stringify(body) });
+}
+
+export interface RoomCreateRequest {
+  deck_id?: number;
+  mode: BattleMode;
+  ready_timeout_seconds: number;
+  effect_timeout_seconds: number;
+}
+
+export const createRoom = (body: RoomCreateRequest) => post("/simulator/rooms", { ...body });
+export const joinRoom = (code: string, deckId?: number) => post(roomPath(code, "join"), { deck_id: deckId });
+export const roomState = (room: JoinedRoom) => post(roomPath(room.code, "state"), { token: room.token });
+export const chooseRoomDeck = (room: JoinedRoom, deckId: number) =>
+  post(roomPath(room.code, "deck"), { token: room.token, deck_id: deckId });
+export const setRoomReady = (room: JoinedRoom, ready: boolean) =>
+  post(roomPath(room.code, "ready"), { token: room.token, ready });
+export const leaveRoom = (room: JoinedRoom) => post(roomPath(room.code, "leave"), { token: room.token });
+export const quickMatch = (deckId: number) => post("/simulator/quick", { deck_id: deckId });
+
+const ROOM_KEY = "battle.room";
+
+export async function joinedRoom(): Promise<JoinedRoom | null> {
+  const saved = await preference<JoinedRoom | null>(ROOM_KEY, null);
+  return saved?.code && saved?.token ? saved : null;
+}
+
+export function rememberRoom(room: JoinedRoom | null) {
+  return setPreference(ROOM_KEY, room);
 }
 
 /** 공개 덱 검색(상대 덱 고르기용) */

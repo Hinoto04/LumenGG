@@ -8,6 +8,8 @@ test("the game stays in the WebView", () => {
   assert.equal(classifyNavigation(`${origin}/battlelog/play/?game=v&seat=p1&token=t`, origin), "allow");
   assert.equal(classifyNavigation(`${origin}/battlelog/play/?game=v`, origin), "allow");
   assert.equal(classifyNavigation(`${origin}/battlelog/simulator/v/p1/t/`, origin), "allow");
+  assert.equal(classifyNavigation(`${origin}/battlelog/simulator/`, origin), "close");
+  assert.equal(classifyNavigation(`${origin}/battlelog/simulator/?x=1`, origin), "close");
   assert.equal(classifyNavigation("about:blank", origin), "allow");
 });
 

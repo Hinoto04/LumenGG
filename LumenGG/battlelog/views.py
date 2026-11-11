@@ -89,6 +89,11 @@ def sim(req):
 
 
 def simulatorStart(req):
+    # 사이트의 시뮬레이터 시작 화면과 대전 클라이언트 로비는 같은 화면이다(AI 대전, 방, 퀵 매치).
+    # 예전 시작 화면(규정 선택·양쪽 덱 지정)은 ?legacy=1로 연다. 예전 폼 POST는 그대로 받는다.
+    if req.method == 'GET' and not req.GET.get('legacy'):
+        from .play_views import play
+        return play(req)
     language = get_language(req)
     automatic_release = automatic_mode_release()
     active_policy = active_ai_policy() if automatic_release else None

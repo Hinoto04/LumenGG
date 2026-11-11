@@ -1,0 +1,14 @@
+{% extends "base_v2.html" %}
+{% load static %}
+{% load language_tags %}
+{% block title %}{% tr "루멘콘덴서 시뮬레이터" %} - LumenDB{% endblock title %}
+{% block style %}
+{# 대전 전 화면(로비)은 사이트 머리글 아래에 띄운다. 대전 화면은 play.html이 전체 화면으로 연다. #}
+<link rel="stylesheet" href="{% static 'play/play.css' %}?v={{ bundle_version }}">
+<script type="module" src="{% static 'play/play.js' %}?v={{ bundle_version }}"></script>
+{% endblock style %}
+{% block body_class %}play-lobby-page{% endblock body_class %}
+{% block content %}
+<div id="root" class="play-embedded"></div>
+<noscript>{% tr "이 화면은 JavaScript가 필요합니다." %}</noscript>
+{% endblock content %}

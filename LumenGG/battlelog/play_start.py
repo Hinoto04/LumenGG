@@ -35,8 +35,13 @@ def start_session(
     ready_timeout_seconds='30',
     effect_timeout_seconds='60',
     regulation_version_id=None,
+    player2_user=None,
 ):
     """Create a session or raise ValueError with a user-facing (Korean) message.
+
+    ``player2_user`` is the second human's own account (rooms and quick match:
+    each player picks only their own deck, so each deck is checked against the
+    player who chose it). Without it both decks are checked against ``user``.
 
     Errors that concern one deck are joined with spaces, matching the order the
     legacy start page reported them.
@@ -46,7 +51,7 @@ def start_session(
     errors = []
     if not can_view_deck_for_simulator(user, player1_deck):
         errors.append('플레이어1 덱을 볼 권한이 없습니다.')
-    if not can_view_deck_for_simulator(user, player2_deck):
+    if not can_view_deck_for_simulator(player2_user if player2_user is not None else user, player2_deck):
         errors.append('플레이어2 덱을 볼 권한이 없습니다.')
     if errors:
         raise PermissionError(errors)

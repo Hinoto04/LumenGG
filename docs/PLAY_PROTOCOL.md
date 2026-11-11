@@ -98,7 +98,7 @@ GET simulator/<view_token>/card-metadata/?ids=109,110   (최대 200개)
 | `ui.kind` | 화면에서의 의미 | 행동 종류 |
 |---|---|---|
 | `card` | 해당 카드를 빛나게 하고 누르면 실행 | `ready_card`, `select_get_card`, `select_ultimate`, `play_catch_card`, `play_combo_*`, `select_combo_first`, `select_combo_followup` |
-| `primary` | 오른쪽 아래 진행 버튼 하나 | `pass_phase`, `end_combo`, `decline_catch`, `declare_no_response` |
+| `primary` | 오른쪽 아래 진행 버튼 하나 | `pass_phase`, `end_combo`, `decline_catch`, `declare_no_response`, `confirm_opening_review`(게임 시작 효과 전 서로의 시작 패 확인. 이 동안 양쪽 손패가 공개된다) |
 | `secondary` | 진행 버튼 옆의 작은 버튼 | `cancel_combo_first` (모르는 새 행동도 여기로 온다) |
 | `decision` | 선택 창 열기 | `submit_decision` |
 | `system` | 메뉴·시스템 대화상자 | `pause_clock`, `resume_clock`, `request_rewind`, `answer_rewind`, `concede` |
@@ -294,7 +294,7 @@ cd play; npm run dev                  # 클라이언트 127.0.0.1:5175 (/battlel
 - **초대**: 로비에서 "사람과 대전"을 고르면 상대 좌석 주소와 관전 주소를 보여 준다. 대전 중에는 P1의 메뉴에서
   상대 좌석 주소(envelope의 `player2_url`을 새 클라이언트 주소로 바꾼 것)와 관전 주소를 복사할 수 있다.
   관전은 `?game=<view_token>`만으로 열린다.
-- **타이머**: 사람과 대전할 때 기본은 레디 30초, 효과 선택 60초다(로비에서 15~120초 또는 제한 없음).
+- **타이머**: 사람과 대전할 때 기본은 레디 10초, 효과 선택 30초다(로비에서 10~120초 또는 제한 없음). AI 대전도 같은 기본값을 쓴다.
   `clocks`로 누구의 어떤 타이머인지와 남은 초를 보여 주고, 10초 이하면 붉게 깜빡인다.
   서버는 시간 초과를 읽기·명령 때 정산하므로, 클라이언트가 마감 0.4초 뒤 `state`를 요청해 정산을 일으킨다.
   시계 차이로 아직이면 2초 뒤 다시 묻는다.
@@ -314,12 +314,35 @@ cd play; npm run dev                  # 클라이언트 127.0.0.1:5175 (/battlel
 
 - **카드 누르기**: PC는 카드를 선택해 카드 위에 사용 버튼(`SelectionPopover`)을, 화면 왼쪽에 카드 정보(`CardSidePanel`)를 띄운다.
   좁은 화면(세로 또는 760px 이하)은 정보와 버튼이 든 모달(`CardInspector`)을 연다. 빈 곳이나 Esc로 선택을 푼다.
+- **손패 → 배틀 존은 내 필드 전체**: 손패의 카드가 갈 수 있는 곳이 내 배틀 존 하나뿐이면(레디·콤보·캐치) 내 필드(`.field-me`, 리스트·더미 포함)
+  어디에 놓아도 배틀 존으로 친다(`DropTarget.area`). 끄는 동안 내 필드 전체를 밝히고 테두리를 두르며, 이름은 배틀 존에 쓴다. 작은 화면에서 배틀 존을 정확히 맞히기 어렵기 때문이다.
+- **빠른 확정** (메뉴 → 설정, `localStorage` `lumen-play-quick-confirm`): 켜면 카드 옮기기 선택에서 옮겨야 할 장 수(최대)를 다 옮기는 순간
+  확정 버튼 없이 바로 보낸다. 끄면(기본) 확정 전까지 되돌릴 수 있다.
 - **콤보 끌어 놓기**: 1콤보 카드를 배틀 존에 놓으면(`select_combo_first`) 서버는 2콤보 카드를 받을 때까지 그 카드를 손패에 둔다.
   화면은 그동안 그 카드를 배틀 존에 노란 테두리로 놓아 두고(`stageCombo`), 손패로 끌거나 누르면 `cancel_combo_first`로 다시 고른다.
   2콤보 카드를 배틀 존에 놓으면 `select_combo_followup`으로 두 장을 함께 제시한다. 엔진은 제시된 1·2콤보 카드를 모두 배틀 존에 놓은 뒤
   각각의 효과를 처리하고(`_present_combo_cards`), 쓰지 못한 채 콤보가 끝난 카드는 원래 존으로 되돌린다.
   보드의 카드 행동은 instance id로 찾는다(`cardActions`): 화면에서만 옮겨 둔 카드 때문에 같은 존의 위치가 서버와 달라질 수 있다.
 - 놓은 카드는 항상 원래 자리로 되돌아가는 애니메이션을 한다(상태가 바뀌면 새 자리로 옮겨 간다). 놓아도 상태가 그대로면(거절 등) 놓은 자리에 남던 문제를 막는다.
+- **기록** (`components/LogPanel.tsx`, `play/src/logEntries.ts`): 위쪽 "기록" 버튼으로 연다. PC는 오른쪽 사이드 패널(켜고 끄기), 좁은 화면은 아래에서 올라오는 모달.
+  이벤트를 항목(제목·설명·관련 카드·수치 변화)으로 바꿔 최신이 위로 오게 보여 준다. 페이즈 시작은 구분선으로 보여 준다.
+  카드가 관련된 항목은 카드 그림을 붙이고(누르면 카드 정보), 내 일은 옅은 초록, 상대 일은 옅은 빨강 배경, 판정 같은 공통 항목은 무색이다.
+  HP·FP는 같은 모양(제목 HP/FP, 설명 이전 → 이후, 오른쪽에 ±수치)으로 +수치 초록, -수치 빨강으로 표시한다. 데미지(`damage_dealt`)는 체력 변화와 겹쳐 따로 남기지 않는다.
+  긴 텍스트는 단어(어절) 단위로 줄바꿈한다(`word-break: keep-all`). 내부 진행 이벤트(command, priority_calculated 등)와
+  레디의 카드 이동(card_readied와 중복)은 숨긴다. instance id만 있는 이벤트는 지금 보드에서 그 카드를 찾아 그림을 붙인다.
+- **나가기**: 사이트의 시뮬레이터 시작 화면(`/battlelog/simulator/`)으로 돌아간다. 앱(WebView, `window.ReactNativeWebView`)에서는 예전처럼
+  대전 클라이언트 로비 주소(`/battlelog/play/`)로 보내 이미 배포된 앱도 대전 화면을 닫는다. 새 앱은 `/battlelog/simulator/` 시작 화면도 닫기로 처리한다.
+- **제한 시간**: 레디·효과 선택 제한은 없음·10·15·30·45·60·90·120초 중에서 고른다(`AUTOMATIC_TIMER_CHOICES`).
+  시계에는 `grace_seconds`(2초, `CLOCK_GRACE_SECONDS`)가 붙어, 표시가 0초가 된 뒤에도 그만큼은 행동을 받고 그다음에 시간 초과를 정산한다.
+- **상대 시작 패 확인** (`components/OpeningReview.tsx`): 자동 판정의 `opening_review` 단계에서는 서버가 두 플레이어에게 서로의 손패를 공개한다
+  (`_filtered_state`의 `reveal_hands`, 관전자는 제외). 화면은 상대 시작 패를 가운데 패널에 크게 펼치고 "상대 시작 패 확인 완료"(`confirm_opening_review`)
+  버튼을 함께 둔다. 단계가 끝나면 상대 손패는 다시 뒷면이 된다.
+- **기록 · 요한 추측**: 손패 추측(`card_guess_resolved`)은 "추측 · 선언 → 적중/빗나감" 항목으로 확인한 카드 그림과 함께 남기고, 이어서 적용된 효과
+  (카운터 `counter_changed`, FP·HP, 공개 `card_visibility_changed`, 속도 고정, 판정 변경, 먼저 레디 강제 등)가 바로 뒤 항목으로 남는다. `card_inspected`는 추측 항목과 겹쳐 숨긴다.
+- **예지로 공개된 카드**: 손패에서 공개된(앞면) 카드를 배틀 존으로 옮기면(레디) 엔진은 `publicly_known` 표식을 붙인다. 규칙상 앞면(`face_up`)은 그대로 뒷면이지만
+  화면에는 상대에게도 그 카드를 보여 주고 "공개됨" 표시를 단다. 다른 존으로 옮기거나 다시 비공개(`hide`)가 되면 표식을 지운다.
+- **패시브 카운터 겸 상태**(타오 음/양): 개수를 늘 보여 주고, 상태가 켜진 쪽(`value: true`)은 분홍색으로 강조한다.
+- 상대 손패 영역은 상대 필드 위에 놓는다(카드 아래쪽 텍스트가 필드에 가려 우클릭·누르기가 안 되던 문제).
 - **카드 우클릭**: 카드 정보만 보여 준다. PC는 사용 버튼 없이 왼쪽 정보 패널(`CardSidePanel`, 상태 `peek`)을, 좁은 화면은 카드 정보 모달을 연다.
   보드·더미 패널·선택 창·더미 목록의 공개 카드 어디서나 되며, Esc·닫기·다른 카드 선택으로 닫힌다.
 - **끌어 놓기** (`play/src/dragMoves.ts`, `components/DragMask.tsx`): 카드를 출발 영역(A) 밖으로 끌면 A들과 도착 영역(B)만 남기고
@@ -417,3 +440,45 @@ DB 없이 만들려면 `-Synthetic`을 붙인다(이미지 없는 합성 카드)
 시나리오의 카드 효과는 비워 두어 진행이 결정적이다. 이름·수치·효과문·이미지만 실제 카드에서 온다.
 루멘 → 레디 → (배틀 자동 판정) → 획득 → 회복을 반복하며, 콤보·캐치·효과 선택 장면은
 효과 정의를 켠 시나리오를 따로 만들어야 나온다.
+
+## 로비: AI 대전 · 방 · 퀵 매치
+
+대전 전 화면(로비)은 `battlelog/play_lobby.html`(`base_v2.html` 상속)로 그려 다른 DB 화면처럼 사이트 머리글·바닥글 아래에 놓는다. 사이트 라이트 테마도 로비에는 적용된다. `?game=`(또는 `?fixtures`)가 있는 대전 화면은 `play.html`로 전체 화면을 쓴다.
+
+사이트의 시뮬레이터 시작 화면(`/battlelog/simulator/`, GET)과 대전 클라이언트(`/battlelog/play/`)는 같은 로비를 보여 준다.
+예전 시작 화면(규정 선택·양쪽 덱 지정 폼)은 `/battlelog/simulator/?legacy=1`로 열고, 예전 폼 POST는 그대로 받는다.
+번들 주소에는 파일 수정 시각(`?v=`)을 붙여 배포 뒤 예전 번들이 캐시에 남지 않게 한다.
+
+- **AI와 대전**: 내 덱과 AI가 쓸 덱을 고른다(`POST /battlelog/play/api/new/`).
+- **방** (`play/src/RoomLobby.tsx`, 서버 `battlelog/play_rooms.py`, 모델 `SimulatorRoom`): 방장이 방을 만들면 6자리 코드와
+  초대 링크(`/battlelog/simulator/?room=CODE`)가 생긴다. 참가자가 코드나 링크로 들어오면 각자 자기 덱만 고르고, 둘 다 "준비 완료"하면
+  대전을 만든다(방장 p1, 참가자 p2). 방장은 자동 판정·수동(샌드박스)과 제한 시간을 정한다. 상대에게는 내 덱의 캐릭터만 보인다.
+  덱을 바꾸면 준비가 풀린다. 덱 권한은 그 덱을 고른 플레이어 계정으로 확인한다(`start_session(..., player2_user=)`).
+- **퀵 매치**: 덱만 정하고 기다리면, 같은 때 기다리는 다른 플레이어(다른 계정)와 짝을 지어 바로 자동 판정 대전을 만든다
+  (레디 10초 · 효과 선택 30초). 화면이 20초 넘게 소식이 없는 대기자는 짝을 짓지 않는다.
+
+API(모두 POST, JSON). 자리 토큰은 주소에 싣지 않고 본문 `token`으로만 보낸다. 응답은 `{ok, token, room}`이고 `room`은 요청한 자리 시점이다.
+
+| 주소 | 본문 | 설명 |
+|---|---|---|
+| `/battlelog/play/api/rooms/` | `deck_id?`, `mode`, `ready_timeout_seconds`, `effect_timeout_seconds` | 방 만들기(방장 토큰) |
+| `/battlelog/play/api/rooms/<code>/join/` | `deck_id?` | 참가(참가자 토큰) |
+| `/battlelog/play/api/rooms/<code>/state/` | `token` | 방 상태(1.5초마다 갱신, 대기 표시) |
+| `/battlelog/play/api/rooms/<code>/deck/` | `token`, `deck_id` | 내 덱 고르기(준비 해제) |
+| `/battlelog/play/api/rooms/<code>/ready/` | `token`, `ready` | 준비. 둘 다 준비하면 대전 생성 |
+| `/battlelog/play/api/rooms/<code>/leave/` | `token` | 나가기(방장이 나가면 방이 닫힌다) |
+| `/battlelog/play/api/quick/` | `deck_id` | 퀵 매치 대기 또는 바로 짝짓기 |
+
+대전이 만들어지면 `room.status = "started"`이고, 요청한 자리에게만 `play_url`(자기 좌석 주소)을 준다. 로비는 그 주소로 옮겨 간다.
+
+
+앱(LumenDB, `mobile/app/battle.tsx`)도 같은 세 탭(AI와 대전 · 방 · 퀵 매치)을 쓴다. 앱은 JWT로 `mobile_api`의 같은 동작을 부른다
+(`LumenGG/mobile_api/simulator.py`, 내부는 `play_rooms` 재사용). 본문·응답 모양은 위와 같고, 앱 응답에는 `play_url`이 절대 주소로 오며
+방(`kind = "room"`)에는 사이트 초대 링크 `invite_url`이 붙는다. 앱은 참가 중인 방(코드·토큰)을 기기에 저장해 화면을 떠났다 와도 이어 가고,
+대전이 시작되면 `play_url`을 WebView로 연다.
+
+| 앱 주소 (`/api/mobile/v1/`) | 웹 주소 |
+|---|---|
+| `simulator/rooms` | `rooms/` |
+| `simulator/rooms/<code>/state·join·deck·ready·leave` | `rooms/<code>/…/` |
+| `simulator/quick` | `quick/` |
