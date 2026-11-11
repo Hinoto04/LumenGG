@@ -4,6 +4,7 @@ import { PHASE_LABELS } from "../labels";
 import type { BoardCard, GameEvent, PlayEnvelope, Side, VisibleCard, ZoneName } from "../protocol";
 import { perspective, usePlay } from "../store";
 import { addFloat, clearFx, shake, showBanner, showRibbon, useFx, type Tone } from "./fx";
+import { soundForEvent } from "../sound/events";
 
 /**
  * 이벤트 재생기.
@@ -270,6 +271,8 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
   const payload = event.payload as Record<string, unknown>;
   const actor = event.actor as Side;
   const dur = (ms: number) => ms / Math.max(speed, 1);
+  // 4배속으로 밀린 이벤트를 따라잡을 때는 소리를 내지 않는다.
+  if (speed < 4) soundForEvent(event, base, me);
 
   switch (event.type) {
     case "phase_started": {

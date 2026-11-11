@@ -1116,6 +1116,52 @@ button {
   color: var(--text);
 }
 
+.sound-menu {
+  position: relative;
+}
+
+.sound-pop {
+  position: absolute;
+  top: calc(100% + 0.4em);
+  right: 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.6em;
+  width: 17em;
+  padding: 0.7em 0.9em;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-bg);
+  color: var(--text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.sound-row {
+  display: flex;
+  gap: 0.35em;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.sound-pop input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.sound-demo {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.sound-value {
+  min-width: 3em;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .live-status {
   padding: 0.35em 0.9em;
   border-radius: 999px;
@@ -2390,6 +2436,11 @@ button.prep-tile-name {
   .live-bar {
     left: var(--gutter);
     right: auto;
+  }
+
+  .sound-pop {
+    right: auto;
+    left: 0;
   }
 
   .piles {

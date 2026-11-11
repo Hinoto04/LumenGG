@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { useFx, type PlaybackSpeed } from "../anim/fx";
 import { LogPanel } from "./LogPanel";
+import { SoundButton } from "./SoundButton";
 import { FINISH_REASONS } from "../labels";
 import { currentTarget, useLive } from "../net/live";
 import type { PlayEnvelope } from "../protocol";
@@ -52,6 +53,7 @@ export function LiveBar({ envelope, onSubmit }: { envelope: PlayEnvelope | null;
         >
           {SPEEDS[speedIndex]?.label ?? "연출 ×1"}
         </button>
+        <SoundButton />
         {envelope && (
           <button type="button" className={`btn-chip ${logOpen ? "is-on" : ""}`} onClick={() => setLogOpen(!logOpen)}>
             기록

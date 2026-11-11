@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { clockDeadline, clockSeen } from "../net/live";
 import type { PlayEnvelope } from "../protocol";
 import { perspective } from "../store";
+import { playSound } from "../sound/sfx";
 
 const CLOCK_LABELS: Record<string, string> = {
   ready: "레디",
@@ -33,6 +34,12 @@ export function ClockBadge({ envelope }: { envelope: PlayEnvelope }) {
   useEffect(() => {
     if (waiting && mine && clock?.id && envelope.engine_status.status === "running") clockSeen(String(clock.id));
   }, [waiting, mine, clock?.id, envelope.engine_status.status]);
+  // 내 제한 시간이 5초 이하이면 1초마다 짧게 울린다.
+  const secondsLeft =
+    running && mine && clock ? Math.max(0, Math.ceil(((clockDeadline(clock) ?? now) - now) / 1000)) : null;
+  useEffect(() => {
+    if (secondsLeft != null && secondsLeft > 0 && secondsLeft <= 5) playSound("tick");
+  }, [secondsLeft]);
   if (!clock || envelope.engine_status.status !== "running") return null;
   const owner =
     clock.owner === "both"

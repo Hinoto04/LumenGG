@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlayEnvelope, PrepActive, PrepCatalogCard } from "../protocol";
 import { perspective, usePlay } from "../store";
+import { playSound } from "../sound/sfx";
 import {
   available,
   canMove,
@@ -277,7 +278,10 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
         return;
       }
       const to = zoneAt(e.clientX, e.clientY);
-      if (to && canMove(card, from, to)) setDraft((current) => (current ? moveCopy(current, cardId, from, to) : current));
+      if (to && canMove(card, from, to)) {
+        if (to !== from) playSound("card_move");
+        setDraft((current) => (current ? moveCopy(current, cardId, from, to) : current));
+      }
     };
     const cancel = () => {
       cancelled = true;
