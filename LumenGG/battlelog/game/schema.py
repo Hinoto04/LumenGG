@@ -1771,6 +1771,11 @@ def validate_effect_definition(definition, *, require_coverage=False, card_has_t
                     issues, f'{path}.best_effort',
                     '가능한 만큼 지불하는 비용 여부는 불리언이어야 합니다.',
                 )
+            if 'fixed_speed_only' in cost and not isinstance(cost.get('fixed_speed_only'), bool):
+                _issue(
+                    issues, f'{path}.fixed_speed_only',
+                    '고정 속도 사용 전용 비용 여부는 불리언이어야 합니다.',
+                )
             _validate_selector(cost.get('selector'), f'{path}.selector', issues)
             use_contexts = cost.get('use_contexts')
             if use_contexts is not None and (
@@ -2193,6 +2198,15 @@ def validate_effect_definition(definition, *, require_coverage=False, card_has_t
                 '해당 카드가 시동 기술 또는 후속 기술로 포함된 콤보에서만 '
                 '유발하는지 여부는 불리언이어야 합니다.',
             )
+        trigger_snapshot = ability.get('trigger_snapshot')
+        if trigger_snapshot is not None:
+            if not isinstance(trigger_snapshot, dict) or not trigger_snapshot:
+                _issue(issues, f'{path}.trigger_snapshot', '유발 시점 스냅숏은 이름→조건 객체여야 합니다.')
+            else:
+                for name, rule in trigger_snapshot.items():
+                    if not re.fullmatch(r'[a-z0-9_]+', str(name or '')):
+                        _issue(issues, f'{path}.trigger_snapshot', '유발 시점 스냅숏 이름 형식이 올바르지 않습니다.')
+                    _validate_condition(rule, f'{path}.trigger_snapshot.{name}', issues)
         dedupe_trigger_key = ability.get('dedupe_trigger_key')
         if dedupe_trigger_key is not None and not re.fullmatch(
             r'[a-z0-9_.:-]+', str(dedupe_trigger_key or ''),

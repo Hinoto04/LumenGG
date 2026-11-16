@@ -1,0 +1,936 @@
+"""CB04 카드 17장의 카드별 결정적 자동 검토 시나리오.
+
+`drafts_cb04.py`가 만든 정의가 그대로인지 확인한 뒤, 능력마다 소유자 p1/p2와
+발동하지 않아야 하는 상황을 최소 3개씩 실제 엔진으로 실행한다. 같은 입력을 두 번
+실행해 결과가 같아야 결정적 증거로 인정한다.
+"""
+
+import copy
+
+from .drafts_cb04 import BUILDERS, build_cb04_definition
+from .engine import AutomaticGameEngine
+from .review import (
+    AUTOMATIC_SCENARIO_VERSION, AbilityReview, DefinitionReview, _canonical,
+)
+
+
+BUKUKI = '부쿠키'
+CHARACTER_BY_CODE = {
+    'CB04-AT-035': 'cmyk', 'CB04-AT-036': 'cmyk', 'CB04-AT-037': 'cmyk',
+    'CB04-TK-001': 'delphi', 'CB04-AT-021': 'tao', 'CB04-AT-022': 'tao',
+}
+META_ROOT_KEYS = {'reviewed', 'draft', 'review_evidence', 'source_digest', 'source_refs'}
+META_ABILITY_KEYS = {'draft', 'source_refs'}
+NO_EFFECT = {
+    'schema_version': 1, 'reviewed': True, 'no_effect': True,
+    'source_refs': {'rulebook_pages': [], 'qna_ids': []}, 'abilities': [],
+}
+
+
+def _set_effect_definition(key, condition_character='cmyk', effects=None):
+    """【드럼】처럼 [CMYK] 기술에 세트됐을 때 사용 시 발동하는 검토용 세트 효과."""
+    return {
+        'schema_version': 1, 'reviewed': True, 'no_effect': False,
+        'abilities': [{
+            'id': f'review-cb04-{key}-n1', 'kind': 'effect', 'mode': 'mandatory',
+            'timing': 'use', 'visibility': 'public', 'draft_compiled': True,
+            'trigger': {'event': 'use'}, 'active_when_attached': True,
+            'dedupe_trigger_key': f'cmyk:set:{key}',
+            'condition': {'op': 'all', 'conditions': [
+                {'op': 'equals', 'left': 'context.source_card.attached_to',
+                 'right': {'path': 'context.event_card.instance_id'}},
+                {'op': 'card_matches', 'card': {'path': 'context.event_card'},
+                 'where': {'character_key': condition_character}},
+            ]},
+            'effects': effects or [
+                {'op': 'change_fp', 'player': {'controller': True}, 'amount': 1},
+            ],
+        }],
+    }
+
+
+DRUM_DEFINITION = _set_effect_definition('drum')
+DRUM_TEXT = '①[[token:drum]](<[[character:cmyk]]> 기술에 세트된 경우, 사용 시 1FP를 얻는다.)'
+
+
+def _opp(owner):
+    return 'p2' if owner == 'p1' else 'p1'
+
+
+def _card(instance_id, owner, *, code=None, type_='공격', frame=5, damage=400,
+          hit='0', counter='0', guard='0', character=None, text='',
+          top=None, mid=None, bottom=None, special=None):
+    card = {
+        'instance_id': instance_id, 'kind': 'card', 'owner': owner,
+        'code': code or f'REVIEW-CB04-{instance_id.upper()}', 'name': instance_id,
+        'type': type_, 'frame': frame if type_ == '공격' else None,
+        'damage': damage if type_ == '공격' else None,
+        'pos': '상단' if type_ == '공격' else None, 'special': special,
+        'hit': hit, 'guard': guard, 'counter': counter,
+        'g_top': top, 'g_mid': mid, 'g_bot': bottom,
+        'face_up': True, 'text': text,
+    }
+    if character:
+        card['character_key'] = character
+    return card
+
+
+def _source(snapshot, code, owner, *, negated=False):
+    snapshot = snapshot or {}
+    type_ = str(snapshot.get('type') or '공격')
+    card = _card(
+        f'{owner}-source', owner, code=code,
+        type_='수비' if '수비' in type_ else ('특성' if '특성' in type_ else (
+            '토큰' if '토큰' in type_ else '공격')),
+        frame=snapshot.get('frame') or 6,
+        damage=snapshot.get('damage') if snapshot.get('damage') is not None else 400,
+        hit=str(snapshot.get('hit') or '0'), counter=str(snapshot.get('counter') or '0'),
+        guard=str(snapshot.get('guard') or '0'), character=CHARACTER_BY_CODE.get(code, BUKUKI),
+        top=snapshot.get('g_top'), mid=snapshot.get('g_mid'), bottom=snapshot.get('g_bot'),
+        special=snapshot.get('special'),
+    )
+    card['name'] = snapshot.get('name') or code
+    if negated:
+        card['numbered_effects_negated'] = True
+    return card
+
+
+def _engine(definition, source, zones, *, seed, fp=None, hp=None, definitions=None, phase='battle'):
+    players = {}
+    for side in ('p1', 'p2'):
+        side_zones = {
+            'character': [], 'passive': [], 'battle': [], 'list': [], 'hand': [],
+            'side': [], 'break': [], 'lumen': [], 'ultimate': [],
+        }
+        for zone, cards in (zones.get(side) or {}).items():
+            side_zones[zone] = [copy.deepcopy(card) for card in cards]
+        players[side] = {
+            'name': side, 'hp': (hp or {}).get(side, 5000), 'fp': (fp or {}).get(side, 0),
+            'passive_state': {}, 'zones': side_zones,
+        }
+    state = {'turn': 1, 'phase': 'lumen', 'priority_player': 'p1', 'players': players}
+    cards = {}
+    for side_zones in zones.values():
+        for zone_cards in side_zones.values():
+            for card in zone_cards:
+                cards[card['code']] = card
+    release = {'version': AUTOMATIC_SCENARIO_VERSION, 'cards': {}}
+    for code, card in cards.items():
+        release['cards'][code] = {
+            **{key: card.get(key) for key in (
+                'code', 'name', 'type', 'frame', 'damage', 'pos', 'special', 'hit',
+                'guard', 'counter', 'g_top', 'g_mid', 'g_bot', 'text',
+            )},
+            'effect_definition': copy.deepcopy(
+                definition if code == source['code']
+                else (definitions or {}).get(code, NO_EFFECT)
+            ),
+        }
+    engine = AutomaticGameEngine.initialize(state, release, seed=seed)
+    engine.state['phase'] = phase
+    return engine
+
+
+def _resolve(engine, *, accept=True):
+    for _ in range(12):
+        decision = engine.engine_state.get('pending_decision') or {}
+        if not decision:
+            return True
+        options = [item.get('id') for item in decision.get('options') or []]
+        kind = decision.get('kind')
+        if kind == 'break_replenish' and 'decline' in options:
+            selected = ['decline']
+        elif kind == 'optional_effect':
+            selected = ['accept' if accept and 'accept' in options else options[-1]]
+        elif kind == 'effect_choice':
+            maximum = int(decision.get('maximum') or 0)
+            minimum = int(decision.get('minimum') or 0)
+            selected = options[:max(minimum, maximum, 1)]
+        else:
+            selected = options[:1]
+        engine._submit_decision(decision['owner'], decision['id'], selected)
+        engine._continue()
+    return False
+
+
+def _fire(engine, event, source, **extra):
+    engine._fire(event, {
+        'controller': source['owner'], 'source_card': engine._find_card(source['instance_id']) or source,
+        'source_card_instance_id': source['instance_id'], **extra,
+    })
+    return _resolve(engine)
+
+
+def _frost(engine, side):
+    return bool((engine.state['players'][side]['passive_state'].get('frost') or {}).get('value'))
+
+
+def _zone_of(engine, instance_id):
+    return engine._find_location(instance_id)[1]
+
+
+def _zone_ids(engine, side, zone):
+    return sorted(card['instance_id'] for card in engine.state['players'][side]['zones'][zone])
+
+
+def _damage_delta(engine, source, side):
+    live = engine._find_card(source['instance_id']) or source
+    return engine.card_stat(live, 'damage', side) - (source.get('damage') or 0)
+
+
+def _blocked(engine, kind, side, *, with_where=None):
+    for item in engine.engine_state.get('replacements') or []:
+        if item.get('op') != 'prevent' or item.get('kind') != kind or item.get('player') != side:
+            continue
+        if with_where is None or bool(item.get('where')) == with_where:
+            return True
+    return False
+
+
+# --- 공통 시나리오 ---------------------------------------------------------------
+
+def _run_defense_rule(definition, snapshot, owner, *, code, judgment, frame=5, guard='0', hit='0'):
+    source = _source(snapshot, code, owner)
+    attacker = _card(f'{_opp(owner)}-attacker', _opp(owner), frame=frame, guard=guard, hit=hit)
+    engine = _engine(definition, source, {owner: {'battle': [source]}, _opp(owner): {'battle': [attacker]}},
+                     seed=f'cb04-defense:{code}:{owner}:{judgment}:{frame}:{guard}:{hit}')
+    return {'allowed': bool(engine._defense_judgment_allowed(
+        engine._find_card(source['instance_id']), attacker, judgment, _opp(owner),
+    ))}
+
+
+def _run_frost_damage(definition, snapshot, owner, *, code, frost=True, negated=False):
+    source = _source(snapshot, code, owner, negated=negated)
+    engine = _engine(definition, source, {owner: {'battle': [source]}},
+                     seed=f'cb04-frost-damage:{code}:{owner}:{frost}:{negated}')
+    if frost:
+        engine.set_passive(_opp(owner), 'frost', value=True)
+    engine._refresh_continuous_rules()
+    return {'damage_delta': _damage_delta(engine, source, owner)}
+
+
+def _frost_damage_cases(code):
+    return (
+        ('owner-p1-opponent-frost-adds-200', 'p1', {'code': code}, {'damage_delta': 200}),
+        ('owner-p2-opponent-frost-adds-200', 'p2', {'code': code}, {'damage_delta': 200}),
+        ('no-frost-keeps-printed-damage', 'p1', {'code': code, 'frost': False}, {'damage_delta': 0}),
+    )
+
+
+def _run_blocked(definition, snapshot, owner, *, code, kind, zone='battle', with_where=None,
+                 harmony=False):
+    source = _source(snapshot, code, owner)
+    engine = _engine(definition, source, {owner: {zone: [source]}},
+                     seed=f'cb04-blocked:{code}:{owner}:{kind}:{zone}:{harmony}')
+    if harmony:
+        engine.set_passive(owner, 'harmony', value=True)
+    engine._refresh_continuous_rules()
+    return {'opponent_blocked': _blocked(engine, kind, _opp(owner), with_where=with_where)}
+
+
+def _blocked_cases(code, kind, *, with_where=None):
+    common = {'code': code, 'kind': kind, 'with_where': with_where}
+    return (
+        ('owner-p1-in-battle-blocks-opponent', 'p1', dict(common), {'opponent_blocked': True}),
+        ('owner-p2-in-battle-blocks-opponent', 'p2', dict(common), {'opponent_blocked': True}),
+        ('outside-battle-zone-has-no-effect', 'p1', {**common, 'zone': 'hand'}, {'opponent_blocked': False}),
+    )
+
+
+# --- 카드별 시나리오 ---------------------------------------------------------------
+
+def _run_ps001_guard(definition, snapshot, owner, *, event='guard', by_opponent=False,
+                     stock_character=BUKUKI):
+    source = _source(snapshot, 'CB04-PS-001', owner)
+    stock = _card(f'{owner}-stock', owner, code='REVIEW-CB04-STOCK', character=stock_character)
+    engine = _engine(definition, source, {owner: {'passive': [source], 'hand': [stock]}},
+                     seed=f'cb04-ps001:{owner}:{event}:{by_opponent}:{stock_character}')
+    engine._fire(event, {'controller': _opp(owner) if by_opponent else owner})
+    _resolve(engine)
+    return {
+        'opponent_frost': _frost(engine, _opp(owner)), 'owner_frost': _frost(engine, owner),
+        'lumen': _zone_ids(engine, owner, 'lumen'),
+    }
+
+
+def _run_ps001_recovery(definition, snapshot, owner, *, owner_fp, opponent_fp):
+    source = _source(snapshot, 'CB04-PS-001', owner)
+    stored = _card(f'{owner}-stored', owner, code='REVIEW-CB04-STORED', character=BUKUKI)
+    engine = _engine(definition, source, {owner: {'passive': [source], 'lumen': [stored]}},
+                     fp={owner: owner_fp, _opp(owner): opponent_fp}, phase='recovery',
+                     seed=f'cb04-ps001-recovery:{owner}:{owner_fp}:{opponent_fp}')
+    engine._fire('phase_start', {'phase': 'recovery'})
+    _resolve(engine)
+    return {'stored_zone': _zone_of(engine, stored['instance_id'])}
+
+
+def _run_at012_combo(definition, snapshot, owner, *, combo=True, starter=False, character=BUKUKI):
+    source = _source(snapshot, 'CB04-AT-012', owner)
+    used = _card(f'{owner}-used', owner, code='REVIEW-CB04-USED', damage=400,
+                 hit='콤보' if starter else '0', character=character)
+    engine = _engine(definition, source, {owner: {'lumen': [source], 'battle': [used]}},
+                     seed=f'cb04-at012:{owner}:{combo}:{starter}:{character}')
+    for _ in range(2 if starter else 1):
+        if starter:
+            _fire(engine, 'combo', used, combo_judgment=True, combo_number=1)
+        else:
+            _fire(engine, 'use', used, combo=combo)
+    return {'damage_delta': _damage_delta(engine, used, owner)}
+
+
+def _run_at001_play(definition, snapshot, owner, *, hp):
+    source = _source(snapshot, 'CB04-AT-001', owner)
+    engine = _engine(definition, source, {owner: {'hand': [source]}}, hp={owner: hp},
+                     seed=f'cb04-at001-play:{owner}:{hp}')
+    return {'use_allowed': bool(engine._card_use_allowed(
+        engine._find_card(source['instance_id']), owner, 'ready',
+    ))}
+
+
+def _run_at001_battle(definition, snapshot, owner, *, event='use', negated=False):
+    source = _source(snapshot, 'CB04-AT-001', owner, negated=negated)
+    enemy = _card(f'{_opp(owner)}-enemy', _opp(owner), code='REVIEW-CB04-ENEMY')
+    engine = _engine(definition, source, {owner: {'battle': [source]}, _opp(owner): {'battle': [enemy]}},
+                     seed=f'cb04-at001:{owner}:{event}:{negated}')
+    engine.engine_state['battle'] = {
+        owner: {'instance_id': source['instance_id'], 'card': engine._find_card(source['instance_id'])},
+        _opp(owner): {'instance_id': enemy['instance_id'], 'card': engine._find_card(enemy['instance_id'])},
+    }
+    _fire(engine, event, source)
+    live_enemy = engine._find_card(enemy['instance_id']) or {}
+    return {
+        'enemy_negated': bool(live_enemy.get('numbered_effects_negated')),
+        'enemy_zone': _zone_of(engine, enemy['instance_id']),
+        'opponent_frost': _frost(engine, _opp(owner)),
+        'source_zone': _zone_of(engine, source['instance_id']),
+    }
+
+
+def _run_at002_dodge(definition, snapshot, owner, *, stored=True):
+    source = _source(snapshot, 'CB04-AT-002', owner)
+    lumen = [_card(f'{owner}-unrelated', owner, code='REVIEW-CB04-UNRELATED')]
+    if stored:
+        lumen.insert(0, _card(f'{owner}-stored', owner, code='REVIEW-CB04-STORED', character=BUKUKI))
+    enemy = _card(f'{_opp(owner)}-enemy', _opp(owner), code='REVIEW-CB04-ENEMY')
+    engine = _engine(definition, source, {owner: {'battle': [source], 'lumen': lumen},
+                                          _opp(owner): {'battle': [enemy]}},
+                     seed=f'cb04-at002-dodge:{owner}:{stored}')
+    engine._fire('opponent_dodge', {
+        'controller': owner, 'source_card': engine._find_card(source['instance_id']),
+        'source_card_instance_id': source['instance_id'], 'opponent_card': enemy,
+    })
+    decision_owner = (engine.engine_state.get('pending_decision') or {}).get('owner')
+    _resolve(engine)
+    return {
+        'opponent_fp': engine.state['players'][_opp(owner)]['fp'],
+        'decision_owner': decision_owner,
+        'list': _zone_ids(engine, owner, 'list'), 'lumen': _zone_ids(engine, owner, 'lumen'),
+    }
+
+
+def _run_list_to_lumen(definition, snapshot, owner, *, code, events, listed=2):
+    source = _source(snapshot, code, owner)
+    cards = [_card(f'{owner}-listed-{index}', owner, code=f'REVIEW-CB04-LISTED-{index}', character=BUKUKI)
+             for index in range(listed)]
+    engine = _engine(definition, source, {owner: {'battle': [source], 'list': cards}},
+                     seed=f'cb04-list-lumen:{code}:{owner}:{",".join(events)}:{listed}')
+    for event in events:
+        _fire(engine, event, source)
+    return {'lumen_count': len(engine.state['players'][owner]['zones']['lumen'])}
+
+
+def _run_on_event(definition, snapshot, owner, *, code, event, negated=False, by_opponent=False,
+                  opponent_fp=0, extra=None):
+    source = _source(snapshot, code, owner, negated=negated)
+    engine = _engine(definition, source, {owner: {'battle': [source]}}, fp={_opp(owner): opponent_fp},
+                     seed=f'cb04-event:{code}:{owner}:{event}:{negated}:{by_opponent}:{opponent_fp}')
+    context = {
+        'controller': _opp(owner) if by_opponent else owner,
+        'source_card': engine._find_card(source['instance_id']),
+        'source_card_instance_id': source['instance_id'], **(extra or {}),
+    }
+    engine._fire(event, context)
+    _resolve(engine)
+    combo_modifiers = [
+        item for item in engine.engine_state.get('modifiers') or []
+        if item.get('op') == 'modify_combo'
+    ]
+    return {
+        'opponent_frost': _frost(engine, _opp(owner)),
+        'opponent_fp': engine.state['players'][_opp(owner)]['fp'],
+        'owner_fp': engine.state['players'][owner]['fp'],
+        'lumen_combo_rules': [
+            (item.get('allow_zones'), (item.get('where') or {}).get('character_key'), item.get('duration'))
+            for item in combo_modifiers
+        ],
+    }
+
+
+def _run_cmyk_set(definition, snapshot, owner, *, code, role, set_definition=None, set_code=None,
+                  set_text='', host_character='cmyk', negated=False):
+    """role='host': 리뷰 카드에 세트 카드를 세트. role='set': 리뷰 카드를 다른 호스트에 세트."""
+    if role == 'host':
+        host = _source(snapshot, code, owner, negated=negated)
+        attached = _card(f'{owner}-set', owner, code=set_code or 'REVIEW-CB04-SET', character='cmyk',
+                         text=set_text)
+        definitions = {attached['code']: set_definition} if set_definition else {}
+    else:
+        host = _card(f'{owner}-host', owner, code='REVIEW-CB04-HOST', damage=400, character=host_character)
+        attached = _source(snapshot, code, owner)
+        definitions = {}
+    engine = _engine(definition, host if role == 'host' else attached,
+                     {owner: {'battle': [host, attached]}}, definitions=definitions,
+                     seed=f'cb04-set:{code}:{owner}:{role}:{set_code}:{host_character}:{negated}')
+    if set_definition is not None or role == 'set':
+        engine.attach_card(attached['instance_id'], host['instance_id'], controller=owner)
+    _fire(engine, 'use', host)
+    return {
+        'owner_fp': engine.state['players'][owner]['fp'],
+        'host_damage_delta': _damage_delta(engine, host, owner),
+    }
+
+
+def _run_at035_clash(definition, snapshot, owner, *, attached):
+    source = _source(snapshot, 'CB04-AT-035', owner)
+    setter = _card(f'{owner}-setter', owner, code='REVIEW-CB04-SETTER', character='cmyk')
+    engine = _engine(definition, source, {owner: {'battle': [source, setter]}},
+                     seed=f'cb04-at035-clash:{owner}:{attached}')
+    if attached:
+        engine.attach_card(setter['instance_id'], source['instance_id'], controller=owner)
+    _fire(engine, 'before_judgment', source)
+    return {'opponent_clash_blocked': _blocked(engine, 'clash', _opp(owner))}
+
+
+def _run_at035_gain(definition, snapshot, owner, *, events):
+    source = _source(snapshot, 'CB04-AT-035', owner)
+    listed = [_card(f'{owner}-listed-{index}', owner, code=f'REVIEW-CB04-LISTED-{index}') for index in range(3)]
+    engine = _engine(definition, source, {owner: {'battle': [source], 'list': listed}},
+                     seed=f'cb04-at035-gain:{owner}:{",".join(events)}')
+    for event in events:
+        _fire(engine, event, source)
+    return {
+        'hand_count': len(engine.state['players'][owner]['zones']['hand']),
+        'list_count': len(engine.state['players'][owner]['zones']['list']),
+    }
+
+
+def _run_at037_dodge(definition, snapshot, owner, *, attached):
+    source = _source(snapshot, 'CB04-AT-037', owner)
+    set_cards = [_card(f'{owner}-set-{index}', owner, code=f'REVIEW-CB04-SET-{index}', character='cmyk')
+                 for index in range(attached)]
+    listed = [_card(f'{owner}-listed-{index}', owner, code=f'REVIEW-CB04-LISTED-{index}') for index in range(3)]
+    engine = _engine(definition, source, {owner: {'battle': [source, *set_cards], 'list': listed}},
+                     seed=f'cb04-at037:{owner}:{attached}')
+    for card in set_cards:
+        engine.attach_card(card['instance_id'], source['instance_id'], controller=owner)
+    _fire(engine, 'dodge', source)
+    return {
+        'owner_fp': engine.state['players'][owner]['fp'],
+        'hand_count': len(engine.state['players'][owner]['zones']['hand']),
+    }
+
+
+def _run_token(definition, snapshot, owner, *, field):
+    value = definition.get(field)
+    return {field: copy.deepcopy(value)}
+
+
+def _run_break_list(definition, snapshot, owner, *, code, event, listed=True, side_bukuki=True):
+    source = _source(snapshot, code, owner)
+    zones = {'battle': [source], 'list': [], 'side': [
+        _card(f'{owner}-side-other', owner, code='REVIEW-CB04-SIDE-OTHER'),
+    ]}
+    if listed:
+        zones['list'].append(_card(f'{owner}-listed', owner, code='REVIEW-CB04-LISTED'))
+    if side_bukuki:
+        zones['side'].insert(0, _card(f'{owner}-side-bukuki', owner, code='REVIEW-CB04-SIDE-BUKUKI',
+                                      character=BUKUKI))
+    engine = _engine(definition, source, {owner: zones},
+                     seed=f'cb04-break-list:{code}:{owner}:{event}:{listed}:{side_bukuki}')
+    _fire(engine, event, source)
+    return {
+        'break': _zone_ids(engine, owner, 'break'), 'lumen': _zone_ids(engine, owner, 'lumen'),
+        'opponent_frost': _frost(engine, _opp(owner)),
+    }
+
+
+def _run_at006_clash(definition, snapshot, owner, *, negated=False):
+    source = _source(snapshot, 'CB04-AT-006', owner, negated=negated)
+    enemy = _card(f'{_opp(owner)}-enemy', _opp(owner), code='REVIEW-CB04-ENEMY', hit='3')
+    engine = _engine(definition, source, {owner: {'battle': [source]}, _opp(owner): {'battle': [enemy]}},
+                     seed=f'cb04-at006-clash:{owner}:{negated}')
+    engine.engine_state['battle'] = {
+        owner: {'instance_id': source['instance_id'], 'card': engine._find_card(source['instance_id'])},
+        _opp(owner): {'instance_id': enemy['instance_id'], 'card': engine._find_card(enemy['instance_id'])},
+    }
+    _fire(engine, 'clash', source)
+    modified = [
+        {key: (event.get('payload') or {}).get(key) for key in ('card_instance_id', 'field', 'after')}
+        for event in engine.events
+        if event.get('type') == 'judgment_modified'
+    ]
+    return {'judgment_modified': modified}
+
+
+def _run_at006_bloom(definition, snapshot, owner, *, by_opponent=False):
+    source = _source(snapshot, 'CB04-AT-006', owner)
+    engine = _engine(definition, source, {owner: {'lumen': [source]}},
+                     seed=f'cb04-at006-bloom:{owner}:{by_opponent}')
+    engine._fire('opponent_hit', {'controller': _opp(owner) if by_opponent else owner})
+    _resolve(engine)
+    return {
+        'source_zone': _zone_of(engine, source['instance_id']),
+        'owner_fp': engine.state['players'][owner]['fp'],
+        'shield': sum(item.get('amount', 0) for item in (engine.engine_state.get('shields') or {}).get(owner) or []),
+    }
+
+
+def _run_at021_spirit(definition, snapshot, owner, *, yin_at_trigger, yin_after_removal):
+    source = _source(snapshot, 'CB04-AT-021', owner)
+    enemy = _card(f'{_opp(owner)}-enemy', _opp(owner), frame=7)
+    engine = _engine(definition, source, {owner: {'battle': [source]}, _opp(owner): {'battle': [enemy]}},
+                     seed=f'cb04-at021:{owner}:{yin_at_trigger}:{yin_after_removal}')
+    engine.change_counter(owner, 'yang', 1)
+    engine.set_passive(owner, 'yin', value=yin_at_trigger)
+    engine._fire('before_judgment', {
+        'controller': owner, 'source_card': engine._find_card(source['instance_id']),
+        'source_card_instance_id': source['instance_id'],
+        'controller_speed': source.get('frame'), 'opponent_speed': 7,
+    })
+    decision = engine.engine_state.get('pending_decision') or {}
+    engine.set_passive(owner, 'yin', value=yin_after_removal)
+    if decision:
+        engine._submit_decision(owner, decision['id'], ['1'])
+        engine._continue()
+    _resolve(engine)
+    passive = engine.state['players'][owner]['passive_state']
+    return {
+        'yang_count': (passive.get('yang') or {}).get('count'),
+        'yin_count': (passive.get('yin') or {}).get('count'),
+        'speed_fixed': sum(item.get('op') == 'fix_speed' for item in engine.engine_state.get('modifiers') or []),
+    }
+
+
+def _run_harmony_hit(definition, snapshot, owner, *, code, harmony=True):
+    source = _source(snapshot, code, owner)
+    engine = _engine(definition, source, {owner: {'battle': [source]}},
+                     seed=f'cb04-harmony:{code}:{owner}:{harmony}')
+    if harmony:
+        engine.set_passive(owner, 'harmony', value=True)
+    _fire(engine, 'hit', source)
+    return {'damage_delta': _damage_delta(engine, source, owner)}
+
+
+def _run_at022_fp(definition, snapshot, owner, *, yang_state, yang_after=None):
+    source = _source(snapshot, 'CB04-AT-022', owner)
+    engine = _engine(definition, source, {owner: {'battle': [source]}},
+                     seed=f'cb04-at022-fp:{owner}:{yang_state}:{yang_after}')
+    engine.change_counter(owner, 'yang', 3)
+    engine.state['players'][owner]['passive_state']['yang']['value'] = yang_state
+    engine.resolver.collect('before_judgment', {
+        'controller': owner, 'source_card': engine._find_card(source['instance_id']),
+        'source_card_instance_id': source['instance_id'],
+    })
+    if yang_after is not None:
+        engine.state['players'][owner]['passive_state']['yang']['value'] = yang_after
+    engine.resolver.drain()
+    _resolve(engine)
+    return {'owner_fp': engine.state['players'][owner]['fp']}
+
+
+def _run_at022_combo_end(definition, snapshot, owner, *, in_combo=True):
+    source = _source(snapshot, 'CB04-AT-022', owner)
+    partner = _card(f'{owner}-partner', owner, code='REVIEW-CB04-PARTNER')
+    enemy = _card(f'{_opp(owner)}-enemy', _opp(owner), code='REVIEW-CB04-ENEMY')
+    engine = _engine(definition, source, {owner: {'battle': [source, partner]},
+                                          _opp(owner): {'battle': [enemy]}},
+                     seed=f'cb04-at022-combo-end:{owner}:{in_combo}')
+    combo_ids = [partner['instance_id']] + ([source['instance_id']] if in_combo else [])
+    engine._fire('combo_end', {
+        'controller': owner, 'combo_owner': owner,
+        'source_card_instance_id': partner['instance_id'],
+        'source_card': engine._find_card(partner['instance_id']),
+        'combo_card_instance_ids': combo_ids,
+    })
+    _resolve(engine)
+    return {
+        'hand': _zone_ids(engine, owner, 'hand'),
+        'enemy_zone': _zone_of(engine, enemy['instance_id']),
+    }
+
+
+def _run_at010_fp(definition, snapshot, owner, *, effect_owner, card_type, target):
+    source = _source(snapshot, 'CB04-AT-010', owner)
+    effect_card = _card(f'{effect_owner}-effect-card', effect_owner, code='REVIEW-CB04-EFFECT-CARD',
+                        type_=card_type)
+    engine = _engine(definition, source, {owner: {'lumen': [source]},
+                                          effect_owner if effect_owner != owner else _opp(owner): {}},
+                     seed=f'cb04-at010-fp:{owner}:{effect_owner}:{card_type}:{target}')
+    engine._refresh_continuous_rules()
+    engine.resolver.execute_effect(
+        {'op': 'change_fp', 'player': {target: True}, 'amount': 2},
+        {'controller': effect_owner, 'opponent': _opp(effect_owner),
+         'source_card': effect_card, 'source_card_instance_id': effect_card['instance_id']},
+    )
+    return {'opponent_fp': engine.state['players'][_opp(owner)]['fp']}
+
+
+def _run_at010_clash(definition, snapshot, owner, *, by_opponent=False):
+    source = _source(snapshot, 'CB04-AT-010', owner)
+    engine = _engine(definition, source, {owner: {'list': [source]}},
+                     seed=f'cb04-at010-clash:{owner}:{by_opponent}')
+    engine._fire('clash', {'controller': _opp(owner) if by_opponent else owner})
+    _resolve(engine)
+    return {'source_zone': _zone_of(engine, source['instance_id'])}
+
+
+def _run_at013(definition, snapshot, owner, *, damage_received):
+    source = _source(snapshot, 'CB04-AT-013', owner)
+    engine = _engine(definition, source, {owner: {'battle': [source]}}, fp={_opp(owner): 10},
+                     seed=f'cb04-at013:{owner}:{damage_received}')
+    _fire(engine, 'after_judgment', source, controller_damage_received=damage_received)
+    return {'opponent_fp': engine.state['players'][_opp(owner)]['fp'],
+            'opponent_frost': _frost(engine, _opp(owner))}
+
+
+# --- 능력별 시나리오 표 -----------------------------------------------------------
+
+def _cases():
+    frost_ok = {'opponent_frost': True}
+    return {
+        'cb04-ps-001-n1': (_run_ps001_guard, (
+            ('owner-p1-guard-gives-opponent-frost', 'p1', {}, {**frost_ok, 'owner_frost': False}),
+            ('owner-p2-clash-gives-opponent-frost', 'p2', {'event': 'clash'}, frost_ok),
+            ('opponent-guard-does-not-trigger', 'p1', {'by_opponent': True}, {'opponent_frost': False}),
+        )),
+        'cb04-ps-001-n2': (_run_ps001_guard, (
+            ('owner-p1-frost-sends-hand-bukuki-to-lumen', 'p1', {}, {'lumen': ['p1-stock']}),
+            ('owner-p2-frost-sends-hand-bukuki-to-lumen', 'p2', {}, {'lumen': ['p2-stock']}),
+            ('non-bukuki-hand-card-stays', 'p1', {'stock_character': None}, {**frost_ok, 'lumen': []}),
+        )),
+        'cb04-ps-001-n3': (_run_ps001_recovery, (
+            ('owner-p1-behind-returns-lumen-bukuki', 'p1', {'owner_fp': 1, 'opponent_fp': 3},
+             {'stored_zone': 'list'}),
+            ('owner-p2-behind-returns-lumen-bukuki', 'p2', {'owner_fp': 0, 'opponent_fp': 2},
+             {'stored_zone': 'list'}),
+            ('equal-fp-keeps-lumen-bukuki', 'p1', {'owner_fp': 3, 'opponent_fp': 3},
+             {'stored_zone': 'lumen'}),
+        )),
+        'cb04-at-012-function': (_run_defense_rule, (
+            ('owner-p1-dodges-x-guard-attack', 'p1', {'code': 'CB04-AT-012', 'judgment': 'dodge', 'guard': 'X'},
+             {'allowed': True}),
+            ('owner-p2-dodges-x-guard-attack', 'p2', {'code': 'CB04-AT-012', 'judgment': 'dodge', 'guard': 'X'},
+             {'allowed': True}),
+            ('numeric-guard-attack-cannot-be-dodged', 'p1',
+             {'code': 'CB04-AT-012', 'judgment': 'dodge', 'guard': '-4'}, {'allowed': False}),
+        )),
+        'cb04-at-012-n1': (_run_at012_combo, (
+            ('owner-p1-combo-bukuki-adds-100', 'p1', {}, {'damage_delta': 100}),
+            ('owner-p2-combo-bukuki-adds-100', 'p2', {}, {'damage_delta': 100}),
+            ('non-combo-use-keeps-damage', 'p1', {'combo': False}, {'damage_delta': 0}),
+        )),
+        'cb04-at-012-n1-starter': (_run_at012_combo, (
+            ('owner-p1-bukuki-starter-adds-100-once', 'p1', {'starter': True}, {'damage_delta': 100}),
+            ('owner-p2-bukuki-starter-adds-100-once', 'p2', {'starter': True}, {'damage_delta': 100}),
+            ('non-bukuki-starter-keeps-damage', 'p1', {'starter': True, 'character': None},
+             {'damage_delta': 0}),
+        )),
+        'cb04-at-001-function': (_run_at001_play, (
+            ('owner-p1-hp-2500-can-use', 'p1', {'hp': 2500}, {'use_allowed': True}),
+            ('owner-p2-hp-2000-can-use', 'p2', {'hp': 2000}, {'use_allowed': True}),
+            ('hp-2600-cannot-use', 'p1', {'hp': 2600}, {'use_allowed': False}),
+        )),
+        'cb04-at-001-n1': (_run_at001_battle, (
+            ('owner-p1-negates-opponent-battle-effects', 'p1', {}, {'enemy_negated': True, 'enemy_zone': 'battle'}),
+            ('owner-p2-negates-opponent-battle-effects', 'p2', {}, {'enemy_negated': True, 'enemy_zone': 'battle'}),
+            ('negated-source-does-not-negate', 'p1', {'negated': True}, {'enemy_negated': False}),
+        )),
+        'cb04-at-001-n2': (_run_at001_battle, (
+            ('owner-p1-after-use-frost-and-break', 'p1', {'event': 'after_use'},
+             {**frost_ok, 'source_zone': 'break'}),
+            ('owner-p2-after-use-frost-and-break', 'p2', {'event': 'after_use'},
+             {**frost_ok, 'source_zone': 'break'}),
+            ('negated-source-stays-without-frost', 'p1', {'event': 'after_use', 'negated': True},
+             {'opponent_frost': False, 'source_zone': 'battle'}),
+        )),
+        'cb04-at-002-n1': (_run_at002_dodge, (
+            ('owner-p1-dodged-opponent-gains-2-user-picks', 'p1', {},
+             {'opponent_fp': 2, 'decision_owner': 'p1', 'list': ['p1-stored'], 'lumen': ['p1-unrelated']}),
+            ('owner-p2-dodged-opponent-gains-2-user-picks', 'p2', {},
+             {'opponent_fp': 2, 'decision_owner': 'p2', 'list': ['p2-stored']}),
+            ('no-lumen-bukuki-still-gives-fp', 'p1', {'stored': False},
+             {'opponent_fp': 2, 'list': [], 'lumen': ['p1-unrelated']}),
+        )),
+        'cb04-at-002-n2': (_run_list_to_lumen, (
+            ('owner-p1-hit-sends-list-bukuki', 'p1', {'code': 'CB04-AT-002', 'events': ['hit']}, {'lumen_count': 1}),
+            ('owner-p2-counter-sends-list-bukuki', 'p2', {'code': 'CB04-AT-002', 'events': ['counter']},
+             {'lumen_count': 1}),
+            ('hit-and-combo-same-turn-only-once', 'p1', {'code': 'CB04-AT-002', 'events': ['hit', 'combo']},
+             {'lumen_count': 1}),
+        )),
+        'cb04-at-007-function': (_run_defense_rule, (
+            ('owner-p1-dodges-speed-8', 'p1', {'code': 'CB04-AT-007', 'judgment': 'dodge', 'frame': 8},
+             {'allowed': True}),
+            ('owner-p2-dodges-speed-8', 'p2', {'code': 'CB04-AT-007', 'judgment': 'dodge', 'frame': 8},
+             {'allowed': True}),
+            ('speed-9-cannot-be-dodged', 'p1', {'code': 'CB04-AT-007', 'judgment': 'dodge', 'frame': 9},
+             {'allowed': False}),
+        )),
+        'cb04-at-007-n1': (_run_frost_damage, _frost_damage_cases('CB04-AT-007')),
+        'cb04-at-007-n2': (_run_on_event, (
+            ('owner-p1-hit-gives-frost', 'p1', {'code': 'CB04-AT-007', 'event': 'hit'}, frost_ok),
+            ('owner-p2-counter-gives-frost', 'p2', {'code': 'CB04-AT-007', 'event': 'counter'}, frost_ok),
+            ('negated-source-gives-no-frost', 'p1', {'code': 'CB04-AT-007', 'event': 'hit', 'negated': True},
+             {'opponent_frost': False}),
+        )),
+        'cb04-at-007-n3': (_run_on_event, (
+            ('owner-p1-combo-allows-lumen-bukuki', 'p1', {'code': 'CB04-AT-007', 'event': 'combo'},
+             {'lumen_combo_rules': [(['lumen'], BUKUKI, 'turn')]}),
+            ('owner-p2-combo-allows-lumen-bukuki', 'p2', {'code': 'CB04-AT-007', 'event': 'combo'},
+             {'lumen_combo_rules': [(['lumen'], BUKUKI, 'turn')]}),
+            ('negated-source-adds-no-combo-rule', 'p1',
+             {'code': 'CB04-AT-007', 'event': 'combo', 'negated': True}, {'lumen_combo_rules': []}),
+        )),
+        'cb04-at-035-n1': (_run_cmyk_set, (
+            ('owner-p1-set-drum-applies-twice', 'p1',
+             {'code': 'CB04-AT-035', 'role': 'host', 'set_definition': DRUM_DEFINITION,
+              'set_code': 'REVIEW-CB04-DRUM', 'set_text': DRUM_TEXT}, {'owner_fp': 2}),
+            ('owner-p2-set-drum-applies-twice', 'p2',
+             {'code': 'CB04-AT-035', 'role': 'host', 'set_definition': DRUM_DEFINITION,
+              'set_code': 'REVIEW-CB04-DRUM', 'set_text': DRUM_TEXT}, {'owner_fp': 2}),
+            ('negated-host-applies-set-effect-once', 'p1',
+             {'code': 'CB04-AT-035', 'role': 'host', 'set_definition': DRUM_DEFINITION,
+              'set_code': 'REVIEW-CB04-DRUM', 'set_text': DRUM_TEXT, 'negated': True}, {'owner_fp': 1}),
+        )),
+        'cb04-at-035-n2': (_run_at035_clash, (
+            ('owner-p1-with-set-card-blocks-clash', 'p1', {'attached': True}, {'opponent_clash_blocked': True}),
+            ('owner-p2-with-set-card-blocks-clash', 'p2', {'attached': True}, {'opponent_clash_blocked': True}),
+            ('without-set-card-allows-clash', 'p1', {'attached': False}, {'opponent_clash_blocked': False}),
+        )),
+        'cb04-at-035-n3': (_run_at035_gain, (
+            ('owner-p1-hit-gains-two-from-list', 'p1', {'events': ['hit']}, {'hand_count': 2, 'list_count': 1}),
+            ('owner-p2-counter-gains-two-from-list', 'p2', {'events': ['counter']},
+             {'hand_count': 2, 'list_count': 1}),
+            ('hit-and-combo-same-turn-only-once', 'p1', {'events': ['hit', 'combo']},
+             {'hand_count': 2, 'list_count': 1}),
+        )),
+        'cb04-at-036-n1': (_run_cmyk_set, (
+            ('owner-p1-set-on-cmyk-host-adds-100', 'p1', {'code': 'CB04-AT-036', 'role': 'set'},
+             {'host_damage_delta': 100}),
+            ('owner-p2-set-on-cmyk-host-adds-100', 'p2', {'code': 'CB04-AT-036', 'role': 'set'},
+             {'host_damage_delta': 100}),
+            ('non-cmyk-host-gets-nothing', 'p1', {'code': 'CB04-AT-036', 'role': 'set', 'host_character': 'tao'},
+             {'host_damage_delta': 0}),
+        )),
+        'cb04-at-036-n2': (_run_cmyk_set, (
+            ('owner-p1-set-drum-fp-becomes-damage', 'p1',
+             {'code': 'CB04-AT-036', 'role': 'host', 'set_definition': DRUM_DEFINITION,
+              'set_code': 'REVIEW-CB04-DRUM', 'set_text': DRUM_TEXT}, {'owner_fp': 0, 'host_damage_delta': 200}),
+            ('owner-p2-set-drum-fp-becomes-damage', 'p2',
+             {'code': 'CB04-AT-036', 'role': 'host', 'set_definition': DRUM_DEFINITION,
+              'set_code': 'REVIEW-CB04-DRUM', 'set_text': DRUM_TEXT}, {'owner_fp': 0, 'host_damage_delta': 200}),
+            ('negated-host-keeps-drum-fp', 'p1',
+             {'code': 'CB04-AT-036', 'role': 'host', 'set_definition': DRUM_DEFINITION,
+              'set_code': 'REVIEW-CB04-DRUM', 'set_text': DRUM_TEXT, 'negated': True},
+             {'owner_fp': 1, 'host_damage_delta': 0}),
+        )),
+        'cb04-at-037-function': (_run_defense_rule, (
+            ('owner-p1-dodges-non-combo-attack', 'p1', {'code': 'CB04-AT-037', 'judgment': 'dodge', 'hit': '3'},
+             {'allowed': True}),
+            ('owner-p2-dodges-non-combo-attack', 'p2', {'code': 'CB04-AT-037', 'judgment': 'dodge', 'hit': '3'},
+             {'allowed': True}),
+            ('combo-attack-cannot-be-dodged', 'p1', {'code': 'CB04-AT-037', 'judgment': 'dodge', 'hit': '콤보'},
+             {'allowed': False}),
+        )),
+        'cb04-at-037-n1': (_run_at037_dodge, (
+            ('owner-p1-two-set-cards-gain-two', 'p1', {'attached': 2}, {'owner_fp': 2, 'hand_count': 2}),
+            ('owner-p2-one-set-card-gains-one', 'p2', {'attached': 1}, {'owner_fp': 2, 'hand_count': 1}),
+            ('no-set-card-gains-only-fp', 'p1', {'attached': 0}, {'owner_fp': 2, 'hand_count': 0}),
+        )),
+        'cb04-tk-001-function': (_run_token, (
+            ('token-key-is-garage', 'p1', {'field': 'token_key'}, {'token_key': 'garage'}),
+            ('usable-as-token-or-counter', 'p2', {'field': 'token_usage'}, {'token_usage': ['token', 'counter']}),
+            ('no-character-root-rules', 'p1', {'field': 'combo_rules'}, {'combo_rules': None}),
+        )),
+        'cb04-at-003-n1': (_run_frost_damage, _frost_damage_cases('CB04-AT-003')),
+        'cb04-at-003-n2': (_run_on_event, (
+            ('owner-p1-dodged-opponent-gains-3', 'p1', {'code': 'CB04-AT-003', 'event': 'opponent_dodge'},
+             {'opponent_fp': 3}),
+            ('owner-p2-dodged-opponent-gains-3', 'p2', {'code': 'CB04-AT-003', 'event': 'opponent_dodge'},
+             {'opponent_fp': 3}),
+            ('negated-source-gives-no-fp', 'p1',
+             {'code': 'CB04-AT-003', 'event': 'opponent_dodge', 'negated': True}, {'opponent_fp': 0}),
+        )),
+        'cb04-at-003-n3': (_run_break_list, (
+            ('owner-p1-counter-breaks-list-for-frost', 'p1', {'code': 'CB04-AT-003', 'event': 'counter'},
+             {'break': ['p1-listed'], **frost_ok}),
+            ('owner-p2-counter-breaks-list-for-frost', 'p2', {'code': 'CB04-AT-003', 'event': 'counter'},
+             {'break': ['p2-listed'], **frost_ok}),
+            ('empty-list-gives-no-frost', 'p1', {'code': 'CB04-AT-003', 'event': 'counter', 'listed': False},
+             {'break': [], 'opponent_frost': False}),
+        )),
+        'cb04-at-004-function': (_run_defense_rule, (
+            ('owner-p1-dodges-speed-8', 'p1', {'code': 'CB04-AT-004', 'judgment': 'dodge', 'frame': 8},
+             {'allowed': True}),
+            ('owner-p2-dodges-speed-8', 'p2', {'code': 'CB04-AT-004', 'judgment': 'dodge', 'frame': 8},
+             {'allowed': True}),
+            ('speed-9-cannot-be-dodged', 'p1', {'code': 'CB04-AT-004', 'judgment': 'dodge', 'frame': 9},
+             {'allowed': False}),
+        )),
+        'cb04-at-004-n1': (_run_break_list, (
+            ('owner-p1-hit-breaks-list-sends-side-bukuki', 'p1', {'code': 'CB04-AT-004', 'event': 'hit'},
+             {'break': ['p1-listed'], 'lumen': ['p1-side-bukuki']}),
+            ('owner-p2-counter-breaks-list-sends-side-bukuki', 'p2', {'code': 'CB04-AT-004', 'event': 'counter'},
+             {'break': ['p2-listed'], 'lumen': ['p2-side-bukuki']}),
+            ('no-side-bukuki-only-breaks', 'p1', {'code': 'CB04-AT-004', 'event': 'hit', 'side_bukuki': False},
+             {'break': ['p1-listed'], 'lumen': []}),
+        )),
+        'cb04-at-006-function': (_run_defense_rule, (
+            ('owner-p1-clashes-speed-8', 'p1', {'code': 'CB04-AT-006', 'judgment': 'clash', 'frame': 8},
+             {'allowed': True}),
+            ('owner-p2-clashes-speed-8', 'p2', {'code': 'CB04-AT-006', 'judgment': 'clash', 'frame': 8},
+             {'allowed': True}),
+            ('speed-9-cannot-be-clashed', 'p1', {'code': 'CB04-AT-006', 'judgment': 'clash', 'frame': 9},
+             {'allowed': False}),
+        )),
+        'cb04-at-006-n1': (_run_at006_clash, (
+            ('owner-p1-clash-lowers-opponent-hit', 'p1', {},
+             {'judgment_modified': [{'card_instance_id': 'p2-enemy', 'field': 'hit', 'after': '-2'}]}),
+            ('owner-p2-clash-lowers-opponent-hit', 'p2', {},
+             {'judgment_modified': [{'card_instance_id': 'p1-enemy', 'field': 'hit', 'after': '-2'}]}),
+            ('negated-source-changes-nothing', 'p1', {'negated': True}, {'judgment_modified': []}),
+        )),
+        'cb04-at-006-n2': (_run_at006_bloom, (
+            ('owner-p1-hit-breaks-for-shield-and-fp', 'p1', {},
+             {'source_zone': 'break', 'owner_fp': 3, 'shield': 400}),
+            ('owner-p2-hit-breaks-for-shield-and-fp', 'p2', {},
+             {'source_zone': 'break', 'owner_fp': 3, 'shield': 400}),
+            ('opponent-event-does-not-trigger', 'p1', {'by_opponent': True},
+             {'source_zone': 'lumen', 'owner_fp': 0, 'shield': 0}),
+        )),
+        'cb04-at-021-function': (_run_blocked, _blocked_cases('CB04-AT-021', 'guard')),
+        'cb04-at-021-n1': (_run_at021_spirit, (
+            ('owner-p1-yin-at-trigger-gains-yin', 'p1', {'yin_at_trigger': True, 'yin_after_removal': False},
+             {'yang_count': 0, 'yin_count': 1, 'speed_fixed': 2}),
+            ('owner-p2-yin-at-trigger-gains-yin', 'p2', {'yin_at_trigger': True, 'yin_after_removal': True},
+             {'yang_count': 0, 'yin_count': 1, 'speed_fixed': 2}),
+            ('yin-only-after-removal-gains-nothing', 'p1', {'yin_at_trigger': False, 'yin_after_removal': True},
+             {'yang_count': 0, 'yin_count': None, 'speed_fixed': 2}),
+        )),
+        'cb04-at-021-n2': (_run_harmony_hit, (
+            ('owner-p1-harmony-hit-adds-400', 'p1', {'code': 'CB04-AT-021'}, {'damage_delta': 400}),
+            ('owner-p2-harmony-hit-adds-400', 'p2', {'code': 'CB04-AT-021'}, {'damage_delta': 400}),
+            ('no-harmony-keeps-damage', 'p1', {'code': 'CB04-AT-021', 'harmony': False}, {'damage_delta': 0}),
+        )),
+        'cb04-at-022-function': (_run_blocked, _blocked_cases('CB04-AT-022', 'dodge', with_where=True)),
+        'cb04-at-022-n1': (_run_at022_fp, (
+            ('owner-p1-three-yang-counters-gain-one', 'p1', {'yang_state': False}, {'owner_fp': 1}),
+            ('owner-p2-yang-state-gains-three', 'p2', {'yang_state': True}, {'owner_fp': 3}),
+            ('yang-state-is-fixed-at-trigger', 'p1', {'yang_state': True, 'yang_after': False}, {'owner_fp': 3}),
+        )),
+        'cb04-at-022-n2': (_run_blocked, (
+            ('owner-p1-harmony-blocks-all-dodge', 'p1',
+             {'code': 'CB04-AT-022', 'kind': 'dodge', 'with_where': False, 'harmony': True},
+             {'opponent_blocked': True}),
+            ('owner-p2-harmony-blocks-all-dodge', 'p2',
+             {'code': 'CB04-AT-022', 'kind': 'dodge', 'with_where': False, 'harmony': True},
+             {'opponent_blocked': True}),
+            ('no-harmony-blocks-only-special-dodge', 'p1',
+             {'code': 'CB04-AT-022', 'kind': 'dodge', 'with_where': False}, {'opponent_blocked': False}),
+        )),
+        'cb04-at-022-n3': (_run_at022_combo_end, (
+            ('owner-p1-combo-end-gains-own-battle', 'p1', {},
+             {'hand': ['p1-partner', 'p1-source'], 'enemy_zone': 'battle'}),
+            ('owner-p2-combo-end-gains-own-battle', 'p2', {},
+             {'hand': ['p2-partner', 'p2-source'], 'enemy_zone': 'battle'}),
+            ('not-used-in-combo-does-not-trigger', 'p1', {'in_combo': False}, {'hand': []}),
+        )),
+        'cb04-at-010-n1': (_run_at010_fp, (
+            ('owner-p1-opponent-attack-effect-fp-blocked', 'p1',
+             {'effect_owner': 'p2', 'card_type': '공격', 'target': 'controller'}, {'opponent_fp': 0}),
+            ('owner-p2-opponent-defense-effect-fp-allowed', 'p2',
+             {'effect_owner': 'p1', 'card_type': '수비', 'target': 'controller'}, {'opponent_fp': 2}),
+            ('own-attack-effect-giving-opponent-fp-allowed', 'p1',
+             {'effect_owner': 'p1', 'card_type': '공격', 'target': 'opponent'}, {'opponent_fp': 2}),
+        )),
+        'cb04-at-010-n2': (_run_at010_clash, (
+            ('owner-p1-clash-moves-list-to-lumen', 'p1', {}, {'source_zone': 'lumen'}),
+            ('owner-p2-clash-moves-list-to-lumen', 'p2', {}, {'source_zone': 'lumen'}),
+            ('opponent-clash-keeps-list', 'p1', {'by_opponent': True}, {'source_zone': 'list'}),
+        )),
+        'cb04-at-011-function': (_run_blocked, _blocked_cases('CB04-AT-011', 'clash')),
+        'cb04-at-011-n1': (_run_frost_damage, _frost_damage_cases('CB04-AT-011')),
+        'cb04-at-013-n1': (_run_at013, (
+            ('owner-p1-no-damage-drains-8-and-frost', 'p1', {'damage_received': 0},
+             {'opponent_fp': 2, **frost_ok}),
+            ('owner-p2-no-damage-drains-8-and-frost', 'p2', {'damage_received': 0},
+             {'opponent_fp': 2, **frost_ok}),
+            ('damage-received-does-nothing', 'p1', {'damage_received': 300},
+             {'opponent_fp': 10, 'opponent_frost': False}),
+        )),
+    }
+
+
+CASES = _cases()
+
+
+def _strip(definition):
+    stripped = {key: copy.deepcopy(value) for key, value in (definition or {}).items()
+                if key not in META_ROOT_KEYS}
+    stripped['abilities'] = [
+        {key: value for key, value in ability.items() if key not in META_ABILITY_KEYS}
+        for ability in stripped.get('abilities') or []
+    ]
+    return stripped
+
+
+def _scenarios(runner, definition, snapshot, cases):
+    results = []
+    for name, owner, kwargs, expected in cases:
+        try:
+            first = runner(definition, snapshot, owner, **kwargs)
+            second = runner(definition, snapshot, owner, **kwargs)
+        except Exception as error:  # 엔진 오류도 실패한 검토 상황으로 남긴다.
+            results.append({
+                'name': name, 'passed': False, 'deterministic': False,
+                'expected': expected, 'error': f'{type(error).__name__}: {error}',
+            })
+            continue
+        deterministic = _canonical(first) == _canonical(second)
+        results.append({
+            'name': name, 'owner': owner,
+            'passed': bool(deterministic and all(first.get(key) == value for key, value in expected.items())),
+            'deterministic': deterministic, 'expected': expected, **first,
+        })
+    return results
+
+
+def review_cb04_definition(definition, card_snapshot, extra_root):
+    code = str((card_snapshot or {}).get('code') or '')
+    if code not in BUILDERS:
+        return None
+    expected = build_cb04_definition(code)
+    if _strip(definition) != _strip(expected):
+        return DefinitionReview(
+            False, False, [AbilityReview(
+                code.lower(), False,
+                reason='CB04 카드 정의가 drafts_cb04 기준 정의와 다릅니다. 수정 내용에 맞는 검토 시나리오가 필요합니다.',
+            )], f'{code} 전용 정의 검증에 실패했습니다.', method=AUTOMATIC_SCENARIO_VERSION,
+        )
+    reviews = []
+    for ability in definition.get('abilities') or []:
+        ability_id = ability.get('id')
+        runner, cases = CASES.get(ability_id, (None, ()))
+        if runner is None:
+            reviews.append(AbilityReview(ability_id, False, reason='검토 시나리오가 없습니다.'))
+            continue
+        scenarios = _scenarios(runner, definition, card_snapshot, cases)
+        reviews.append(AbilityReview(
+            ability_id, len(scenarios) >= 3 and all(item['passed'] for item in scenarios), scenarios,
+        ))
+    passed = bool(reviews) and all(item.passed for item in reviews)
+    return DefinitionReview(
+        passed, False, reviews,
+        '' if passed else f'{code} 카드별 시나리오 검증에 실패했습니다.',
+        method=AUTOMATIC_SCENARIO_VERSION,
+    )

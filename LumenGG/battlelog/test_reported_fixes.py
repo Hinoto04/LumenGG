@@ -235,6 +235,100 @@ class SideTokenSupplyTests(SimpleTestCase):
         engine = self.build(2)
         self.assertEqual(self.spiders(engine, 'side'), [])
 
+    def pay_hp(self, engine):
+        engine.change_hp('p1', -200, context={'controller': 'p1', 'effect_cost': True})
+        engine._continue()
+        decision = engine.engine_state.get('pending_decision')
+        if decision:
+            engine._submit_decision('p1', decision['id'], [decision['options'][0]['id']])
+        engine._continue()
+
+    def test_placed_spider_is_created_not_taken_from_side_deck(self):
+        """Q-AUTO-012: 토큰은 사이드 덱에서 꺼내는 것이 아니라 생성한다."""
+        engine = self.build(self.JEZEBEL)
+        self.pay_hp(engine)
+        [spider] = self.spiders(engine, 'lumen')
+        self.assertNotIn('token_supply', spider)
+        created = [
+            event for event in engine.events
+            if event['type'] == 'token_created'
+            and event['payload'].get('card_instance_id') == spider['instance_id']
+        ]
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created[0]['payload']['zone'], 'lumen')
+
+    def test_spider_count_has_no_supply_limit(self):
+        """Q-AUTO-012: 카드에 최대 수가 없으면 토큰 수 제한도 없다."""
+        engine = self.build(self.JEZEBEL)
+        for _ in range(12):
+            self.pay_hp(engine)
+        self.assertEqual(len(self.spiders(engine, 'lumen')), 12)
+
+    def test_waiting_tokens_are_not_side_deck_cards(self):
+        """생성 대기 토큰은 사이드 덱 장 수·일반 사이드 덱 선택에 들어가지 않는다."""
+        engine = self.build(self.JEZEBEL)
+        real = {
+            'instance_id': 'p1-side-real', 'kind': 'card', 'owner': 'p1',
+            'code': 'X-AT-001', 'name': '사이드 기술', 'type': '공격', 'face_up': False,
+        }
+        engine.state['players']['p1']['zones']['side'].insert(0, real)
+        context = {'controller': 'p1'}
+        any_side = {'kind': 'card', 'player': {'controller': True}, 'zones': ['side'], 'min': 0, 'max': 9}
+        self.assertEqual(
+            [option['id'] for option in engine.selector_options(any_side, context)],
+            ['p1-side-real'],
+        )
+        spider_side = {**any_side, 'where': {'token_key': 'spider'}}
+        self.assertEqual(len(engine.selector_options(spider_side, context)), 8)
+        from .game.effects import condition_matches, resolve_value
+        self.assertEqual(resolve_value(
+            {'op': 'zone_count', 'player': {'controller': True}, 'zone': 'side'},
+            engine.state, context,
+        ), 1)
+        self.assertTrue(condition_matches(
+            {'op': 'zone_count', 'player': {'controller': True}, 'zone': 'side',
+             'min': 2, 'where': {'token_key': 'spider'}},
+            engine.state, context,
+        ))
+        observed = engine.observe('p1')['state']['players']['p1']['zones']['side']
+        self.assertEqual([card.get('instance_id') for card in observed], ['p1-side-real'])
+        opponent_view = engine.observe('p2')['state']['players']['p1']['zones']['side']
+        self.assertEqual(len(opponent_view), 1)
+
+    def test_token_returned_to_side_deck_disappears(self):
+        engine = self.build(self.JEZEBEL)
+        self.pay_hp(engine)
+        [spider] = self.spiders(engine, 'lumen')
+        engine.move_card(spider['instance_id'], 'side', reason='test')
+        engine._continue()
+        self.assertEqual(self.spiders(engine, 'lumen'), [])
+        side = self.spiders(engine, 'side')
+        self.assertEqual(len(side), 8)
+        self.assertTrue(all(card.get('token_supply') for card in side))
+        self.assertEqual(engine.observe('p1')['state']['players']['p1']['zones']['side'], [])
+
+    def test_spiders_are_shown_as_player_state_counter(self):
+        """Q-AUTO-012: 무한히 쌓이는 거미는 플레이어 상태에 개수로 표시한다."""
+        engine = self.build(self.JEZEBEL)
+        state = engine.observe('p2')['state']
+        self.assertEqual(state['players']['p1']['passive_state']['spider_token']['count'], 0)
+        for _ in range(3):
+            self.pay_hp(engine)
+        state = engine.observe('p2')['state']
+        counter = state['players']['p1']['passive_state']['spider_token']
+        self.assertEqual(counter['count'], 3)
+        self.assertEqual(counter['label'], '거미 토큰')
+        self.assertTrue(counter['derived'])
+        lumen = state['players']['p1']['zones']['lumen']
+        self.assertEqual(
+            [card.get('state_counter_token') for card in lumen],
+            ['spider_token'] * 3,
+        )
+        # 표시 전용: 엔진 상태에는 표식이 남지 않는다.
+        self.assertNotIn('spider_token', engine.state['players']['p1']['passive_state'])
+        self.assertNotIn('state_counter_token', self.spiders(engine, 'lumen')[0])
+        self.assertNotIn('spider_token', engine.observe('p1')['state']['players']['p2']['passive_state'])
+
 
 class UnrestrictedSetupPlacementTests(SimpleTestCase):
     """무금제 덱도 시작 배치 규칙(특수 기술은 사이드, 얼티밋은 얼티밋 영역)을 지킨다."""

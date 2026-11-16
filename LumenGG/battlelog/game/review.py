@@ -121893,14 +121893,16 @@ def _run_cb03_at_007_speed_scenario(
     definition, card_snapshot, owner, *, event_type='before_judgment',
     source_zone='battle', negated=False, source_delta=0,
     opponent_delta=0, later_source_delta=0, later_opponent_delta=0,
-    owner_fp=0, opponent_fp=0,
+    owner_fp=0, opponent_fp=0, high_tension=True,
 ):
     other = 'p2' if owner == 'p1' else 'p1'
-    isolated = _cb03_isolated_definition(definition, 'cb03-at-007-n2')
+    isolated = _cb03_isolated_definition(definition, 'cb03-at-007-n1')
     engine, source, opposing = _st2_battle_engine(
         isolated, card_snapshot, owner, source_zone=source_zone,
         numbered_negated=negated,
     )
+    if high_tension:
+        engine.set_passive(owner, 'high_tension', value=True)
 
     def add_speed_delta(player, card, amount, suffix):
         if not amount:
@@ -121952,7 +121954,7 @@ def _run_cb03_at_007_speed_scenario(
         'opponent_final_speed': engine.card_stat(
             opposing, 'frame', other, include_fp=True,
         ),
-        'resolved': _st2_resolution_count(engine, 'cb03-at-007-n2'),
+        'resolved': _st2_resolution_count(engine, 'cb03-at-007-n1'),
         'pending': bool(engine.engine_state.get('pending_decision')),
     }
 
@@ -121962,8 +121964,8 @@ def _review_cb03_at_007_definition(definition, card_snapshot, extra_root):
         return None
     abilities = definition.get('abilities') or []
     by_id = {ability.get('id'): ability for ability in abilities}
+    # 에라타: 속도 고정이 ①로 합쳐져 「하이텐션」 상태에서만 발동한다.
     lock = by_id.get('cb03-at-007-n1')
-    speed = by_id.get('cb03-at-007-n2')
     lock_effects = [
         {
             'op': 'prevent', 'kind': 'guard',
@@ -121973,12 +121975,6 @@ def _review_cb03_at_007_definition(definition, card_snapshot, extra_root):
             'op': 'prevent', 'kind': 'clash',
             'player': {'opponent': True}, 'duration': 'battle',
         },
-        {
-            'op': 'modify_stat', 'player': {'controller': True},
-            'stat': 'damage', 'amount': 200, 'duration': 'battle',
-        },
-    ]
-    speed_effects = [
         {
             'op': 'fix_speed', 'player': {'controller': True},
             'stat': 'frame',
@@ -121991,9 +121987,13 @@ def _review_cb03_at_007_definition(definition, card_snapshot, extra_root):
             'value': {'path': 'context.opponent_speed'},
             'duration': 'battle',
         },
+        {
+            'op': 'modify_stat', 'player': {'controller': True},
+            'stat': 'damage', 'amount': 200, 'duration': 'battle',
+        },
     ]
     valid = bool(
-        not extra_root and len(abilities) == 2 and all((lock, speed))
+        not extra_root and len(abilities) == 1 and lock
         and not (definition.get('source_refs') or {}).get('qna_ids')
         and all(
             not (ability.get('source_refs') or {}).get('qna_ids')
@@ -122009,20 +122009,15 @@ def _review_cb03_at_007_definition(definition, card_snapshot, extra_root):
             'state': 'high_tension',
         }
         and lock.get('effects') == lock_effects
-        and speed.get('kind') == 'effect'
-        and speed.get('mode') == 'mandatory'
-        and speed.get('timing') == 'before_judgment'
-        and speed.get('active_zones') == ['battle']
-        and speed.get('trigger') == {'event': 'before_judgment'}
-        and not speed.get('condition')
-        and speed.get('effects') == speed_effects
         and _st2_snapshot_matches(card_snapshot, {
             'code': 'CB03-AT-007', 'name': '네메시스', 'type': '공격',
-            'frame': 8, 'damage': 400, 'pos': '상단', 'body': '',
+            'frame': 8, 'damage': 400, 'pos': '상단',
             'special': None, 'hit': '5', 'guard': '-8', 'counter': '5',
             'g_top': None, 'g_mid': None, 'g_bot': None,
             'character_id': 20, 'ultimate': False,
         })
+        # 부위 없음은 빈 문자열 또는 NULL로 저장될 수 있다.
+        and (card_snapshot or {}).get('body') in ('', None)
     )
     if not valid:
         return DefinitionReview(
@@ -122129,16 +122124,23 @@ def _review_cb03_at_007_definition(definition, card_snapshot, extra_root):
                 'source_final_speed': 6, 'opponent_final_speed': 5,
                 'resolved': 0,
             }),
+            ('without-high-tension-does-not-fix-speed', 'p2', {
+                'high_tension': False, 'owner_fp': 2, 'opponent_fp': 3,
+            }, {
+                'source_fixed': False, 'opponent_fixed': False,
+                'source_speed': 8, 'opponent_speed': 8,
+                'source_final_speed': 6, 'opponent_final_speed': 5,
+                'resolved': 0,
+            }),
         ),
     )
+    lock_scenarios = lock_scenarios + [
+        {**item, 'name': f'speed-{item["name"]}'} for item in speed_scenarios
+    ]
     reviews = [
         AbilityReview(
             lock['id'], all(item['passed'] for item in lock_scenarios),
             lock_scenarios,
-        ),
-        AbilityReview(
-            speed['id'], all(item['passed'] for item in speed_scenarios),
-            speed_scenarios,
         ),
     ]
     passed = all(item.passed and len(item.scenarios) >= 3 for item in reviews)
@@ -133488,7 +133490,7 @@ def _run_crs_at_017_combo_scenario(
 def _run_crs_at_017_catch_scenario(
     definition, card_snapshot, owner, *, max_speed=8, cost_count=1,
     selected_index=0, cost_type='공격', numbered_negated=False,
-    source_zone='hand', play=True,
+    source_zone='hand', play=True, pick_speed=8,
 ):
     other = 'p2' if owner == 'p1' else 'p1'
     engine, source, _opposing = _st2_battle_engine(
@@ -133540,7 +133542,11 @@ def _run_crs_at_017_catch_scenario(
     }
     if not play or not options:
         return result
-    selected_option = options[0]
+    # 8속도(비용 지불) 또는 원래 속도(비용 없음) 중 시나리오가 지정한 선택지를 쓴다.
+    selected_option = next((
+        option for option in options
+        if option.get('fixed_speed') == pick_speed
+    ), options[0])
     engine.engine_state.update({
         'catch': copy.deepcopy(catch), 'catch_queue': [],
         'granted_catches': [], 'catch_fp_history': [], 'step': 'catch',
@@ -133549,6 +133555,7 @@ def _run_crs_at_017_catch_scenario(
     engine._play_catch(
         owner, source['instance_id'],
         catch_rule_index=selected_option.get('catch_rule_index'),
+        original_speed=bool(selected_option.get('original_speed')),
     )
     selected_cost_id = None
     decision = copy.deepcopy(engine.engine_state.get('pending_decision') or {})
@@ -133635,10 +133642,12 @@ def _review_crs_at_017_definition(definition, card_snapshot, extra_root):
         'zones': ['list'], 'min': 1, 'max': 1,
         'where': {'is_technique': True}, 'exclude_source': True,
     }
-    catch_rules = [{'fixed_speed': 8, 'numbered_effect': True, 'speed_required': True}]
+    # Q-AUTO-013: 원래 속도 캐치는 비용 없이 가능하고, 8속도일 때만 비용·〈콤보〉 변경.
+    catch_rules = [{'fixed_speed': 8, 'numbered_effect': True}]
     play_costs = [{
         'operation': 'move_card', 'to_zone': 'side',
         'use_contexts': ['catch'], 'numbered_effect': True,
+        'fixed_speed_only': True,
         'selector': copy.deepcopy(list_selector),
     }]
     valid = bool(
@@ -133666,7 +133675,9 @@ def _review_crs_at_017_definition(definition, card_snapshot, extra_root):
         and catch.get('timing') == 'catch'
         and catch.get('active_zones') == ['battle']
         and catch.get('trigger') == {'event': 'catch'}
-        and not catch.get('condition')
+        and catch.get('condition') == {
+            'op': 'equals', 'left': 'context.fixed_speed', 'right': 8,
+        }
         and catch.get('effects') == [
             {
                 'op': 'modify_judgment',
@@ -133745,10 +133756,24 @@ def _review_crs_at_017_definition(definition, card_snapshot, extra_root):
             ('seven-speed-catch-window-is-too-slow', 'p1', {
                 'max_speed': 7,
             }, {'option_count': 0, 'played': False}),
-            ('larger-window-still-fixes-catch-to-eight', 'p2', {
+            ('larger-window-offers-eight-or-printed-eleven', 'p2', {
                 'max_speed': 12,
-            }, {'option_count': 1, 'played': True,
-                'selected_fixed_speed': 8, 'effective_speed': 8}),
+            }, {'option_count': 2, 'option_fixed_speeds': [8, None],
+                'played': True, 'selected_fixed_speed': 8,
+                'effective_speed': 8, 'resolved': 1,
+                'hit_changed_to': '콤보', 'cost_move_count': 1}),
+            ('printed-eleven-catch-pays-no-cost-and-keeps-hit', 'p1', {
+                'max_speed': 12, 'pick_speed': None,
+            }, {'option_count': 2, 'option_fixed_speeds': [8, None],
+                'decision_kinds': [], 'played': True,
+                'selected_fixed_speed': None, 'effective_speed': 11,
+                'resolved': 0, 'hit_changed_to': None, 'combo_open': False,
+                'play_cost_paid_count': 0, 'cost_move_count': 0}),
+            ('empty-list-still-allows-printed-eleven-catch', 'p2', {
+                'cost_count': 0, 'max_speed': 12, 'pick_speed': None,
+            }, {'option_count': 1, 'option_fixed_speeds': [None],
+                'played': True, 'effective_speed': 11, 'resolved': 0,
+                'cost_move_count': 0}),
             ('numbered-negation-removes-eight-speed-and-cost', 'p1', {
                 'numbered_negated': True,
             }, {'option_count': 0, 'rule_count': 0, 'played': False}),
@@ -155385,6 +155410,11 @@ def review_automatic_definition(
             method=AUTOMATIC_SCENARIO_VERSION,
         )
     extra_root = set(definition) - SIMPLE_ROOT_FIELDS
+    from .review_cb04 import review_cb04_definition
+
+    cb04_review = review_cb04_definition(definition, card_snapshot, extra_root)
+    if cb04_review is not None:
+        return cb04_review
     token_usage_review = _review_token_usage_definition(
         definition, card_snapshot, extra_root,
     )

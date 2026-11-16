@@ -117,9 +117,17 @@ ACTION_UI_KINDS = {
 }
 ACTION_UI_DEFAULT_KIND = 'secondary'
 
-# 사이드 덱에서 꺼내 쓰는 토큰(이제벨 거미, 검은 깃털 단검)의 공급 재고.
-# 토큰은 덱에 등록되지 않으므로 엔진이 이 수만큼 사이드에 채워 둔다.
+# 효과가 "사이드 덱에서" 고르는 토큰(이제벨 거미, 검은 깃털 단검)의 생성 대기분.
+# 토큰은 사이드 덱에서 꺼내는 것이 아니라 생성해서 쓰고 매수 제한도 없다(Q-AUTO-012).
+# 기존 정의가 사이드 덱 선택으로 되어 있어, 엔진이 선택지로 쓸 생성 대기 토큰을
+# 사이드 존 끝에 숨겨 두고 매 단계 이 수만큼 다시 채운다. 대기분은 사이드 덱의
+# 카드가 아니므로 화면·장 수·다른 사이드 덱 선택에서 빠지고(token_supply),
+# 꺼내지는 순간 생성(token_created)되며, 사이드 덱으로 돌아온 토큰은 소멸한다.
 TOKEN_SUPPLY_SIZE = 8
+
+# 무한히 쌓일 수 있는 토큰은 루멘 존 카드 대신 플레이어 상태의 개수로 보여 준다
+# (Q-AUTO-012). token_key → 플레이어 상태 키(수동 계산기와 같은 키).
+PLAYER_STATE_TOKEN_KEYS = {'spider': 'spider_token'}
 
 
 def opponent(side):
@@ -4852,9 +4860,15 @@ class AutomaticGameEngine:
                 }
                 if zone not in base_zones and zone not in card_zones:
                     continue
-                if not self._card_use_allowed(
-                    card, role, 'catch', ignore_cost=card.get('instance_id') == ignore_cost_for,
-                ):
+                ignore_cost = card.get('instance_id') == ignore_cost_for
+                use_allowed = self._card_use_allowed(
+                    card, role, 'catch', ignore_cost=ignore_cost,
+                )
+                # 고정 속도 전용 비용(fixed_speed_only)은 원래 속도 캐치에 필요 없다(Q-AUTO-013).
+                original_use_allowed = use_allowed or self._card_use_allowed(
+                    card, role, 'catch', ignore_cost=ignore_cost, original_speed=True,
+                )
+                if not original_use_allowed:
                     continue
                 opponent_card = ((self.engine_state.get('battle') or {}).get(opponent(role)) or {}).get('card')
                 if self._rule_blocked('catch', role, card, opponent_card):
@@ -4877,6 +4891,9 @@ class AutomaticGameEngine:
                 if fixed_speed is not None and not fixed_rule.get('speed_required'):
                     speed_choices.append(None)
                 for choice in speed_choices:
+                    original_choice = choice is None and fixed_speed is not None
+                    if not (original_use_allowed if original_choice else use_allowed):
+                        continue
                     effective_speed = (
                         _number(choice) if choice is not None
                         else self.card_stat(
@@ -4896,7 +4913,7 @@ class AutomaticGameEngine:
                     })
                 for rule_index, rule in enumerate(catch_rules):
                     optional_speed = rule.get('optional_fixed_speed')
-                    if optional_speed is None or not self._catch_counter_cost_affordable(
+                    if optional_speed is None or not use_allowed or not self._catch_counter_cost_affordable(
                         role, rule, counter_exemptions=counter_exemptions,
                     ):
                         continue
@@ -6839,6 +6856,8 @@ class AutomaticGameEngine:
             )
         ]
         self.state['players'][from_player]['zones'][from_zone].pop(index)
+        # 생성 대기 토큰을 꺼내면 그 순간 토큰이 생성된다(Q-AUTO-012).
+        created_from_supply = bool(card.pop('token_supply', False))
         invalid_special_move = (
             _is_special(card)
             and not allow_special_destination
@@ -6913,6 +6932,11 @@ class AutomaticGameEngine:
             card.pop('publicly_known', None)
         self._apply_card_form(card, to_zone)
         self.state['players'][target]['zones'][to_zone].append(card)
+        if created_from_supply:
+            self.emit('token_created', target, {
+                'card_instance_id': instance_id, 'zone': to_zone,
+                'token_key': card.get('token_key'), 'reason': reason,
+            })
         if from_zone != to_zone or from_player != target:
             for attached_id in attached_card_ids:
                 attached_location = self._find_location(attached_id)
@@ -6932,6 +6956,7 @@ class AutomaticGameEngine:
             'card_id': card.get('card_id'), 'card_code': card.get('code'),
             'card_label': card.get('name') or card.get('code') or '카드',
             **({'revealed': True} if revealed_on_move else {}),
+            **({'token_created': True} if created_from_supply else {}),
         }, visibility='public' if card.get('face_up') or revealed_on_move else 'private')
         self._enforce_list_limit(target)
         self._reconcile_trait_states()
@@ -7431,7 +7456,9 @@ class AutomaticGameEngine:
             return
         options = [
             {'id': card.get('instance_id'), 'label': card.get('name') or '사이드 카드'}
-            for card in self._zone(owner, 'side') if (_is_attack(card) or _is_defense(card)) and not _is_special(card)
+            for card in self._zone(owner, 'side')
+            if (_is_attack(card) or _is_defense(card)) and not _is_special(card)
+            and not card.get('token_supply')
         ]
         if options and not self.engine_state.get('pending_decision'):
             self.create_decision(
@@ -8879,7 +8906,33 @@ class AutomaticGameEngine:
         return supplies
 
     def _replenish_token_supplies(self):
-        for code, token_key, released in self._supplied_token_cards():
+        supplies = self._supplied_token_cards()
+        supplied_keys = {token_key for _code, token_key, _released in supplies}
+        for side in PLAYER_SIDES:
+            zone = self._zone(side, 'side')
+            if not zone:
+                continue
+            for card in zone:
+                # 사이드 덱으로 돌아온 토큰은 소멸한다: 생성 대기분으로 되돌린다.
+                if (
+                    not card.get('token_supply')
+                    and card.get('kind') == 'token'
+                    and card.get('token_key') in supplied_keys
+                ):
+                    card['token_supply'] = True
+                    card['face_up'] = True
+                    for transient in (
+                        'attached_to', 'attachment_expires', 'publicly_known',
+                        'hide_after_get', 'set_order',
+                    ):
+                        card.pop(transient, None)
+            # 대기분은 항상 사이드 존 끝에 둬서 보이는 카드의 위치(index)가 밀리지 않게 한다.
+            if any(card.get('token_supply') for card in zone):
+                zone[:] = [
+                    *(card for card in zone if not card.get('token_supply')),
+                    *(card for card in zone if card.get('token_supply')),
+                ]
+        for code, token_key, released in supplies:
             for side in PLAYER_SIDES:
                 player = (self.state.get('players') or {}).get(side) or {}
                 character_id = (player.get('character') or {}).get('id')
@@ -8891,8 +8944,14 @@ class AutomaticGameEngine:
                 if character_id is None or released.get('character_id') != character_id:
                     continue
                 zone = self._zone(side, 'side')
-                stocked = sum(1 for card in zone if card.get('token_key') == token_key)
-                for _ in range(max(0, TOKEN_SUPPLY_SIZE - stocked)):
+                stocked = [
+                    index for index, card in enumerate(zone)
+                    if card.get('token_supply') and card.get('token_key') == token_key
+                ]
+                # 돌아와 소멸한 토큰이 쌓여도 대기분은 정해진 수만 남긴다.
+                for index in reversed(stocked[TOKEN_SUPPLY_SIZE:]):
+                    zone.pop(index)
+                for _ in range(max(0, TOKEN_SUPPLY_SIZE - len(stocked))):
                     # Inert supply cards: no event, so the log is not flooded.
                     zone.append({
                         'instance_id': f'token-{self._next_id("token")}',
@@ -9247,7 +9306,7 @@ class AutomaticGameEngine:
             'use_context': use_context,
         }
 
-    def _applicable_play_costs(self, card, use_context):
+    def _applicable_play_costs(self, card, use_context, *, original_speed=False):
         definition = self._definition_for_card(card)
         _owner, source_zone, _index, _live_card = self._find_location(
             card.get('instance_id'),
@@ -9274,6 +9333,7 @@ class AutomaticGameEngine:
                 not cost.get('source_zones')
                 or source_zone in (cost.get('source_zones') or [])
             )
+            and not (original_speed and cost.get('fixed_speed_only'))
         ]
 
     @staticmethod
@@ -9311,9 +9371,11 @@ class AutomaticGameEngine:
             ) is not None
         return False
 
-    def _play_costs_affordable(self, card, owner, use_context):
+    def _play_costs_affordable(self, card, owner, use_context, *, original_speed=False):
         context = self._play_cost_context(card, owner, use_context)
-        for cost in self._applicable_play_costs(card, use_context):
+        for cost in self._applicable_play_costs(
+            card, use_context, original_speed=original_speed,
+        ):
             if cost.get('best_effort'):
                 # "그 경우 패 2장을 버린다"처럼 가능한 만큼만 지불하는 비용은 사용을 막지 않는다.
                 continue
@@ -9325,7 +9387,10 @@ class AutomaticGameEngine:
 
     def _begin_play_cost(self, owner, card, use_context, play):
         costs = [
-            cost for cost in self._applicable_play_costs(card, use_context)
+            cost for cost in self._applicable_play_costs(
+                card, use_context,
+                original_speed=bool((play or {}).get('original_speed')),
+            )
             if cost.get('payment_timing', 'before_play') == 'before_play'
         ]
         if not costs:
@@ -9414,7 +9479,9 @@ class AutomaticGameEngine:
             return True
         return False
 
-    def _card_use_allowed(self, card, owner, use_context, *, ignore_cost=False):
+    def _card_use_allowed(
+        self, card, owner, use_context, *, ignore_cost=False, original_speed=False,
+    ):
         if is_passive_card(card):
             return False
         definition = self._definition_for_card(card)
@@ -9441,7 +9508,9 @@ class AutomaticGameEngine:
             )
             if int(used or 0) >= int(limit.get('max', 1)):
                 return False
-        if not ignore_cost and not self._play_costs_affordable(card, owner, use_context):
+        if not ignore_cost and not self._play_costs_affordable(
+            card, owner, use_context, original_speed=original_speed,
+        ):
             return False
         return not self._rule_blocked('use_card', owner, card)
 
@@ -10036,7 +10105,11 @@ class AutomaticGameEngine:
             )
             pool = []
             for zone in ('hand', 'list', 'side', 'break', 'battle', 'lumen'):
-                pool.extend(player['zones'][zone])
+                # 생성 대기 토큰은 덱의 카드가 아니다.
+                pool.extend(
+                    card for card in player['zones'][zone]
+                    if not card.get('token_supply')
+                )
                 player['zones'][zone] = []
             normal = [card for card in pool if not _is_special(card) and not card.get('ultimate') and not card.get('virtual')]
             specials = [card for card in pool if _is_special(card) and not card.get('ultimate')]
@@ -10162,8 +10235,14 @@ class AutomaticGameEngine:
         if not instance_id:
             return None
         owner, zone, index, card = self._find_location(instance_id)
-        if card is None:
+        if card is None or card.get('token_supply'):
+            # 생성 대기 토큰은 보드에 없다: 선택지 이름으로만 고른다.
             return None
+        # 보드에 보이지 않는 생성 대기 토큰을 빼고 센 위치
+        index = sum(
+            1 for other in self._zone(owner, zone)[:index]
+            if not other.get('token_supply')
+        )
         ref = {'owner': owner, 'zone': zone, 'index': index}
         if role == card.get('owner') or card.get('face_up'):
             ref['instance_id'] = card.get('instance_id')
@@ -10249,9 +10328,50 @@ class AutomaticGameEngine:
                     destination = 'break' if _is_special(card or {}) else 'list'
                 option['ui']['to_zone'] = destination
 
+    def _project_player_state_tokens(self, state, side):
+        """무한히 쌓이는 토큰(거미)을 플레이어 상태의 개수로 보여 준다(Q-AUTO-012).
+
+        엔진은 토큰을 루멘 존의 카드로 계속 다루고(효과가 루멘 존의 거미를 세고
+        브레이크한다), 화면에는 루멘 존 대신 플레이어 상태에 개수로 표시하도록
+        ``state_counter_token`` 표식과 파생 카운터를 붙인다. 표시 전용이다.
+        """
+        player = (state.get('players') or {}).get(side) or {}
+        lumen = (player.get('zones') or {}).get('lumen') or []
+        live_side = self._zone(side, 'side')
+        for token_key, state_key in PLAYER_STATE_TOKEN_KEYS.items():
+            tokens = [card for card in lumen if card.get('token_key') == token_key]
+            supplied = [
+                card for card in live_side
+                if card.get('token_supply') and card.get('token_key') == token_key
+            ]
+            if not tokens and not supplied:
+                continue
+            for card in tokens:
+                card['state_counter_token'] = state_key
+            passive_state = player.setdefault('passive_state', {})
+            existing = passive_state.get(state_key)
+            existing = existing if isinstance(existing, dict) else {}
+            name = str(
+                ([*tokens, *supplied][0]).get('name') or ''
+            ).strip('「」 ')
+            passive_state[state_key] = {
+                **existing,
+                'count': len(tokens),
+                'label': existing.get('label') or f'{name or token_key} 토큰',
+                'visibility': 'public', 'owner': side, 'derived': True,
+                'token_key': token_key, 'zone': 'lumen',
+            }
+
     def _observation_state(self, role):
         state = copy.deepcopy(self.state)
         state.pop('random_seed', None)
+        for side in PLAYER_SIDES:
+            zones = (((state.get('players') or {}).get(side) or {}).get('zones') or {})
+            # 생성 대기 토큰은 사이드 덱의 카드가 아니므로 보여 주지 않는다(Q-AUTO-012).
+            for zone_name, cards in zones.items():
+                if any(card.get('token_supply') for card in cards):
+                    zones[zone_name] = [card for card in cards if not card.get('token_supply')]
+            self._project_player_state_tokens(state, side)
         continuous_states = copy.deepcopy(
             self.engine_state.get('continuous_states') or {}
         )

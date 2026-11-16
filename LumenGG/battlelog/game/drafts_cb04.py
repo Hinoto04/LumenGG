@@ -243,12 +243,409 @@ def _blizzard(code):
     ]
 
 
+# --- CB04 2차 공개분(2026-11-10~16): CMYK·델피·부쿠키·타오 -----------------
+
+CMYK_TECHNIQUE = {'character_key': 'cmyk'}
+DRUM_TEXT = {'text_contains_any': ['[[token:drum]]', '【드럼】']}
+
+
+def _attached_count(where=None):
+    value = {
+        'op': 'attached_count', 'player': {'controller': True},
+        'host': {'path': 'context.source_card_instance_id'},
+    }
+    if where:
+        value['where'] = dict(where)
+    return value
+
+
+def _set_to_cmyk_condition():
+    return {'op': 'all', 'conditions': [
+        {'op': 'equals', 'left': 'context.source_card.attached_to',
+         'right': {'path': 'context.event_card.instance_id'}},
+        {'op': 'card_matches', 'card': {'path': 'context.event_card'}, 'where': dict(CMYK_TECHNIQUE)},
+    ]}
+
+
+def _frost_damage_bonus(code, suffix, label):
+    return _ability(
+        code, suffix, label, mode='continuous', timing='function', active_zones=['battle'],
+        condition={'op': 'has_state', 'player': {'opponent': True}, 'state': FROST_STATE},
+        effects=[{
+            'op': 'modify_stat', 'player': {'controller': True},
+            'stat': 'damage', 'amount': 200, 'duration': 'continuous',
+        }],
+    )
+
+
+def _break_from_list_then(selection_key, then):
+    """'리스트에서 기술 1장을 브레이크할 수 있다. 그 경우, …' 형태의 선택 효과."""
+    selector = {
+        'kind': 'card', 'player': {'controller': True}, 'zones': ['list'],
+        'min': 1, 'max': 1, 'where': {'is_technique': True}, 'as_operation': 'break_card',
+    }
+    done_key = f'{selection_key}_done'
+    return selector, [{
+        'op': 'request_choice', 'player': {'controller': True},
+        'prompt': '브레이크할 리스트의 기술을 선택하세요.',
+        'selector': copy.deepcopy(selector), 'selection_key': selection_key, 'default': [],
+        'then': [
+            {'op': 'break_card', 'selection_key': selection_key, 'result_key': done_key},
+            {'op': 'conditional', 'condition': {
+                'op': 'gte', 'left': {'op': 'selection_count', 'selection_key': done_key}, 'right': 1,
+            }, 'then': then, 'else': []},
+        ],
+    }]
+
+
+def _fan_service(code):
+    return {
+        'attached_effect_multiplier': {
+            'event': 'use', 'value': 2, 'where': dict(CMYK_TECHNIQUE), 'numbered_effect': True,
+        },
+    }, [
+        _ability(
+            code, 'n1', '【보컬】(사용 시, 이 기술에 세트된 [CMYK] 기술의 효과를 적용할 때 그 수치를 2배로 한다.)',
+            timing='use', active_zones=['battle'], trigger={'event': 'use'},
+            effects=[{'op': 'static_rule', 'rules': ['attached_effect_multiplier']}],
+        ),
+        _ability(
+            code, 'n2', '판정 전, 이 기술에 세트된 기술이 1장 이상이라면 상대는 이 기술을 상쇄할 수 없다.',
+            timing='before_judgment', active_zones=['battle'], trigger={'event': 'before_judgment'},
+            condition={'op': 'gte', 'left': _attached_count(), 'right': 1},
+            effects=[{'op': 'prevent', 'kind': 'clash', 'player': {'opponent': True}, 'duration': 'battle'}],
+        ),
+        _ability(
+            code, 'n3', '히트/카운터/콤보 시, 리스트에서 카드를 2장까지 획득한다.',
+            timing='hit_counter', active_zones=['battle'],
+            trigger={'event': 'hit', 'events': ['hit', 'counter', 'combo']},
+            # Q-AUTO-006: 히트·콤보가 겹쳐도 번호 효과는 한 턴에 한 번만 발동한다.
+            limit={'scope': 'turn', 'max': 1, 'key': 'cb04-at-035-n3:usage'},
+            effects=[{
+                'op': 'request_choice', 'player': {'controller': True},
+                'prompt': '리스트에서 획득할 카드를 2장까지 선택하세요.',
+                'selector': {
+                    'kind': 'card', 'player': {'controller': True}, 'zones': ['list'],
+                    'min': 0, 'max': 2, 'as_operation': 'move_card', 'to_zone': 'hand',
+                },
+                'selection_key': 'cb04_at_035_list_gain', 'default': [], 'optional': True,
+                'then': [{'op': 'move_card', 'selection_key': 'cb04_at_035_list_gain', 'to_zone': 'hand'}],
+            }],
+        ),
+    ]
+
+
+def _chromatic_alternate(code):
+    drum_set = {'op': 'gte', 'left': _attached_count(DRUM_TEXT), 'right': 1}
+    return {}, [
+        _ability(
+            code, 'n1', '【기타】([CMYK] 기술에 세트된 경우, 사용 시 해당 기술 데미지+100 이 효과는 중첩되지 않는다.)',
+            timing='use', trigger={'event': 'use'}, active_when_attached=True,
+            dedupe_trigger_key='cmyk:set:guitar', condition=_set_to_cmyk_condition(),
+            effects=[{
+                'op': 'modify_stat', 'player': {'controller': True}, 'stat': 'damage',
+                'amount': 100, 'duration': 'battle', 'target_card': 'event_card',
+            }],
+        ),
+        # 같은 '사용 시'에 발동하는 세트된 【드럼】의 FP 획득보다 먼저 대체 규칙을 둔다.
+        _ability(
+            code, 'n2', '사용 시, 세트된 기술 【드럼】효과가 있다면 FP를 얻는 대신 데미지+200.',
+            timing='replacement', active_zones=['battle'], trigger={'event': 'use'},
+            condition=drum_set,
+            effects=[
+                {'op': 'prevent', 'kind': 'fp_gain', 'player': {'controller': True},
+                 'where': dict(DRUM_TEXT), 'duration': 'battle'},
+                {'op': 'modify_stat', 'player': {'controller': True}, 'stat': 'damage',
+                 'amount': 200, 'duration': 'battle'},
+            ],
+        ),
+    ]
+
+
+def _rainbow_train(code):
+    list_techniques = {
+        'op': 'zone_count', 'player': {'controller': True}, 'zone': 'list',
+        'where': {'is_technique': True},
+    }
+    gain_count = {'op': 'min', 'values': [_attached_count(), list_techniques]}
+    return {
+        'defense_rules': [{'judgment': 'dodge', 'where': {'judgment_not_contains': '콤보'}}],
+    }, [
+        _ability(
+            code, 'function', '이 기술은 <콤보> 판정이 없는 기술만 회피한다.',
+            kind='function', mode='continuous', timing='function', active_zones=['battle'],
+            effects=[{'op': 'static_rule', 'rules': ['defense_rules']}],
+        ),
+        _ability(
+            code, 'n1', '회피 시, 2FP를 얻는다. 그 후, 이 기술에 세트된 기술 1장당 리스트에서 기술 1장을 획득한다.',
+            timing='dodge', active_zones=['battle'], trigger={'event': 'dodge'},
+            effects=[
+                {'op': 'change_fp', 'player': {'controller': True}, 'amount': 2},
+                {
+                    'op': 'request_choice', 'player': {'controller': True},
+                    'prompt': '세트된 기술 수만큼 리스트에서 획득할 기술을 선택하세요.',
+                    'selector': {
+                        'kind': 'card', 'player': {'controller': True}, 'zones': ['list'],
+                        'min': copy.deepcopy(gain_count), 'max': copy.deepcopy(gain_count),
+                        'where': {'is_technique': True},
+                        'as_operation': 'move_card', 'to_zone': 'hand',
+                    },
+                    'selection_key': 'cb04_at_037_list_gain', 'default': [],
+                    'then': [{'op': 'move_card', 'selection_key': 'cb04_at_037_list_gain', 'to_zone': 'hand'}],
+                },
+            ],
+        ),
+    ]
+
+
+def _garage_token(code):
+    return {'token_key': 'garage', 'token_usage': ['token', 'counter']}, [
+        _ability(
+            code, 'function', '이 카드는 【토큰】 또는 【카운터】 로 사용할 수 있다.',
+            kind='function', mode='continuous', timing='function',
+            effects=[{'op': 'static_rule', 'rules': ['token_usage']}],
+        ),
+    ]
+
+
+def _silent_out(code):
+    selector, effects = _break_from_list_then('cb04_at_003_break', [_give_frost()])
+    return {}, [
+        _frost_damage_bonus(code, 'n1', '상대 「서리」: 이 기술 데미지+200'),
+        _ability(
+            code, 'n2', '상대 회피 시, 상대는 3FP를 얻는다.',
+            timing='opponent_dodge', active_zones=['battle'], trigger={'event': 'opponent_dodge'},
+            effects=[{'op': 'change_fp', 'player': {'opponent': True}, 'amount': 3}],
+        ),
+        _ability(
+            code, 'n3',
+            '카운터 시, 리스트에서 기술 1장을 브레이크할 수 있다. 그 경우, 다음 턴 종료 시까지 상대에게 「서리」 상태를 부여한다',
+            mode='optional', timing='hit_counter', active_zones=['battle'], trigger={'event': 'counter'},
+            availability_selector=selector, effects=effects,
+        ),
+    ]
+
+
+def _glasskate(code):
+    selector, effects = _break_from_list_then('cb04_at_004_break', [{
+        'op': 'request_choice', 'player': {'controller': True},
+        'prompt': '사이드 덱에서 루멘 존으로 보낼 [부쿠키] 기술을 선택하세요.',
+        'selector': {
+            'kind': 'card', 'player': {'controller': True}, 'zones': ['side'],
+            'min': 1, 'max': 1, 'where': dict(BUKUKI_TECHNIQUE),
+            'as_operation': 'move_card', 'to_zone': 'lumen',
+        },
+        'selection_key': 'cb04_at_004_side_lumen', 'default': [], 'else': [],
+        'then': [{'op': 'move_card', 'selection_key': 'cb04_at_004_side_lumen', 'to_zone': 'lumen'}],
+    }])
+    return {'defense_rules': [{'judgment': 'dodge', 'max_speed': 8}]}, [
+        _ability(
+            code, 'function', '이 기술은 <8속도 이하>기술만 회피한다.',
+            kind='function', mode='continuous', timing='function', active_zones=['battle'],
+            effects=[{'op': 'static_rule', 'rules': ['defense_rules']}],
+        ),
+        _ability(
+            code, 'n1',
+            '히트 및 카운터 시, 리스트에서 기술 1장을 브레이크할 수 있다. 그 경우, 사이드 덱에서 [부쿠키] 기술 1장을 루멘 존에 보낸다.',
+            mode='optional', timing='hit_counter', active_zones=['battle'],
+            trigger={'event': 'hit', 'events': ['hit', 'counter']},
+            availability_selector=selector, effects=effects,
+        ),
+    ]
+
+
+def _glacial_bloom(code):
+    self_broken = 'cb04_at_006_self_broken'
+    return {'defense_rules': [{'judgment': 'clash', 'max_speed': 8}]}, [
+        _ability(
+            code, 'function', '이 기술은 <8속도 이하> 기술만 상쇄한다.',
+            kind='function', mode='continuous', timing='function', active_zones=['battle'],
+            effects=[{'op': 'static_rule', 'rules': ['defense_rules']}],
+        ),
+        _ability(
+            code, 'n1', '상쇄 시, 상대 기술의 히트 판정을 <-2>로 변경한다.',
+            timing='clash', active_zones=['battle'], trigger={'event': 'clash'},
+            effects=[{'op': 'modify_judgment', 'player': {'opponent': True}, 'field': 'hit', 'value': '-2'}],
+        ),
+        _ability(
+            code, 'n2', '상대 히트 시, 루멘 존의 이 기술을 브레이크할 수 있다. 그 경우, 보호막 400을 얻고 3FP를 얻는다.',
+            mode='optional', timing='opponent_hit_counter', active_zones=['lumen'],
+            trigger={'event': 'opponent_hit'},
+            condition={'op': 'equals', 'left': 'context.event_controller', 'right': {'controller': True}},
+            effects=[
+                {'op': 'break_card', 'card_instance_id': {'path': 'context.source_card_instance_id'},
+                 'result_key': self_broken},
+                {'op': 'conditional', 'condition': {
+                    'op': 'gte', 'left': {'op': 'selection_count', 'selection_key': self_broken}, 'right': 1,
+                }, 'then': [
+                    {'op': 'gain_shield', 'player': {'controller': True}, 'amount': 400, 'duration': 'turn'},
+                    {'op': 'change_fp', 'player': {'controller': True}, 'amount': 3},
+                ], 'else': []},
+            ],
+        ),
+    ]
+
+
+def _counter(counter):
+    return {'op': 'counter_count', 'player': {'controller': True}, 'counter': counter}
+
+
+def _drunken_spirit(code):
+    removed = 'cb04_at_021_yang_removed'
+    return {}, [
+        _ability(
+            code, 'function', '상대는 이 기술을 방어할 수 없다.',
+            kind='function', mode='continuous', timing='function', active_zones=['battle'],
+            effects=[{'op': 'prevent', 'kind': 'guard', 'player': {'opponent': True}, 'duration': 'continuous'}],
+        ),
+        _ability(
+            code, 'n1',
+            '판정 전, 서로의 속도를 고정한다. 그 후, [양]카운터를 1개 제거할 수 있다. 「음」: [음]카운터를 1개 얻는다.',
+            timing='before_judgment', active_zones=['battle'], trigger={'event': 'before_judgment'},
+            # Q-AUTO-019: 「음」 문구는 [양] 카운터 제거 전, 유발 시점의 상태로 결정된다.
+            trigger_snapshot={'yin': {'op': 'has_state', 'player': {'controller': True}, 'state': 'yin'}},
+            effects=[
+                {'op': 'fix_speed', 'player': {'controller': True}, 'stat': 'frame',
+                 'value': {'path': 'context.controller_speed'}, 'duration': 'battle'},
+                {'op': 'fix_speed', 'player': {'opponent': True}, 'stat': 'frame',
+                 'value': {'path': 'context.opponent_speed'}, 'duration': 'battle'},
+                {'op': 'conditional', 'condition': {
+                    'op': 'counter_at_least', 'player': {'controller': True}, 'counter': 'yang', 'value': 1,
+                }, 'then': [{
+                    'op': 'request_amount', 'player': {'controller': True},
+                    'prompt': '제거할 양 카운터 수를 선택하세요.', 'min': 0, 'max': 1, 'default': 0,
+                    'selection_key': removed,
+                    'then': [{
+                        'op': 'change_counter', 'player': {'controller': True}, 'counter': 'yang',
+                        'amount': {'op': 'negate', 'value': {'op': 'selected_value', 'selection_key': removed}},
+                        'min': 0,
+                    }],
+                }], 'else': []},
+                {'op': 'conditional', 'condition': {
+                    'op': 'equals', 'left': 'context.trigger_snapshot.yin', 'right': True,
+                }, 'then': [{'op': 'change_counter', 'player': {'controller': True}, 'counter': 'yin',
+                             'amount': 1, 'min': 0, 'max': 4}], 'else': []},
+            ],
+        ),
+        _ability(
+            code, 'n2', '「조화」: 히트 및 카운터 시, 이 기술 데미지+400',
+            timing='hit_counter', active_zones=['battle'],
+            trigger={'event': 'hit', 'events': ['hit', 'counter']},
+            condition={'op': 'has_state', 'player': {'controller': True}, 'state': 'harmony'},
+            effects=[{'op': 'modify_stat', 'player': {'controller': True}, 'stat': 'damage',
+                      'amount': 400, 'duration': 'battle'}],
+        ),
+    ]
+
+
+def _twin_tail(code):
+    return {}, [
+        _ability(
+            code, 'function', '상대는 이 기술을 특수 판정으로 회피할 수 없다.',
+            kind='function', mode='continuous', timing='function', active_zones=['battle'],
+            effects=[{'op': 'prevent', 'kind': 'dodge', 'player': {'opponent': True},
+                      'duration': 'continuous', 'where': {'special_truthy': True}}],
+        ),
+        _ability(
+            code, 'n1', '판정 전, [양]카운터 2개당 1FP를 얻는다. 「양」: 대신 1개당 1FP를 얻는다.',
+            timing='before_judgment', active_zones=['battle'], trigger={'event': 'before_judgment'},
+            # Q-AUTO-019: 「양」 문구 적용 여부는 유발 시점의 상태로 결정된다.
+            trigger_snapshot={'yang': {'op': 'has_state', 'player': {'controller': True}, 'state': 'yang'}},
+            effects=[{'op': 'change_fp', 'player': {'controller': True}, 'amount': {
+                'op': 'if',
+                'condition': {'op': 'equals', 'left': 'context.trigger_snapshot.yang', 'right': True},
+                'then': _counter('yang'),
+                'else': {'op': 'floor_divide', 'left': _counter('yang'), 'right': 2},
+            }}],
+        ),
+        _ability(
+            code, 'n2', '「조화」: 상대는 이 기술을 회피할 수 없다.',
+            mode='continuous', timing='function', active_zones=['battle'],
+            condition={'op': 'has_state', 'player': {'controller': True}, 'state': 'harmony'},
+            effects=[{'op': 'prevent', 'kind': 'dodge', 'player': {'opponent': True}, 'duration': 'continuous'}],
+        ),
+        _ability(
+            code, 'n3', '콤보 타임 종료 시, 배틀 존의 기술을 모두 획득한다.',
+            timing='combo_end', active_zones=['battle'], trigger={'event': 'combo_end'},
+            requires_combo_use=True,
+            effects=[{'op': 'move_card', 'to_zone': 'hand', 'selector': {
+                'kind': 'card', 'player': {'controller': True}, 'zones': ['battle'],
+                'all': True, 'where': {'is_technique': True},
+            }}],
+        ),
+    ]
+
+
+def _arctic_javelin(code):
+    return {}, [
+        _ability(
+            code, 'n1', '이 기술이 루멘 존에 존재하는 한, 상대는 공격 기술의 효과로 FP를 얻을 수 없다.',
+            mode='continuous', timing='function', active_zones=['lumen'],
+            # Q-AUTO-015: 상대가 소유한 공격 기술의 효과만 막는다. 자신의 기술로
+            # 상대가 얻는 FP와 판정 결과로 얻는 FP는 그대로 얻는다.
+            effects=[{'op': 'prevent', 'kind': 'fp_gain', 'player': {'opponent': True},
+                      'where': {'type_contains': '공격'},
+                      'condition': {'op': 'equals', 'left': 'context.source_card.owner',
+                                    'right': {'path': 'context.player'}},
+                      'duration': 'continuous'}],
+        ),
+        _ability(
+            code, 'n2', '상쇄 시, 리스트의 이 기술을 루멘 존에 보낸다.',
+            timing='clash', active_zones=['list'], trigger={'event': 'clash'},
+            allow_non_source_trigger=True,
+            condition={'op': 'equals', 'left': 'context.event_controller', 'right': {'controller': True}},
+            effects=[{'op': 'move_card', 'card_instance_id': {'path': 'context.source_card_instance_id'},
+                      'to_zone': 'lumen'}],
+        ),
+    ]
+
+
+def _frostborn(code):
+    return {'combo_rules': [{'min_combo': 4}]}, [
+        _ability(
+            code, 'function', '상대는 이 기술을 상쇄할 수 없다. 이 기술은 3콤보 후에만 콤보에 사용할 수 있다.',
+            kind='function', mode='continuous', timing='function', active_zones=['battle'],
+            effects=[
+                {'op': 'prevent', 'kind': 'clash', 'player': {'opponent': True}, 'duration': 'continuous'},
+                {'op': 'static_rule', 'rules': ['combo_rules']},
+            ],
+        ),
+        _frost_damage_bonus(code, 'n1', '상대 「서리」 : 이 기술 데미지+200'),
+    ]
+
+
+def _cold_release(code):
+    return {}, [
+        _ability(
+            code, 'n1', '판정 후, 데미지를 받지 않았다면 상대는 8FP를 잃는다. 그 후, 상대에게 「서리」 상태를 부여한다.',
+            timing='after_judgment', active_zones=['battle'], trigger={'event': 'after_judgment'},
+            condition={'op': 'equals', 'left': 'context.controller_damage_received', 'right': 0},
+            effects=[
+                {'op': 'change_fp', 'player': {'opponent': True}, 'amount': -8},
+                _give_frost(),
+            ],
+        ),
+    ]
+
+
 BUILDERS = {
     'CB04-PS-001': _frost_veil,
     'CB04-AT-012': _bitter_cold,
     'CB04-AT-001': _snow_country,
     'CB04-AT-002': _winter_fangs,
     'CB04-AT-007': _blizzard,
+    'CB04-AT-035': _fan_service,
+    'CB04-AT-036': _chromatic_alternate,
+    'CB04-AT-037': _rainbow_train,
+    'CB04-TK-001': _garage_token,
+    'CB04-AT-003': _silent_out,
+    'CB04-AT-004': _glasskate,
+    'CB04-AT-006': _glacial_bloom,
+    'CB04-AT-021': _drunken_spirit,
+    'CB04-AT-022': _twin_tail,
+    'CB04-AT-010': _arctic_javelin,
+    'CB04-AT-011': _frostborn,
+    'CB04-AT-013': _cold_release,
 }
 
 

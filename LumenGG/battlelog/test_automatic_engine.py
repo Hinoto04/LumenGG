@@ -2154,8 +2154,8 @@ class AutomaticEngineTests(SimpleTestCase):
             no_effect_card_count=4,
         ).as_dict()
 
-        self.assertEqual(report['remaining_card_count'], 134)
-        self.assertEqual(report['review_progress_percent'], 70.5)
+        self.assertEqual(report['remaining_card_count'], EXPECTED_CARD_COUNT - 321)
+        self.assertEqual(report['review_progress_percent'], round(321 * 100 / EXPECTED_CARD_COUNT, 1))
 
 
     def test_effect_schema_requires_publication_source(self):
@@ -19035,8 +19035,8 @@ class AutomaticEngineTests(SimpleTestCase):
     def test_cb03_at_007_reviews_high_tension_locks_and_bilateral_speed_fix(self):
         text = (
             '① [[state:high_tension]]: 판정 전, 상대는 이 기술을 방어 및 '
-            '상쇄할 수 없다. 그 후, 이 기술 데미지+200\n'
-            '② 판정 전, 서로의 기술의 속도를 고정한다.'
+            '상쇄할 수 없다. 그 후, 서로의 기술의 속도를 고정하고, '
+            '이 기술 데미지 +200.'
         )
         snapshot = {
             'code': 'CB03-AT-007', 'name': '네메시스', 'type': '공격',
@@ -19052,12 +19052,13 @@ class AutomaticEngineTests(SimpleTestCase):
         )
 
         self.assertTrue(result.passed, result.as_dict())
-        self.assertEqual(len(result.abilities), 2)
+        # 에라타: 속도 고정이 ①로 합쳐져 「하이텐션」에서만 발동한다.
+        self.assertEqual(len(result.abilities), 1)
         self.assertTrue(all(
             ability.passed and len(ability.scenarios) >= 3
             for ability in result.abilities
         ))
-        self.assertEqual(result.as_dict()['scenario_count'], 14)
+        self.assertEqual(result.as_dict()['scenario_count'], 15)
         by_id = {ability.ability_id: ability for ability in result.abilities}
         lock = {
             item['name']: item
@@ -19070,9 +19071,12 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(expired['damage_after_expiry'], 400)
         speed = {
             item['name']: item
-            for item in by_id['cb03-at-007-n2'].scenarios
+            for item in by_id['cb03-at-007-n1'].scenarios
         }
-        fixed = speed['later-speed-changes-and-fp-are-ignored']
+        fixed = speed['speed-later-speed-changes-and-fp-are-ignored']
+        self.assertFalse(
+            speed['speed-without-high-tension-does-not-fix-speed']['source_fixed']
+        )
         self.assertEqual(
             (fixed['source_reference'], fixed['opponent_reference']),
             (9, 6),
@@ -40959,7 +40963,7 @@ class AutomaticEngineTests(SimpleTestCase):
         )
 
         self.assertTrue(result.passed, result.as_dict())
-        self.assertEqual(result.as_dict()['scenario_count'], 15)
+        self.assertEqual(result.as_dict()['scenario_count'], 17)
         by_id = {ability.ability_id: ability for ability in result.abilities}
         combo = {
             item['name']: item for item in by_id['crs-at-017-n1'].scenarios
@@ -40986,6 +40990,12 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(paid['hit_changed_to'], '콤보')
         self.assertTrue(paid['combo_open'])
         self.assertFalse(paid['break_replenish_requested'])
+        # Q-AUTO-013: 비용 없이 원래 속도(11)로 캐치하면 히트 판정은 그대로다.
+        printed = catch['printed-eleven-catch-pays-no-cost-and-keeps-hit']
+        self.assertTrue(printed['passed'])
+        self.assertEqual(printed['effective_speed'], 11)
+        self.assertEqual(printed['cost_move_count'], 0)
+        self.assertIsNone(printed['hit_changed_to'])
         mutated = copy.deepcopy(definition)
         mutated['play_costs'][0]['operation'] = 'discard'
         mutated['play_costs'][0].pop('to_zone')

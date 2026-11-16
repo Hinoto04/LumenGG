@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
-import type { BoardCard, LegalAction, PlayEnvelope, ZoneName } from "../protocol";
+import { isStateCounterToken, type BoardCard, type LegalAction, type PlayEnvelope, type ZoneName } from "../protocol";
+import { zoneEntries } from "../counterTokens";
 import { cardDetailText, cardText, useCardView } from "../catalog";
 import { ZONE_LABELS } from "../labels";
 import { refKey, usePlay, type InspectTarget } from "../store";
@@ -138,6 +139,10 @@ export function ZoneSheet({ envelope }: { envelope: PlayEnvelope }) {
   const staged = stagedIds(envelope, picks);
   const cards: BoardCard[] = openZone ? envelope.state.players[openZone.owner].zones[openZone.zone] : [];
   const mine = openZone && openZone.owner === (envelope.role === "p2" ? "p2" : "p1");
+  const entries = openZone
+    ? zoneEntries(cards, (card, index) => !!optionForCard(candidates, { owner: openZone.owner, zone: openZone.zone, index }, card))
+    : [];
+  const shown = cards.filter((card) => !isStateCounterToken(card)).length;
   return (
     <AnimatePresence>
       {openZone && (
@@ -158,7 +163,7 @@ export function ZoneSheet({ envelope }: { envelope: PlayEnvelope }) {
           >
             <header>
               <h2>
-                {mine ? "내" : "상대"} {ZONE_LABELS[openZone.zone]} <span className="muted">{cards.length}장</span>
+                {mine ? "내" : "상대"} {ZONE_LABELS[openZone.zone]} <span className="muted">{shown}장</span>
               </h2>
               <button type="button" className="btn-ghost" onClick={() => setOpenZone(null)}>
                 닫기
@@ -166,11 +171,11 @@ export function ZoneSheet({ envelope }: { envelope: PlayEnvelope }) {
             </header>
             <div className="zone-sheet-cards">
               {cards.length === 0 && <p className="muted">카드가 없습니다.</p>}
-              {cards.map((card, index) => {
+              {entries.map(({ card, index, stacked }) => {
                 const ref = { owner: openZone.owner, zone: openZone.zone, index };
                 const optionId = optionForCard(candidates, ref, card)?.id;
                 const isStaged = !!optionId && staged.has(String((card as { instance_id?: string }).instance_id));
-                return (
+                const view = (
                   <Card
                     key={card.hidden ? `sheet-${index}` : `sheet-${String(card.instance_id)}`}
                     card={card}
@@ -183,6 +188,13 @@ export function ZoneSheet({ envelope }: { envelope: PlayEnvelope }) {
                       optionId ? toggleDecisionPick(optionId, candidates.maximum) : setInspect({ card, ref })
                     }
                   />
+                );
+                return stacked ? (
+                  <span key={`sheet-stack-${index}`} className="counter-stack" data-count={`×${stacked}`}>
+                    {view}
+                  </span>
+                ) : (
+                  view
                 );
               })}
             </div>

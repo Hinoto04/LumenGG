@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useAnimate } from "motion/react";
 import { useEffect, useMemo, type CSSProperties } from "react";
-import type { BoardCard, LegalAction, PlayEnvelope, PlayerState, Side, ZoneName } from "../protocol";
+import { isStateCounterToken, type BoardCard, type LegalAction, type PlayEnvelope, type PlayerState, type Side, type ZoneName } from "../protocol";
 import { PHASE_LABELS, PHASE_ORDER, PILE_ZONES, ZONE_LABELS } from "../labels";
 import { cardActions, indexActions, perspective, refKey, showCardInfo, usePlay, type ActionIndex } from "../store";
 import { useFx } from "../anim/fx";
@@ -316,12 +316,14 @@ function Piles({
     <div className="piles">
       {PILE_ZONES.map((zone) => {
         const cards = player.zones[zone];
+        // 거미처럼 무한히 쌓이는 토큰은 초상의 플레이어 상태에 개수로 보이므로 더미 장 수에서 뺀다.
+        const shown = cards.filter((card) => !isStateCounterToken(card));
         const playable = cards.some((card, index) => {
           const ref = { owner: side, zone, index };
           return cardActions(actions, ref, card).length > 0 || (!!candidates && !!optionForCard(candidates, ref, card));
         });
         const hasStaged = cards.some((card) => !card.hidden && staged.has(String(card.instance_id)));
-        const top = cards[cards.length - 1];
+        const top = shown[shown.length - 1];
         // 얼티밋은 1장뿐이라 장 수 대신 카드 자체를 보여 주고, 바로 끌어 쓸 수 있게 한다(겟 페이즈 등).
         if (zone === "ultimate" && cards.length === 1) {
           return (
@@ -335,14 +337,14 @@ function Piles({
           <button
             key={zone}
             type="button"
-            className={`pile ${cards.length ? "" : "is-empty"} ${playable ? "is-playable" : ""} ${hasStaged ? "is-staged" : ""}`}
+            className={`pile ${shown.length ? "" : "is-empty"} ${playable ? "is-playable" : ""} ${hasStaged ? "is-staged" : ""}`}
             data-drop-owner={side}
             data-drop-zone={zone}
             onClick={() => setOpenZone({ owner: side, zone })}
-            aria-label={`${ZONE_LABELS[zone]} ${cards.length}장`}
+            aria-label={`${ZONE_LABELS[zone]} ${shown.length}장`}
           >
             <span className={`pile-thumb ${top && !top.hidden ? "is-face" : ""}`}>
-              {zone === "ultimate" ? (cards.length ? cards.length : "—") : cards.length}
+              {zone === "ultimate" ? (cards.length ? cards.length : "—") : shown.length}
             </span>
             <span className="pile-label">{ZONE_LABELS[zone]}</span>
           </button>

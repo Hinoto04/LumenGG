@@ -47,7 +47,10 @@ class CB04AutomaticEffectTests(SimpleTestCase):
             options = [item.get('id') for item in decision.get('options') or []]
             if decision.get('kind') == 'effect_choice':
                 owners.append(decision['owner'])
-                selected = [choose] if choose in options else options[:1]
+                minimum = max(1, int(decision.get('minimum') or 0))
+                selected = [choose] if choose in options else options[:minimum]
+            elif decision.get('kind') == 'break_replenish' and 'decline' in options:
+                selected = ['decline']
             elif decision.get('kind') == 'optional_effect':
                 selected = ['accept' if accept and 'accept' in options else options[-1]]
             else:

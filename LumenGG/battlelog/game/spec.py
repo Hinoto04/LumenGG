@@ -85,7 +85,7 @@ VALUE_OPS = {
 PREVENT_KINDS = {
     'damage', 'ready', 'use_card', 'dodge', 'guard', 'clash',
     'combo', 'catch', 'break', 'counter_gain', 'get_card',
-    'defense_rule', 'grab_negation', 'state_gain', 'state_loss',
+    'defense_rule', 'grab_negation', 'state_gain', 'state_loss', 'fp_gain',
 }
 
 EFFECT_OPS = {

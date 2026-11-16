@@ -63,7 +63,17 @@ export interface VisibleCard {
   /** 장착 대상 카드의 instance_id */
   attached_to?: string;
   set_order?: number;
+  /**
+   * 무한히 쌓이는 토큰(거미)이면 그 개수를 보여 주는 플레이어 상태 키(예: spider_token).
+   * 루멘 존 카드 대신 플레이어 상태의 개수로 보여 준다(Q-AUTO-012).
+   */
+  state_counter_token?: string;
   [extra: string]: unknown;
+}
+
+/** 무한히 쌓여 플레이어 상태의 개수로만 보여 주는 토큰인가 */
+export function isStateCounterToken(card: BoardCard): boolean {
+  return !card.hidden && typeof card.state_counter_token === "string" && card.state_counter_token !== "";
 }
 
 /** 이 역할에게 보이지 않는 카드. instance_id가 없으므로 위치(owner/zone/index)로만 가리킨다. */

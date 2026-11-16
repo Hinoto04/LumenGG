@@ -16,6 +16,8 @@ export function eventText(event: GameEvent, me: Side): string | null {
     case "phase_started":
       return `턴 ${String(p.turn ?? "")} · ${PHASE_LABELS[String(p.phase)] ?? String(p.phase)} 페이즈`;
     case "card_moved":
+      // 토큰은 사이드 덱에서 꺼내는 것이 아니라 생성한다(Q-AUTO-012).
+      if (p.token_created) return `${who(p.to_player)}: ${String(p.card_label ?? "토큰")} 생성 → ${zone(p.to_zone)}`;
       return `${who(p.to_player)}: ${String(p.card_label ?? "카드")} ${zone(p.from_zone)} → ${zone(p.to_zone)}`;
     case "private_event":
       if (p.event_type === "card_moved") return `${who(event.actor)}: 비공개 카드 ${zone(p.from_zone)} → ${zone(p.to_zone)}`;

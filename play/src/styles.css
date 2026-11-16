@@ -2775,6 +2775,26 @@ button.prep-tile-name {
   gap: 0.35em;
 }
 
+/* 플레이어 상태에 개수로 보이는 토큰(거미)을 한 장으로 묶은 표시 */
+.counter-stack {
+  position: relative;
+  display: inline-flex;
+}
+
+.counter-stack::after {
+  content: attr(data-count);
+  position: absolute;
+  right: -0.3em;
+  bottom: -0.3em;
+  padding: 0.05em 0.45em;
+  border-radius: 999px;
+  background: rgba(10, 8, 6, 0.85);
+  color: #fff;
+  font-size: 0.75em;
+  font-weight: 700;
+  pointer-events: none;
+}
+
 .zone-dock-empty {
   margin: auto;
   font-size: 0.8em;

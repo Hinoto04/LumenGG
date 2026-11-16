@@ -5744,13 +5744,15 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             'condition': copy.deepcopy(combo_condition),
             'numbered_effect': True,
         }]
-        # 리스트 1장을 사이드로 보내는 비용과 8속도가 한 묶음이다(원래 속도로 비용 없이 쓰지 않는다).
+        # Q-AUTO-013: 비용 없이 원래 속도로 캐치할 수 있고, 8속도로 캐치할 때만
+        # 리스트 1장을 사이드로 보내는 비용을 지불하며 히트 판정이 〈콤보〉가 된다.
         definition['catch_rules'] = [{
-            'fixed_speed': 8, 'numbered_effect': True, 'speed_required': True,
+            'fixed_speed': 8, 'numbered_effect': True,
         }]
         definition['play_costs'] = [{
             'operation': 'move_card', 'to_zone': 'side',
             'use_contexts': ['catch'], 'numbered_effect': True,
+            'fixed_speed_only': True,
             'selector': copy.deepcopy(list_cost_selector),
         }]
         abilities[:] = [
@@ -5780,6 +5782,10 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'draft': True, 'draft_compiled': True,
                 'active_zones': ['battle'],
                 'trigger': {'event': 'catch'},
+                # 원래 속도로 캐치한 경우에는 '그 경우' 이하를 적용하지 않는다.
+                'condition': {
+                    'op': 'equals', 'left': 'context.fixed_speed', 'right': 8,
+                },
                 'effects': [
                     {
                         'op': 'modify_judgment',
@@ -13818,9 +13824,31 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'draft_compiled': True,
             })
     if normalized_code == 'CB03-AT-007':
-        for ability in abilities:
-            if ability.get('id') in {'cb03-at-007-n1', 'cb03-at-007-n2'}:
-                ability['active_zones'] = ['battle']
+        # 에라타: ②의 속도 고정이 ①로 합쳐져 「하이텐션」 상태에서만 발동한다.
+        by_id = {ability.get('id'): ability for ability in abilities}
+        lock = by_id.get('cb03-at-007-n1')
+        if lock:
+            lock.update({
+                'kind': 'effect', 'mode': 'mandatory',
+                'timing': 'before_judgment', 'active_zones': ['battle'],
+                'trigger': {'event': 'before_judgment'},
+                'condition': {
+                    'op': 'has_state', 'player': {'controller': True},
+                    'state': 'high_tension',
+                },
+                'draft_compiled': True,
+                'effects': [
+                {'op': 'prevent', 'kind': 'guard', 'player': {'opponent': True}, 'duration': 'battle'},
+                {'op': 'prevent', 'kind': 'clash', 'player': {'opponent': True}, 'duration': 'battle'},
+                {'op': 'fix_speed', 'player': {'controller': True}, 'stat': 'frame',
+                 'value': {'path': 'context.controller_speed'}, 'duration': 'battle'},
+                {'op': 'fix_speed', 'player': {'opponent': True}, 'stat': 'frame',
+                 'value': {'path': 'context.opponent_speed'}, 'duration': 'battle'},
+                {'op': 'modify_stat', 'player': {'controller': True}, 'stat': 'damage',
+                 'amount': 200, 'duration': 'battle'},
+            ],
+            })
+            abilities[:] = [lock]
     if normalized_code == 'CB03-AT-008':
         by_id = {ability.get('id'): ability for ability in abilities}
         defense = by_id.get('cb03-at-008-function')

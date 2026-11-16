@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, type CSSProperties } from "react";
 import { ZONE_LABELS } from "../labels";
-import type { LegalAction, PlayEnvelope, Side, ZoneName } from "../protocol";
-import { perspective, usePlay, type ActionIndex } from "../store";
+import { isStateCounterToken, type LegalAction, type PlayEnvelope, type Side, type ZoneName } from "../protocol";
+import { cardActions, perspective, usePlay, type ActionIndex } from "../store";
+import { zoneEntries } from "../counterTokens";
 import { Card } from "./Card";
 import { useCardHandlers } from "./Board";
-import { decisionCandidates, movesOnBoard } from "./Decision";
+import { decisionCandidates, movesOnBoard, optionForCard } from "./Decision";
 
 /** 장 수만 보이는 더미 */
 const DOCK_ZONES = new Set<ZoneName>(["lumen", "break", "ultimate", "side"]);
@@ -141,20 +142,35 @@ function DockSection({
 }) {
   const handlers = useCardHandlers(zone.owner, zone.zone, actions, onAction);
   const cards = envelope.state.players[zone.owner].zones[zone.zone];
+  const candidates = decisionCandidates(envelope);
+  const entries = zoneEntries(cards, (card, index) => {
+    const ref = { owner: zone.owner, zone: zone.zone, index };
+    return cardActions(actions, ref, card).length > 0 || !!optionForCard(candidates, ref, card);
+  });
+  const shown = cards.filter((card) => !isStateCounterToken(card)).length;
   return (
     <section className={`zone-dock-section is-${zone.role}`} data-drop-owner={zone.owner} data-drop-zone={zone.zone}>
       <h3>
-        {title} <span className="muted">{cards.length}장</span>
+        {title} <span className="muted">{shown}장</span>
       </h3>
       <div className="zone-dock-cards">
-        {cards.map((card, index) => (
-          <Card
-            key={card.hidden ? `dock-${zone.owner}-${zone.zone}-${index}` : String(card.instance_id)}
-            card={card}
-            size="mini"
-            {...handlers(card, index)}
-          />
-        ))}
+        {entries.map(({ card, index, stacked }) => {
+          const view = (
+            <Card
+              key={card.hidden ? `dock-${zone.owner}-${zone.zone}-${index}` : String(card.instance_id)}
+              card={card}
+              size="mini"
+              {...handlers(card, index)}
+            />
+          );
+          return stacked ? (
+            <span key={`stack-${index}`} className="counter-stack" data-count={`×${stacked}`}>
+              {view}
+            </span>
+          ) : (
+            view
+          );
+        })}
         {!cards.length && <span className="zone-dock-empty">{zone.role === "to" ? "여기에 놓으세요" : "비어 있음"}</span>}
       </div>
     </section>

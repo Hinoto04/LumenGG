@@ -434,7 +434,30 @@ def condition_matches(condition, state, context):
     return False
 
 
+def _where_names_token(where, token_key):
+    if isinstance(where, list):
+        return any(_where_names_token(item, token_key) for item in where)
+    if not isinstance(where, dict):
+        return False
+    if token_key and where.get('token_key') == token_key:
+        return True
+    return any(
+        _where_names_token(where.get(key), token_key) for key in ('any', 'all')
+    )
+
+
 def card_matches(card, where, state=None, context=None):
+    # 생성 대기 토큰(token_supply)은 사이드 덱의 카드가 아니다. 그 토큰을
+    # 지정해 고르는 조건에만 걸린다(Q-AUTO-012).
+    if (
+        isinstance(card, dict) and card.get('token_supply')
+        and not _where_names_token(where, card.get('token_key'))
+    ):
+        return False
+    return _card_matches(card, where, state, context)
+
+
+def _card_matches(card, where, state=None, context=None):
     if not isinstance(card, dict):
         return False
     if not where:
@@ -446,7 +469,7 @@ def card_matches(card, where, state=None, context=None):
             if not filters:
                 return False
             matched = [
-                card_matches(card, item, state, context)
+                _card_matches(card, item, state, context)
                 for item in filters if isinstance(item, dict)
             ]
             if len(matched) != len(filters):
@@ -476,6 +499,11 @@ def card_matches(card, where, state=None, context=None):
                 return False
         elif key == 'judgment_contains':
             if str(expected) not in {
+                str(card.get('hit') or ''), str(card.get('counter') or ''),
+            }:
+                return False
+        elif key == 'judgment_not_contains':
+            if str(expected) in {
                 str(card.get('hit') or ''), str(card.get('counter') or ''),
             }:
                 return False
@@ -855,6 +883,14 @@ class EffectResolver:
                         continue
                     if dedupe_key:
                         deduplicated_triggers.add(dedupe_identity)
+                    snapshot_rules = ability.get('trigger_snapshot') or {}
+                    if snapshot_rules:
+                        # 상태에 따라 활성화되는 문구는 유발 시점에 결정된다
+                        # (Q-AUTO-019). 해결 중 상태가 바뀌어도 이 값을 쓴다.
+                        context['trigger_snapshot'] = {
+                            str(name): condition_matches(rule, self.state, context)
+                            for name, rule in snapshot_rules.items()
+                        }
                     resolved_ability = copy.deepcopy(ability)
                     if trigger.get('events'):
                         resolved_ability['timing'] = EVENT_TIMING.get(
@@ -1456,6 +1492,16 @@ class EffectResolver:
                 self.engine.change_hp(target, amount, source='effect', context=context)
         elif op == 'change_fp':
             amount = int(resolve_value(effect.get('amount', 0), self.state, context) or 0) * multiplier
+            # "FP를 얻을 수 없다" (CB04-AT-010) and "FP를 얻는 대신" (CB04-AT-036):
+            # a prevent rule of kind ``fp_gain`` filters by the effect's source card.
+            if amount > 0 and target in PLAYER_SIDES and self.engine._rule_blocked(
+                'fp_gain', target, context.get('source_card'),
+            ):
+                self.engine.emit('fp_gain_prevented', target, {
+                    'amount': amount,
+                    'source_card_instance_id': context.get('source_card_instance_id'),
+                })
+                return
             self.engine.change_fp(target, amount, source='effect', context=context)
         elif op == 'reset_fp':
             self.engine.set_fp(target, 0, source='effect')

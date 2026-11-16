@@ -1,0 +1,566 @@
+[
+  {
+    "snapshot": {
+      "code": "CB04-AT-035",
+      "name": "팬서비스",
+      "ruby": "",
+      "text": "①【보컬】(사용 시, 이 기술에 세트된 [CMYK] 기술의 효과를 적용할 때 그 수치를 2배로 한다.)\r\n②판정 전, 이 기술에 세트된 기술이 1장 이상이라면 상대는 이 기술을 상쇄할 수 없다.\r\n③히트/카운터/콤보 시, 리스트에서 카드를 2장까지 획득한다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 11,
+      "damage": 400,
+      "pos": "하단",
+      "body": "",
+      "hit": "4",
+      "guard": "-8",
+      "counter": "6",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 19
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Fan Service",
+        "ruby": "",
+        "text": "①【Vocal】(On use, when applying effects of [CMYK] Techniques set to this Technique, double those values.)\n②Before judgment, if 1 or more Techniques are set to this Technique, your opponent cannot clash this Technique.\n③On hit/counter/combo, gain up to 2 cards from your List.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "ファンサービス",
+        "ruby": "",
+        "text": "①【ボーカル】（使用時、この技にセットされた[CMYK]技の効果を適用する際、その数値を2倍にする。）\n②判定前、この技にセットされた技が1枚以上なら、相手はこの技を相殺できない。\n③ヒット/カウンター/コンボ時、リストからカードを2枚まで獲得する。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-036",
+      "name": "크로매틱 얼터네이트",
+      "ruby": "",
+      "text": "①【기타】([CMYK] 기술에 세트된 경우, 사용 시 해당 기술 데미지+100 이 효과는 중첩되지 않는다.)\r\n②사용 시, 세트된 기술 【드럼】효과가 있다면 FP를 얻는 대신 데미지+200.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 5,
+      "damage": 300,
+      "pos": "중단",
+      "body": "손",
+      "hit": "0",
+      "guard": "-6",
+      "counter": "3",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 19
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Chromatic Alternate",
+        "ruby": "",
+        "text": "①【Guitar】(If set to a [CMYK] Technique, on use, that Technique's damage +100. This effect does not stack.)\n②On use, if a set Technique has the 【Drum】 effect, instead of gaining FP, damage +200.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "クロマティック・オルタネイト",
+        "ruby": "",
+        "text": "①【ギター】（[CMYK]技にセットされた場合、使用時、その技のダメージ+100。この効果は重複しない。）\n②使用時、セットされた技に【ドラム】効果があるなら、FPを得る代わりにダメージ+200。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-037",
+      "name": "레인보우 트레인",
+      "ruby": "",
+      "text": "이 기술은 <콤보> 판정이 없는 기술만 회피한다.\r\n①회피 시, 2FP를 얻는다. 그 후, 이 기술에 세트된 기술 1장당 리스트에서 기술 1장을 획득한다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "수비",
+      "frame": null,
+      "damage": null,
+      "pos": null,
+      "body": "",
+      "hit": "0",
+      "guard": "0",
+      "counter": "0",
+      "special": null,
+      "g_top": "회피",
+      "g_mid": "회피",
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 19
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Rainbow Train",
+        "ruby": "",
+        "text": "This Technique can only dodge Techniques without a <Combo> judgment.\n①On dodge, gain 2 FP. Then, gain 1 Technique from your List for each Technique set to this Technique.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "レインボー・トレイン",
+        "ruby": "",
+        "text": "この技は〈コンボ〉判定がない技のみ回避できる。\n①回避時、2FPを得る。その後、この技にセットされた技1枚につき、リストから技1枚を獲得する。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-TK-001",
+      "name": "「개러지」",
+      "ruby": "",
+      "text": "이 카드는 【토큰】 또는 【카운터】 로 사용할 수 있다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "토큰",
+      "frame": null,
+      "damage": null,
+      "pos": null,
+      "body": "",
+      "hit": "0",
+      "guard": "0",
+      "counter": "0",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 4
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "「Garage」",
+        "ruby": "",
+        "text": "This card can be used as a 【Token】 or 【Counter】.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "「ガレージ」",
+        "ruby": "",
+        "text": "このカードは【トークン】または【カウンター】として使用できる。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-003",
+      "name": "사일런트 아웃",
+      "ruby": "",
+      "text": "①상대 「서리」: 이 기술 데미지+200 \r\n②상대 회피 시, 상대는 3FP를 얻는다. \r\n③카운터 시, 리스트에서 기술 1장을 브레이크할 수 있다. 그 경우, 다음 턴 종료 시까지 상대에게 「서리」 상태를 부여한다",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 6,
+      "damage": 400,
+      "pos": "상단",
+      "body": "손",
+      "hit": "2",
+      "guard": "-2",
+      "counter": "4",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 24
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Silent Out",
+        "ruby": "",
+        "text": "①Opponent in \"Frost\": This Technique's damage +200\n②When your opponent dodges, your opponent gains 3 FP.\n③On counter, you may break 1 Technique from your List. If you do, give your opponent \"Frost\" status until the end of next turn.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "サイレント・アウト",
+        "ruby": "",
+        "text": "①相手「霜」：この技のダメージ+200\n②相手が回避した時、相手は3FPを得る。\n③カウンター時、リストから技1枚をブレイクできる。その場合、次のターン終了時まで相手に「霜」状態を付与する。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-004",
+      "name": "글라스케이트",
+      "ruby": "",
+      "text": "이 기술은 <8속도 이하기술만 회피한다. \r\n①히트 및 카운터 시, 리스트에서 기술 1장을 브레이크할 수 있다. 그 경우, 사이드 덱에서 [부쿠키] 기술 1장을 루멘 존에 보낸다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 7,
+      "damage": 400,
+      "pos": "하단",
+      "body": "",
+      "hit": "3",
+      "guard": "-8",
+      "counter": "4",
+      "special": "중단 회피",
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 24
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Glasskate",
+        "ruby": "",
+        "text": "This Technique can only dodge Techniques with <Speed 8 or lower>.\n①On hit or counter, you may break 1 Technique from your List. If you do, send 1 [BUKUKI] Technique from your Side Deck to the Lumen Zone.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "グラスケート",
+        "ruby": "",
+        "text": "この技は〈速度8以下〉の技のみ回避できる。\n①ヒットおよびカウンター時、リストから技1枚をブレイクできる。その場合、サイドデッキから[ブクキ]技1枚をルーメンゾーンに送る。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-006",
+      "name": "글레이셜 블룸",
+      "ruby": "",
+      "text": "이 기술은 <8속도 이하> 기술만 상쇄한다. \r\n①상쇄 시, 상대 기술의 히트 판정을 <-2>로 변경한다. \r\n②상대 히트 시, 루멘 존의 이 기술을 브레이크할 수 있다. 그 경우, 보호막 400을 얻고 3FP를 얻는다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 8,
+      "damage": 400,
+      "pos": "하단",
+      "body": "발",
+      "hit": "4",
+      "guard": "-4",
+      "counter": "3",
+      "special": "상단 상쇄",
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 24
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Glacial Bloom",
+        "ruby": "",
+        "text": "This Technique can only clash with Techniques with <Speed 8 or lower>.\n①On clash, change your opponent's Technique's hit judgment to <-2>.\n②On your opponent's hit, you may break this Technique in the Lumen Zone. If you do, gain 400 Shield and gain 3 FP.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "グレイシャル・ブルーム",
+        "ruby": "",
+        "text": "この技は〈速度8以下〉の技のみ相殺できる。\n①相殺時、相手の技のヒット判定を〈-2〉に変更する。\n②相手のヒット時、ルーメンゾーンのこの技をブレイクできる。その場合、シールド400を得て、3FPを得る。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-021",
+      "name": "취령",
+      "ruby": "",
+      "text": "상대는 이 기술을 방어할 수 없다. \r\n①판정 전, 서로의 속도를 고정한다. 그 후, [양]카운터를 1개 제거할 수 있다. \r\n「음」: [음]카운터를 1개 얻는다. \r\n②「조화」: 히트 및 카운터 시, 이 기술 데미지+400",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 13,
+      "damage": 500,
+      "pos": "중단",
+      "body": "",
+      "hit": "4",
+      "guard": "X",
+      "counter": "7",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 8
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Drunken Spirit",
+        "ruby": "",
+        "text": "Your opponent cannot guard this Technique.\n①Before judgment, fix both Speeds. Then, you may remove 1 [Yang] counter.\n「Yin」: Gain 1 [Yin] counter.\n②「Harmony」: On hit or counter, this Technique's damage +400",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "酔霊",
+        "ruby": "",
+        "text": "相手はこの技をガードできない。\n①判定前、お互いの速度を固定する。その後、[陽]カウンターを1個取り除くことができる。\n「陰」：[陰]カウンターを1個得る。\n②「調和」：ヒットおよびカウンター時、この技のダメージ+400",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-022",
+      "name": "지옹",
+      "ruby": "트윈테일",
+      "text": "상대는 이 기술을 특수 판정으로 회피할 수 없다.\r\n①판정 전, [양]카운터 2개당 1FP를 얻는다.\r\n「양」: 대신 1개당 1FP를 얻는다.\r\n②「조화」: 상대는 이 기술을 회피할 수 없다.\r\n③콤보 타임 종료 시, 배틀 존의 기술을 모두 획득한다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 10,
+      "damage": 400,
+      "pos": "하단",
+      "body": "",
+      "hit": "4",
+      "guard": "-7",
+      "counter": "콤보",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 8
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Jiong",
+        "ruby": "Twin Tail",
+        "text": "Your opponent cannot dodge this Technique with special judgments.\n①Before judgment, gain 1 FP for every 2 [Yang] counters.\n「Yang」: Instead, gain 1 FP for each counter.\n②「Harmony」: Your opponent cannot dodge this Technique.\n③At the end of Combo Time, gain all Techniques in the Battle Zone.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "ジオン",
+        "ruby": "ツインテール",
+        "text": "相手はこの技を特殊判定で回避できない。\n①判定前、[陽]カウンター2個につき1FPを得る。\n「陽」：代わりに1個につき1FPを得る。\n②「調和」：相手はこの技を回避できない。\n③コンボタイム終了時、バトルゾーンの技をすべて獲得する。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-010",
+      "name": "아크틱 자벨린",
+      "ruby": "",
+      "text": "①이 기술이 루멘 존에 존재하는 한, 상대는 공격 기술의 효과로 FP를 얻을 수 없다. \r\n②상쇄 시, 리스트의 이 기술을 루멘 존에 보낸다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 12,
+      "damage": 500,
+      "pos": "중단",
+      "body": "",
+      "hit": "6",
+      "guard": "-4",
+      "counter": "6",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 24
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Arctic Javelin",
+        "ruby": "",
+        "text": "①While this Technique is in the Lumen Zone, your opponent cannot gain FP from the effects of Attack Techniques.\n②On clash, send this Technique from your List to the Lumen Zone.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "アークティック・ジャベリン",
+        "ruby": "",
+        "text": "①この技がルーメンゾーンにある限り、相手は攻撃技の効果でFPを得ることができない。\n②相殺時、リストのこの技をルーメンゾーンに送る。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-011",
+      "name": "프로스트본",
+      "ruby": "",
+      "text": "상대는 이 기술을 상쇄할 수 없다. \r\n이 기술은 3콤보 후에만 콤보에 사용할 수 있다. \r\n①상대 「서리」 : 이 기술 데미지+200",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "공격",
+      "frame": 13,
+      "damage": 600,
+      "pos": "하단",
+      "body": "",
+      "hit": "5",
+      "guard": "-6",
+      "counter": "8",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 24
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Frostborn",
+        "ruby": "",
+        "text": "Your opponent cannot clash this Technique.\nThis Technique can only be used in a combo after the 3rd Combo.\n①Opponent in \"Frost\": This Technique's damage +200",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "フロストボーン",
+        "ruby": "",
+        "text": "相手はこの技を相殺できない。\nこの技は3コンボ後にのみコンボに使用できる。\n①相手「霜」：この技のダメージ+200",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  },
+  {
+    "snapshot": {
+      "code": "CB04-AT-013",
+      "name": "냉기 방출",
+      "ruby": "",
+      "text": "①판정 후, 데미지를 받지 않았다면 상대는 8FP를 잃는다. 그 후, 상대에게 「서리」 상태를 부여한다.",
+      "detail_text": "",
+      "keyword": "",
+      "hiddenKeyword": "",
+      "search": "",
+      "type": "수비",
+      "frame": null,
+      "damage": null,
+      "pos": null,
+      "body": "",
+      "hit": "0",
+      "guard": "0",
+      "counter": "0",
+      "special": null,
+      "g_top": null,
+      "g_mid": null,
+      "g_bot": null,
+      "ultimate": false,
+      "character_id": 24
+    },
+    "qna_ids": [],
+    "translations": {
+      "en": {
+        "name": "Cold Release",
+        "ruby": "",
+        "text": "①After judgment, if you did not take damage, your opponent loses 8 FP. Then, give your opponent \"Frost\" status.",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      },
+      "ja": {
+        "name": "冷気放出",
+        "ruby": "",
+        "text": "①判定後、ダメージを受けていなかった場合、相手は8FPを失う。その後、相手に「霜」状態を付与する。",
+        "detail_text": "",
+        "keyword": "",
+        "hiddenKeyword": "",
+        "search": ""
+      }
+    }
+  }
+]
