@@ -1008,6 +1008,43 @@ def reconcile_automatic_session(session, *, both_players_disconnected=False):
         return _fallback_to_manual(session.id, exc, '')
 
 
+def settle_automatic_session(session):
+    """읽기 경계에서 지난 마감을 정산하고, 그 결과 생긴 AI 차례·선택을 바로 진행한다.
+
+    (세션, 바뀌었는지)를 돌려준다. 바뀌었으면 다른 좌석·관전자에게도 알려야 한다.
+    """
+    was_automatic = session.mode == LumenSimulatorSession.MODE_AUTOMATIC
+    version_before = session.version
+    session = reconcile_automatic_session(session, both_players_disconnected=False)
+    if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
+        session = advance_ai_session(session)
+    changed = (
+        (was_automatic and session.mode != LumenSimulatorSession.MODE_AUTOMATIC)
+        or session.version != version_before
+    )
+    return session, changed
+
+
+def perform_settled_automatic_command(session, body, *, settled):
+    """정산을 마친 세션에 사람 좌석의 명령을 실행하고 AI를 진행한다.
+
+    ``settled``는 직전 ``reconcile_automatic_session``이 세션을 바꿨는지다. 시간 초과
+    정산은 AI 차례나 선택(예: 상대 무응답 시 ``no_response_card``)을 만들 수 있는데,
+    마감 직후 도착한 명령은 그 정산 때문에 거절되곤 한다. 거절되더라도 AI를 진행하고
+    모두에게 알린다. 그러지 않으면 AI가 "선택 중"으로 멈춘 상태가 새로고침 전까지 남는다.
+    """
+    try:
+        session = perform_automatic_command(session, body)
+    except Exception:
+        if settled:
+            from .realtime import broadcast_simulator_session
+
+            latest = LumenSimulatorSession.objects.get(pk=session.pk)
+            broadcast_simulator_session(advance_ai_session(latest))
+        raise
+    return advance_ai_session(session)
+
+
 def automatic_observation(session, role, *, include_state=True):
     if session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
         return None

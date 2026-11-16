@@ -12,9 +12,9 @@ from tournament.models import Tournament
 from .automatic_services import (
     AutomaticRuntimeFailure,
     acknowledge_automatic_clock,
-    advance_ai_session,
-    perform_automatic_command,
+    perform_settled_automatic_command,
     reconcile_automatic_session,
+    settle_automatic_session,
 )
 from .game.engine import IllegalAction, StaleState
 from .models import BattleSession, LumenSimulatorSession
@@ -308,6 +308,7 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
             session = simulator_queryset().get(view_token=self.view_token)
             if message_type == 'command':
                 was_automatic = session.mode == LumenSimulatorSession.MODE_AUTOMATIC
+                version_before = session.version
                 session = reconcile_automatic_session(session, both_players_disconnected=False)
                 if was_automatic and session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
                     self.send_error(
@@ -316,8 +317,9 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
                     )
                     broadcast_simulator_session(session)
                     return
-                session = perform_automatic_command(session, body)
-                session = advance_ai_session(session)
+                session = perform_settled_automatic_command(
+                    session, body, settled=session.version != version_before,
+                )
             else:
                 session = perform_simulator_action(session, body)
         except LumenSimulatorSession.DoesNotExist:
@@ -384,17 +386,10 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
     def send_state(self, request_id=None):
         session = simulator_queryset().get(view_token=self.view_token)
         if self.presence_role in ('p1', 'p2'):
-            was_automatic = session.mode == LumenSimulatorSession.MODE_AUTOMATIC
-            version_before = session.version
-            session = reconcile_automatic_session(session, both_players_disconnected=False)
-            if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
-                session = advance_ai_session(session)
+            session, changed = settle_automatic_session(session)
             # A read can settle an elapsed timer or let the AI move. Tell the
             # other seat and spectators too, or they stay on the old state.
-            if (
-                (was_automatic and session.mode != LumenSimulatorSession.MODE_AUTOMATIC)
-                or session.version != version_before
-            ):
+            if changed:
                 broadcast_simulator_session(session)
         self.send_json({
             'type': 'state',
