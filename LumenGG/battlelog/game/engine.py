@@ -6955,8 +6955,11 @@ class AutomaticGameEngine:
                     defer_triggers=defer_triggers,
                     trigger_queue=trigger_queue,
                 )
-        # 사이드 덱에서 패로 가져가는 카드는 공개한 뒤 패에 넣는다. 패에서는 다시 비공개다.
-        revealed_on_move = from_zone == 'side' and to_zone == 'hand'
+        # 패로 들어가는 카드는 어느 존에서 오든 공개한 뒤 패에 넣는다(특수 기술이 아님을 확인할 의무).
+        # 패에서는 다시 비공개다.
+        revealed_on_move = to_zone == 'hand' and (
+            from_zone != 'hand' or from_player != target
+        )
         self.emit('card_moved', owner, {
             'card_instance_id': instance_id, 'from_player': from_player, 'from_zone': from_zone,
             'to_player': target, 'to_zone': to_zone, 'reason': reason,

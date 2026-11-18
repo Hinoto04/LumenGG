@@ -435,3 +435,28 @@ class SideToHandRevealTests(SimpleTestCase):
         self.assertFalse(engine._find_card('side-card')['face_up'])
         hand = engine.observe('p2')['state']['players']['p1']['zones']['hand']
         self.assertTrue(hand[0]['hidden'])
+
+
+class AnyZoneToHandRevealTests(SimpleTestCase):
+    """패로 들어가는 카드는 어느 존에서 오든 공개한다(특수 기술이 아님을 확인할 의무)."""
+
+    def test_face_down_lumen_card_to_hand_is_public(self):
+        card = {**attack('lumen-face-down', 'p1'), 'face_up': False}
+        state = base_state([], [])
+        state['players']['p1']['zones']['lumen'] = [card]
+        engine = AutomaticGameEngine.initialize(state, ruleset(card), seed='lumen-hand', run_startup=False)
+        engine.set_card_visibility('lumen-face-down', False)
+        engine.move_card('lumen-face-down', 'hand', reason='effect')
+        event = next(e for e in reversed(engine.events) if e['type'] == 'card_moved')
+        self.assertEqual(event['visibility'], 'public')
+        self.assertTrue(event['payload']['revealed'])
+        self.assertTrue(engine.observe('p2')['state']['players']['p1']['zones']['hand'][0]['hidden'])
+
+    def test_move_between_other_zones_stays_private(self):
+        card = attack('side-to-list', 'p1')
+        state = base_state([], [])
+        state['players']['p1']['zones']['side'] = [card]
+        engine = AutomaticGameEngine.initialize(state, ruleset(card), seed='side-lumen', run_startup=False)
+        engine.move_card('side-to-list', 'battle', reason='effect', face_up=False)
+        event = next(e for e in reversed(engine.events) if e['type'] == 'card_moved')
+        self.assertEqual(event['visibility'], 'private')
