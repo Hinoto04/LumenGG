@@ -35346,7 +35346,8 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(engine.state['phase'], 'recovery')
         self.assertEqual(engine.engine_state['phase_passes'], ['p1'])
         self.assertEqual(engine.state['players']['p1']['fp'], -2)
-        self.assertEqual(engine.state['players']['p2']['fp'], 0)
+        # Q-AUTO-023: 리커버리에서 음수 FP를 0으로 되돌리지 않는다.
+        self.assertEqual(engine.state['players']['p2']['fp'], -2)
         self.assertEqual(engine.engine_state['skip_phases']['p1'], {})
 
     def test_attached_and_break_zone_catch_phrases_compile_with_after_use_break(self):

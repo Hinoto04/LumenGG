@@ -622,3 +622,119 @@ class IdenticalTokenPlayCostTests(SimpleTestCase):
         left = [c for c in engine.state['players']['p1']['zones']['lumen'] if c.get('token_key') == 'spider']
         self.assertEqual(len(left), 1)
         self.assertEqual(engine._find_location('feast')[1], 'battle')
+
+
+class UltimateTechniqueComboBanScopeTests(SimpleTestCase):
+    """스톰슬레이어(얼티밋 존)의 "이 기술은 콤보에 사용할 수 없다"는 그 기술에만 적용된다."""
+
+    BAN = {'abilities': [{
+        'id': 'dfr-at-015-function', 'kind': 'function', 'mode': 'continuous',
+        'timing': 'function', 'visibility': 'public',
+        'effects': [{'op': 'prevent', 'kind': 'combo', 'player': {'controller': True}, 'duration': 'continuous'}],
+    }]}
+
+    def build(self, zone):
+        slayer = attack('slayer', 'p1', code='DFR-AT-015', frame=6)
+        follow = attack('follow', 'p1', frame=6)
+        state = base_state([], [])
+        state['players']['p1']['zones'][zone] = [slayer]
+        state['players']['p1']['zones']['hand'] += [follow]
+        rules = ruleset(slayer, follow)
+        rules['cards']['DFR-AT-015']['effect_definition'] = self.BAN
+        engine = AutomaticGameEngine.initialize(state, rules, seed=f'slayer-{zone}', run_startup=False)
+        engine._refresh_continuous_rules()
+        return engine, slayer, follow
+
+    def test_ultimate_zone_ban_does_not_block_other_techniques(self):
+        engine, slayer, follow = self.build('ultimate')
+        self.assertFalse(engine._rule_blocked('combo', 'p1', follow))
+        self.assertTrue(engine._rule_blocked('combo', 'p1', engine._find_card('slayer')))
+
+    def test_ultimate_unguardable_text_applies_only_to_that_technique(self):
+        """라스트 워드(얼티밋 존)의 "상대는 이 기술을 방어할 수 없다"가
+        히트 매니퓰레이터 등 다른 기술의 방어까지 막던 문제."""
+        last_word = attack('last-word', 'p1', code='RFS-AT-013', frame=6)
+        manipulator = attack('manipulator', 'p1', frame=9)
+        state = base_state([], [])
+        state['players']['p1']['zones']['ultimate'] = [last_word]
+        state['players']['p1']['zones']['battle'] = [manipulator]
+        rules = ruleset(last_word, manipulator)
+        rules['cards']['RFS-AT-013']['effect_definition'] = {'abilities': [{
+            'id': 'rfs-at-013-function', 'kind': 'function', 'mode': 'continuous',
+            'timing': 'function', 'visibility': 'public',
+            'effects': [{'op': 'prevent', 'kind': 'guard', 'player': {'opponent': True}, 'duration': 'continuous'}],
+        }]}
+        engine = AutomaticGameEngine.initialize(state, rules, seed='last-word', run_startup=False)
+        engine._refresh_continuous_rules()
+        self.assertFalse(engine._rule_blocked('guard', 'p2', None, manipulator))
+        self.assertTrue(engine._rule_blocked('guard', 'p2', None, engine._find_card('last-word')))
+
+    def test_special_card_in_lumen_still_bans_globally(self):
+        engine, slayer, follow = self.build('lumen')
+        engine._find_card('slayer').update({'type': '특수', 'frame': None, 'damage': None})
+        engine._refresh_continuous_rules()
+        self.assertTrue(engine._rule_blocked('combo', 'p1', follow))
+
+
+class CatchCardRevealTests(SimpleTestCase):
+    """캐치한 기술은 공개된 채 배틀 존으로 이동한다(상대 화면에 뒷면으로 남지 않는다)."""
+
+    def test_catch_move_event_is_public(self):
+        source = attack('catch-source', 'p1', hit='+5')
+        catcher = attack('catcher', 'p1', frame=3)
+        opposing = attack('catch-opposing', 'p2')
+        state = base_state([catcher], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [source]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        engine = AutomaticGameEngine.initialize(
+            state, ruleset(source, catcher, opposing), seed='catch-reveal', run_startup=False,
+        )
+        engine.state['phase'] = 'battle'
+        engine.engine_state['step'] = 'catch'
+        engine.engine_state['catch'] = {'owner': 'p1', 'source': 'fp', 'max_speed': 5}
+        engine.state['players']['p1']['fp'] = 5
+        engine._play_catch('p1', 'catcher')
+        moved = next(
+            e for e in engine.events
+            if e['type'] == 'card_moved' and e['payload'].get('card_instance_id') == 'catcher'
+        )
+        self.assertEqual(moved['visibility'], 'public')
+        battle = engine.observe('p2')['state']['players']['p1']['zones']['battle']
+        self.assertIn('catcher', [card.get('instance_id') for card in battle])
+
+
+class ChildOfStarlightSpecialExclusionTests(SimpleTestCase):
+    """별빛의 아이 ①: 사이드 덱의 특수 기술(빛의 루멘)은 세트 대상이 아니다."""
+
+    def test_special_card_is_not_offered(self):
+        from .game.drafts import build_effect_draft
+        text = (
+            '①턴당 1번 카운터/상쇄/캐치/콤보 시, 사이드 덱에서 '
+            '[[state:saintess]] 효과를 가진 기술 1장을 이 기술에 세트할 수 있다.'
+        )
+        definition = build_effect_draft('DFR-AT-027', text)
+        attach = next(a for a in definition['abilities'] if a['id'] == 'dfr-at-027-n1')
+        selector = attach['effects'][0]['selector']
+        self.assertEqual(selector['where'].get('type_not_contains'), '특수')
+        technique = {**attack('saintess-attack', 'p1'), 'text': '[[state:saintess]] 효과'}
+        light = {
+            **attack('light-lumen', 'p1', code='LMI-AT-001'), 'type': '특수',
+            'frame': None, 'damage': None, 'text': '[[state:saintess]] 효과',
+        }
+        state = base_state([], [])
+        state['players']['p1']['zones']['side'] = [technique, light]
+        engine = AutomaticGameEngine.initialize(state, ruleset(technique, light), seed='starlight', run_startup=False)
+        options = engine.selector_options(selector, {'controller': 'p1'})
+        self.assertEqual([option['id'] for option in options], ['saintess-attack'])
+
+
+class RecoveryKeepsNegativeFpTests(SimpleTestCase):
+    """Q-AUTO-023: 가디언·화접으로 캐치가 성립하지 않아도 음수 FP는 리커버리에서 유지된다."""
+
+    def test_negative_fp_survives_recovery_when_opponent_has_fp(self):
+        state = base_state([], [], p1_fp=-6, p2_fp=2)
+        engine = AutomaticGameEngine.initialize(state, ruleset(), seed='recovery-fp', run_startup=False)
+        engine._recovery_core()
+        self.assertEqual(engine.state['players']['p1']['fp'], -6)
+        self.assertEqual(engine.state['players']['p2']['fp'], 2)

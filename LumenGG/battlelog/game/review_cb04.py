@@ -824,12 +824,13 @@ def _cases():
              {'hand_count': 1, 'combo_rules': [(True, 'pinp')], 'recovery_skipped': True}),
             ('opponent-combo-does-not-trigger', 'p1', {'by_opponent': True},
              {'hand_count': 2, 'combo_rules': [], 'recovery_skipped': False}),
+            # Q-AUTO-023: 리커버리에서 음수 FP를 0으로 되돌리지 않는다(-3 + 리커버리 시 4FP = 1).
             ('owner-p1-skips-only-own-recovery', 'p1', {'recovery': True},
-             {'phase': 'recovery', 'own_fp': -3, 'opponent_fp': 4, 'own_passed': True}),
+             {'phase': 'recovery', 'own_fp': -3, 'opponent_fp': 1, 'own_passed': True}),
             ('owner-p2-skips-only-own-recovery', 'p2', {'recovery': True},
-             {'phase': 'recovery', 'own_fp': -3, 'opponent_fp': 4, 'own_passed': True}),
+             {'phase': 'recovery', 'own_fp': -3, 'opponent_fp': 1, 'own_passed': True}),
             ('without-use-both-recover', 'p1', {'recovery': True, 'use': False},
-             {'phase': 'recovery', 'own_fp': 4, 'opponent_fp': 4, 'own_passed': False}),
+             {'phase': 'recovery', 'own_fp': 1, 'opponent_fp': 1, 'own_passed': False}),
         )),
         'cb04-at-030-function': (_run_at030_restriction, (
             ('owner-p1-cannot-clash-foot-technique', 'p1', {'body': '발'},

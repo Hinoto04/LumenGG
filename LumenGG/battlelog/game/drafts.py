@@ -15373,10 +15373,14 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         attach = by_id.get('dfr-at-027-n1')
         place_lumen = by_id.get('dfr-at-027-n2')
         turn_end = by_id.get('dfr-at-027-n3')
+        # 사이드 덱의 특수 기술(빛의 루멘 등)은 세트할 수 없다.
         saintess_selector = {
             'kind': 'card', 'player': {'controller': True},
             'zones': ['side'], 'min': 1, 'max': 1,
-            'where': {'text_contains': '[[state:saintess]]'},
+            'where': {
+                'text_contains': '[[state:saintess]]',
+                'type_not_contains': '특수',
+            },
         }
         if attach:
             selection_key = 'dfr_at_027_attach_saintess'

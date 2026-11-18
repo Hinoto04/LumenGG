@@ -3426,6 +3426,7 @@ class AutomaticGameEngine:
             self.move_card(
                 instance_id, 'battle', to_player=role if borrow_rule else None,
                 reason='borrowed_combo' if borrow_rule else 'combo',
+                face_up=True,
             )
         if len(card_ids) > 1:
             self._present_combo_cards(role, combo, card_ids[1:])
@@ -5197,7 +5198,9 @@ class AutomaticGameEngine:
         for side in PLAYER_SIDES:
             self.set_fp(side, 0, source='catch_declared')
         self._consume_limited_grant(catch, role)
-        self.move_card(instance_id, 'battle', reason='catch')
+        # 캐치한 기술은 공개된 채 배틀 존에 놓인다. 이동 기록도 공개해야 상대 화면에
+        # 뒷면 카드로 남지 않는다.
+        self.move_card(instance_id, 'battle', reason='catch', face_up=True)
         card['face_up'] = True
         self._mark_card_used(card, role, 'catch')
         catch_sources = self.engine_state.setdefault('catch_source_ids', [])
@@ -5858,19 +5861,10 @@ class AutomaticGameEngine:
         self._finish_get_action(beneficiary, instance_id)
 
     def _recovery_core(self, skipped=()):
-        # A negative-FP Catch opportunity that was declined or had no legal
-        # card carries that FP through this Recovery.  Declaring a Catch still
-        # clears both players' FP in ``_play_catch``.
-        preserved = set(
-            self.engine_state.pop(
-                'preserve_negative_fp_through_recovery', [],
-            ) or []
-        )
-        for side in PLAYER_SIDES:
-            if side in skipped:
-                continue
-            if self.state['players'][side]['fp'] < 0 and side not in preserved:
-                self.set_fp(side, 0, source='recovery')
+        # 음수 FP는 리커버리에서 0으로 되돌리지 않는다. FP는 다음 배틀에서 전부
+        # 소모하거나 캐치·콤보 종료로 0이 될 때까지 유지된다(운영진 답변 2026-11-18:
+        # 가디언·화접으로 방어 측이 FP를 얻어 캐치가 성립하지 않아도 음수 FP는 남는다).
+        self.engine_state.pop('preserve_negative_fp_through_recovery', None)
 
     # ------------------------------------------------------------------
     # Timers, decisions, no-response and rewind
@@ -8388,12 +8382,23 @@ class AutomaticGameEngine:
                         # card is still in Hand/List, but it must not prohibit
                         # the same judgment against an unrelated Technique.
                         # Persistent public-zone cards are global unless their
-                        # DSL explicitly selects a narrower scope.
+                        # DSL explicitly selects a narrower scope.  An Attack or
+                        # Defense Technique merely waiting in the Ultimate zone
+                        # is still "this Technique" (DFR-AT-015 스톰슬레이어
+                        # "이 기술은 콤보에 사용할 수 없다" must not stop every
+                        # Combo).  Techniques placed in the Lumen zone keep
+                        # their global effect (CB04-AT-010 아크틱 재블린).
+                        source_card = self._find_card(item.get('card_instance_id')) or {}
+                        waiting_ultimate_technique = (
+                            item.get('zone') == 'ultimate'
+                            and (_is_attack(source_card) or _is_defense(source_card))
+                        )
                         resolved_effect['scope'] = (
                             'all'
                             if item.get('zone') in {
                                 'character', 'passive', 'lumen', 'ultimate',
                             }
+                            and not waiting_ultimate_technique
                             else 'source_card'
                         )
                     if op == 'modify_damage':
