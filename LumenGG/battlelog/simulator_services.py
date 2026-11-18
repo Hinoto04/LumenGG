@@ -399,10 +399,16 @@ def create_simulator_session(
 
         ruleset_release = automatic_mode_release()
         if not ruleset_release:
-            raise ValueError('검증된 전체 카드 규칙 릴리스가 없어 자동 모드를 시작할 수 없습니다.')
+            raise ValueError('검증된 카드 규칙 릴리스가 없어 자동 모드를 시작할 수 없습니다.')
         if not preparation:
             ensure_automatic_decks(player1_deck, player2_deck, ruleset=ruleset_release.snapshot)
         else:
+            from deck.game_validation import unreleased_card_message, unreleased_cards
+
+            for deck in (player1_deck, player2_deck):
+                missing = unreleased_cards(deck, ruleset_release.snapshot)
+                if missing:
+                    raise ValueError(unreleased_card_message(missing))
             for side in ('p1', 'p2'):
                 if preparation['players'][side]['ready']:
                     report = validate(preparation['players'][side]['registered'], stage='setup', ruleset=ruleset_release.snapshot)
@@ -506,7 +512,7 @@ def create_automatic_scenario_session(
 
     release = automatic_mode_release()
     if not release:
-        raise ValueError('검증된 전체 카드 규칙 릴리스가 없어 자동 테스트를 시작할 수 없습니다.')
+        raise ValueError('검증된 카드 규칙 릴리스가 없어 자동 테스트를 시작할 수 없습니다.')
     source_document = _document_for_read(source_session)
     source_state = copy.deepcopy(source_document.get('state') or {})
     view_token = _unique_token('view_token')

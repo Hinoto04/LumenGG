@@ -99,11 +99,47 @@ def _character_deck_rules(deck, ruleset=None):
     return merge_deck_rules((deck.character.datas or {}).get('automatic_deck_rules') or {}, deck_rules_from_card_snapshots(characteristic_cards, deck.character_id))
 
 
+def unreleased_cards(deck, ruleset, entries=None):
+    """Names of the deck's cards (techniques, ultimates, trait) missing from ``ruleset``.
+
+    A release only holds the cards that passed review when it was published.
+    Cards added afterwards cannot be played automatically until the next release.
+    """
+    if not ruleset:
+        return []
+    if entries is None:
+        entries = list(CardInDeck.objects.filter(deck=deck).select_related('card'))
+    released = ruleset.get('cards') or {}
+    cards = [entry.card for entry in entries if int(entry.count or 0) > 0]
+    trait = getattr(deck, 'trait_card', None)
+    if trait is not None:
+        cards.append(trait)
+    names = []
+    for card in cards:
+        if str(getattr(card, 'code', '') or '') not in released:
+            name = str(getattr(card, 'name', '') or getattr(card, 'code', '') or '?')
+            if name not in names:
+                names.append(name)
+    return names
+
+
+def unreleased_card_message(names):
+    return '자동 모드를 지원하지 않는 카드가 있습니다: ' + ', '.join(names)
+
+
 def validate_automatic_deck(deck, *, side='', ruleset=None, entries=None, check_setup=True):
     """Validate the rulebook setup constraints before automatic play."""
     if entries is None:
         entries = list(CardInDeck.objects.filter(deck=deck).select_related('card', 'card__character'))
     report = DeckValidationReport(side=side)
+    if ruleset:
+        if str(deck.character_id) not in (ruleset.get('characters') or {}):
+            report.errors.append('자동 모드를 지원하지 않는 캐릭터입니다.')
+            return report
+        missing = unreleased_cards(deck, ruleset, entries)
+        if missing:
+            report.errors.append(unreleased_card_message(missing))
+            return report
     rules = merge_deck_rules(
         _character_deck_rules(deck, ruleset),
         *(

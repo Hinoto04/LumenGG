@@ -23,7 +23,7 @@ from django.utils.dateparse import parse_datetime
 from card.models import Card
 from deck.models import CardInDeck
 
-from .game.catalog import EXPECTED_CARD_COUNT, _json_hash, active_ruleset_release
+from .game.catalog import _json_hash, active_ruleset_release
 from .game.card_identity import is_passive_card
 from .game.ai import DEFAULT_POLICY_VERSION, DEFAULT_POLICY_WEIGHTS
 from .game.deck_rules import (
@@ -101,9 +101,10 @@ def automatic_mode_release():
     if not release or not validation.get('is_valid'):
         return None
     snapshot = release.snapshot or {}
-    if validation.get('card_count') != EXPECTED_CARD_COUNT:
-        return None
-    if len(snapshot.get('cards') or {}) != EXPECTED_CARD_COUNT:
+    # 릴리스는 발행 시점의 전체 카드를 검수해 담는다. 이후 추가된 카드는 다음 릴리스 전까지
+    # 덱 검증(unreleased_cards)에서 막고, 릴리스에 있는 카드만 쓰는 덱은 그대로 시작할 수 있다.
+    card_count = len(snapshot.get('cards') or {})
+    if not card_count or validation.get('card_count') != card_count:
         return None
     if release.schema_version != EFFECT_SCHEMA_VERSION:
         return None

@@ -155,20 +155,6 @@ def dev_login(request):
 
 
 load_bundle()
-
-# 코드의 기대 카드 수가 묶음 릴리스보다 앞서면(새 카드 추가 작업 중) 자동 모드가 막힌다.
-# 개발 서버에서는 묶음 릴리스의 카드 수를 기준으로 연다. 운영 게이트는 그대로다.
-import battlelog.automatic_services as automatic_services  # noqa: E402
-
-_release = RulesetRelease.objects.filter(is_active=True).first()
-_bundle_cards = len((_release.snapshot or {}).get('cards') or {}) if _release else 0
-if _bundle_cards and _bundle_cards != automatic_services.EXPECTED_CARD_COUNT:
-    print(
-        f'묶음 릴리스 카드 {_bundle_cards}장 ≠ 코드 기대값 {automatic_services.EXPECTED_CARD_COUNT}장: '
-        '개발 서버에서만 묶음 기준으로 자동 모드를 엽니다.', flush=True,
-    )
-    automatic_services.EXPECTED_CARD_COUNT = _bundle_cards
-
 from LumenGG.urls import urlpatterns  # noqa: E402
 
 urlpatterns[:0] = [path('play-dev/login/', dev_login)]

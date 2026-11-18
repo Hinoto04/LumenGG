@@ -102,3 +102,65 @@ class PreparationTests(TestCase):
         version = session.version
         session = perform_simulator_preparation(session, request)
         self.assertEqual(session.version, version)
+
+
+class PartialReleaseTests(TestCase):
+    """릴리스 뒤에 추가된 카드: 릴리스 카드만 쓰는 덱은 시작하고, 아닌 덱은 막는다."""
+
+    setUp = fixtures.RegulationTests.setUp
+
+    def release(self, *, drop=()):
+        from .models import RulesetRelease
+        from .game.catalog import _json_hash, build_ruleset_snapshot
+        from .game.spec import EFFECT_SCHEMA_VERSION
+
+        snapshot = build_ruleset_snapshot()
+        for code in drop:
+            snapshot['cards'].pop(code)
+        return RulesetRelease.objects.create(
+            version=f'partial-{len(drop)}', schema_version=EFFECT_SCHEMA_VERSION, snapshot=snapshot,
+            content_hash=_json_hash(snapshot), is_active=True,
+            source_manifest={'validation': {'is_valid': True, 'card_count': len(snapshot['cards'])}},
+        )
+
+    def test_release_with_fewer_cards_than_the_catalog_opens_automatic_mode(self):
+        from .automatic_services import automatic_mode_release
+        from .game.catalog import EXPECTED_CARD_COUNT
+
+        release = self.release()
+        self.assertLess(len(release.snapshot['cards']), EXPECTED_CARD_COUNT)
+        with patch('battlelog.automatic_services.RULEBOOK_SHA256', (release.snapshot.get('rulebook') or {}).get('sha256') or ''):
+            self.assertEqual(automatic_mode_release(), release)
+
+    def test_inconsistent_validation_count_still_blocks(self):
+        from .automatic_services import automatic_mode_release
+
+        release = self.release()
+        release.source_manifest = {'validation': {'is_valid': True, 'card_count': len(release.snapshot['cards']) + 1}}
+        type(release).objects.filter(pk=release.pk).update(source_manifest=release.source_manifest)
+        with patch('battlelog.automatic_services.RULEBOOK_SHA256', (release.snapshot.get('rulebook') or {}).get('sha256') or ''):
+            self.assertIsNone(automatic_mode_release())
+
+    def test_deck_with_an_unreleased_card_cannot_start(self):
+        entry = self.deck.cids.select_related('card').first()
+        release = self.release(drop=[entry.card.code])
+        with patch('battlelog.automatic_services.automatic_mode_release', return_value=release):
+            with self.assertRaises(ValueError) as raised:
+                create_simulator_session('A', 'B', self.deck, self.deck, mode='automatic')
+        self.assertIn('자동 모드를 지원하지 않는 카드', str(raised.exception))
+        self.assertIn(entry.card.name, str(raised.exception))
+
+    def test_deck_of_released_cards_starts(self):
+        release = self.release()
+        with patch('battlelog.automatic_services.automatic_mode_release', return_value=release):
+            session = create_simulator_session('A', 'B', self.deck, self.deck, mode='automatic')
+        self.assertEqual(session.mode, 'automatic')
+
+    def test_direct_validation_names_the_unreleased_card(self):
+        from deck.game_validation import validate_automatic_deck
+
+        entry = self.deck.cids.select_related('card').first()
+        release = self.release(drop=[entry.card.code])
+        report = validate_automatic_deck(self.deck, ruleset=release.snapshot, check_setup=False)
+        self.assertEqual(len(report.errors), 1)
+        self.assertIn(entry.card.name, report.errors[0])

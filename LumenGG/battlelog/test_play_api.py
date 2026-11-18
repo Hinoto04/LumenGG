@@ -1,5 +1,6 @@
 """Game client (play/) page, lobby API, deck preparation check and the app endpoint."""
 
+import copy
 import json
 
 from django.contrib.auth.models import User
@@ -10,7 +11,8 @@ from rest_framework.test import APIClient
 from card.models import Card
 from deck.models import Deck
 
-from .models import LumenSimulatorSession
+from .game.catalog import _json_hash
+from .models import LumenSimulatorSession, RulesetRelease
 from . import test_automatic_engine as engine_tests
 
 
@@ -116,6 +118,19 @@ class PlayPreparationCheckTests(TestCase):
             deck.trait_card = trait
             deck.schema_version = 2
             deck.save()
+        # 릴리스에 없는 카드는 자동 대전에 쓸 수 없으므로 특성까지 담은 릴리스로 바꾼다.
+        snapshot = copy.deepcopy(self.release.snapshot)
+        snapshot['cards'][trait.code] = {
+            'id': trait.id, 'code': trait.code, 'name': trait.name, 'type': trait.type,
+            'character_id': self.character.id, 'ultimate': False,
+            'effect_definition': trait.effect_definition,
+        }
+        RulesetRelease.objects.filter(is_active=True).update(is_active=False)
+        self.release = RulesetRelease.objects.create(
+            version='ai-http-rules-v2', schema_version=1, snapshot=snapshot,
+            content_hash=_json_hash(snapshot), is_active=True,
+            source_manifest={'validation': {'is_valid': True, 'card_count': len(snapshot['cards'])}},
+        )
         response = self.client.post(reverse('battlelog:playNew'), data=json.dumps({
             'p1_deck': self.decks[0].id, 'p2_deck': self.decks[1].id, 'opponent': 'human',
         }), content_type='application/json')
@@ -135,7 +150,8 @@ class PlayPreparationCheckTests(TestCase):
         preparation = self.session.document['preparation']
         self.assertEqual(preparation['status'], 'editing')
         active = preparation['players']['p1']['active']
-        broken = {**active, 'cards': active['cards'][1:]}
+        first = active['cards'][0]
+        broken = {**active, 'cards': [{**first, 'count': first['count'] + 1}, *active['cards'][1:]]}  # 등록 수량 초과
 
         response = self.check(broken)
 

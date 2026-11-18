@@ -132,7 +132,7 @@ def validate(snapshot, *, stage='registration', active=None, ruleset=None):
         issue('reserve_limit', f'교체 덱 등록 한도를 초과했습니다. ({sum(reserve.values())}/{policy["reserve_limit"]})', reserve)
     for pk, n in active_counts.items():
         if ruleset and str((catalog.get(str(pk)) or {}).get('code') or '') not in ruleset.get('cards', {}):
-            issue('unreleased_card', '이 자동 규칙 릴리스에서 사용할 수 없는 카드입니다.', [pk])
+            issue('unreleased_card', f'자동 모드를 지원하지 않는 카드입니다: {(catalog.get(str(pk)) or {}).get("name") or pk}', [pk])
         if n > registered[pk]:
             issue('unregistered_card', '등록한 카드 수량을 초과했습니다.', [pk])
     for pk in used:
@@ -163,7 +163,7 @@ def validate(snapshot, *, stage='registration', active=None, ruleset=None):
                 if matched and (key == 'bans' or len(matched) == len(rule['card_ids'])):
                     names = ' + '.join((catalog.get(str(pk)) or {}).get('name', str(pk)) for pk in matched)
                     issue(code, f'{"금지 카드" if key == "bans" else "제한 조합"}: {names}', matched)
-    if not unrestricted and not any(i['code'] in ('invalid_count', 'unknown_card', 'invalid_entry', 'invalid_entries', 'invalid_placement') for i in issues):
+    if not unrestricted and not any(i['code'] in ('invalid_count', 'unknown_card', 'invalid_entry', 'invalid_entries', 'invalid_placement', 'unreleased_card') for i in issues):
         from .game_validation import validate_automatic_deck
         character = SimpleNamespace(**snapshot['character'])
         trait = SimpleNamespace(**catalog[str(trait_id)]) if str(trait_id) in catalog else None
