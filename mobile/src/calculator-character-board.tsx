@@ -18,6 +18,7 @@ import { shieldAmount } from "./calculator-shield";
 import { ShieldPassiveRow } from "./calculator-shield-controls";
 import { useApp } from "./provider";
 import { CachedImage } from "./ui";
+import { CharacterIconImage } from "./character-picker";
 import type { Action, Player } from "./types";
 import { useCalculatorAppearance } from "./calculator-appearance-settings";
 import type { CalculatorAppearance } from "./calculator-appearance";
@@ -233,7 +234,7 @@ function CharacterPlayer({
       <View style={[s.head, mirrored && { flexDirection: "row-reverse" }]}>
         {!!avatar && (
           <View style={[s.avatar, compact && { width: 26, height: 26 }, { borderColor: theme.accent }]}>
-            <CachedImage url={avatar} fill height={compact ? 26 : 30} />
+            <CharacterIconImage url={avatar} width={compact ? 26 : 30} height={compact ? 26 : 30} circle />
           </View>
         )}
         <View style={{ flex: 1, minWidth: 0 }}>

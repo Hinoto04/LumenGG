@@ -78,6 +78,8 @@ export interface Character {
   id: number;
   img: string;
   img_sm: string;
+  /** img_sm이 45° 기울어진 캐릭터 아이콘 파일인지. 예전 카탈로그에는 없다. */
+  img_sm_tilted?: boolean;
   color: string;
   calculator_ui?: CalculatorTheme | null;
   localized: Localized;

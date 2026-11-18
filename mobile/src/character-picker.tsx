@@ -22,6 +22,66 @@ import {
 } from "./ui";
 import type { Character } from "./types";
 
+/**
+ * 캐릭터 아이콘 파일(CharacterIcon/…, icon_…)은 마름모 칸에 넣도록 반시계 방향 45° 기울어져 그려져 있다
+ * (웹 캐릭터 선택은 칸을 45° 돌려 맞춘다). 앱은 칸을 돌리지 않으므로 이미지를 시계 방향 45° 돌린다.
+ * 아이콘이 아닌 SD·일러스트 이미지는 똑바로 그려져 있어 돌리지 않는다.
+ */
+export function isTiltedIcon(url: string | null | undefined) {
+  return !!url && /(^|\/)(CharacterIcon\/|icon_)/i.test(url);
+}
+
+/**
+ * 캐릭터 얼굴 이미지와 기울어짐 여부. 서버가 배포한 카탈로그는 이미지 주소를 해시 경로로 바꾸므로
+ * 카탈로그의 img_sm_tilted를 먼저 보고, 그 필드가 없는 예전·내장 카탈로그만 주소로 판단한다.
+ */
+export function characterFace(character?: Partial<Character> | null) {
+  const url = String(character?.img_sm || character?.img || "");
+  const tilted = !!character?.img_sm && (character.img_sm_tilted ?? isTiltedIcon(character.img_sm));
+  return { url, tilted };
+}
+
+/**
+ * 캐릭터 아이콘을 칸(width×height)에 가득 차게 보여 준다. 기울어진 아이콘은 돌려서 바로 세운다.
+ * 돌린 정사각형이 칸을 빈틈없이 덮도록 한 변을 (가로+세로)/√2로 잡는다. 원형 칸은 지름이면 충분하다.
+ */
+export function CharacterIconImage({
+  url,
+  tilted = isTiltedIcon(url),
+  width,
+  height,
+  circle = false,
+}: {
+  url: string;
+  tilted?: boolean;
+  width: number;
+  height: number;
+  circle?: boolean;
+}) {
+  if (!tilted)
+    return <CachedImage url={url} fill height={height} transparent />;
+  const side = circle
+    ? Math.max(width, height)
+    : Math.ceil((width + height) / Math.SQRT2);
+  return (
+    <View
+      style={{
+        width,
+        height,
+        overflow: "hidden",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <View
+        style={{ width: side, height: side, transform: [{ rotate: "45deg" }] }}
+      >
+        <CachedImage url={url} fill height={side} transparent />
+      </View>
+    </View>
+  );
+}
+
 /** 캐릭터 얼굴을 둥글게 잘라 보여 준다. 캐릭터가 없으면 물음표를 그린다. */
 export function CharacterAvatar({
   character,
@@ -64,11 +124,11 @@ export function CharacterAvatar({
           </Text>
           {!!(character.img_sm || character.img) && (
             <View style={avatarStyles.cover}>
-              <CachedImage
-                url={character.img_sm || character.img}
-                fill
+              <CharacterIconImage
+                {...characterFace(character)}
+                width={size}
                 height={size}
-                transparent
+                circle
               />
             </View>
           )}

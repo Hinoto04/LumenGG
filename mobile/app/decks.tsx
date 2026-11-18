@@ -21,7 +21,11 @@ import {
   sortMyDecks,
   type DeckSort,
 } from "../src/deck-display";
-import { BottomSheet } from "../src/character-picker";
+import {
+  BottomSheet,
+  CharacterIconImage,
+  characterFace,
+} from "../src/character-picker";
 import { request } from "../src/api";
 import { preference, setPreference } from "../src/storage";
 import { userMessage } from "../src/errors";
@@ -33,7 +37,6 @@ import {
 } from "../src/deck-filter-screen";
 import {
   Badge,
-  CachedImage,
   EmptyState,
   Fab,
   FilterButton,
@@ -356,7 +359,7 @@ export default function Decks() {
             >
               <View style={deckListStyles.portrait}>
                 {c ? (
-                  <CachedImage url={c.img_sm || c.img} height={88} fill />
+                  <CharacterIconImage {...characterFace(c)} width={64} height={88} />
                 ) : (
                   <Icon name="person-outline" size={28} color={colors.subtle} />
                 )}

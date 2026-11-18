@@ -18,6 +18,10 @@ import {
   deckDescription,
   type DeckSize,
 } from "../../src/deck-display";
+import {
+  CharacterIconImage,
+  characterFace,
+} from "../../src/character-picker";
 import { request, ApiError } from "../../src/api";
 import { preference, setPreference } from "../../src/storage";
 import { userMessage } from "../../src/errors";
@@ -223,10 +227,10 @@ export default function DeckDetail() {
       <View style={detailStyles.hero}>
         <View style={detailStyles.portrait}>
           {character ? (
-            <CachedImage
-              url={character.img_sm || character.img}
+            <CharacterIconImage
+              {...characterFace(character)}
+              width={80}
               height={112}
-              fill
             />
           ) : (
             <Icon name="person-outline" size={32} color={colors.subtle} />

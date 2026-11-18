@@ -53,6 +53,8 @@ def read_snapshot(schema_version=SCHEMA_VERSION):
         for character in characters:
             data = {'id': character.pk, 'color': character.color, 'calculator_ui': character_calculator_ui(character), 'img': character.body_img or character.img,
                     'img_sm': character.icon_img or character.sd_img or character.img,
+                    # 아이콘 파일은 45° 기울어져 그려져 있다. 배포 시 이미지 주소가 해시 경로로 바뀌어 앱이 주소로는 알 수 없으므로 함께 보낸다.
+                    'img_sm_tilted': bool(character.icon_img),
                     'hand_table': character_hand_table(character), 'initial_hp': initial_hp_for_character(character),
                     'initial_passive_state': initial_passive_state_for_character(character),
                     'localized': {lang: {**{key: translated_character_field(character, lang, key) for key in ('name', 'description', 'group')},
