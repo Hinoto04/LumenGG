@@ -548,6 +548,10 @@ def _card_matches(card, where, state=None, context=None):
         elif key == 'type_in':
             if card.get('non_technique_while_face_down') or card.get('type') not in expected:
                 return False
+        elif key == 'body_not_in':
+            # "<발> 판정 이외의 기술"처럼 특정 부위 판정을 제외한다(부위 없음은 통과).
+            if card.get('body') in (expected or []):
+                return False
         elif key == 'is_technique':
             card_type = str(card.get('type') or '')
             # Tokens and other generic cards are not Techniques merely because

@@ -35324,13 +35324,30 @@ class AutomaticEngineTests(SimpleTestCase):
         engine = self.make_engine([attack('p1-a', 'p1')], [attack('p2-a', 'p2')])
         engine._start_sudden_death()
         engine.state['phase'] = 'get'
-        engine.engine_state.setdefault('skip_phases', {}).setdefault('p1', {})['recovery'] = True
+        for side in ('p1', 'p2'):
+            engine.engine_state.setdefault('skip_phases', {}).setdefault(side, {})['recovery'] = True
 
         engine._advance_phase('recovery')
 
         self.assertEqual(engine.state['phase'], 'lumen')
         self.assertEqual(engine.state['turn'], 2)
         self.assertEqual(engine.engine_state['sudden_death_turns_remaining'], 2)
+
+    def test_one_player_recovery_skip_keeps_phase_for_opponent(self):
+        # Q-AUTO-022: '자신의 리커버리 페이즈를 스킵'은 그 플레이어의 처리만 건너뛴다.
+        engine = self.make_engine([attack('p1-a', 'p1')], [attack('p2-a', 'p2')])
+        engine.state['phase'] = 'get'
+        engine.state['players']['p1']['fp'] = -2
+        engine.state['players']['p2']['fp'] = -2
+        engine.engine_state.setdefault('skip_phases', {}).setdefault('p1', {})['recovery'] = True
+
+        engine._advance_phase('recovery')
+
+        self.assertEqual(engine.state['phase'], 'recovery')
+        self.assertEqual(engine.engine_state['phase_passes'], ['p1'])
+        self.assertEqual(engine.state['players']['p1']['fp'], -2)
+        self.assertEqual(engine.state['players']['p2']['fp'], 0)
+        self.assertEqual(engine.engine_state['skip_phases']['p1'], {})
 
     def test_attached_and_break_zone_catch_phrases_compile_with_after_use_break(self):
         attached_definition = build_effect_draft(

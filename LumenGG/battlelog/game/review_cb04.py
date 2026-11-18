@@ -18,6 +18,8 @@ BUKUKI = '부쿠키'
 CHARACTER_BY_CODE = {
     'CB04-AT-035': 'cmyk', 'CB04-AT-036': 'cmyk', 'CB04-AT-037': 'cmyk',
     'CB04-TK-001': 'delphi', 'CB04-AT-021': 'tao', 'CB04-AT-022': 'tao',
+    'CB04-AT-030': 'muyoung', 'CB04-AT-032': None,
+    'CB04-AT-031': 'muyoung', 'CB04-AT-033': 'pinp', 'CB04-AT-034': 'pinp',
 }
 META_ROOT_KEYS = {'reviewed', 'draft', 'review_evidence', 'source_digest', 'source_refs'}
 META_ABILITY_KEYS = {'draft', 'source_refs'}
@@ -593,11 +595,267 @@ def _run_at013(definition, snapshot, owner, *, damage_received):
             'opponent_frost': _frost(engine, _opp(owner))}
 
 
+def _run_at030_restriction(definition, snapshot, owner, *, body):
+    source = _source(snapshot, 'CB04-AT-030', owner)
+    attacker = _card(f'{_opp(owner)}-attacker', _opp(owner), code='REVIEW-CB04-ATTACKER')
+    attacker['body'] = body
+    engine = _engine(definition, source, {owner: {'battle': [source]}, _opp(owner): {'battle': [attacker]}},
+                     seed=f'cb04-at030-restriction:{owner}:{body}')
+    engine._refresh_continuous_rules()
+    live = engine._find_card(source['instance_id'])
+    return {
+        'clash_blocked': bool(engine._rule_blocked('clash', owner, live, attacker)),
+        'clash_rule_allowed': bool(engine._defense_judgment_allowed(live, attacker, 'clash', _opp(owner))),
+    }
+
+
+def _run_at030_clash(definition, snapshot, owner, *, oni_flash):
+    source = _source(snapshot, 'CB04-AT-030', owner)
+    flashes = [_card(f'{owner}-oni-flash-{index}', owner, code='RFS-AT-002', character='muyoung')
+               for index in range(oni_flash)]
+    other = _card(f'{owner}-other-lumen', owner, code='REVIEW-CB04-OTHER-LUMEN')
+    enemy = _card(f'{_opp(owner)}-enemy', _opp(owner), code='REVIEW-CB04-ENEMY', hit='4')
+    engine = _engine(definition, source, {owner: {'battle': [source], 'lumen': [*flashes, other]},
+                                          _opp(owner): {'battle': [enemy]}},
+                     seed=f'cb04-at030-clash:{owner}:{oni_flash}')
+    engine.engine_state['battle'] = {
+        owner: {'instance_id': source['instance_id'], 'card': engine._find_card(source['instance_id'])},
+        _opp(owner): {'instance_id': enemy['instance_id'], 'card': engine._find_card(enemy['instance_id'])},
+    }
+    _fire(engine, 'clash', source)
+    return {
+        'owner_fp': engine.state['players'][owner]['fp'],
+        'shield': sum(item.get('amount', 0) for item in (engine.engine_state.get('shields') or {}).get(owner) or []),
+        'judgment_modified': [
+            {key: (event.get('payload') or {}).get(key) for key in ('card_instance_id', 'field', 'after')}
+            for event in engine.events if event.get('type') == 'judgment_modified'
+        ],
+    }
+
+
+def _run_at032_combo(definition, snapshot, owner, *, combo_number):
+    source = _source(snapshot, 'CB04-AT-032', owner)
+    engine = _engine(definition, source, {owner: {'battle': [source]}},
+                     seed=f'cb04-at032:{owner}:{combo_number}')
+    _fire(engine, 'combo', source, combo_number=combo_number)
+    fp_before_recovery = engine.state['players'][owner]['fp']
+    engine.state['phase'] = 'recovery'
+    engine._fire('phase_start', {'phase': 'recovery'})
+    _resolve(engine)
+    return {'fp_before_recovery': fp_before_recovery, 'owner_fp': engine.state['players'][owner]['fp']}
+
+
+def _oni_flashes(owner, count):
+    return [_card(f'{owner}-oni-flash-{index}', owner, code='RFS-AT-002', character='muyoung')
+            for index in range(count)]
+
+
+def _run_at031_combo(definition, snapshot, owner, *, oni_flash):
+    source = _source(snapshot, 'CB04-AT-031', owner)
+    engine = _engine(definition, source, {owner: {'battle': [source], 'lumen': _oni_flashes(owner, oni_flash)}},
+                     seed=f'cb04-at031-combo:{owner}:{oni_flash}')
+    _fire(engine, 'combo', source)
+    return {'damage_delta': _damage_delta(engine, source, owner)}
+
+
+def _run_at031_recovery(definition, snapshot, owner, *, oni_flash, blue_flame=True):
+    source = _source(snapshot, 'CB04-AT-031', owner)
+    listed = _card(f'{owner}-listed', owner, code='REVIEW-CB04-LISTED')
+    engine = _engine(definition, source, {owner: {'battle': [source], 'lumen': _oni_flashes(owner, oni_flash),
+                                                  'list': [listed]}},
+                     seed=f'cb04-at031-recovery:{owner}:{oni_flash}:{blue_flame}')
+    if blue_flame:
+        engine.set_passive(owner, 'blue_flame', value=True)
+    _fire(engine, 'after_use', source)
+    hand_before_recovery = _zone_ids(engine, owner, 'hand')
+    engine.state['phase'] = 'recovery'
+    engine._fire('phase_start', {'phase': 'recovery'})
+    _resolve(engine)
+    side = engine.state['players'][owner]['zones']['side']
+    return {
+        'hand_before_recovery': hand_before_recovery,
+        'side_oni_flash': sum(card.get('code') == 'RFS-AT-002' for card in side),
+        'hand': _zone_ids(engine, owner, 'hand'),
+    }
+
+
+def _arm_parts(owner, count):
+    names = ['R ARM: 검토 파츠', 'L ARM: 검토 파츠', 'LEG: 검토 파츠']
+    cards = []
+    for index in range(count):
+        card = _card(f'{owner}-part-{index}', owner, code=f'REVIEW-CB04-PART-{index}', type_='특수',
+                     character='pinp')
+        card['name'] = names[index]
+        card['token_key'] = 'parts'
+        cards.append(card)
+    return cards
+
+
+def _run_at033(definition, snapshot, owner, *, arm):
+    parts = _arm_parts(owner, arm) + ([] if arm >= 2 else _arm_parts(owner, 3)[2:])
+    source = _source(snapshot, 'CB04-AT-033', owner)
+    battle_engine = _engine(definition, source, {owner: {'battle': [source], 'lumen': parts}},
+                            seed=f'cb04-at033-battle:{owner}:{arm}')
+    battle_engine._refresh_continuous_rules()
+    hand_engine = _engine(definition, source, {owner: {'hand': [source], 'lumen': parts}},
+                          seed=f'cb04-at033-catch:{owner}:{arm}')
+    catch = {'owner': owner, 'source': 'fp', 'allow_zones': ['hand'], 'max_speed': 12}
+    return {
+        'opponent_dodge_blocked': _blocked(battle_engine, 'dodge', _opp(owner)),
+        'catch_speeds': [
+            option.get('fixed_speed') for option in hand_engine._legal_catch_options(owner, catch)
+            if (option.get('card') or {}).get('instance_id') == source['instance_id']
+        ],
+    }
+
+
+def _run_at034_limit(definition, snapshot, owner, *, existing):
+    source = _source(snapshot, 'CB04-AT-034', owner)
+    source['token_key'] = 'parts'
+    lumen = []
+    if existing:
+        other = _card(f'{owner}-existing', owner, code='REVIEW-CB04-EXISTING-PART', type_='특수')
+        other['name'] = existing
+        other['token_key'] = 'parts'
+        lumen.append(other)
+    engine = _engine(definition, source, {owner: {'hand': [source], 'lumen': lumen}},
+                     seed=f'cb04-at034-limit:{owner}:{existing}')
+    return {'lumen_allowed': bool(engine._zone_limit_allows(
+        engine._find_card(source['instance_id']), owner, 'lumen',
+    ))}
+
+
+def _run_at034_combo(definition, snapshot, owner, *, combos=1, by_opponent=False):
+    source = _source(snapshot, 'CB04-AT-034', owner)
+    source['token_key'] = 'parts'
+    actor = _opp(owner) if by_opponent else owner
+    combo_card = _card(f'{actor}-combo', actor, code='REVIEW-CB04-COMBO', character='pinp')
+    hand = [_card(f'{owner}-hand-{index}', owner, code=f'REVIEW-CB04-HAND-{index}') for index in range(2)]
+    zones = {owner: {'lumen': [source], 'hand': hand}}
+    zones.setdefault(actor, {}).setdefault('battle', []).append(combo_card)
+    engine = _engine(definition, source, zones, seed=f'cb04-at034-combo:{owner}:{combos}:{by_opponent}')
+    for _ in range(combos):
+        _fire(engine, 'combo', combo_card)
+    modifiers = [
+        (bool(item.get('ignore_speed')), (item.get('where') or {}).get('character_key'))
+        for item in engine.engine_state.get('modifiers') or []
+        if item.get('op') == 'modify_combo' and item.get('player') == owner
+    ]
+    return {
+        'hand_count': len(engine.state['players'][owner]['zones']['hand']),
+        'combo_rules': modifiers,
+        'recovery_skipped': bool(((engine.engine_state.get('skip_phases') or {}).get(owner) or {}).get('recovery')),
+    }
+
+
+def _run_at034_recovery(definition, snapshot, owner, *, use=True):
+    # Q-AUTO-022: 자신의 리커버리 처리만 건너뛴다. 같은 턴 자신의 '리커버리 페이즈 시' 예약 효과
+    # (지거 임팩트 4FP 등)는 불발되고, 상대의 리커버리와 예약 효과는 그대로 처리된다.
+    source = _source(snapshot, 'CB04-AT-034', owner)
+    source['token_key'] = 'parts'
+    combo_card = _card(f'{owner}-combo', owner, code='REVIEW-CB04-COMBO', character='pinp')
+    hand = [_card(f'{owner}-hand-0', owner, code='REVIEW-CB04-HAND-0')]
+    engine = _engine(definition, source, {owner: {'lumen': [source], 'hand': hand, 'battle': [combo_card]}},
+                     seed=f'cb04-at034-recovery:{owner}:{use}', fp={'p1': -3, 'p2': -3})
+    if use:
+        _fire(engine, 'combo', combo_card)
+    for side in ('p1', 'p2'):
+        engine.resolver.execute_effect({
+            'op': 'schedule', 'when': {'event': 'phase_start', 'phase': 'recovery'}, 'duration': 'turn',
+            'effect': {'op': 'change_fp', 'player': {'controller': True}, 'amount': 4},
+        }, {'controller': side, 'source_card_instance_id': f'{side}-review-schedule'})
+    engine.state['phase'] = 'get'
+    engine.engine_state['step'] = 'phase_actions'
+    engine._advance_phase('recovery')
+    _resolve(engine)
+    return {
+        'phase': engine.state.get('phase'),
+        'own_fp': engine.state['players'][owner]['fp'],
+        'opponent_fp': engine.state['players'][_opp(owner)]['fp'],
+        'own_passed': owner in (engine.engine_state.get('phase_passes') or []),
+    }
+
+
+def _run_at034_n1(definition, snapshot, owner, *, recovery=False, **kwargs):
+    runner = _run_at034_recovery if recovery else _run_at034_combo
+    return runner(definition, snapshot, owner, **kwargs)
+
+
 # --- 능력별 시나리오 표 -----------------------------------------------------------
 
 def _cases():
     frost_ok = {'opponent_frost': True}
     return {
+        'cb04-at-031-n1': (_run_at031_combo, (
+            ('owner-p1-three-oni-flash-adds-300', 'p1', {'oni_flash': 3}, {'damage_delta': 300}),
+            ('owner-p2-two-oni-flash-adds-200', 'p2', {'oni_flash': 2}, {'damage_delta': 200}),
+            ('no-oni-flash-keeps-damage', 'p1', {'oni_flash': 0}, {'damage_delta': 0}),
+        )),
+        'cb04-at-031-n2': (_run_at031_recovery, (
+            ('owner-p1-blue-flame-returns-two-and-gains-list', 'p1', {'oni_flash': 2},
+             {'hand_before_recovery': [], 'side_oni_flash': 2, 'hand': ['p1-listed']}),
+            ('owner-p2-blue-flame-returns-only-two', 'p2', {'oni_flash': 3},
+             {'side_oni_flash': 2, 'hand': ['p2-listed']}),
+            ('without-blue-flame-does-nothing', 'p1', {'oni_flash': 2, 'blue_flame': False},
+             {'side_oni_flash': 0, 'hand': []}),
+            ('one-oni-flash-cannot-pay-and-gains-nothing', 'p2', {'oni_flash': 1},
+             {'side_oni_flash': 0, 'hand': []}),
+        )),
+        'cb04-at-033-n1': (_run_at033, (
+            ('owner-p1-two-arm-undodgeable-and-speed-9-catch', 'p1', {'arm': 2},
+             {'opponent_dodge_blocked': True, 'catch_speeds': [9, None]}),
+            ('owner-p2-two-arm-undodgeable-and-speed-9-catch', 'p2', {'arm': 2},
+             {'opponent_dodge_blocked': True, 'catch_speeds': [9, None]}),
+            ('one-arm-keeps-printed-rules', 'p1', {'arm': 1},
+             {'opponent_dodge_blocked': False, 'catch_speeds': [None]}),
+        )),
+        'cb04-at-034-function': (_run_at034_limit, (
+            ('owner-p1-second-option-cannot-enter-lumen', 'p1', {'existing': 'OPTION: 제트팩'},
+             {'lumen_allowed': False}),
+            ('owner-p2-second-option-cannot-enter-lumen', 'p2', {'existing': 'OPTION: 제트팩'},
+             {'lumen_allowed': False}),
+            ('arm-part-does-not-block-option', 'p1', {'existing': 'R ARM: 파워 건틀릿'},
+             {'lumen_allowed': True}),
+        )),
+        'cb04-at-034-n1': (_run_at034_n1, (
+            ('owner-p1-combo-discards-chains-pinp-and-skips-recovery', 'p1', {},
+             {'hand_count': 1, 'combo_rules': [(True, 'pinp')], 'recovery_skipped': True}),
+            ('owner-p2-only-once-per-turn', 'p2', {'combos': 2},
+             {'hand_count': 1, 'combo_rules': [(True, 'pinp')], 'recovery_skipped': True}),
+            ('opponent-combo-does-not-trigger', 'p1', {'by_opponent': True},
+             {'hand_count': 2, 'combo_rules': [], 'recovery_skipped': False}),
+            ('owner-p1-skips-only-own-recovery', 'p1', {'recovery': True},
+             {'phase': 'recovery', 'own_fp': -3, 'opponent_fp': 4, 'own_passed': True}),
+            ('owner-p2-skips-only-own-recovery', 'p2', {'recovery': True},
+             {'phase': 'recovery', 'own_fp': -3, 'opponent_fp': 4, 'own_passed': True}),
+            ('without-use-both-recover', 'p1', {'recovery': True, 'use': False},
+             {'phase': 'recovery', 'own_fp': 4, 'opponent_fp': 4, 'own_passed': False}),
+        )),
+        'cb04-at-030-function': (_run_at030_restriction, (
+            ('owner-p1-cannot-clash-foot-technique', 'p1', {'body': '발'},
+             {'clash_blocked': True, 'clash_rule_allowed': False}),
+            ('owner-p2-cannot-clash-foot-technique', 'p2', {'body': '발'},
+             {'clash_blocked': True, 'clash_rule_allowed': False}),
+            ('hand-technique-can-be-clashed', 'p1', {'body': '손'},
+             {'clash_blocked': False, 'clash_rule_allowed': True}),
+        )),
+        'cb04-at-030-n1': (_run_at030_clash, (
+            ('owner-p1-three-oni-flash-fp-shield-and-hit-plus-2', 'p1', {'oni_flash': 3},
+             {'owner_fp': 3, 'shield': 300,
+              'judgment_modified': [{'card_instance_id': 'p2-enemy', 'field': 'hit', 'after': '+2'}]}),
+            ('owner-p2-two-oni-flash-fp-and-shield-only', 'p2', {'oni_flash': 2},
+             {'owner_fp': 2, 'shield': 200, 'judgment_modified': []}),
+            ('no-oni-flash-gains-nothing', 'p1', {'oni_flash': 0},
+             {'owner_fp': 0, 'shield': 0, 'judgment_modified': []}),
+        )),
+        'cb04-at-032-n1': (_run_at032_combo, (
+            ('owner-p1-fourth-combo-gains-4-at-recovery', 'p1', {'combo_number': 4},
+             {'fp_before_recovery': 0, 'owner_fp': 4}),
+            ('owner-p2-fifth-combo-gains-4-at-recovery', 'p2', {'combo_number': 5},
+             {'fp_before_recovery': 0, 'owner_fp': 4}),
+            ('third-combo-gains-nothing', 'p1', {'combo_number': 3},
+             {'fp_before_recovery': 0, 'owner_fp': 0}),
+        )),
         'cb04-ps-001-n1': (_run_ps001_guard, (
             ('owner-p1-guard-gives-opponent-frost', 'p1', {}, {**frost_ok, 'owner_frost': False}),
             ('owner-p2-clash-gives-opponent-frost', 'p2', {'event': 'clash'}, frost_ok),

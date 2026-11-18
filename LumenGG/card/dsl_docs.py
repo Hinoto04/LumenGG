@@ -218,7 +218,7 @@ EFFECT_GROUPS = [
         _item('grant_effect_immunity', '특정 출처/명령/방향의 카드 효과 면역을 부여한다.', 'player, scope=opponent|other_cards|source_codes, source_codes, operations, stats, directions, where, duration=event|battle|phase|turn|next_turn|game|continuous'),
     ]),
     ('페이즈·강제 진행', [
-        _item('skip_phase', '지정 phase를 건너뛴다.', 'phase'),
+        _item('skip_phase', '지정 phase를 건너뛴다. 루멘·리커버리는 한 플레이어만 스킵하면 그 플레이어의 처리(페이즈 시 효과 포함)만 건너뛰고, 두 플레이어 모두 스킵할 때 페이즈 자체를 건너뛴다.', 'phase'),
         _item('repeat_phase', '지정 phase를 한 번 더 예약한다.', 'phase, after_current'),
         _item('force_ready', '선택/지정 기술을 강제로 레디한다.', 'player, selection_key|card_instance_id, face_up'),
         _item('force_ready_first', '대상이 다음 레디를 먼저 하도록 한다.', 'player, duration=turn'),
@@ -321,6 +321,7 @@ CARD_FILTER_FIELDS = [
     ('type_contains / type_not_contains / type_in', '카드 종류 문자열 포함·제외·목록 일치'),
     ('name_contains / name_not_contains', '대소문자 무시 이름 부분 일치·제외'),
     ('judgment_contains / judgment_contains_any / judgment_not_contains', 'hit 또는 counter 판정값 일치·제외'),
+    ('body_not_in', '부위 판정 제외 목록(예: <발> 판정 이외). 부위 없음은 통과'),
     ('battle_judgment_contains', 'special/g_top/g_mid/g_bot 전체에서 판정 문자열 검색'),
     ('keyword_any', '/로 구분된 키워드 중 하나 포함'),
     ('text_contains / text_contains_any / text_not_contains', '카드 텍스트 문자열 검색; hidden_bond 구 표기 호환 포함'),

@@ -1,0 +1,96 @@
+[
+ {
+  "snapshot": {
+   "code": "CB04-AT-030",
+   "name": "낚아채기",
+   "ruby": "",
+   "text": "이 기술은 <발> 판정 이외의 기술만 상쇄한다.\r\n①상쇄 시, 루멘 존의 [귀섬] 1장당 1FP와 보호막 100을 얻는다.\r\n3장 이상인 경우, 상대 기술의 히트 판정을 <+2>로 변경한다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "공격",
+   "frame": 10,
+   "damage": 300,
+   "pos": "중단",
+   "body": "손",
+   "hit": "4",
+   "guard": "-4",
+   "counter": "5",
+   "special": "중단 상쇄·그랩",
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 16
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "Snatch",
+    "text": "This Technique can only clash Techniques without a <Foot> judgment.\n①On clash, gain 1 FP and Shield 100 for each [Oni Flash] in your Lumen Zone.\nIf there are 3 or more, change your opponent's Technique's hit judgment to <+2>."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "ひったくり",
+    "text": "この技は〈足〉判定以外の技のみ相殺する。\n①相殺時、ルーメンゾーンの[鬼閃]1枚につき1FPとシールド100を得る。\n3枚以上の場合、相手の技のヒット判定を〈+2〉に変更する。"
+   }
+  }
+ },
+ {
+  "snapshot": {
+   "code": "CB04-AT-032",
+   "name": "지거 임팩트",
+   "ruby": "",
+   "text": "①콤보 시, 3콤보 후라면 리커버리 페이즈 시 4FP를 얻는다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "공격",
+   "frame": 14,
+   "damage": 600,
+   "pos": "중단",
+   "body": "손",
+   "hit": "0",
+   "guard": "2",
+   "counter": "콤보",
+   "special": null,
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 17
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "Jigger Impact",
+    "text": "①On combo, if this is after the 3rd combo, gain 4 FP during the Recovery Phase."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "ジガー・インパクト",
+    "text": "①コンボ時、3コンボ後なら、リカバリーフェイズ時に4FPを得る。"
+   }
+  }
+ }
+]

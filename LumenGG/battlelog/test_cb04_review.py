@@ -15,9 +15,12 @@ def snapshot(code):
         type_ = '수비'
     elif code == 'CB04-PS-001':
         type_ = '특성'
+    elif code == 'CB04-AT-034':
+        type_ = '특수'
     elif code == 'CB04-TK-001':
         type_ = '토큰'
-    return {'code': code, 'name': code, 'type': type_, 'frame': 9, 'damage': 400}
+    names = {'CB04-AT-034': 'OPTION: 팡 하켄'}
+    return {'code': code, 'name': names.get(code, code), 'type': type_, 'frame': 9, 'damage': 400}
 
 
 class CB04ReviewTests(SimpleTestCase):

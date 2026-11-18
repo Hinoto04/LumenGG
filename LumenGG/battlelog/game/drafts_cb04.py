@@ -628,7 +628,186 @@ def _cold_release(code):
     ]
 
 
+ONI_FLASH = 'RFS-AT-002'  # [귀섬]
+
+
+def _snatch(code):
+    oni_flash_count = {
+        'op': 'zone_count', 'player': {'controller': True}, 'zone': 'lumen',
+        'where': {'code': ONI_FLASH},
+    }
+    return {
+        'defense_rules': [{'judgment': 'clash', 'where': {'body_not_in': ['발']}}],
+    }, [
+        _ability(
+            code, 'function', '이 기술은 <발> 판정 이외의 기술만 상쇄한다.',
+            kind='function', mode='continuous', timing='function', active_zones=['battle'],
+            effects=[{'op': 'prevent', 'kind': 'clash', 'player': {'controller': True},
+                      'duration': 'continuous',
+                      'condition': {'op': 'equals', 'left': 'context.opponent_card.body', 'right': '발'}}],
+        ),
+        _ability(
+            code, 'n1',
+            '상쇄 시, 루멘 존의 [귀섬] 1장당 1FP와 보호막 100을 얻는다. '
+            '3장 이상인 경우, 상대 기술의 히트 판정을 <+2>로 변경한다.',
+            timing='clash', active_zones=['battle'], trigger={'event': 'clash'},
+            # 보호막 지속 시간이 적혀 있지 않으면 이번 턴 종료 시까지 유지한다(Q-AUTO-017).
+            effects=[
+                {'op': 'change_fp', 'player': {'controller': True}, 'amount': copy.deepcopy(oni_flash_count)},
+                {'op': 'gain_shield', 'player': {'controller': True}, 'duration': 'turn',
+                 'amount': {'op': 'multiply', 'values': [copy.deepcopy(oni_flash_count), 100]}},
+                {'op': 'conditional', 'condition': {
+                    'op': 'gte', 'left': copy.deepcopy(oni_flash_count), 'right': 3,
+                }, 'then': [
+                    {'op': 'modify_judgment', 'player': {'opponent': True}, 'field': 'hit', 'value': '+2'},
+                ], 'else': []},
+            ],
+        ),
+    ]
+
+
+def _jigger_impact(code):
+    return {}, [
+        _ability(
+            code, 'n1', '콤보 시, 3콤보 후라면 리커버리 페이즈 시 4FP를 얻는다.',
+            timing='combo', active_zones=['battle'], trigger={'event': 'combo'},
+            condition={'op': 'gt', 'left': 'context.combo_number', 'right': 3},
+            effects=[{'op': 'schedule', 'when': {'event': 'phase_start', 'phase': 'recovery'},
+                      'duration': 'turn',
+                      'effect': {'op': 'change_fp', 'player': {'controller': True}, 'amount': 4}}],
+        ),
+    ]
+
+
+def _oni_flash_count():
+    return {
+        'op': 'zone_count', 'player': {'controller': True}, 'zone': 'lumen',
+        'where': {'code': ONI_FLASH},
+    }
+
+
+def _tiptoe_walk(code):
+    returned = 'cb04_at_031_oni_flash_side'
+    gained = 'cb04_at_031_list_gain'
+    return {}, [
+        _ability(
+            code, 'n1', '콤보 시, 루멘 존의 [귀섬] 1장당 이 기술 데미지+100',
+            timing='combo', active_zones=['battle'], trigger={'event': 'combo'},
+            effects=[{'op': 'modify_stat', 'player': {'controller': True}, 'stat': 'damage',
+                      'amount': {'op': 'multiply', 'values': [_oni_flash_count(), 100]},
+                      'duration': 'battle'}],
+        ),
+        _ability(
+            code, 'n2',
+            '「청염」: 사용 후, 리커버리 페이즈 시 루멘 존의 [귀섬] 2장을 사이드 덱으로 되돌리고 '
+            '리스트에서 기술 1장을 획득한다.',
+            timing='after_use', active_zones=['battle'], trigger={'event': 'after_use'},
+            condition={'op': 'has_state', 'player': {'controller': True}, 'state': 'blue_flame'},
+            # Q-AUTO-021: [귀섬]이 1장 이하면 발동할 수 없다(되돌리지도 획득하지도 않는다).
+            effects=[{'op': 'schedule', 'when': {'event': 'phase_start', 'phase': 'recovery'},
+                      'duration': 'turn', 'effect': {
+                'op': 'request_choice', 'player': {'controller': True},
+                'prompt': '사이드 덱으로 되돌릴 루멘 존의 귀섬 2장을 선택하세요.',
+                'selector': {'kind': 'card', 'player': {'controller': True}, 'zones': ['lumen'],
+                             'min': 2, 'max': 2, 'where': {'code': ONI_FLASH},
+                             'as_operation': 'move_card', 'to_zone': 'side'},
+                'selection_key': returned, 'default': [], 'skip_if_unavailable': True,
+                'then': [
+                    {'op': 'move_card', 'selection_key': returned, 'to_zone': 'side',
+                     'result_key': f'{returned}_done'},
+                    {'op': 'conditional', 'condition': {
+                        'op': 'gte', 'left': {'op': 'selection_count', 'selection_key': f'{returned}_done'},
+                        'right': 2,
+                    }, 'then': [{
+                        'op': 'request_choice', 'player': {'controller': True},
+                        'prompt': '리스트에서 획득할 기술을 선택하세요.',
+                        'selector': {'kind': 'card', 'player': {'controller': True}, 'zones': ['list'],
+                                     'min': 1, 'max': 1, 'where': {'is_technique': True},
+                                     'as_operation': 'move_card', 'to_zone': 'hand'},
+                        'selection_key': gained, 'default': [], 'skip_if_unavailable': True,
+                        'then': [{'op': 'move_card', 'selection_key': gained, 'to_zone': 'hand'}],
+                    }], 'else': []},
+                ],
+            }}],
+        ),
+    ]
+
+
+ARM_CONDITION = {
+    'op': 'zone_count', 'player': {'controller': True}, 'zone': 'lumen', 'min': 2,
+    'where': {'name_contains': 'ARM', 'is_technique': True},
+}
+
+
+def _panzer_reisser(code):
+    return {
+        'catch_rules': [{'fixed_speed': 9, 'numbered_effect': True,
+                         'condition': copy.deepcopy(ARM_CONDITION)}],
+    }, [
+        _ability(
+            code, 'n1',
+            '루멘 존에 "ARM"명을 포함하는 기술이 2장 있을 경우, 이 기술은 회피할 수 없고 '
+            '<9속도>로 캐치할 수 있다.',
+            mode='continuous', timing='function', active_zones=['battle'],
+            condition=copy.deepcopy(ARM_CONDITION),
+            effects=[
+                {'op': 'prevent', 'kind': 'dodge', 'player': {'opponent': True}, 'duration': 'continuous'},
+                {'op': 'static_rule', 'rules': ['catch_rules']},
+            ],
+        ),
+    ]
+
+
+def _fang_haken(code):
+    discarded = 'cb04_at_034_discard'
+    return {
+        'zone_limits': [{'zone': 'lumen', 'max': 1, 'where': {'name_contains': 'OPTION'}}],
+        'token_key': 'parts',
+    }, [
+        _ability(
+            code, 'function', '"OPTION"명을 포함하는 기술은 루멘 존에 1장만 배치할 수 있다.',
+            kind='function', mode='continuous', timing='function', active_zones=[],
+            effects=[{'op': 'static_rule', 'rules': ['zone_limits']}],
+        ),
+        _ability(
+            code, 'n1',
+            '1턴에 1번 콤보 시, 패를 1장 버릴 수 있다. 그 후, 속도를 무시하고 [핀프] 기술로 '
+            '이을 수 있다. 이번 턴 자신의 리커버리 페이즈를 스킵한다.',
+            mode='optional', timing='combo', active_zones=['lumen'], trigger={'event': 'combo'},
+            condition={'op': 'equals', 'left': 'context.event_controller', 'right': {'controller': True}},
+            limit={'scope': 'turn', 'max': 1, 'key': f'{code.lower()}-n1:usage'},
+            availability_selector={'kind': 'card', 'player': {'controller': True}, 'zones': ['hand'],
+                                   'min': 1, 'max': 1, 'as_operation': 'discard'},
+            # Q-AUTO-020: 패가 없으면 발동할 수 없고, 패를 버린 경우에만 속도 무시 연결을 적용한다.
+            # Q-AUTO-022: 리커버리 스킵은 자신의 리커버리 처리만 건너뛴다(엔진 PER_PLAYER_SKIP_PHASES).
+            effects=[{
+                'op': 'request_choice', 'player': {'controller': True},
+                'prompt': '버릴 패 1장을 선택하세요.',
+                'selector': {'kind': 'card', 'player': {'controller': True}, 'zones': ['hand'],
+                             'min': 1, 'max': 1, 'as_operation': 'discard'},
+                'selection_key': discarded, 'default': [],
+                'then': [
+                    {'op': 'discard', 'selection_key': discarded, 'result_key': f'{discarded}_done'},
+                    {'op': 'conditional', 'condition': {
+                        'op': 'gte', 'left': {'op': 'selection_count', 'selection_key': f'{discarded}_done'},
+                        'right': 1,
+                    }, 'then': [
+                        {'op': 'modify_combo', 'player': {'controller': True},
+                         'where': {'character_key': 'pinp'}, 'ignore_speed': True, 'duration': 'battle'},
+                        {'op': 'skip_phase', 'player': {'controller': True}, 'phase': 'recovery'},
+                    ], 'else': []},
+                ],
+            }],
+        ),
+    ]
+
+
 BUILDERS = {
+    'CB04-AT-031': _tiptoe_walk,
+    'CB04-AT-033': _panzer_reisser,
+    'CB04-AT-034': _fang_haken,
+    'CB04-AT-030': _snatch,
+    'CB04-AT-032': _jigger_impact,
     'CB04-PS-001': _frost_veil,
     'CB04-AT-012': _bitter_cold,
     'CB04-AT-001': _snow_country,

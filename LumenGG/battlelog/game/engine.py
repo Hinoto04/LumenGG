@@ -31,6 +31,8 @@ class EngineError(ValueError):
 
 # 제한 시간이 0이 된 뒤에도 이만큼은 행동을 받아 준다(통신 지연 여유).
 CLOCK_GRACE_SECONDS = 2
+# 두 플레이어가 함께 진행하는 페이즈. 한쪽만 스킵하면 그 플레이어만 처리를 건너뛴다.
+PER_PLAYER_SKIP_PHASES = frozenset({'lumen', 'recovery'})
 # 제한 시간은 그 차례의 플레이어 화면에 표시된 뒤(clock_seen)부터 흐른다.
 # 화면이 알려 오지 않으면(연결 끊김·AI) 이만큼 더 기다렸다가 정산한다.
 CLOCK_ACK_WAIT_SECONDS = 15
@@ -1253,7 +1255,10 @@ class AutomaticGameEngine:
                 next_phase = 'lumen'
             else:
                 next_phase = PHASES[PHASES.index(next_phase) + 1]
-        skipped_players = self._consume_phase_skip_players(next_phase) if next_phase == 'lumen' else []
+        skipped_players = (
+            self._consume_phase_skip_players(next_phase)
+            if next_phase in PER_PLAYER_SKIP_PHASES else []
+        )
         if next_phase == 'get':
             self._recalculate_priority()
         self.state['phase'] = next_phase
@@ -1297,7 +1302,7 @@ class AutomaticGameEngine:
             engine['get_done'] = []
             engine['current_actor'] = engine['get_order'][0] if engine['get_order'] else None
         elif next_phase == 'recovery':
-            self._recovery_core()
+            self._recovery_core(skipped=skipped_players)
         self.emit('phase_started', 'system', {'phase': next_phase, 'turn': self.state.get('turn')})
         for side in skipped_players:
             self.emit('phase_skipped', side, {'phase': next_phase, 'player': side})
@@ -5827,7 +5832,7 @@ class AutomaticGameEngine:
         })
         self._finish_get_action(beneficiary, instance_id)
 
-    def _recovery_core(self):
+    def _recovery_core(self, skipped=()):
         # A negative-FP Catch opportunity that was declined or had no legal
         # card carries that FP through this Recovery.  Declaring a Catch still
         # clears both players' FP in ``_play_catch``.
@@ -5837,6 +5842,8 @@ class AutomaticGameEngine:
             ) or []
         )
         for side in PLAYER_SIDES:
+            if side in skipped:
+                continue
             if self.state['players'][side]['fp'] < 0 and side not in preserved:
                 self.set_fp(side, 0, source='recovery')
 
@@ -9833,6 +9840,12 @@ class AutomaticGameEngine:
 
     def _phase_skipped(self, phase):
         skip = self.engine_state.get('skip_phases') or {}
+        if phase in PER_PLAYER_SKIP_PHASES and not all(
+            (skip.get(side) or {}).get(phase) for side in PLAYER_SIDES
+        ):
+            # '자신의 리커버리 페이즈를 스킵'은 그 플레이어의 처리만 건너뛴다(Q-AUTO-022).
+            # 두 플레이어 모두 스킵할 때만 페이즈 자체를 건너뛴다.
+            return False
         skipped = False
         for side in PLAYER_SIDES:
             if (skip.get(side) or {}).pop(phase, False):

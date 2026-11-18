@@ -1,0 +1,143 @@
+[
+ {
+  "snapshot": {
+   "code": "CB04-AT-031",
+   "name": "까치발 걷기",
+   "ruby": "",
+   "text": "①콤보 시, 루멘 존의 [귀섬] 1장당 이 기술 데미지+100\r\n②「청염」: 사용 후, 리커버리 페이즈 시 루멘 존의 [귀섬] 2장을 사이드 덱으로 되돌리고 리스트에서 기술 1장을 획득한다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "공격",
+   "frame": 11,
+   "damage": 500,
+   "pos": "하단",
+   "body": "발",
+   "hit": "콤보",
+   "guard": "-8",
+   "counter": "9",
+   "special": null,
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 16
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "Tiptoe Walk",
+    "text": "①On combo, this Technique's damage +100 for each [Oni Flash] in your Lumen Zone.\n②「Blue Flame」: After use, during the Recovery Phase, return 2 [Oni Flash] from your Lumen Zone to your Side Deck and gain 1 Technique from your List."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "つま先歩き",
+    "text": "①コンボ時、ルーメンゾーンの[鬼閃]1枚につきこの技のダメージ+100\n②「青炎」：使用後、リカバリーフェイズ時にルーメンゾーンの[鬼閃]2枚をサイドデッキに戻し、リストから技1枚を獲得する。"
+   }
+  }
+ },
+ {
+  "snapshot": {
+   "code": "CB04-AT-033",
+   "name": "판처 라이서",
+   "ruby": "",
+   "text": "①루멘 존에 \"ARM\"명을 포함하는 기술이 2장 있을 경우, 이 기술은 회피할 수 없고 <9속도>로 캐치할 수 있다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "공격",
+   "frame": 12,
+   "damage": 500,
+   "pos": "상단",
+   "body": "",
+   "hit": "콤보",
+   "guard": "-8",
+   "counter": "콤보",
+   "special": null,
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 17
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "Panzer Reisser",
+    "text": "①If there are 2 Techniques with \"ARM\" in their name in your Lumen Zone, this Technique cannot be dodged and can catch at <Speed 9>."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "パンツァー・ライサー",
+    "text": "①ルーメンゾーンに\"ARM\"名を含む技が2枚ある場合、この技は回避できず、〈速度9〉でキャッチできる。"
+   }
+  }
+ },
+ {
+  "snapshot": {
+   "code": "CB04-AT-034",
+   "name": "OPTION: 팡 하켄",
+   "ruby": "",
+   "text": "\"OPTION\"명을 포함하는 기술은 루멘 존에 1장만 배치할 수 있다.\r\n①1턴에 1번 콤보 시, 패를 1장 버릴 수 있다. 그 후, 속도를 무시하고 [핀프] 기술로 이을 수 있다. 이번 턴 자신의 리커버리 페이즈를 스킵한다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "특수",
+   "frame": null,
+   "damage": null,
+   "pos": null,
+   "body": "",
+   "hit": "0",
+   "guard": "0",
+   "counter": "0",
+   "special": null,
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 17
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "OPTION: Fang Haken",
+    "text": "Only 1 Technique with \"OPTION\" in its name can be placed in the Lumen Zone.\n①Once per turn, on combo, you may discard 1 card from your hand. Then, ignoring Speed, you can chain into a [PINP] Technique. Skip your Recovery Phase this turn."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "OPTION：ファング・ハーケン",
+    "text": "\"OPTION\"名を含む技はルーメンゾーンに1枚まで配置できる。\n①1ターンに1回、コンボ時、手札を1枚捨ててもよい。その後、速度を無視して[ピンプ]技につなげられる。このターン、自分のリカバリーフェイズをスキップする。"
+   }
+  }
+ }
+]
