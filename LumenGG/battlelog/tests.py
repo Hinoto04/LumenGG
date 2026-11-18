@@ -45,6 +45,8 @@ class ExpiredBattleSessionCleanupMiddlewareTests(SimpleTestCase):
 
 class BattleCalculatorTests(TestCase):
     def setUp(self):
+        # 운영 DB의 1번 캐릭터는 세츠메이(계산기에서 고를 수 없음)이므로 테스트 캐릭터가 1번을 받지 않게 한다.
+        Character.objects.get_or_create(pk=1, defaults={'name': '세츠메이', 'description': '', 'group': '중립', 'datas': {}, 'img': ''})
         self.char_a = Character.objects.create(
             name='니아',
             description='',

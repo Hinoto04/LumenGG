@@ -20,6 +20,8 @@ from battlelog.services import get_or_create_tournament_session, perform_session
 
 def fixture():
     host, a, b, outsider = [User.objects.create_user(username=n) for n in ['organizer', 'alice', 'bob', 'outsider']]
+    # 1번 캐릭터는 세츠메이(계산기에서 고를 수 없음)이므로 테스트 캐릭터가 1번을 받지 않게 한다.
+    Character.objects.get_or_create(pk=1, defaults={'name': '세츠메이', 'description': '', 'group': '중립', 'datas': {}, 'img': ''})
     c = Character.objects.create(name='A', description='', group='', datas={'hand': {'5000': 5}})
     other = Character.objects.create(name='B', description='', group='', datas={'hand': {'4000': 4}})
     t = Tournament.objects.create(name='모바일 테스트 대회', organizer=host, status='running', visibility='unlisted')

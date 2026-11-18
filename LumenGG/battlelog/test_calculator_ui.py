@@ -10,6 +10,8 @@ from mobile_api.calculators import mobile_state
 
 class CalculatorUiTests(TestCase):
     def setUp(self):
+        # 운영 DB의 1번 캐릭터는 세츠메이(계산기에서 고를 수 없음)이므로 테스트 캐릭터가 1번을 받지 않게 한다.
+        Character.objects.get_or_create(pk=1, defaults={'name': '세츠메이', 'description': '', 'group': '중립', 'datas': {}, 'img': ''})
         self.character = Character.objects.create(name='루트', description='', group='', datas={'hand': {'5000': 6}}, img='https://example.com/root.png')
         self.session = create_standalone_session('A', 'B', self.character, self.character)
         self.view_url = reverse('battlelog:sessionDetail', args=[self.session.view_token])

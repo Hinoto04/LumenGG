@@ -15,7 +15,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from card.models import Character, CharacterComment
 from common.models import UserData
-from battlelog.services import create_standalone_session, battle_session_queryset
+from battlelog.services import create_standalone_session, battle_session_queryset, playable_characters
 from battlelog.models import BattleSession
 from .catalog import client_version
 from .models import CatalogRelease
@@ -139,7 +139,7 @@ def sync(request):
 def calculators(request):
     characters = []
     for key in ('player1_character', 'player2_character'):
-        characters.append(get_object_or_404(Character, pk=request.data.get(key)))
+        characters.append(get_object_or_404(playable_characters(), pk=request.data.get(key)))
     session = create_standalone_session(str(request.data.get('player1_name', ''))[:60], str(request.data.get('player2_name', ''))[:60],
                                         *characters, user=request.user, trait_ids=[request.data.get('player1_trait_card_id'), request.data.get('player2_trait_card_id')] if request.data.get('schema_version') == 2 else None)
     return Response({'view_token': session.view_token, 'control_token': session.control_token,

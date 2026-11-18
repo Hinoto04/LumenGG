@@ -37,6 +37,7 @@ from .services import (
     can_toggle_sudden_death,
     character_options_for_session,
     create_standalone_session,
+    playable_characters,
     perform_session_action,
     serialize_session,
 )
@@ -70,10 +71,10 @@ def _json_body(request):
 
 def sim(req):
     language = get_language(req)
-    characters = Character.objects.prefetch_related('translations').order_by('id')
+    characters = playable_characters().prefetch_related('translations').order_by('id')
     if req.method == 'POST':
-        player1_character = get_object_or_404(Character, id=req.POST.get('player1_character'))
-        player2_character = get_object_or_404(Character, id=req.POST.get('player2_character'))
+        player1_character = get_object_or_404(playable_characters(), id=req.POST.get('player1_character'))
+        player2_character = get_object_or_404(playable_characters(), id=req.POST.get('player2_character'))
         session = create_standalone_session(
             req.POST.get('player1_name', ''),
             req.POST.get('player2_name', ''),

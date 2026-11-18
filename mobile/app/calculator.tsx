@@ -50,6 +50,9 @@ import { SettingColumn, SettingRow, SettingSection } from "../src/setting-rows";
 import { characterWithTrait } from "../src/deck-rules";
 import { TournamentCalculatorControls } from "../src/tournament-calculator-controls";
 
+/** 세츠메이 캐릭터 id. */
+const NEUTRAL_CHARACTER_ID = 1;
+
 export default function Calculator() {
   const params = useLocalSearchParams<{
     party?: string;
@@ -57,6 +60,10 @@ export default function Calculator() {
     ui?: string;
   }>();
   const { catalog, language, t, online, user, scope } = useApp();
+  // 세츠메이(중립 카드 묶음)는 플레이 캐릭터가 아니므로 계산기에서 고를 수 없다.
+  const characters = (catalog?.characters || []).filter(
+    (c) => c.id !== NEUTRAL_CHARACTER_ID,
+  );
   const ui = calculatorUi(params.ui);
   const Board = CharacterCalculatorBoard;
   const [local, setLocal] = useState<CalcState | null>(null),
@@ -324,22 +331,22 @@ export default function Calculator() {
     setMode(next);
   }
   function selected() {
-    const a = catalog?.characters.find(
+    const a = characters.find(
         (c) =>
           String(c.id) ===
           (p1 ||
             String(
-              catalog.characters.find((c) => c.traits?.length)?.id ||
-                catalog.characters[0]?.id,
+              characters.find((c) => c.traits?.length)?.id ||
+                characters[0]?.id,
             )),
       ),
-      b = catalog?.characters.find(
+      b = characters.find(
         (c) =>
           String(c.id) ===
           (p2 ||
             String(
-              catalog.characters.find((c) => c.traits?.length)?.id ||
-                catalog.characters[0]?.id,
+              characters.find((c) => c.traits?.length)?.id ||
+                characters[0]?.id,
             )),
       );
     if (!a || !b) throw new Error("캐릭터를 선택해주세요.");
@@ -401,26 +408,26 @@ export default function Calculator() {
   function openSettings() {
     setP1(
       String(
-        state?.players.p1.character?.id || catalog?.characters[0]?.id || "",
+        state?.players.p1.character?.id || characters[0]?.id || "",
       ),
     );
     setP2(
       String(
-        state?.players.p2.character?.id || catalog?.characters[0]?.id || "",
+        state?.players.p2.character?.id || characters[0]?.id || "",
       ),
     );
     setPicking(null);
     setSettings(true);
   }
   const defaultId = String(
-    catalog?.characters.find((c) => c.traits?.length)?.id ||
-      catalog?.characters[0]?.id ||
+    characters.find((c) => c.traits?.length)?.id ||
+      characters[0]?.id ||
       "",
   );
   const p1Id = p1 || defaultId,
     p2Id = p2 || defaultId;
-  const p1Character = catalog?.characters.find((c) => String(c.id) === p1Id);
-  const p2Character = catalog?.characters.find((c) => String(c.id) === p2Id);
+  const p1Character = characters.find((c) => String(c.id) === p1Id);
+  const p2Character = characters.find((c) => String(c.id) === p2Id);
   if (params.tournament && (!user || !session?.tournament || !state)) {
     return (
       <View
@@ -553,7 +560,7 @@ export default function Calculator() {
                   >
                     {gridWidth > 0 && (
                       <CharacterGrid
-                        characters={catalog?.characters || []}
+                        characters={characters}
                         value={picking === "p1" ? p1Id : p2Id}
                         width={gridWidth}
                         size={56}
@@ -623,7 +630,7 @@ export default function Calculator() {
                 block
                 disabled={
                   !ready ||
-                  !catalog?.characters.length ||
+                  !characters.length ||
                   (mode === "shared" && !online)
                 }
                 onPress={async () => {

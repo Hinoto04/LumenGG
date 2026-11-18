@@ -318,6 +318,14 @@ def can_add_extra_time(user, session):
     return is_tournament_operator(user, session.tournament_match.round.tournament)
 
 
+# 세츠메이(중립 카드 묶음)는 게임에서 고를 수 없는 캐릭터이므로 계산기 캐릭터 선택에서 뺀다.
+NEUTRAL_CHARACTER_ID = 1
+
+
+def playable_characters():
+    return Character.objects.exclude(pk=NEUTRAL_CHARACTER_ID)
+
+
 def create_standalone_session(player1_name, player2_name, player1_character, player2_character, user=None, *, trait_ids=None):
     view_token, control_token = _session_token_pair()
     session = BattleSession(
@@ -616,7 +624,7 @@ def character_options_for_session(session, user=None, control_token='', language
         }
 
     def all_characters():
-        return list(Character.objects.prefetch_related('translations').order_by('id'))
+        return list(playable_characters().prefetch_related('translations').order_by('id'))
 
     if session.session_type == BattleSession.SESSION_STANDALONE or not session.tournament_match_id:
         characters = all_characters()
@@ -1740,7 +1748,7 @@ def _perform_single_session_action(session, body, user=None, control_token=''):
         if not can_choose_character(user, session, target, control_token):
             raise PermissionDenied()
         try:
-            character = Character.objects.get(id=body.get('character_id'))
+            character = playable_characters().get(id=body.get('character_id'))
         except (Character.DoesNotExist, ValueError, TypeError):
             raise ValueError('캐릭터를 찾을 수 없습니다.')
         session = select_character(session, target, character, user)

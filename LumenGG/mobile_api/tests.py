@@ -319,6 +319,18 @@ class MobileApiTests(TestCase):
         self.assertEqual(event['payload']['before_state']['value'], 2)
         self.assertEqual(event['payload']['after_state']['value'], 3)
 
+    def test_calculator_cannot_choose_neutral_character(self):
+        from battlelog.services import NEUTRAL_CHARACTER_ID, playable_characters
+        neutral = Character.objects.filter(pk=NEUTRAL_CHARACTER_ID).first() or Character.objects.create(
+            pk=NEUTRAL_CHARACTER_ID, name='세츠메이', description='', group='중립', datas={}, img='')
+        playable = Character.objects.exclude(pk=NEUTRAL_CHARACTER_ID).first() or Character.objects.create(
+            name='플레이 캐릭터', description='', group='테스트', datas={'hand': {'5000': 5}}, img='')
+        self.assertNotIn(neutral, playable_characters())
+        body = {'player1_character': neutral.pk, 'player2_character': playable.pk}
+        self.assertEqual(APIClient().post('/api/mobile/v1/calculators/', body, format='json').status_code, 404)
+        body = {'player1_character': playable.pk, 'player2_character': playable.pk}
+        self.assertEqual(APIClient().post('/api/mobile/v1/calculators/', body, format='json').status_code, 201)
+
     def test_calculator_api_and_expiration(self):
         anon=APIClient();session=self.session()
         body={'action_id':str(uuid.uuid4()),'expected_version':session.version,'action':'hp','target':'p1','amount':-100}
