@@ -222,12 +222,18 @@ const words: Record<string, [string, string]> = {
   "눌러서 바꿉니다.": ["Tap to change.", "タップして変更します。"],
   선택: ["Choose", "選択"],
   뒤로: ["Back", "戻る"],
-  "같은 덱": ["Same deck", "同じデッキ"],
-  "AI가 쓸 덱": ["AI deck", "AIのデッキ"],
-  "AI도 내가 고른 덱과 같은 덱을 씁니다.": [
-    "The AI uses the same deck as you.",
-    "AIも自分と同じデッキを使います。",
+  "AI 선택": ["Choose AI", "AIを選択"],
+  "AI 상대": ["AI opponents", "AI対戦相手"],
+  "아래에서 상대를 고릅니다.": [
+    "Pick an opponent below.",
+    "下から相手を選びます。",
   ],
+  "AI 목록을 불러오지 못했습니다.": [
+    "Couldn't load the AI list.",
+    "AI一覧を読み込めませんでした。",
+  ],
+  "등록된 AI 덱이 없습니다.": ["No AI opponents yet.", "登録されたAIがありません。"],
+  "다시 시도": ["Retry", "再試行"],
   "AI와 대전": ["vs AI", "AI対戦"],
   방: ["Room", "ルーム"],
   "퀵 매치": ["Quick match", "クイックマッチ"],

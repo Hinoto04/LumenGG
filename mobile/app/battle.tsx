@@ -6,6 +6,7 @@ import {
   chooseRoomDeck,
   createBattle,
   createRoom,
+  fetchAiDecks,
   joinRoom,
   joinedRoom,
   lastBattle,
@@ -14,11 +15,10 @@ import {
   rememberBattle,
   rememberRoom,
   roomState,
-  searchPublicDecks,
   setRoomReady,
+  type AiDeck,
   type BattleMode,
   type LastBattle,
-  type PublicDeck,
 } from "../src/battle";
 import {
   mySeat,
@@ -40,7 +40,6 @@ import {
   Icon,
   Input,
   Notice,
-  SearchInput,
   Segmented,
   colors,
   radius,
@@ -59,6 +58,7 @@ interface DeckOption {
 
 type Tab = "ai" | RoomKind;
 
+const AI_ACCENT = "#5fc8c0";
 const TIMERS = [0, 10, 15, 30, 45, 60, 90, 120];
 const POLL_MS = 1500;
 
@@ -107,6 +107,51 @@ function DeckRow({
         </Text>
       </View>
       {selected && <Icon name="checkmark-circle" size={22} color={colors.accent} />}
+    </Pressable>
+  );
+}
+
+/** 등록된 AI 상대 한 줄: 캐릭터 얼굴, 이름, 캐릭터 · 성향, 설명(웹 로비 AIDeckPicker와 같은 내용) */
+function AiDeckRow({
+  ai,
+  selected,
+  character,
+  characterName,
+  onPress,
+}: {
+  ai: AiDeck;
+  selected: boolean;
+  character?: Character;
+  characterName: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`${ai.name} · ${characterName} · ${ai.style_label}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        battleStyles.deckRow,
+        selected && battleStyles.aiRowSelected,
+        pressed && { opacity: 0.8 },
+      ]}
+    >
+      <CharacterAvatar character={character} size={52} selected={selected} ring={AI_ACCENT} />
+      <View style={{ flex: 1 }}>
+        <Text style={battleStyles.deckName} numberOfLines={1}>
+          {ai.name}
+        </Text>
+        <Text style={styles.muted} numberOfLines={1}>
+          {characterName} · {ai.style_label}
+        </Text>
+        {ai.description ? (
+          <Text style={[styles.muted, { fontSize: 12 }]} numberOfLines={2}>
+            {ai.description}
+          </Text>
+        ) : null}
+      </View>
+      {selected && <Icon name="checkmark-circle" size={22} color={AI_ACCENT} />}
     </Pressable>
   );
 }
@@ -266,16 +311,16 @@ export default function Battle() {
   const { decks, catalog, language, user, t } = useApp();
   const [tab, setTab] = useState<Tab>("ai");
   const [mine, setMine] = useState<number | null>(null);
-  const [rivalSource, setRivalSource] = useState<"same" | "mine" | "public">("same");
-  const [rival, setRival] = useState<number | null>(null);
+  // AI 상대: 운영진이 등록한 AI 목록(웹 로비와 같은 목록)에서 고른다. null은 불러오는 중.
+  const [aiDecks, setAiDecks] = useState<AiDeck[] | null>(null);
+  const [aiFailed, setAiFailed] = useState(false);
+  const [aiDeck, setAiDeck] = useState<AiDeck | null>(null);
   const [aiReadyTimer, setAiReadyTimer] = useState(10);
   const [aiEffectTimer, setAiEffectTimer] = useState(30);
   const [mode, setMode] = useState<BattleMode>("automatic");
   const [readyTimer, setReadyTimer] = useState(10);
   const [effectTimer, setEffectTimer] = useState(30);
   const [code, setCode] = useState("");
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<PublicDeck[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [resume, setResume] = useState<LastBattle | null>(null);
@@ -299,12 +344,10 @@ export default function Battle() {
         )
       : undefined;
   const [picker, setPicker] = useState<{
-    kind: "mine" | "rival";
     title: string;
     selected: number | null | undefined;
     onPick: (id: number) => void;
   } | null>(null);
-  const [rivalInfo, setRivalInfo] = useState<DeckOption | null>(null);
 
   // 서버 id가 있는(동기화된) 덱만 대전에 쓸 수 있다.
   const synced: DeckOption[] = useMemo(
@@ -340,37 +383,38 @@ export default function Battle() {
     return () => clearInterval(timer);
   }, [quickWaiting]);
 
-  useEffect(() => {
-    if (tab !== "ai" || rivalSource !== "public") return;
-    const text = query.trim();
-    if (text.length < 2) {
-      setResults([]);
-      return;
-    }
-    const timer = setTimeout(() => {
-      searchPublicDecks(text)
-        .then(setResults)
-        .catch(() => setResults([]));
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [query, rivalSource, tab]);
+  const loadAiDecks = useCallback(() => {
+    setAiFailed(false);
+    fetchAiDecks(language)
+      .then((rows) => {
+        setAiDecks(rows);
+        // 고른 AI가 목록에서 빠졌으면(비활성화) 선택을 푼다.
+        setAiDeck((current) => (current ? rows.find((row) => row.id === current.id) ?? null : null));
+      })
+      .catch(() => setAiFailed(true));
+  }, [language]);
 
-  const rivalDeck = rivalSource === "same" ? mine : rival;
+  useEffect(() => {
+    if (tab === "ai") loadAiDecks();
+  }, [tab, loadAiDecks]);
 
   const startAi = async () => {
-    if (!mine || !rivalDeck) return;
+    if (!mine || !aiDeck) return;
     setBusy(true);
     setError("");
     try {
       const session = await createBattle({
         p1_deck: mine,
-        p2_deck: rivalDeck,
+        ai_deck: aiDeck.id,
         opponent: "ai",
         mode: "automatic",
         ready_timeout_seconds: aiReadyTimer,
         effect_timeout_seconds: aiEffectTimer,
       });
-      await openSeat(session.urls.p1, `${characterName(synced.find((d) => d.id === mine)?.character_id ?? 0)} · AI 대전`);
+      await openSeat(
+        session.urls.p1,
+        `${characterName(synced.find((d) => d.id === mine)?.character_id ?? 0)} vs ${aiDeck.name} · AI 대전`,
+      );
     } catch (exception) {
       setError(errorText(exception));
     } finally {
@@ -419,12 +463,13 @@ export default function Battle() {
         character={characterOf(deck?.character_id)}
         title={deck ? deck.name : t("덱 선택")}
         subtitle={deck ? characterName(deck.character_id) : t("눌러서 덱을 고릅니다.")}
-        onPress={() => setPicker({ kind: "mine", title: "내 덱", selected, onPick })}
+        onPress={() => setPicker({ title: "내 덱", selected, onPick })}
       />
     );
   };
-  const rivalOption =
-    rivalSource === "same" ? synced.find((d) => d.id === mine) : rivalSource === "mine" ? synced.find((d) => d.id === rival) : rivalInfo;
+  // 앱 카탈로그에 아직 없는 캐릭터면 서버가 준 이름을 쓴다.
+  const aiCharacterName = (ai: AiDeck) =>
+    characterOf(ai.character_id) ? characterName(ai.character_id) : ai.character;
 
   const aiTab = (
     <>
@@ -435,20 +480,35 @@ export default function Battle() {
         <Versus />
         <PlayerSlot
           label="AI"
-          accent="#5fc8c0"
-          character={characterOf(rivalOption?.character_id)}
-          title={rivalOption ? rivalOption.name : t("덱 선택")}
-          subtitle={
-            rivalSource === "same"
-              ? t("같은 덱")
-              : rivalOption
-                ? characterName(rivalOption.character_id)
-                : t("눌러서 덱을 고릅니다.")
-          }
-          onPress={() => setPicker({ kind: "rival", title: "AI가 쓸 덱", selected: rival, onPick: setRival })}
+          accent={AI_ACCENT}
+          character={characterOf(aiDeck?.character_id)}
+          title={aiDeck ? aiDeck.name : t("AI 선택")}
+          subtitle={aiDeck ? `${aiCharacterName(aiDeck)} · ${aiDeck.style_label}` : t("아래에서 상대를 고릅니다.")}
         />
       </View>
-      <View style={styles.panel}>
+      <Text style={[styles.title, { marginBottom: space.sm }]}>{t("AI 상대")}</Text>
+      {aiFailed ? (
+        <View style={[styles.panel, { gap: space.sm }]}>
+          <Text style={styles.muted}>{t("AI 목록을 불러오지 못했습니다.")}</Text>
+          <Button label="다시 시도" icon="refresh" size="sm" onPress={loadAiDecks} />
+        </View>
+      ) : aiDecks === null ? (
+        <ActivityIndicator color={colors.accent} style={{ marginVertical: space.md }} />
+      ) : !aiDecks.length ? (
+        <Notice text={t("등록된 AI 덱이 없습니다.")} />
+      ) : (
+        aiDecks.map((ai) => (
+          <AiDeckRow
+            key={ai.id}
+            ai={ai}
+            selected={aiDeck?.id === ai.id}
+            character={characterOf(ai.character_id)}
+            characterName={aiCharacterName(ai)}
+            onPress={() => setAiDeck(ai)}
+          />
+        ))
+      )}
+      <View style={[styles.panel, { marginTop: space.sm }]}>
         <TimerChoices label={t("레디 제한 시간")} value={aiReadyTimer} onChange={setAiReadyTimer} />
         <TimerChoices label={t("효과 선택 제한 시간")} value={aiEffectTimer} onChange={setAiEffectTimer} />
       </View>
@@ -459,7 +519,7 @@ export default function Battle() {
         variant="primary"
         block
         loading={busy}
-        disabled={!mine || !rivalDeck}
+        disabled={!mine || !aiDeck}
         onPress={startAi}
       />
     </>
@@ -671,68 +731,14 @@ export default function Battle() {
         visible={!!picker}
         title={picker?.title || ""}
         onClose={() => setPicker(null)}
-        header={
-          picker?.kind === "rival" ? (
-            <>
-              <Segmented
-                values={[
-                  { key: "same", label: "같은 덱" },
-                  { key: "mine", label: "내 덱" },
-                  { key: "public", label: "공개 덱" },
-                ]}
-                value={rivalSource}
-                onChange={(v) => {
-                  setRivalSource(v as typeof rivalSource);
-                  setRival(null);
-                  setRivalInfo(null);
-                }}
-              />
-              {rivalSource === "public" && (
-                <SearchInput value={query} onChangeText={setQuery} placeholder="덱 이름·작성자 (2글자 이상)" />
-              )}
-            </>
-          ) : null
-        }
       >
         {() =>
-          picker?.kind === "rival" ? (
-            rivalSource === "same" ? (
-              <View style={{ gap: space.md, paddingBottom: space.md }}>
-                <Text style={styles.muted}>{t("AI도 내가 고른 덱과 같은 덱을 씁니다.")}</Text>
-                <Button label="확인" variant="primary" block onPress={() => setPicker(null)} />
-              </View>
-            ) : rivalSource === "mine" ? (
-              myDecks(rival, (id) => {
-                setRival(id);
+          picker
+            ? myDecks(picker.selected, (id) => {
+                picker.onPick(id);
                 setPicker(null);
               })
-            ) : (
-              <>
-                {query.trim().length >= 2 && !results.length && (
-                  <Notice text={t("검색 결과가 없습니다.")} />
-                )}
-                {results.map((deck) => (
-                  <DeckRow
-                    key={deck.id}
-                    deck={{ ...deck, note: deck.author?.username }}
-                    selected={rival === deck.id}
-                    character={characterOf(deck.character_id)}
-                    characterName={characterName(deck.character_id)}
-                    onPress={() => {
-                      setRival(deck.id);
-                      setRivalInfo({ id: deck.id, name: deck.name, character_id: deck.character_id });
-                      setPicker(null);
-                    }}
-                  />
-                ))}
-              </>
-            )
-          ) : picker ? (
-            myDecks(picker.selected, (id) => {
-              picker.onPick(id);
-              setPicker(null);
-            })
-          ) : null
+            : null
         }
       </BottomSheet>
     </ScrollView>
@@ -758,6 +764,7 @@ const battleStyles = StyleSheet.create({
     backgroundColor: colors.panel,
   },
   deckRowSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  aiRowSelected: { borderColor: AI_ACCENT, backgroundColor: "rgba(95, 200, 192, 0.12)" },
   deckName: { color: colors.text, fontSize: 15, fontWeight: "700" },
   seat: {
     flex: 1,

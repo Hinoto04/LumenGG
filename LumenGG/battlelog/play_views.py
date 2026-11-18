@@ -72,7 +72,11 @@ def play_decks(req):
 @require_GET
 def play_ai_decks(req):
     """Registered AI opponents for the lobby (operators curate them in admin)."""
-    language = get_language(req)
+    return JsonResponse({'ai_decks': ai_deck_rows(get_language(req))})
+
+
+def ai_deck_rows(language):
+    """AI opponent rows shared by the web lobby and the mobile API (same list, same order)."""
     styles = dict(STYLE_CHOICES)
     rows = []
     for ai_deck in active_ai_decks():
@@ -88,11 +92,12 @@ def play_ai_decks(req):
             'style': style,
             'style_label': styles.get(style, style),
             'character': translated_character_field(character, language, 'name'),
+            'character_id': character.id,
             'character_img': character.icon_img or character.img or '',
             'deck_id': ai_deck.deck_id,
             'deck_name': ai_deck.deck.name,
         })
-    return JsonResponse({'ai_decks': rows})
+    return rows
 
 
 def create_play_session(user, body):

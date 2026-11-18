@@ -58,6 +58,9 @@ def preview_battle(mine, theirs, *, my_fp=0, their_fp=0):
 
 def _attack_vs_defense(attack, defense):
     result = _guard_result(defense, attack.get('pos'))
+    if result == 'guard' and attack.get('unguardable'):
+        # "상대는 이 기술을 방어할 수 없다": 방어는 막히고 회피·상쇄는 그대로다(엔진의 규칙 차단과 같다).
+        result = 'hit'
     if result == 'dodge':
         return 'opponent_dodge', 'dodge'
     if result == 'guard':
@@ -267,18 +270,25 @@ def certain_loss(observation, role, card):
     return all(is_loss(card, other, my_fp=my_fp, their_fp=their_fp) for other in options)
 
 
-def minimum_answer_cards(observation, role, candidates, *, scope='hand', max_size=3):
+def minimum_answer_cards(observation, role, candidates, *, scope='hand', max_size=3, rival_fp_lead=None):
     """Smallest sets of ``candidates`` that answer every unanswered threat.
 
     Threats already answered by a card in the AI's hand are skipped. Returns
     ``(threats_left, covers)`` where ``covers`` lists every minimum-size set
     of candidate instance ids (empty when nothing is needed or possible).
+
+    ``rival_fp_lead`` judges the threats as if the opponent led by that much
+    FP (my FP 0) instead of the current FP: a hand of fast attacks answers
+    everything at even FP but nothing once the opponent has the frame
+    advantage, when only a guard that covers the attack's position works.
     """
     threats = known_rival_threats(observation, role, scope=scope)
     if not threats:
         return [], []
     own, _rival = _players(observation, role)
     my_fp, their_fp = fp_values(observation, role)
+    if rival_fp_lead is not None:
+        my_fp, their_fp = 0.0, max(0.0, _number(rival_fp_lead))
     hand = [card for card in _zone(own, 'hand') if is_ready_candidate(card)]
     open_threats = [
         threat for threat in threats

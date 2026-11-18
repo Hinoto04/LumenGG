@@ -15,7 +15,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: "kr.hinoto.lumen",
-    versionCode: 16,
+    versionCode: 17,
     // Android 13–15 must deliver Back to React Native's navigation handlers.
     // React Native registers the Android 16 dispatcher callback itself.
     predictiveBackGestureEnabled: false,
@@ -33,6 +33,7 @@ const config: ExpoConfig = {
     "expo-image",
     "expo-status-bar",
     "./plugins/with-screen-orientations",
+    "./plugins/with-optional-hardware",
     "./plugins/with-upload-signing",
     "./plugins/with-release-optimization",
   ],

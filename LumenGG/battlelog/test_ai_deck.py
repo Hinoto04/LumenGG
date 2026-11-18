@@ -406,6 +406,28 @@ cards = ["AIH-001", "AIH-002"]
         self.assertEqual(rows[0]['character'], 'AI HTTP Character')
         self.assertEqual(rows[0]['description'], '콤보 연습용')
 
+    def test_mobile_api_lists_the_same_ai_decks_and_starts_a_game_with_one(self):
+        from rest_framework.test import APIClient
+
+        shown = self.make_ai_deck(description='콤보 연습용')
+        self.make_ai_deck(name='숨김', is_active=False)
+        web = self.client.get(reverse('battlelog:playAIDecks')).json()['ai_decks']
+        client = APIClient()
+
+        rows = client.get('/api/mobile/v1/simulator/ai-decks?language=ko').json()['ai_decks']
+
+        self.assertEqual([row['id'] for row in rows], [row['id'] for row in web])
+        self.assertEqual(rows[0]['id'], shown.id)
+        self.assertEqual(rows[0]['character_id'], self.decks[1].character_id)
+        self.assertEqual(rows[0]['style_label'], '공격적')
+        response = client.post('/api/mobile/v1/simulator/sessions', {
+            'p1_deck': self.decks[0].id, 'ai_deck': shown.id, 'opponent': 'ai', 'mode': 'automatic',
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertTrue(response.json()['urls']['p1'].startswith('http'))
+        session = LumenSimulatorSession.objects.get(view_token=response.json()['view_token'])
+        self.assertEqual(session.document['ai_deck']['id'], shown.id)
+
     def test_new_game_with_ai_deck_pins_the_profile_even_for_a_private_deck(self):
         stranger = User.objects.create_user(username='ai-deck-owner', password='pw')
         self.decks[1].author = stranger

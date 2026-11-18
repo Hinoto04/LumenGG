@@ -203,6 +203,37 @@ def _special_result(card, position):
     return ''
 
 
+def prevents_opponent_guard(definition):
+    """An unconditional ability of the definition forbids the opponent's guard."""
+    for ability in (definition or {}).get('abilities') or []:
+        if not isinstance(ability, dict) or ability.get('condition'):
+            continue
+        for effect in ability.get('effects') or []:
+            if (
+                isinstance(effect, dict) and effect.get('op') == 'prevent'
+                and effect.get('kind') == 'guard'
+                and (effect.get('player') or {}).get('opponent')
+            ):
+                return True
+    return False
+
+
+def _mark_card_rules(value, unguardable):
+    """Flag observed cards whose code is in ``unguardable`` (in place)."""
+    if not unguardable:
+        return
+    if isinstance(value, dict):
+        if value.get('code') in unguardable:
+            value['unguardable'] = True
+        for item in value.values():
+            if isinstance(item, (dict, list)):
+                _mark_card_rules(item, unguardable)
+    elif isinstance(value, list):
+        for item in value:
+            if isinstance(item, (dict, list)):
+                _mark_card_rules(item, unguardable)
+
+
 def _guard_result(card, position):
     key = {'상단': 'g_top', '중단': 'g_mid', '하단': 'g_bot'}.get(position)
     value = str((card or {}).get(key) or '') if key else ''
@@ -10323,7 +10354,7 @@ class AutomaticGameEngine:
                     role, decision_payload.get('options'),
                     self._decision_destination(decision),
                 )
-        return {
+        observation = {
             'state': self._observation_state(role) if include_state else None,
             'legal_actions': self._with_action_ui(role, self.legal_actions(role)),
             'pending_decision': decision_payload,
@@ -10343,6 +10374,31 @@ class AutomaticGameEngine:
             'ruleset_version': self.ruleset.get('version') or self.ruleset.get('content_hash'),
             **({'memory': self._public_memory(role)} if include_memory else {}),
         }
+        _mark_card_rules(observation, self._unguardable_codes())
+        return observation
+
+    def _unguardable_codes(self):
+        """Codes whose printed rule stops the opponent from guarding them.
+
+        Public card text ("상대는 이 기술을 방어할 수 없다"). Observations flag
+        these cards ``unguardable`` so AI previews do not count a guard against
+        them. Conditional versions (FP or state requirements) are left out.
+        """
+        cached = getattr(self, '_unguardable_cache', None)
+        if cached is not None:
+            return cached
+        shared = getattr(self.ruleset, '_unguardable_cache', None)
+        if shared is not None and getattr(self.ruleset, '_automatic_immutable_ruleset', False):
+            self._unguardable_cache = shared
+            return shared
+        codes = frozenset(
+            str(code) for code, card in (self.ruleset.get('cards') or {}).items()
+            if prevents_opponent_guard((card or {}).get('effect_definition'))
+        )
+        self._unguardable_cache = codes
+        if getattr(self.ruleset, '_automatic_immutable_ruleset', False):
+            self.ruleset._unguardable_cache = codes
+        return codes
 
     def _public_memory(self, role):
         rival = opponent(role)

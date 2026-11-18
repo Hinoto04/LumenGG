@@ -13,7 +13,10 @@ export type BattleMode = "automatic" | "manual";
 
 export interface BattleRequest {
   p1_deck: number;
-  p2_deck: number;
+  /** 사람끼리 대전(예전 방식)에서 상대 덱. AI 대전은 ai_deck을 보낸다. */
+  p2_deck?: number;
+  /** 운영진이 등록한 AI 상대(SimulatorAIDeck) id. 그 AI의 덱과 성향으로 대전한다. */
+  ai_deck?: number;
   opponent: Opponent;
   /** manual은 사람끼리만. 규칙 판정 없이 직접 조작하는 샌드박스 */
   mode: BattleMode;
@@ -29,6 +32,27 @@ export interface BattleSession {
 
 export async function createBattle(body: BattleRequest): Promise<BattleSession> {
   return request("/simulator/sessions", { method: "POST", body: JSON.stringify(body) });
+}
+
+/** 웹 로비와 같은 AI 상대 목록(서버 battlelog/play_views.py ai_deck_rows) */
+export interface AiDeck {
+  id: number;
+  name: string;
+  description: string;
+  style: string;
+  style_label: string;
+  /** 서버 언어로 옮긴 캐릭터 이름. 카탈로그에 없는 캐릭터일 때 쓴다. */
+  character: string;
+  character_id: number;
+  character_img: string;
+  deck_id: number;
+  deck_name: string;
+}
+
+export async function fetchAiDecks(language: string): Promise<AiDeck[]> {
+  const params = new URLSearchParams({ language });
+  const data = await request(`/simulator/ai-decks?${params}`, {}, false);
+  return (data?.ai_decks ?? []) as AiDeck[];
 }
 
 // ---------------------------------------------------------------------------

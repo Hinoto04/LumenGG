@@ -11,7 +11,7 @@ Normalized shape (pinned into the session as ``document['ai_deck']``)::
         'prefer': {'UNC-AT-001': 2.5},
         'situations': [{'name': ..., 'when': {...}, 'prefer': {...}, 'weights': {...}}],
         'combos': [{'name': ..., 'cards': [...], 'bonus': 3.0, 'when': {...}}],
-        'counter': {'enabled': True, 'bonus': 2.0, 'scope': 'hand'},
+        'counter': {'enabled': True, 'bonus': 2.0, 'scope': 'hand', 'guard_bonus': 6.0, 'guard_fp': 3.0},
         'safety': {'avoid_certain_loss': True},
     }
 """
@@ -78,6 +78,11 @@ PREFERENCE_LIMIT = 10.0
 BONUS_LIMIT = 10.0
 DEFAULT_ROUTE_BONUS = 3.0
 DEFAULT_COUNTER_BONUS = 2.0
+# 상대가 이득 프레임일 때를 대비한 가드 획득 가산. 공격 카드의 기본 점수(card_attack·card_speed)를
+# 넘어야 획득되므로 일반 대처 가산보다 크다.
+DEFAULT_GUARD_BONUS = 6.0
+DEFAULT_GUARD_FP = 3.0
+GUARD_FP_LIMIT = 20.0
 MAX_ITEMS = 30
 MAX_ROUTE_LENGTH = 10
 COUNTER_SCOPES = ('hand', 'hand_and_list')
@@ -425,6 +430,13 @@ def normalize_profile(raw, *, allowed_codes=None):
     counter_bonus = _bounded(
         counter_raw.get('bonus', DEFAULT_COUNTER_BONUS), BONUS_LIMIT, 'counter.bonus', errors,
     )
+    guard_bonus = _bounded(
+        counter_raw.get('guard_bonus', DEFAULT_GUARD_BONUS), BONUS_LIMIT, 'counter.guard_bonus', errors,
+    )
+    guard_fp = _bounded(counter_raw.get('guard_fp', DEFAULT_GUARD_FP), GUARD_FP_LIMIT, 'counter.guard_fp', errors)
+    if guard_fp is not None and guard_fp < 0:
+        errors.append('counter.guard_fp는 0 이상이어야 합니다.')
+        guard_fp = None
     safety_raw = raw.get('safety') or {}
     if not isinstance(safety_raw, dict):
         errors.append('safety는 표(table)여야 합니다.')
@@ -485,6 +497,8 @@ def normalize_profile(raw, *, allowed_codes=None):
             'enabled': bool(counter_raw.get('enabled', True)),
             'bonus': counter_bonus if counter_bonus is not None else DEFAULT_COUNTER_BONUS,
             'scope': scope,
+            'guard_bonus': guard_bonus if guard_bonus is not None else DEFAULT_GUARD_BONUS,
+            'guard_fp': guard_fp if guard_fp is not None else DEFAULT_GUARD_FP,
         },
         'safety': {'avoid_certain_loss': bool(safety_raw.get('avoid_certain_loss', True))},
         'effects': effects,
@@ -498,12 +512,16 @@ def normalize_profile(raw, *, allowed_codes=None):
 
 
 # Defaults for an AI seat without a registered deck profile.
-DEFAULT_COUNTER = {'enabled': True, 'bonus': DEFAULT_COUNTER_BONUS, 'scope': 'hand'}
+DEFAULT_COUNTER = {
+    'enabled': True, 'bonus': DEFAULT_COUNTER_BONUS, 'scope': 'hand',
+    'guard_bonus': DEFAULT_GUARD_BONUS, 'guard_fp': DEFAULT_GUARD_FP,
+}
 DEFAULT_SAFETY = {'avoid_certain_loss': True}
 
 
 def counter_settings(profile):
-    return (profile or {}).get('counter') or DEFAULT_COUNTER
+    # 예전에 고정된 프로필(세션 문서)에는 나중에 생긴 키가 없으므로 기본값을 채운다.
+    return {**DEFAULT_COUNTER, **((profile or {}).get('counter') or {})}
 
 
 def safety_settings(profile):

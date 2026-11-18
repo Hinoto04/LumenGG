@@ -14,7 +14,20 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from battlelog import play_rooms
-from battlelog.play_views import create_play_session
+from battlelog.play_views import ai_deck_rows, create_play_session
+from common.language import normalize_language
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def ai_decks(request):
+    """웹 로비와 같은 AI 상대 목록(운영진이 관리자 화면에서 등록). 대전은 sessions에 `ai_deck`으로 만든다."""
+    language = normalize_language(request.query_params.get('language') or 'ko')
+    rows = ai_deck_rows(language)
+    for row in rows:
+        if row['character_img']:
+            row['character_img'] = request.build_absolute_uri(row['character_img'])
+    return Response({'ai_decks': rows})
 
 
 @api_view(['POST'])

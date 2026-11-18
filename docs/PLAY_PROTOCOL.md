@@ -163,10 +163,11 @@ GET simulator/<view_token>/card-metadata/?ids=109,110   (최대 200개)
 |---|---|
 | `GET /battlelog/play/` | 클라이언트 페이지(`templates/battlelog/play.html`). `csrftoken` 쿠키를 심는다 |
 | `GET /battlelog/play/api/decks/?q=` | 덱 검색(시작 화면 검색과 같은 규칙). `?mine=1`은 로그인한 사용자의 덱 |
-| `GET /battlelog/play/api/ai-decks/` | 로비에 내놓을 AI 상대 목록 `{ai_decks: [{id, name, description, style, style_label, character, character_img, deck_id, deck_name}]}`. 관리자 화면 AI 덱에서 등록한다(`docs/AI_DECK_PROFILE.md`) |
+| `GET /battlelog/play/api/ai-decks/` | 로비에 내놓을 AI 상대 목록 `{ai_decks: [{id, name, description, style, style_label, character, character_id, character_img, deck_id, deck_name}]}`. 관리자 화면 AI 덱에서 등록한다(`docs/AI_DECK_PROFILE.md`) |
 | `POST /battlelog/play/api/new/` | `{p1_deck, p2_deck, opponent: ai\|human, mode: automatic\|manual, ready_timeout_seconds, effect_timeout_seconds}` → `{view_token, mode, seats, urls, legacy?}`. AI 대전은 `p2_deck` 대신 `ai_deck`(AI 덱 ID)을 보내고, 그 덱의 AI 설정이 세션에 고정된다. 예전 앱처럼 `p2_deck`만 보내도 되며, 그 덱이 등록된 AI 덱이면 설정을 함께 쓴다 |
 | `POST /battlelog/simulator/<view>/preparation/check/` | 덱 준비 후보를 저장하지 않고 검사(`validate(stage='setup')`) |
 | `POST /api/mobile/v1/simulator/sessions` | 앱용(JWT). 본문은 위와 같고 `urls`가 절대 주소다 |
+| `GET /api/mobile/v1/simulator/ai-decks?language=` | 앱용. 웹 로비와 같은 AI 상대 목록(`play_views.ai_deck_rows`), `character_img`는 절대 주소다 |
 
 - 대전 생성은 `battlelog/play_start.py`의 `start_session()` 하나로 모았다. 구 시작 화면, 새 로비, 앱이 같은 권한·특성 검사를 거친다.
 - 대전을 만들거나 구 좌석·관전 주소(`/battlelog/simulator/<view>/...`)를 열면 `/battlelog/play/?game=…`으로 넘어간다(수동 대전의 예외는 아래).
@@ -248,7 +249,8 @@ cd play; npm run build:django   # → LumenGG/static/play/play.js, play.css
 
 ### 앱
 
-홈의 "대전"에서 서버에 저장된(동기화된) 내 덱과 상대 덱(같은 덱·내 덱·공개 덱 검색)을 고른다.
+홈의 "대전" → "AI와 대전"에서 서버에 저장된(동기화된) 내 덱과 웹 로비와 같은 AI 상대(`/simulator/ai-decks`)를 고른다.
+대전은 `ai_deck`을 보내 만든다. 예전 앱 버전은 `p2_deck`(같은 덱·내 덱·공개 덱)을 보내며 서버는 그대로 받는다.
 `/simulator/sessions`로 만든 뒤 `app/play.tsx`의 WebView로 좌석 주소를 연다. WebView에는 로그인 정보를 넘기지 않는다.
 
 - WebView 안에서는 대전(`/battlelog/play/?game=`)과 수동 모드 시뮬레이터만 연다. 로비 주소('나가기', '새 대전')는 앱 화면으로 돌아가고,

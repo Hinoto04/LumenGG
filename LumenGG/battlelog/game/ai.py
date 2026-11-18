@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from .ai_decisions import decide
 from .ai_matrix import SCORE_PER_VALUE, choose_ready
-from .ai_preview import battle_outlook, certain_loss, minimum_answer_cards, own_card
+from .ai_preview import battle_outlook, certain_loss, fp_values, minimum_answer_cards, own_card
 from .ai_profile import counter_settings, profile_bonus, profile_weights, safety_settings
 
 
@@ -346,17 +346,45 @@ def counter_targets(observation, role, candidates, profile=None):
     return set().union(*covers) if covers else set()
 
 
+def guard_targets(observation, role, candidates, profile=None):
+    """List cards in a minimum answer set to threats under the opponent's FP lead.
+
+    Only while the opponent leads in FP (the frame advantage carries into the
+    next Ready): threats are judged as if they led by at least
+    ``counter.guard_fp`` FP, and the cards to fetch are those that answer what
+    the hand cannot (a guard that covers their low or unguardable attacks).
+    When the AI is even or ahead, fetching guards only thins its attacks.
+    """
+    settings = counter_settings(profile)
+    if not settings.get('enabled') or not _number(settings.get('guard_bonus')):
+        return set()
+    my_fp, their_fp = fp_values(observation, role)
+    if their_fp <= my_fp:
+        return set()
+    gets = [action for action in candidates if action.get('type') == 'select_get_card']
+    if not gets:
+        return set()
+    cards = [card for card in (_full_card(observation, role, action) for action in gets) if card]
+    _threats, covers = minimum_answer_cards(
+        observation, role, cards, scope=settings.get('scope') or 'hand',
+        rival_fp_lead=max(their_fp - my_fp, _number(settings.get('guard_fp'))),
+    )
+    return set().union(*covers) if covers else set()
+
+
 def _counter_bonus(observation, role, candidates, profile):
-    targets = counter_targets(observation, role, candidates, profile)
-    if not targets:
-        return {}
-    bonus = _number(counter_settings(profile).get('bonus'))
-    return {
-        action.get('action_id'): bonus
-        for action in candidates
-        if action.get('type') == 'select_get_card'
-        and (action.get('card') or {}).get('instance_id') in targets
-    }
+    settings = counter_settings(profile)
+    bonuses = {}
+    for targets, bonus in (
+        (counter_targets(observation, role, candidates, profile), _number(settings.get('bonus'))),
+        (guard_targets(observation, role, candidates, profile), _number(settings.get('guard_bonus'))),
+    ):
+        for action in candidates:
+            instance_id = (action.get('card') or {}).get('instance_id')
+            if action.get('type') == 'select_get_card' and instance_id in targets:
+                key = action.get('action_id')
+                bonuses[key] = max(bonuses.get(key, 0.0), bonus)
+    return bonuses
 
 
 def card_shortlist(ranked, *, top_k=SHORTLIST_SIZE, margin=SHORTLIST_MARGIN):

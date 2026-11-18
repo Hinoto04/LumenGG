@@ -15,6 +15,7 @@ urlpatterns = [
     path('tournaments/<int:tournament_id>/matches/<int:match_id>/calculator', tournaments.calculator),
     path('tournaments/<int:tournament_id>/matches/<int:match_id>/report', tournaments.report),
     path('simulator/sessions', simulator.sessions),
+    path('simulator/ai-decks', simulator.ai_decks),
     path('simulator/rooms', simulator.room_create),
     path('simulator/rooms/<str:code>/state', simulator.room_state),
     path('simulator/rooms/<str:code>/join', simulator.room_join),
