@@ -4,8 +4,23 @@
     {
       "name": "play-dev",
       "runtimeExecutable": ".venv/Scripts/python.exe",
-      "runtimeArgs": ["-u", "scripts/serve_play_dev.py", "--port", "8874"],
+      "runtimeArgs": [
+        "-u",
+        "scripts/serve_play_dev.py",
+        "--port",
+        "8874"
+      ],
       "port": 8874
+    },
+    {
+      "name": "pyodide-lab",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "play/node_modules/vite/bin/vite.js",
+        "--config",
+        "play/vite.pyodide.config.ts"
+      ],
+      "port": 5176
     }
   ]
 }

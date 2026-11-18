@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>클라이언트 AI 시제품</title>
+    <style>
+      :root { color-scheme: dark; --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --line: #30363d; --accent: #58a6ff; }
+      body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, "Noto Sans KR", sans-serif; }
+      main { max-width: 960px; margin: 0 auto; padding: 16px; }
+      h1 { font-size: 18px; margin: 0 0 8px; }
+      p { color: var(--muted); margin: 0 0 12px; }
+      .bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+      button { background: #21262d; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer; }
+      button:disabled { opacity: .5; cursor: default; }
+      input { width: 72px; background: #0d1117; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; }
+      table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-variant-numeric: tabular-nums; }
+      th, td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; }
+      th { color: var(--muted); font-weight: 500; white-space: nowrap; }
+      #status { color: var(--accent); }
+      pre { white-space: pre-wrap; word-break: break-all; background: #161b22; border: 1px solid var(--line); border-radius: 6px; padding: 8px; font-size: 12px; max-height: 320px; overflow: auto; }
+      .wrap { overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>클라이언트 AI 시제품 (Pyodide)</h1>
+      <p>서버의 엔진·AI 파이썬 모듈을 그대로 브라우저(Web Worker)에서 실행해 AI 대 AI 한 판을 끝까지 돌린다.</p>
+      <div class="bar">
+        <button id="init">불러오기</button>
+        <button id="run-off" disabled>엔진 평가 끔</button>
+        <button id="run-on" disabled>엔진 평가 켬</button>
+        <label>명령 한도 <input id="max" type="number" value="2000" min="1" /></label>
+        <span id="status">대기</span>
+      </div>
+      <h2 style="font-size:15px">불러오기</h2>
+      <div class="wrap"><table id="load"><tbody></tbody></table></div>
+      <h2 style="font-size:15px">대전</h2>
+      <div class="wrap"><table id="games"><thead><tr>
+        <th>엔진 평가</th><th>결과</th><th>명령/턴</th><th>판당</th><th>레디 1회 평균/p90/최대</th><th>그 밖 결정 평균</th><th>명령 적용 평균</th><th>시뮬/레디</th>
+      </tr></thead><tbody></tbody></table></div>
+      <pre id="log"></pre>
+    </main>
+    <script type="module" src="/src/pyodideLab/main.ts"></script>
+  </body>
+</html>
