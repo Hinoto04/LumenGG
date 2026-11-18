@@ -407,6 +407,8 @@ export interface PlayEnvelope {
   preparation?: PreparationView | null;
   /** 수동 모드: 이 접속이 보드를 조작할 수 있는지 */
   can_control?: boolean;
+  /** 똑같은 토큰 중 몇 장을 고르는 선택: 화면은 묻지 않고 이 id들을 바로 제출한다. */
+  auto_select?: string[];
   /** 자동 엔진 오류로 수동 모드가 된 대전 */
   automation_failure?: { report_id?: string; message?: string } | null;
   [extra: string]: unknown;

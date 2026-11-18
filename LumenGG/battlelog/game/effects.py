@@ -632,6 +632,24 @@ class EffectResolver:
     def state(self):
         return self.engine.state
 
+    def _is_hp_payment(self, effect, context):
+        """자신의 체력을 줄이는 효과가 카드 문구상 '지불'인지."""
+        if effect.get('payment') is True:
+            return True
+        if context.get('effect_cost'):
+            return True
+        ability_id = context.get('ability_id')
+        source_card = context.get('source_card') or {}
+        if not ability_id or not source_card:
+            return False
+        definition = self._definition_for_card(source_card) or {}
+        ability = next((
+            item for item in definition.get('abilities') or []
+            if isinstance(item, dict) and item.get('id') == ability_id
+        ), None) or {}
+        text = str(ability.get('draft_text') or ability.get('label') or '')
+        return '지불' in text
+
     def _definition_for_card(self, card, zone=None):
         return self.engine._definition_for_card(card, zone)
 
@@ -1510,7 +1528,12 @@ class EffectResolver:
                         context=damage_context,
                     )
             else:
-                self.engine.change_hp(target, amount, source='effect', context=context)
+                hp_context = context
+                if amount < 0 and target == controller and self._is_hp_payment(effect, context):
+                    # "체력 N을 지불한다"가 비용이 아닌 효과로 정의된 경우(여제의 영역 등)도
+                    # 이제벨 피의 잔향 등 "자신의 효과로 체력을 지불할 때" 반응이 인식하게 한다.
+                    hp_context = {**context, 'effect_cost': True}
+                self.engine.change_hp(target, amount, source='effect', context=hp_context)
         elif op == 'change_fp':
             amount = int(resolve_value(effect.get('amount', 0), self.state, context) or 0) * multiplier
             # "FP를 얻을 수 없다" (CB04-AT-010) and "FP를 얻는 대신" (CB04-AT-036):

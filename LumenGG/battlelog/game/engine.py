@@ -127,9 +127,9 @@ ACTION_UI_DEFAULT_KIND = 'secondary'
 # 꺼내지는 순간 생성(token_created)되며, 사이드 덱으로 돌아온 토큰은 소멸한다.
 TOKEN_SUPPLY_SIZE = 8
 
-# 무한히 쌓일 수 있는 토큰은 루멘 존 카드 대신 플레이어 상태의 개수로 보여 준다
+# 거미·단검처럼 쌓이는 토큰은 루멘 존 카드 대신 플레이어 상태의 개수로 보여 준다
 # (Q-AUTO-012). token_key → 플레이어 상태 키(수동 계산기와 같은 키).
-PLAYER_STATE_TOKEN_KEYS = {'spider': 'spider_token'}
+PLAYER_STATE_TOKEN_KEYS = {'spider': 'spider_token', 'dagger': 'dagger_token'}
 
 
 def opponent(side):
@@ -3967,6 +3967,7 @@ class AutomaticGameEngine:
         found_owner, card_zone, _index, _live = self._find_location(
             (card or {}).get('instance_id'),
         )
+        card_zone = self._combo_origin_zone(combo, card, card_zone)
         caps = []
         extensions = []
         extension_keys = set()
@@ -4042,6 +4043,7 @@ class AutomaticGameEngine:
             found_owner, found_zone, _index, _live = self._find_location(
                 (card or {}).get('instance_id'),
             )
+            found_zone = self._combo_origin_zone(combo, card, found_zone)
             if not any(
                 rule in required_followups
                 and self._combo_rule_location_allowed(
@@ -4270,6 +4272,8 @@ class AutomaticGameEngine:
         _card_owner, card_zone, _card_index, _live_card = self._find_location(
             (card or {}).get('instance_id'),
         )
+        # 함께 제시해 먼저 배틀 존에 놓인 카드는 원래 있던 존 기준으로 판정한다.
+        card_zone = self._combo_origin_zone(combo, card, card_zone)
         definition = self._definition_for_card(card)
         rules = []
         static_context = {
@@ -5974,6 +5978,14 @@ class AutomaticGameEngine:
             'distinct_by': distinct_by,
             'continuation': copy.deepcopy(continuation or {}), 'created_at': self.now.isoformat(),
         }
+        identical_tokens = (
+            self._interchangeable_token_ids(normalized, int(minimum))
+            if int(minimum) == int(maximum) else None
+        )
+        if identical_tokens:
+            # 똑같은 개수 표시 토큰(거미·단검) 몇 장을 고르는 선택은 결과가 같으므로
+            # 화면은 묻지 않고 이 선택을 바로 제출한다(Q-AUTO-012).
+            decision['auto_select'] = identical_tokens
         if unavailable:
             # 고를 수 없는 선택지는 이유와 함께 따로 보여 준다(제출 검증·AI는 options만 본다).
             decision['unavailable_options'] = copy.deepcopy(unavailable)
@@ -6994,6 +7006,9 @@ class AutomaticGameEngine:
             'card_label': card.get('name') or card.get('code') or '카드',
             **({'revealed': True} if revealed_on_move else {}),
             **({'token_created': True} if created_from_supply else {}),
+            # 개수로만 보여 주는 토큰(거미·단검): 화면은 카드 대신 개수를 바꾼다.
+            **({'counter_token': PLAYER_STATE_TOKEN_KEYS[card.get('token_key')]}
+               if card.get('token_key') in PLAYER_STATE_TOKEN_KEYS else {}),
         }, visibility='public' if card.get('face_up') or revealed_on_move else 'private')
         self._enforce_list_limit(target)
         self._reconcile_trait_states()
@@ -9353,6 +9368,17 @@ class AutomaticGameEngine:
             'use_context': use_context,
         }
 
+    def _combo_origin_zone(self, combo, card, zone):
+        """함께 제시해 먼저 배틀 존에 놓인 콤보 카드는 원래 있던 존으로 판정한다.
+
+        드리프트 컨버전처럼 "패에서 이을 수 있다" 같은 존 조건이, 함께 제시된 2번째 카드를
+        배틀 존의 카드로 보고 불법 처리해 콤보가 중단되던 문제를 막는다.
+        """
+        if zone != 'battle':
+            return zone
+        presented = ((combo or self.engine_state.get('combo') or {}).get('presented_from') or {})
+        return presented.get((card or {}).get('instance_id')) or zone
+
     def _applicable_play_costs(self, card, use_context, *, original_speed=False):
         definition = self._definition_for_card(card)
         _owner, source_zone, _index, _live_card = self._find_location(
@@ -9431,6 +9457,31 @@ class AutomaticGameEngine:
             if len(self.selector_options(selector, context)) < minimum:
                 return False
         return True
+
+    def _interchangeable_token_ids(self, options, count):
+        """후보가 모두 같은 개수 표시 토큰(거미·단검)이면 앞에서 count장의 id, 아니면 None.
+
+        개수로만 보여 주는 토큰은 어느 것을 골라도 결과가 같다. 사이드 덱 쪽은
+        생성 대기분(token_supply)일 때만 해당한다.
+        """
+        if count <= 0 or len(options) < count:
+            return None
+        signature = None
+        ids = []
+        for option in options:
+            option_id = str((option or {}).get('id') or '')
+            owner, zone, _index, card = self._find_location(option_id)
+            if not card or card.get('token_key') not in PLAYER_STATE_TOKEN_KEYS:
+                return None
+            if zone != 'lumen' and not card.get('token_supply'):
+                return None
+            current = (owner, zone, card.get('token_key'), card.get('code'))
+            if signature is None:
+                signature = current
+            elif current != signature:
+                return None
+            ids.append(option_id)
+        return ids[:count]
 
     def _begin_play_cost(self, owner, card, use_context, play):
         costs = [

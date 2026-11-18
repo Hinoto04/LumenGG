@@ -460,3 +460,165 @@ class AnyZoneToHandRevealTests(SimpleTestCase):
         engine.move_card('side-to-list', 'battle', reason='effect', face_up=False)
         event = next(e for e in reversed(engine.events) if e['type'] == 'card_moved')
         self.assertEqual(event['visibility'], 'private')
+
+
+def _jezebel_engine_with_empress():
+    engine = SideTokenSupplyTests().build(SideTokenSupplyTests.JEZEBEL)
+    source = attack('empress', 'p1', code='PMP-AT-010')
+    engine.ruleset['cards']['PMP-AT-010'] = {
+        'code': 'PMP-AT-010', 'name': '여제의 영역', 'type': '공격', 'character_id': 13,
+        'effect_definition': {'abilities': [{
+            'id': 'pmp-at-010-n1', 'label': '사용 시, 체력 300을 지불한다.',
+            'kind': 'effect', 'mode': 'mandatory', 'timing': 'use', 'visibility': 'public',
+            'draft_text': '사용 시, 체력 300을 지불한다.',
+            'effects': [{'op': 'change_hp', 'player': {'controller': True}, 'amount': -300}],
+            'cost': [], 'trigger': {'event': 'use'}, 'active_zones': ['battle'],
+            'condition': {'op': 'equals', 'left': 'context.event_controller', 'right': {'controller': True}},
+        }]},
+    }
+    engine.state['players']['p1']['zones']['battle'] = [source]
+    return engine, source
+
+
+class EffectHpPaymentSpiderTests(SimpleTestCase):
+    """여제의 영역: 사용 시 효과로 체력을 지불하면 이제벨 특성 ①이 발동한다.
+    똑같은 거미 토큰 중에서 고르는 선택은 엔진이 고를 카드를 정해 준다(auto_select)."""
+
+    def lumen_spiders(self, engine):
+        return [c for c in engine.state['players']['p1']['zones']['lumen'] if c.get('token_key') == 'spider']
+
+    def test_use_effect_payment_places_spider_without_choice(self):
+        engine, source = _jezebel_engine_with_empress()
+        before = engine.state['players']['p1']['hp']
+        engine._fire('use', {
+            'controller': 'p1', 'source_card': source, 'source_card_instance_id': 'empress',
+        })
+        engine._continue()
+        self.assertEqual(engine.state['players']['p1']['hp'], before - 300)
+        decision = engine.observe('p1')['pending_decision']
+        # 똑같은 거미 중에서 고르는 선택은 화면이 묻지 않고 auto_select를 바로 제출한다.
+        self.assertEqual(len(decision['auto_select']), 1)
+        engine._submit_decision('p1', decision['id'], decision['auto_select'])
+        engine._continue()
+        self.assertEqual(len(self.lumen_spiders(engine)), 1)
+        moved = next(e for e in reversed(engine.events) if e['type'] == 'card_moved')
+        self.assertEqual(moved['payload']['counter_token'], 'spider_token')
+
+    def test_damage_is_not_a_payment(self):
+        engine, _source = _jezebel_engine_with_empress()
+        engine.change_hp('p1', -300, source='effect', context={'controller': 'p2'})
+        engine._continue()
+        self.assertEqual(self.lumen_spiders(engine), [])
+
+
+class DaggerCounterTokenTests(SimpleTestCase):
+    """레브 단검도 루멘 존 카드 대신 체력 아래 개수로 보여 준다."""
+
+    def test_daggers_in_lumen_are_shown_as_counter(self):
+        daggers = [{
+            'instance_id': f'dagger-{i}', 'kind': 'token', 'owner': 'p1', 'code': 'LMI-TK-DAGGER',
+            'name': '「단검」', 'type': '토큰', 'token_key': 'dagger', 'face_up': True,
+        } for i in range(2)]
+        state = base_state([], [])
+        state['players']['p1']['zones']['lumen'] = daggers
+        engine = AutomaticGameEngine.initialize(state, ruleset(), seed='dagger-counter', run_startup=False)
+        observed = engine.observe('p2')['state']['players']['p1']
+        self.assertEqual(observed['passive_state']['dagger_token']['count'], 2)
+        self.assertEqual(observed['passive_state']['dagger_token']['label'], '단검 토큰')
+        self.assertEqual(
+            [card.get('state_counter_token') for card in observed['zones']['lumen']],
+            ['dagger_token', 'dagger_token'],
+        )
+
+
+DRIFT_CONVERSION = {
+    'abilities': [{
+        'id': 'crs-at-054-n1', 'kind': 'effect', 'mode': 'optional', 'timing': 'combo',
+        'visibility': 'public', 'trigger': {'event': 'combo_window'}, 'active_zones': ['side'],
+        'limit': {'scope': 'turn', 'max': 1},
+        'condition': {'op': 'all', 'conditions': [
+            {'op': 'equals', 'left': 'context.event_controller', 'right': {'path': 'context.controller'}},
+            {'op': 'equals', 'left': 'context.combo_number', 'right': 2},
+        ]},
+        'effects': [
+            {'op': 'break_card', 'result_key': 'crs_at_054_source_broken'},
+            {'op': 'conditional', 'condition': {
+                'op': 'gte', 'left': {'op': 'selection_count', 'selection_key': 'crs_at_054_source_broken'},
+                'right': 1,
+            }, 'then': [{
+                'op': 'modify_combo', 'player': {'controller': True}, 'allow_zones': ['hand'],
+                'source_zones': ['hand'], 'min_combo': 3, 'max_combo': 3, 'ignore_speed': True,
+                'requires_followup': True, 'end_after_use': True, 'usage_key': 'crs_at_054_followup',
+                'usage_key_source_scoped': True, 'max_uses': 1, 'usage_scope': 'battle', 'duration': 'combo',
+            }], 'else': []},
+        ],
+    }],
+}
+
+
+class DriftConversionPresentedPairTests(SimpleTestCase):
+    """드리프트 컨버전: 2콤보와 함께 제시한 패의 기술을 속도를 무시하고 3콤보로 잇는다."""
+
+    def test_presented_hand_card_continues_after_conversion(self):
+        starter = attack('st', 'p1', frame=5, hit='콤보')
+        first = attack('a', 'p1', frame=5)
+        slow = attack('b', 'p1', frame=6)
+        drift = {**attack('drift', 'p1', code='CRS-AT-054'), 'type': '특수', 'frame': None, 'damage': None}
+        opposing = attack('opp', 'p2', frame=9)
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [starter]
+        state['players']['p1']['zones']['hand'] = [first, slow]
+        state['players']['p1']['zones']['side'] = [drift]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        rules = ruleset(starter, first, slow, drift, opposing)
+        rules['cards']['CRS-AT-054'].update({'type': '특수', 'effect_definition': DRIFT_CONVERSION})
+        engine = AutomaticGameEngine.initialize(state, rules, seed='drift-pair', run_startup=False)
+        engine.state['phase'] = 'battle'
+        engine.engine_state['battle'] = {
+            'p1': {'instance_id': 'st', 'card': starter},
+            'p2': {'instance_id': 'opp', 'card': opposing},
+        }
+        engine.grant_combo('p1', source='st')
+        engine._play_combo('p1', ['a', 'b'])
+        engine._continue()
+        decision = engine.engine_state['pending_decision']
+        self.assertEqual(decision['kind'], 'optional_effect')
+        engine._submit_decision('p1', decision['id'], ['accept'])
+        engine._continue()
+        used = [e['payload']['card_instance_id'] for e in engine.events if e['type'] == 'combo_card_used']
+        self.assertEqual(used, ['a', 'b'])
+        self.assertFalse(any(e['type'] == 'combo_interrupted' for e in engine.events))
+
+
+class IdenticalTokenPlayCostTests(SimpleTestCase):
+    """피의 만찬: 루멘 존의 거미 4장을 제거하는 사용 비용은 고를 카드를 엔진이 정해 준다."""
+
+    def test_spider_play_cost_is_paid_without_choice(self):
+        feast = attack('feast', 'p1', code='PMP-AT-009', frame=7)
+        spiders = [{
+            'instance_id': f'spider-{i}', 'kind': 'token', 'owner': 'p1', 'code': 'PMP-AT-053',
+            'name': '「거미」', 'type': '토큰', 'token_key': 'spider', 'face_up': True,
+        } for i in range(5)]
+        state = base_state([feast], [defense('guard', 'p2')])
+        state['players']['p1']['zones']['lumen'] = spiders
+        rules = ruleset(feast)
+        rules['cards']['PMP-AT-009']['effect_definition'] = {
+            **copy.deepcopy(rules['cards']['PMP-AT-009']['effect_definition']),
+            'play_costs': [{'operation': 'delete_token', 'selector': {
+                'kind': 'card', 'player': {'controller': True}, 'zones': ['lumen'],
+                'min': 4, 'max': 4, 'where': {'token_key': 'spider'},
+            }}],
+        }
+        engine = AutomaticGameEngine.initialize(state, rules, seed='feast-cost', run_startup=False)
+        engine.state['phase'] = 'ready'
+        engine._ready_card('p1', 'feast')
+        engine._continue()
+        decision = engine.engine_state['pending_decision']
+        self.assertEqual(decision['kind'], 'play_cost')
+        self.assertEqual(len(decision['auto_select']), 4)
+        engine._submit_decision('p1', decision['id'], decision['auto_select'])
+        engine._continue()
+        left = [c for c in engine.state['players']['p1']['zones']['lumen'] if c.get('token_key') == 'spider']
+        self.assertEqual(len(left), 1)
+        self.assertEqual(engine._find_location('feast')[1], 'battle')

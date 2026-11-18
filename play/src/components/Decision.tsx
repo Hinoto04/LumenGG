@@ -224,6 +224,14 @@ export function DecisionPanel({
       onSubmit(action, { selected });
     }
   }, [quickConfirm, onBoard, busy, selected, maximum, minimum, decisionId, action, onSubmit]);
+  // 똑같은 개수 표시 토큰(거미·단검) 몇 장을 고르는 선택은 엔진이 고를 카드를 정해 준다(auto_select).
+  // 어느 것을 골라도 같으므로 묻지 않고 바로 보낸다.
+  const autoSelect = decision?.auto_select;
+  useEffect(() => {
+    if (!Array.isArray(autoSelect) || !autoSelect.length || busy || autoSent.current === decisionId) return;
+    autoSent.current = decisionId;
+    onSubmit(action, { selected: autoSelect.map(String) });
+  }, [autoSelect, busy, decisionId, action, onSubmit]);
   const destination = options.find((option) => option.ui?.to_zone)?.ui.to_zone;
   const fromPile = options.some((option) => option.ui?.card && !["hand", "list", "battle"].includes(option.ui.card.zone));
   const hintText = onBoard

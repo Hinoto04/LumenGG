@@ -333,6 +333,22 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
             : placeVisible(visibleStub(to, toZone, payload), to, toZone, me, envelope.role);
       }
       if (moved.hidden === false && toZone === "battle" && payload.reason === "ready") moved = { ...moved, face_up: false };
+      // 거미·단검처럼 개수로만 보여 주는 토큰(Q-AUTO-012)은 카드를 날리지 않고 체력 아래 개수만 바꾼다.
+      const counterKey = typeof payload.counter_token === "string" ? payload.counter_token : "";
+      if (counterKey) {
+        const bump = (side: Side, delta: number) => {
+          const state = (players[side].passive_state ??= {});
+          const entry = state[counterKey] ?? { label: String(payload.card_label ?? "토큰").replace(/[「」]/g, "") + " 토큰", derived: true };
+          state[counterKey] = { ...entry, count: Math.max(0, Number(entry.count ?? 0) + delta) };
+        };
+        if (fromZone === "lumen") bump(from, -1);
+        if (toZone === "lumen") {
+          bump(to, 1);
+          if (!moved.hidden) moved = { ...moved, state_counter_token: counterKey };
+        }
+        players[to].zones[toZone].push(moved);
+        return { envelope, ms: 200 };
+      }
       players[to].zones[toZone].push(moved);
       return { envelope, ms: 420 };
     }
