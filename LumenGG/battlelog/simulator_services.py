@@ -354,7 +354,9 @@ def create_simulator_session(
     ready_timeout_seconds=30,
     effect_timeout_seconds=60,
     regulation_version=None,
+    ai_deck=None,
 ):
+    """``ai_deck``: a ``SimulatorAIDeck`` whose profile the AI seat(s) use."""
     controllers = {player1_controller, player2_controller}
     if not controllers <= {LumenSimulatorSession.CONTROLLER_HUMAN, LumenSimulatorSession.CONTROLLER_AI}:
         raise ValueError('플레이어 제어 방식이 올바르지 않습니다.')
@@ -363,7 +365,7 @@ def create_simulator_session(
     if player1_controller == LumenSimulatorSession.CONTROLLER_AI and not player1_name:
         player1_name = 'Lumen AI'
     if player2_controller == LumenSimulatorSession.CONTROLLER_AI and not player2_name:
-        player2_name = 'Lumen AI'
+        player2_name = ai_deck.name if ai_deck else 'Lumen AI'
     # Schema-1 sandbox fixtures keep their historical PS normalization.
     # The public start view requires an explicit choice for ambiguous decks.
     modern = bool(player1_deck.trait_card_id or player2_deck.trait_card_id or player1_deck.schema_version >= 2 or player2_deck.schema_version >= 2 or regulation_version is not None)
@@ -423,6 +425,8 @@ def create_simulator_session(
             if not ai_policy:
                 raise ValueError('검증된 활성 AI 정책이 없어 AI 대전을 시작할 수 없습니다.')
             document['ai_policy'] = ai_policy_payload(ai_policy)
+            if ai_deck:
+                document['ai_deck'] = ai_deck.payload()
     else:
         mode = LumenSimulatorSession.MODE_MANUAL
         document = {

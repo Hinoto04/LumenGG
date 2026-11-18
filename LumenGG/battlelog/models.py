@@ -7,6 +7,8 @@ from django.utils import timezone
 
 from card.models import Character
 
+from .game.ai_profile import ProfileError, default_ai_profile_text, parse_profile_text
+
 
 class RulesetRelease(models.Model):
     """Immutable, published snapshot consumed by automatic simulator sessions."""
@@ -109,6 +111,58 @@ class SimulatorAIPolicy(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError('세션 재현을 위해 게시된 AI 정책은 삭제할 수 없습니다.')
+
+
+def deck_card_codes(deck):
+    """Card codes a deck can use: main, reserve and trait cards."""
+    codes = set(deck.cids.exclude(card__code=None).values_list('card__code', flat=True))
+    codes.update(deck.reserve_entries.exclude(card__code=None).values_list('card__code', flat=True))
+    if deck.trait_card_id and deck.trait_card.code:
+        codes.add(deck.trait_card.code)
+    return codes
+
+
+class SimulatorAIDeck(models.Model):
+    """A curated AI opponent: a deck plus its TOML profile (docs/AI_DECK_PROFILE.md).
+
+    Sessions pin the parsed profile (``document['ai_deck']``), so editing a
+    profile only affects new games.
+    """
+
+    name = models.CharField('AI 이름', max_length=60)
+    description = models.CharField('설명', max_length=200, blank=True)
+    deck = models.ForeignKey('deck.Deck', on_delete=models.PROTECT, related_name='ai_profiles', verbose_name='덱')
+    profile_text = models.TextField(
+        'AI 설정(TOML)', blank=True, default=default_ai_profile_text,
+        help_text='성향·가중치·상황별 선호·콤보 루트·대처·안전장치. 양식 설명은 docs/AI_DECK_PROFILE.md',
+    )
+    is_active = models.BooleanField('로비에 표시', default=True)
+    sort_order = models.PositiveSmallIntegerField('정렬 순서', default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+        verbose_name = 'AI 덱'
+        verbose_name_plural = 'AI 덱'
+
+    def __str__(self):
+        return self.name
+
+    def profile(self, *, check_codes=False):
+        """Parsed profile; raises ``ProfileError`` with Korean messages."""
+        allowed = deck_card_codes(self.deck) if check_codes and self.deck_id else None
+        return parse_profile_text(self.profile_text, allowed_codes=allowed)
+
+    def clean(self):
+        try:
+            self.profile(check_codes=True)
+        except ProfileError as exc:
+            raise ValidationError({'profile_text': str(exc)}) from None
+
+    def payload(self):
+        """Normalized profile pinned into a session document."""
+        return {'id': self.id, 'name': self.name, 'deck_id': self.deck_id, **self.profile()}
 
 
 class BattleSession(models.Model):

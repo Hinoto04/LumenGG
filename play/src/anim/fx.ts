@@ -38,6 +38,8 @@ interface FxStore {
   shake: Partial<Record<Side, number>>;
   /** 재생 중인지(조작을 막고 '진행 중' 표시) */
   playing: boolean;
+  /** 화면에 올릴 더 새 서버 상태가 기다리는 중(이벤트 재생 전후). 이 동안 보이는 타이머는 지난 것이다. */
+  behind: boolean;
   /** 재생 속도 */
   speed: PlaybackSpeed;
   setSpeed: (speed: PlaybackSpeed) => void;
@@ -59,6 +61,7 @@ export const useFx = create<FxStore>((set) => ({
   ribbon: null,
   shake: {},
   playing: false,
+  behind: false,
   speed: storedSpeed(),
   setSpeed: (speed) => {
     try {

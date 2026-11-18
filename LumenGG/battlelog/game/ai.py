@@ -5,6 +5,11 @@ import math
 import random
 from dataclasses import dataclass
 
+from .ai_decisions import decide
+from .ai_matrix import SCORE_PER_VALUE, choose_ready
+from .ai_preview import battle_outlook, certain_loss, minimum_answer_cards, own_card
+from .ai_profile import counter_settings, profile_bonus, profile_weights, safety_settings
+
 
 DEFAULT_POLICY_VERSION = 'linear-selfplay-v1.4.0'
 DEFAULT_POLICY_WEIGHTS = {
@@ -38,6 +43,24 @@ DEFAULT_POLICY_WEIGHTS = {
     'hp_advantage_attack': 0.318104,
 }
 
+# Heuristic features that self-play training does not tune. Policies stored
+# before a feature existed fall back to these values; deck profiles may
+# override them through ``[weights]``.
+HEURISTIC_WEIGHTS = {
+    # Expected result of a Ready card against the opponent's known cards,
+    # weighted by how likely the opponent readies each one
+    # (ai_preview.battle_outlook, about -2..+2), times coverage.
+    'battle_preview': 6.0,
+    # How much a full prediction replaces the stat proxies (speed, damage,
+    # attack/defense): proxies are scaled by 1 - preview_trust * coverage.
+    'preview_trust': 0.7,
+}
+# Stat features that only stand in for "this card wins the battle".
+PROXY_FEATURES = (
+    'card_damage', 'card_speed', 'card_attack', 'card_defense',
+    'zero_damage_attack', 'low_hp_defense', 'hp_advantage_attack',
+)
+
 AUTONOMOUS_ACTION_EXCLUSIONS = {'request_rewind', 'pause_clock', 'concede'}
 
 # Actions that put a specific card on the table. Only these are sampled; the
@@ -61,6 +84,8 @@ class AIDecision:
     action: dict
     selections: dict
     score: float
+    # How a Ready card was chosen (matrix game details), for logs/tests.
+    details: dict | None = None
 
 
 def _number(value, default=0.0):
@@ -78,8 +103,12 @@ def _cards(action):
     return values
 
 
-def action_features(observation, role, action):
-    """Return compact numeric features without reading hidden engine state."""
+def action_features(observation, role, action, *, outlook=None):
+    """Return compact numeric features without reading hidden engine state.
+
+    ``outlook``: ``(expected_value, coverage)`` of a Ready card from
+    ``ai_preview.battle_outlook``; ``score_action`` supplies it.
+    """
     state = observation.get('state') or {}
     players = state.get('players') or {}
     own = players.get(role) or {}
@@ -92,6 +121,7 @@ def action_features(observation, role, action):
     frames = [_number(card.get('frame'), 20.0) for card in cards if card.get('frame') is not None]
     speed = max(0.0, 12.0 - min(frames, default=12.0))
     card_types = {str(card.get('type') or '') for card in cards}
+    value, coverage = outlook or (0.0, 0.0)
     return {
         'bias': 1.0,
         str(action.get('type') or ''): 1.0,
@@ -111,15 +141,46 @@ def action_features(observation, role, action):
             max(-1.0, min(1.0, (own_hp - rival_hp) / 5000.0))
             if any('공격' in value for value in card_types) else 0.0
         ),
+        'battle_preview': value * coverage,
     }
 
 
-def score_action(observation, role, action, weights=None):
-    weights = weights or DEFAULT_POLICY_WEIGHTS
+def score_action(observation, role, action, weights=None, profile=None):
+    """Linear policy score plus the optional per-deck profile bonus.
+
+    The profile's style, deck weights and matching situations adjust
+    ``weights`` for this action before scoring.
+    """
+    weights = profile_weights(
+        {**HEURISTIC_WEIGHTS, **(weights or DEFAULT_POLICY_WEIGHTS)},
+        profile, observation, role, action,
+    )
+    outlook = _ready_outlook(observation, role, action, weights)
+    features = action_features(observation, role, action, outlook=outlook)
+    coverage = outlook[1] if outlook else 0.0
+    if coverage:
+        damping = 1.0 - max(0.0, min(1.0, _number(weights.get('preview_trust')))) * coverage
+        for name in PROXY_FEATURES:
+            features[name] *= damping
     return sum(
         _number(weights.get(name)) * value
-        for name, value in action_features(observation, role, action).items()
-    )
+        for name, value in features.items()
+    ) + profile_bonus(observation, role, action, profile)
+
+
+def _ready_outlook(observation, role, action, weights):
+    """Predicted battle for a Ready card, or ``None`` for other actions."""
+    if action.get('type') != 'ready_card' or not isinstance(action.get('card'), dict):
+        return None
+    card = own_card(observation, role, action['card'].get('instance_id')) or action['card']
+    rival_role = 'p2' if role == 'p1' else 'p1'
+
+    def rival_likelihood(rival_card):
+        # 상대도 같은 점수식으로 카드를 고른다고 보고, 그 점수로 낼 확률을 매긴다.
+        features = action_features(observation, rival_role, {'type': 'ready_card', 'card': rival_card})
+        return sum(_number(weights.get(name)) * value for name, value in features.items())
+
+    return battle_outlook(observation, role, card, rival_likelihood=rival_likelihood)
 
 
 def _stable_tiebreak(seed, role, action):
@@ -127,7 +188,7 @@ def _stable_tiebreak(seed, role, action):
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _decision_selections(observation, action):
+def _engine_default_selections(observation, action):
     if action.get('type') != 'submit_decision':
         return {}
     options = [
@@ -147,6 +208,15 @@ def _decision_selections(observation, action):
     return {'selected': preferred[:minimum]}
 
 
+def _decision_selections(observation, action, *, role=None, profile=None):
+    """Answer an effect decision: deck/default ``[[effect]]`` rules first,
+    then the engine's default (see ``ai_decisions``)."""
+    fallback = _engine_default_selections(observation, action)
+    if action.get('type') != 'submit_decision':
+        return fallback
+    return decide(observation, role, action, profile, fallback=fallback)
+
+
 def choose_action(
     observation,
     role,
@@ -156,13 +226,27 @@ def choose_action(
     top_k=None,
     margin=None,
     temperature=None,
+    profile=None,
+    ready_strategy='matrix',
+    ready_evaluator=None,
 ):
     """Choose one legal action from a role-filtered observation.
 
     Non-card actions are picked greedily. When the best action plays a card,
     the AI shortlists the few strongest card actions and draws one with
     score-weighted randomness so it does not repeat the same line every game.
-    ``temperature=0`` restores the fully greedy choice.
+    ``temperature=0`` restores the fully greedy choice. ``profile`` is a
+    normalized AI deck profile (``ai_profile.normalize_profile``).
+
+    Ready cards are chosen as a matrix game against the opponent's known
+    cards (``ai_matrix``) when ``ready_strategy='matrix'`` and something of
+    their hand is known; ``ready_evaluator(action, rival_card)`` fills the
+    cells by engine simulation (``ai_engine_eval``) instead of base stats.
+
+    Before scoring, Ready cards that lose to every card the opponent can
+    ready (base stats, all visible) are dropped when another Ready card is
+    left, and List cards forming a minimum answer to the opponent's visible
+    cards earn the counter bonus (``ai_preview``).
     """
     legal = list(observation.get('legal_actions') or [])
     if not legal:
@@ -182,16 +266,35 @@ def choose_action(
     ]
     if rewind_decline:
         candidates = rewind_decline
+    candidates = _drop_certain_losses(observation, role, candidates, profile)
+    counter_bonus = _counter_bonus(observation, role, candidates, profile)
     ranked = sorted(
         (
-            (score_action(observation, role, action, weights), action)
+            (
+                score_action(observation, role, action, weights, profile)
+                + counter_bonus.get(action.get('action_id'), 0.0),
+                action,
+            )
             for action in candidates
         ),
         key=lambda item: (item[0], _stable_tiebreak(seed, role, item[1])),
         reverse=True,
     )
     score, action = ranked[0]
-    if action.get('type') in CARD_ACTION_TYPES:
+    details = None
+    matrix_choice = None
+    if action.get('type') == 'ready_card' and ready_strategy == 'matrix':
+        row_bonus = {
+            item.get('action_id'): profile_bonus(observation, role, item, profile) / SCORE_PER_VALUE
+            for _score, item in ranked if item.get('type') == 'ready_card'
+        } if profile else None
+        matrix_choice = choose_ready(
+            observation, role, ranked, seed=seed, temperature=temperature,
+            evaluator=ready_evaluator, row_bonus=row_bonus,
+        )
+    if matrix_choice is not None:
+        score, action, details = matrix_choice
+    elif action.get('type') in CARD_ACTION_TYPES:
         score, action = _sample_card_action(
             ranked,
             seed=seed,
@@ -202,9 +305,58 @@ def choose_action(
         )
     return AIDecision(
         action=action,
-        selections=_decision_selections(observation, action),
+        selections=_decision_selections(observation, action, role=role, profile=profile),
         score=score,
+        details=details,
     )
+
+
+def _full_card(observation, role, action):
+    card = action.get('card') if isinstance(action.get('card'), dict) else None
+    if not card:
+        return None
+    return own_card(observation, role, card.get('instance_id')) or card
+
+
+def _drop_certain_losses(observation, role, candidates, profile):
+    if not safety_settings(profile).get('avoid_certain_loss'):
+        return candidates
+    ready = [action for action in candidates if action.get('type') == 'ready_card']
+    losing = {
+        id(action) for action in ready
+        if certain_loss(observation, role, _full_card(observation, role, action) or {})
+    }
+    if not losing or len(losing) == len(ready):
+        return candidates
+    return [action for action in candidates if id(action) not in losing]
+
+
+def counter_targets(observation, role, candidates, profile=None):
+    """Instance ids of List cards in any minimum answer set (see ai_preview)."""
+    settings = counter_settings(profile)
+    if not settings.get('enabled'):
+        return set()
+    gets = [action for action in candidates if action.get('type') == 'select_get_card']
+    if not gets:
+        return set()
+    cards = [card for card in (_full_card(observation, role, action) for action in gets) if card]
+    _threats, covers = minimum_answer_cards(
+        observation, role, cards, scope=settings.get('scope') or 'hand',
+    )
+    return set().union(*covers) if covers else set()
+
+
+def _counter_bonus(observation, role, candidates, profile):
+    targets = counter_targets(observation, role, candidates, profile)
+    if not targets:
+        return {}
+    bonus = _number(counter_settings(profile).get('bonus'))
+    return {
+        action.get('action_id'): bonus
+        for action in candidates
+        if action.get('type') == 'select_get_card'
+        and (action.get('card') or {}).get('instance_id') in targets
+    }
 
 
 def card_shortlist(ranked, *, top_k=SHORTLIST_SIZE, margin=SHORTLIST_MARGIN):

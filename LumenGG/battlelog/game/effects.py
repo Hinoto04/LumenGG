@@ -632,8 +632,8 @@ class EffectResolver:
     def state(self):
         return self.engine.state
 
-    def _definition_for_card(self, card):
-        return self.engine._definition_for_card(card)
+    def _definition_for_card(self, card, zone=None):
+        return self.engine._definition_for_card(card, zone)
 
     def _active_cards(self, event_context):
         source_id = event_context.get('source_card_instance_id')
@@ -642,7 +642,7 @@ class EffectResolver:
             zones = ((self.state.get('players') or {}).get(side) or {}).get('zones') or {}
             for zone, cards in zones.items():
                 for card in cards:
-                    definition = self._definition_for_card(card)
+                    definition = self._definition_for_card(card, zone)
                     if not definition.get('abilities'):
                         continue
                     rows.append((side, zone, card, definition))
@@ -965,6 +965,17 @@ class EffectResolver:
         """Return currently applicable numberless/function effects in rule order."""
         event_context = copy.deepcopy(event_context or {})
         collected = []
+        # 같은 호출 안에서는 카드 스냅샷을 한 번만 만든다(능력 여러 개가 같은 카드를 본다).
+        snapshots = {}
+
+        def snapshot(value):
+            if value is None:
+                return None
+            key = id(value)
+            if key not in snapshots:
+                snapshots[key] = (value, copy.deepcopy(value))
+            return snapshots[key][1]
+
         for controller, zone, card, definition in self._active_cards(event_context):
             for ability in definition.get('abilities') or []:
                 if card.get('numbered_effects_negated') and ability.get('kind') == 'effect':
@@ -986,16 +997,22 @@ class EffectResolver:
                     'opponent_turn_damage_received': state_path(
                         self.state, f'engine.turn_damage_received.{_opponent(controller)}', 0,
                     ),
-                    'source_card': copy.deepcopy(card), 'source_card_instance_id': card.get('instance_id'),
+                    # 조건 검사는 읽기만 하므로 원본을 보고, 통과한 능력만 복사해 넘긴다.
+                    # (지속 효과는 매 단계 다시 모으므로 조건 검사 전 복사가 큰 비용이었다.)
+                    'source_card': card, 'source_card_instance_id': card.get('instance_id'),
                     'source_zone': zone, 'ability_id': ability.get('id'),
-                    'opponent_card': copy.deepcopy(
+                    'opponent_card': (
                         (((self.state.get('engine') or {}).get('battle') or {}).get(_opponent(controller)) or {}).get('card')
                     ),
                 }
                 if condition_matches(ability.get('condition'), self.state, context):
+                    context['source_card'] = snapshot(context['source_card'])
+                    context['opponent_card'] = snapshot(context['opponent_card'])
+                    # 지속 효과 목록은 매 단계 다시 만들고 호출하는 쪽은 읽기만 한다.
+                    # 능력 정의(공개 규칙 스냅샷)는 복사하지 않으며, 고쳐 써야 하면 호출하는 쪽에서 복사한다.
                     collected.append({
                         'controller': controller, 'zone': zone, 'card_instance_id': card.get('instance_id'),
-                        'card_code': card.get('code'), 'ability': copy.deepcopy(ability), 'context': context,
+                        'card_code': card.get('code'), 'ability': ability, 'context': context,
                     })
         return self._ordered(collected)
 

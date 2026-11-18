@@ -163,7 +163,8 @@ GET simulator/<view_token>/card-metadata/?ids=109,110   (최대 200개)
 |---|---|
 | `GET /battlelog/play/` | 클라이언트 페이지(`templates/battlelog/play.html`). `csrftoken` 쿠키를 심는다 |
 | `GET /battlelog/play/api/decks/?q=` | 덱 검색(시작 화면 검색과 같은 규칙). `?mine=1`은 로그인한 사용자의 덱 |
-| `POST /battlelog/play/api/new/` | `{p1_deck, p2_deck, opponent: ai\|human, mode: automatic\|manual, ready_timeout_seconds, effect_timeout_seconds}` → `{view_token, mode, seats, urls, legacy?}` |
+| `GET /battlelog/play/api/ai-decks/` | 로비에 내놓을 AI 상대 목록 `{ai_decks: [{id, name, description, style, style_label, character, character_img, deck_id, deck_name}]}`. 관리자 화면 AI 덱에서 등록한다(`docs/AI_DECK_PROFILE.md`) |
+| `POST /battlelog/play/api/new/` | `{p1_deck, p2_deck, opponent: ai\|human, mode: automatic\|manual, ready_timeout_seconds, effect_timeout_seconds}` → `{view_token, mode, seats, urls, legacy?}`. AI 대전은 `p2_deck` 대신 `ai_deck`(AI 덱 ID)을 보내고, 그 덱의 AI 설정이 세션에 고정된다. 예전 앱처럼 `p2_deck`만 보내도 되며, 그 덱이 등록된 AI 덱이면 설정을 함께 쓴다 |
 | `POST /battlelog/simulator/<view>/preparation/check/` | 덱 준비 후보를 저장하지 않고 검사(`validate(stage='setup')`) |
 | `POST /api/mobile/v1/simulator/sessions` | 앱용(JWT). 본문은 위와 같고 `urls`가 절대 주소다 |
 
@@ -310,6 +311,7 @@ cd play; npm run dev                  # 클라이언트 127.0.0.1:5175 (/battlel
     서버는 마감을 `그때 + 제한`(원래 마감보다 늦추지 않음)으로 다시 잡는다. 표시 전에는 모두에게 제한 시간 그대로 멈춰 보인다.
     상대가 레디한 소식이 늦게 와도 받는 쪽은 레디 표시를 본 뒤부터 10초를 온전히 쓴다.
   - 서버는 `remaining_ms`(보낼 때 남은 밀리초)를 함께 보내고, 클라이언트는 받은 순간 + `remaining_ms`로 마감을 잡아 기기 시계 차이를 피한다.
+  - 내 행동을 보낸 뒤 응답을 기다리거나(`busy`), 결과 이벤트를 재생하거나, 더 새 서버 상태가 화면에 오르기를 기다리는 동안(`behind`)에는 보이는 타이머가 지난 차례의 것이다. 이때는 타이머를 멈춰 흐리게 보이고, 표시 확인(`clock_seen`)도 보내지 않는다. 새 상태가 오르면 그 타이머가 이어서 보인다.
   서버는 시간 초과를 읽기·명령 때 정산하므로, 클라이언트가 마감 0.4초 뒤 `state`를 요청해 정산을 일으킨다.
   시계 차이로 아직이면 2초 뒤 다시 묻는다.
 - **정산 알림**: 좌석의 `state` 요청에서 타이머 정산이나 AI 진행으로 버전이 오르면 consumer가 그룹 전체에
@@ -478,7 +480,7 @@ DB 없이 만들려면 `-Synthetic`을 붙인다(이미지 없는 합성 카드)
 예전 시작 화면(규정 선택·양쪽 덱 지정 폼)은 `/battlelog/simulator/?legacy=1`로 열고, 예전 폼 POST는 그대로 받는다.
 번들 주소에는 파일 수정 시각(`?v=`)을 붙여 배포 뒤 예전 번들이 캐시에 남지 않게 한다.
 
-- **AI와 대전**: 내 덱과 AI가 쓸 덱을 고른다(`POST /battlelog/play/api/new/`).
+- **AI와 대전**: 내 덱과 등록된 AI 상대를 고른다(`GET /battlelog/play/api/ai-decks/`, `POST /battlelog/play/api/new/`의 `ai_deck`).
 - **방** (`play/src/RoomLobby.tsx`, 서버 `battlelog/play_rooms.py`, 모델 `SimulatorRoom`): 방장이 방을 만들면 6자리 코드와
   초대 링크(`/battlelog/simulator/?room=CODE`)가 생긴다. 참가자가 코드나 링크로 들어오면 각자 자기 덱만 고르고, 둘 다 "준비 완료"하면
   대전을 만든다(방장 p1, 참가자 p2). 방장은 자동 판정·수동(샌드박스)과 제한 시간을 정한다. 상대에게는 내 덱의 캐릭터만 보인다.

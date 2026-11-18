@@ -1,0 +1,129 @@
+# 루트 AI 설정 — docs/ROUTE_AI_EXAMPLE.md(평문)를 양식(docs/AI_DECK_PROFILE.md)으로 옮긴 것
+# 관리자 화면 › AI 덱 › AI 설정(TOML)에 그대로 붙여 넣습니다. 덱은 문서의 덱 리스트와 같은 덱이어야 합니다.
+#
+# 해석해서 정한 부분 (평문과 다르면 고쳐 주세요)
+# - "+4FP 상황" 같은 FP는 (내 FP - 상대 FP)로 보았습니다 → fp_lead.
+# - 체력 구간은 내 체력 기준입니다. 평문의 초·중반은 3000~5000, 후반은 ~1500이라
+#   빈 구간 1501~2999는 초·중반으로 묶었습니다 → my_hp_min = 1501 / my_hp_max = 1500.
+# - 후반 -1FP 이하 행동은 평문에 없어 정하지 않았습니다(기본 정책을 따름).
+# - "캐치는 8FP 이상"은 내 FP 8 이상으로 보았습니다(유리 정도가 아니라 보유 FP).
+# - "파워풀 스윕 브레이크 시 루트킷 보충": 엔진은 어떤 카드가 브레이크됐는지 AI에 알려 주지 않아,
+#   브레이크 보충(사이드 → 리스트) 때마다 루트킷을 먼저 고르게 했습니다.
+# - "수비 기술"은 특정 카드가 아니라 수비 카드 전체이므로 card_defense 가중치로 올렸습니다.
+#
+# 카드 코드
+#   기어체인지 UNC-AT-018   루트아스트라 CRS-AT-024   인스턴트 스매시 UNC-AT-017
+#   차징 스매시 ST2-005      하이 볼티지 CB01-AT-010    파워풀 스윕 UNC-AT-016
+#   백 샷 ST2-008           그라인더 슬링 ST2-009      스톰브링거 LMI-AT-016
+#   커팅 ST1-016            패니 슬라이드 ST2-002      배드맨 퍼니시 AWL-AT-019
+#   루트킷 ST2-004          올 인 차지 AWL-SP-001
+#   다운 가드 ST1-012 / 오펜스 브레이크 DFR-AT-049 / 도미네이트 AWL-AT-023 / 점프 ST1-014 (수비)
+
+style = "balanced"
+
+# ── 초반·중반 (내 체력 1501~5000) ─────────────────────
+# 상황별 선호는 레디뿐 아니라 겟 페이즈 획득에도 더해집니다
+# ("겟 페이즈 시에는 현재 상황에 사용할 카드를 미리 손으로 가져옴").
+
+[[situation]]
+name = "초중반 -4FP 이하: 수비, 파워풀 스윕"
+when = { my_hp_min = 1501, fp_lead_max = -4 }
+prefer = { "UNC-AT-016" = 3 }
+weights = { card_defense = 2.5 }
+
+[[situation]]
+name = "초중반 -3~-1FP: 패니 슬라이드, 수비, 백 샷, 인스턴트 스매시"
+when = { my_hp_min = 1501, fp_lead_min = -3, fp_lead_max = -1 }
+prefer = { "ST2-002" = 3, "ST2-008" = 3, "UNC-AT-017" = 3 }
+weights = { card_defense = 2.0 }
+
+[[situation]]
+name = "초중반 +4FP 이상: 차징 스매시, 패니 슬라이드, 루트아스트라, 커팅"
+when = { my_hp_min = 1501, fp_lead_min = 4 }
+prefer = { "ST2-005" = 3, "ST2-002" = 3, "CRS-AT-024" = 3, "ST1-016" = 3 }
+
+# ── 전 구간 공통 (후반도 "초중반과 비슷하게 행동") ─────
+
+[[situation]]
+name = "뉴트럴: 커팅, 패니 슬라이드, 수비"
+when = { fp_lead_min = 0, fp_lead_max = 0 }
+prefer = { "ST1-016" = 3, "ST2-002" = 3 }
+weights = { card_defense = 1.5 }
+
+[[situation]]
+name = "+1~+3FP: 커팅, 패니 슬라이드, 배드맨 퍼니시, 기어체인지"
+when = { fp_lead_min = 1, fp_lead_max = 3 }
+prefer = { "ST1-016" = 3, "ST2-002" = 3, "AWL-AT-019" = 3, "UNC-AT-018" = 3 }
+
+# ── 후반 (내 체력 1500 이하) ──────────────────────────
+
+[[situation]]
+name = "후반 +4FP 이상: 차징 스매시, 스톰브링거, 패니 슬라이드"
+when = { my_hp_max = 1500, fp_lead_min = 4 }
+prefer = { "ST2-005" = 3, "LMI-AT-016" = 3, "ST2-002" = 3 }
+
+# ── 캐치 ─────────────────────────────────────────────
+# "캐치는 8FP 이상 캐치가 가능할 때, 루트킷 캐치가 가능하면 할 것"
+
+[[situation]]
+name = "FP 8 이상: 루트킷 캐치"
+when = { action = ["catch"], my_fp_min = 8 }
+prefer = { "ST2-004" = 5 }
+
+[[situation]]
+name = "FP 7 이하: 캐치하지 않음"
+when = { action = ["catch"], my_fp_max = 7 }
+weights = { play_catch_card = -15 }
+
+# ── 콤보 루트 ────────────────────────────────────────
+# 평문의 "2 …, 3 …"은 2콤보·3콤보 순서이므로, 배틀 카드(1콤보) 다음부터 적었습니다.
+
+[[combo]]
+name = "손패 부족: 루트아스트라 → 하이 볼티지"
+cards = ["CRS-AT-024", "CB01-AT-010"]
+bonus = 3
+when = { hand_max = 3 }
+
+[[combo]]
+name = "손패 충분: 패니 → 배드맨 → 루트아스트라 → 하이 볼티지 → 그라인더"
+cards = ["ST2-002", "AWL-AT-019", "CRS-AT-024", "CB01-AT-010", "ST2-009"]
+bonus = 3
+when = { hand_min = 4 }
+
+# ── 패시브·선택형 효과 ───────────────────────────────
+
+[[effect]]
+name = "+4FP 이상이면 차지"
+ability = "st2-ps1-charge-enter"
+when = { fp_lead_min = 4 }
+use = true
+
+[[effect]]
+name = "그 밖에는 차지하지 않음 (뉴트럴: 가능한 차지를 사용하지 않고)"
+ability = "st2-ps1-charge-enter"
+use = false
+
+[[effect]]
+name = "후반 +4FP: 올 인 차지 배치"
+ability = "awl-sp-001-deploy"
+when = { fp_lead_min = 4 }
+use = true
+
+[[effect]]
+name = "그 밖에는 올 인 차지를 배치하지 않음"
+ability = "awl-sp-001-deploy"
+use = false
+
+[[effect]]
+name = "브레이크 보충은 루트킷"
+decision = "break_replenish"
+pick = ["ST2-004"]
+count = 1
+
+[counter]
+enabled = true
+bonus = 2.0
+scope = "hand"
+
+[safety]
+avoid_certain_loss = true

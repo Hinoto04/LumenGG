@@ -10,6 +10,7 @@ urlpatterns = [
     path('play/', play_views.play, name='play'),
     path('play/api/decks/', play_views.play_decks, name='playDecks'),
     path('play/api/new/', play_views.play_new, name='playNew'),
+    path('play/api/ai-decks/', play_views.play_ai_decks, name='playAIDecks'),
     path('play/api/rooms/', play_views.play_room_create, name='playRoomCreate'),
     path('play/api/rooms/<str:code>/state/', play_views.play_room_state, name='playRoomState'),
     path('play/api/rooms/<str:code>/join/', play_views.play_room_join, name='playRoomJoin'),

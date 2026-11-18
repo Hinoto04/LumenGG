@@ -11,6 +11,7 @@ from datetime import timedelta
 from functools import lru_cache
 from types import SimpleNamespace
 
+from django.conf import settings as django_settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
@@ -24,7 +25,7 @@ from deck.models import CardInDeck
 
 from .game.catalog import EXPECTED_CARD_COUNT, _json_hash, active_ruleset_release
 from .game.card_identity import is_passive_card
-from .game.ai import DEFAULT_POLICY_VERSION, DEFAULT_POLICY_WEIGHTS, choose_action
+from .game.ai import DEFAULT_POLICY_VERSION, DEFAULT_POLICY_WEIGHTS
 from .game.deck_rules import (
     allocate_supplement_counts,
     deck_rules_from_card_snapshots,
@@ -1008,16 +1009,36 @@ def reconcile_automatic_session(session, *, both_players_disconnected=False):
         return _fallback_to_manual(session.id, exc, '')
 
 
-def automatic_observation(session, role, *, include_state=True):
+def _session_engine(session):
+    return AutomaticGameEngine(
+        (session.document or {}).get('state') or {}, _ruleset(session), version=session.version,
+        now=timezone.now(), events=[], seed=f'session:{session.id}',
+    )
+
+
+def automatic_observation(session, role, *, include_state=True, include_memory=False):
     if session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
         return None
     if (session.document or {}).get('preparation', {}).get('status') == 'editing':
         return {'legal_actions': [], 'engine_status': 'preparing', 'version': session.version}
-    engine = AutomaticGameEngine(
-        (session.document or {}).get('state') or {}, _ruleset(session), version=session.version,
-        now=timezone.now(), events=[], seed=f'session:{session.id}',
-    )
-    return engine.observe(role, include_state=include_state)
+    engine = _session_engine(session)
+    return engine.observe(role, include_state=include_state, include_memory=include_memory)
+
+
+def _ai_decision_job(session, role, weights, profile):
+    """Plain data for ``ai_compute.compute_decision`` (picklable for workers)."""
+    return {
+        'state': (session.document or {}).get('state') or {},
+        'release_id': session.ruleset_release_id,
+        'version': session.version,
+        'now': timezone.now().isoformat(),
+        'engine_seed': f'session:{session.id}',
+        'role': role,
+        'weights': weights,
+        'profile': profile,
+        'seed': f'session:{session.id}:version:{session.version}',
+        'engine_eval': True,
+    }
 
 
 def _ai_roles(session):
@@ -1030,8 +1051,15 @@ def _ai_roles(session):
     ]
 
 
-def advance_ai_session(session, *, max_commands=100):
-    """Advance every AI seat until the engine needs human input or finishes."""
+def advance_ai_session(session, *, max_commands=100, on_command=None):
+    """Advance every AI seat until the engine needs human input or finishes.
+
+    ``on_command(session)`` runs after each AI command (the background runner
+    broadcasts it so each AI move reaches the screens as it happens). When a
+    human command lands while the AI is thinking, the AI's choice may be
+    stale; it then re-reads the session and chooses again.
+    """
+    stale_retries = 0
     if session.mode != LumenSimulatorSession.MODE_AUTOMATIC or not _ai_roles(session) or (session.document or {}).get('preparation', {}).get('status') == 'editing':
         return session
     try:
@@ -1048,15 +1076,13 @@ def advance_ai_session(session, *, max_commands=100):
                 return session
             policy_payload = copy.deepcopy((session.document or {}).get('ai_policy') or {})
             weights = policy_payload.get('weights') or session.ai_policy.weights
+            profile = (session.document or {}).get('ai_deck') or None
+            from .ai_compute import choose_ai_decision
+
             decisions = []
             for role in _ai_roles(session):
-                observation = automatic_observation(session, role)
-                decision = choose_action(
-                    observation,
-                    role,
-                    weights=weights,
-                    seed=f'session:{session.id}:version:{session.version}',
-                )
+                # 무거운 계산(엔진 평가)은 작업 프로세스에서 한다(ai_compute).
+                decision = choose_ai_decision(_ai_decision_job(session, role, weights, profile))
                 if decision:
                     decisions.append((role, decision))
             if not decisions:
@@ -1068,18 +1094,27 @@ def advance_ai_session(session, *, max_commands=100):
                 reverse=True,
             )[0]
             token = session.player1_token if role == 'p1' else session.player2_token
-            session = perform_automatic_command(
-                session,
-                {
-                    'command_id': f'ai:{session.id}:{session.version}:{role}',
-                    'expected_version': session.version,
-                    'action_id': decision.action['action_id'],
-                    'selections': decision.selections,
-                    'seat': role,
-                    'seat_token': token,
-                },
-                allow_ai=True,
-            )
+            try:
+                session = perform_automatic_command(
+                    session,
+                    {
+                        'command_id': f'ai:{session.id}:{session.version}:{role}',
+                        'expected_version': session.version,
+                        'action_id': decision.action['action_id'],
+                        'selections': decision.selections,
+                        'seat': role,
+                        'seat_token': token,
+                    },
+                    allow_ai=True,
+                )
+            except (StaleState, IllegalAction):
+                # 생각하는 동안 사람 명령으로 상태가 바뀌었다: 다시 읽고 다시 고른다.
+                stale_retries += 1
+                if stale_retries > 5:
+                    return LumenSimulatorSession.objects.select_related('ai_policy').get(pk=session.pk)
+                continue
+            if on_command is not None:
+                on_command(session)
     except AutomaticRuntimeFailure:
         # perform_automatic_command already rolled back, reported the fault,
         # and persisted the permanent manual fallback.

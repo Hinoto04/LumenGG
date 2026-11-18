@@ -13,6 +13,19 @@ export interface DeckRow {
   is_owner?: boolean;
 }
 
+/** 운영진이 관리자 화면에서 등록한 AI 상대(덱 + 성향·선호 카드·콤보 루트) */
+export interface AIDeckRow {
+  id: number;
+  name: string;
+  description: string;
+  style: string;
+  style_label: string;
+  character: string;
+  character_img: string;
+  deck_id: number;
+  deck_name: string;
+}
+
 interface NewGame {
   view_token: string;
   seats: { p1: string; p2?: string };
@@ -54,6 +67,53 @@ export function TimerSelect({ label, value, onChange }: { label: string; value: 
         ))}
       </select>
     </label>
+  );
+}
+
+/** AI 상대 고르기: 등록된 AI 덱만 고를 수 있다 */
+function AIDeckPicker({ value, onChange }: { value: AIDeckRow | null; onChange: (deck: AIDeckRow) => void }) {
+  const [rows, setRows] = useState<AIDeckRow[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    getJson<{ ai_decks: AIDeckRow[] }>("/battlelog/play/api/ai-decks/")
+      .then((data) => setRows(data.ai_decks))
+      .catch(() => setFailed(true));
+  }, []);
+
+  return (
+    <div className="deck-picker">
+      <span className="deck-picker-label">AI 상대</span>
+      {failed ? (
+        <p className="muted">AI 목록을 불러오지 못했습니다.</p>
+      ) : rows === null ? (
+        <p className="muted">불러오는 중…</p>
+      ) : rows.length === 0 ? (
+        <p className="muted">등록된 AI 덱이 없습니다.</p>
+      ) : (
+        <ul className="ai-deck-list">
+          {rows.map((row) => (
+            <li key={row.id}>
+              <button
+                type="button"
+                className={value?.id === row.id ? "is-active" : ""}
+                aria-pressed={value?.id === row.id}
+                onClick={() => onChange(row)}
+              >
+                {row.character_img ? <img src={row.character_img} alt="" loading="lazy" /> : <span className="ai-deck-face" />}
+                <span className="ai-deck-text">
+                  <b>{row.name}</b>
+                  <small>
+                    {row.character} · {row.style_label}
+                  </small>
+                  {row.description && <em>{row.description}</em>}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -181,7 +241,7 @@ function initialTab(): LobbyTab {
 
 /**
  * 대전 로비. 사이트의 시뮬레이터 시작 화면(/battlelog/simulator/)과 이 클라이언트(/battlelog/play/)가 같은 화면이다.
- * - AI와 대전: 내 덱과 AI가 쓸 덱을 고른다.
+ * - AI와 대전: 내 덱과 등록된 AI 상대(관리자 화면의 AI 덱)를 고른다.
  * - 방: 방을 만들거나 코드로 들어가 각자 자기 덱을 고른다(RoomLobby.tsx).
  * - 퀵 매치: 내 덱만 정하면 기다리는 다른 플레이어와 짝을 짓는다.
  */
@@ -190,7 +250,7 @@ export function Lobby() {
   const [mine, setMine] = useState<DeckRow[]>([]);
   const [loginRequired, setLoginRequired] = useState(false);
   const [p1, setP1] = useState<DeckRow | null>(null);
-  const [p2, setP2] = useState<DeckRow | null>(null);
+  const [p2, setP2] = useState<AIDeckRow | null>(null);
   // 사람끼리는 방·퀵 매치에서 만든다. 이 탭은 AI 대전만 만든다.
   const opponent = "ai" as const;
   const mode = "automatic" as const;
@@ -217,7 +277,7 @@ export function Lobby() {
     try {
       const data = await postJson<NewGame>("/battlelog/play/api/new/", {
         p1_deck: p1.id,
-        p2_deck: p2.id,
+        ai_deck: p2.id,
         opponent,
         mode,
         ready_timeout_seconds: readyTimer,
@@ -274,7 +334,7 @@ export function Lobby() {
       {tab === "ai" && (
         <section className="lobby-card">
           <DeckPicker label="내 덱" value={p1} onChange={setP1} mine={mine} loginRequired={loginRequired} />
-          <DeckPicker label="AI 덱" value={p2} onChange={setP2} mine={mine} loginRequired={false} />
+          <AIDeckPicker value={p2} onChange={setP2} />
           <div className="lobby-row lobby-timers">
             <TimerSelect label="레디 제한" value={readyTimer} onChange={setReadyTimer} />
             <TimerSelect label="효과 선택 제한" value={effectTimer} onChange={setEffectTimer} />

@@ -54,3 +54,7 @@ CHANNEL_REDIS_URL = ''
 BATTLELOG_REDIS_URL = ''
 
 PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+
+# AI는 테스트에서 요청 안에서 바로 움직인다(battlelog.ai_runner).
+LUMEN_AI_BACKGROUND = False
+LUMEN_AI_PROCESS_POOL = False

@@ -96,11 +96,14 @@ def _evaluate_candidate(initial_state, ruleset, candidate, champion, *, games, s
             if len(states) == 1
             else f'{seed}:state{state_index}:pair{pair_index}'
         )
+        # 훈련은 선형 정책 가중치를 맞추므로 레디도 정책 점수로 고른다
+        # (행렬 게임은 가중치 영향을 줄여 비교 신호를 흐린다).
         result = run_policy_game(
             state,
             ruleset,
             policies=policies,
             seed=game_seed,
+            ready_strategy='policy',
         )
         commands += result.commands
         if not result.completed:

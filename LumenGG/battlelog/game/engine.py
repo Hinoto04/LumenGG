@@ -215,6 +215,27 @@ def _guard_result(card, position):
     return 'hit'
 
 
+def _decision_source(continuation):
+    """``{'ability_id', 'card_code'}`` of the effect that asked a decision."""
+    continuation = continuation or {}
+    item = continuation.get('item') if isinstance(continuation.get('item'), dict) else {}
+    context = continuation.get('context') or item.get('context') or {}
+    if not isinstance(context, dict):
+        context = {}
+    ability_id = (item.get('ability') or {}).get('id') or context.get('ability_id')
+    card_code = (
+        item.get('card_code')
+        or (context.get('source_card') or {}).get('code')
+        or context.get('source_card_code')
+    )
+    source = {}
+    if ability_id:
+        source['ability_id'] = str(ability_id)
+    if card_code:
+        source['card_code'] = str(card_code)
+    return source
+
+
 def _fp_value(value):
     text = str(value or '').strip()
     if text.lstrip('+-').isdigit():
@@ -5956,6 +5977,11 @@ class AutomaticGameEngine:
         if unavailable:
             # 고를 수 없는 선택지는 이유와 함께 따로 보여 준다(제출 검증·AI는 options만 본다).
             decision['unavailable_options'] = copy.deepcopy(unavailable)
+        source = _decision_source(continuation)
+        if source:
+            # 어느 카드의 어떤 능력에 대한 선택인지. 선택자 본인에게만 보이며
+            # AI 덱 설정이 능력별로 발동·선택 규칙을 고르는 데 쓴다.
+            decision['source'] = source
         self.engine_state['pending_decision'] = decision
         self._start_clock(
             'decision', owner=owner,
@@ -6937,6 +6963,7 @@ class AutomaticGameEngine:
             card['publicly_known'] = True
         else:
             card.pop('publicly_known', None)
+
         self._apply_card_form(card, to_zone)
         self.state['players'][target]['zones'][to_zone].append(card)
         if created_from_supply:
@@ -8884,6 +8911,12 @@ class AutomaticGameEngine:
         cached = getattr(self, '_token_supply_cache', None)
         if cached is not None:
             return cached
+        # 공개된 규칙 스냅샷은 바뀌지 않으므로 목록을 스냅샷에 붙여 엔진마다 다시 훑지 않는다.
+        # (AI 엔진 평가는 시뮬레이션마다 엔진을 새로 만들어 이 계산이 큰 비중을 차지했다.)
+        shared = getattr(self.ruleset, '_token_supply_cache', None)
+        if shared is not None and getattr(self.ruleset, '_automatic_immutable_ruleset', False):
+            self._token_supply_cache = shared
+            return shared
         side_keys = set()
 
         def walk(value):
@@ -8913,6 +8946,8 @@ class AutomaticGameEngine:
             ):
                 supplies.append((code, token_key, released))
         self._token_supply_cache = supplies
+        if getattr(self.ruleset, '_automatic_immutable_ruleset', False):
+            self.ruleset._token_supply_cache = supplies
         return supplies
 
     def _replenish_token_supplies(self):
@@ -9033,7 +9068,8 @@ class AutomaticGameEngine:
             snapshot['type'] = PASSIVE_CARD_TYPE
         return snapshot
 
-    def _definition_for_card(self, card):
+    def _definition_for_card(self, card, zone=None):
+        # zone: 호출하는 쪽이 이미 아는 카드의 현재 존. 주면 전체 존 검색을 건너뛴다.
         if (
             not isinstance(card, dict) or card.get('effects_negated')
             or card.get('non_technique_while_face_down')
@@ -9066,7 +9102,8 @@ class AutomaticGameEngine:
                 ability.setdefault('active_zones', ['battle'])
                 ability.setdefault('requires_combo_use', True)
         if card.get('instance_id'):
-            _side, zone, _index, _live = self._find_location(card.get('instance_id'))
+            if zone is None:
+                _side, zone, _index, _live = self._find_location(card.get('instance_id'))
             if zone == 'passive' and self._traits_negated():
                 return {}
         return definition
@@ -10202,8 +10239,17 @@ class AutomaticGameEngine:
         self._finish(winner, str(reason or 'card_effect'))
         return True
 
-    def observe(self, role, *, include_state=True):
-        """Return the role-filtered automatic overlay for humans or AI."""
+    def observe(self, role, *, include_state=True, include_memory=False):
+        """Return the role-filtered automatic overlay for humans or AI.
+
+        ``include_memory`` adds what a player remembers of the opponent's hand.
+        Every hand card has been shown at least once (opening review, public
+        get), so the whole hand is known: ``memory.rival_hand``. Once the
+        opponent has readied face down, only the pool it came from is known —
+        ``memory.rival_ready_pool`` (hand before the Ready, sorted by code), not
+        which card it was. Only AI drivers ask for it; human clients render
+        the hidden hand as before.
+        """
         # Project current continuous rules before copying state.  In particular,
         # Trait-granted states must be visible to the player/AI observation even
         # though their authoritative representation lives in ``engine_state``.
@@ -10239,7 +10285,31 @@ class AutomaticGameEngine:
                 'winner': self.engine_state.get('winner'), 'reason': self.engine_state.get('reason'),
             },
             'ruleset_version': self.ruleset.get('version') or self.ruleset.get('content_hash'),
+            **({'memory': self._public_memory(role)} if include_memory else {}),
         }
+
+    def _public_memory(self, role):
+        rival = opponent(role)
+        public_keys = (
+            'instance_id', 'code', 'name', 'type', 'frame', 'damage', 'pos', 'special',
+            'hit', 'guard', 'counter', 'g_top', 'g_mid', 'g_bot',
+        )
+
+        def known(cards):
+            return [
+                {key: card.get(key) for key in public_keys}
+                for card in cards
+                if not card.get('token_supply')
+                and not card.get('face_up') and not card.get('publicly_known')
+            ]
+
+        hand = known(self._zone(rival, 'hand'))
+        readied = known(self._zone(rival, 'battle'))
+        if readied:
+            # 뒷면 레디 뒤에는 어느 카드를 냈는지 모른다: 손패와 섞어 후보로만 준다.
+            pool = sorted(hand + readied, key=lambda card: (str(card.get('code')), str(card.get('instance_id'))))
+            return {'rival_hand': [], 'rival_ready_pool': pool, 'rival_hand_size': len(hand)}
+        return {'rival_hand': hand, 'rival_hand_size': len(hand)}
 
     def _ui_card_ref(self, role, instance_id):
         """Locate a card by the position a role-filtered state exposes.
@@ -10414,6 +10484,24 @@ class AutomaticGameEngine:
             'winner': self.engine_state.get('winner'),
             'reason': self.engine_state.get('reason'),
         }
+        combo = self.engine_state.get('combo') or {}
+        if combo.get('owner'):
+            # Public combo progress (the battle card and used Combo Techniques
+            # are revealed), so AI deck profiles can follow registered routes.
+            def code_of(instance_id):
+                card = self._find_card(instance_id) if instance_id else None
+                return (card or {}).get('code')
+
+            state['engine']['combo'] = {
+                'owner': combo.get('owner'),
+                'special': bool(combo.get('special')),
+                'source_code': None if combo.get('special') else code_of(combo.get('source')),
+                'used_codes': [code_of(item) for item in combo.get('used') or []],
+                # First card picked for the opening pair, not yet played.
+                'selected_first_code': code_of(
+                    (combo.get('initial_selection') or {}).get('card_instance_id'),
+                ),
+            }
         # The final opening hand is public until both players confirm it.
         opening_review = self.engine_state.get('startup_stage') == 'opening_review'
         hidden_board_keys = {}

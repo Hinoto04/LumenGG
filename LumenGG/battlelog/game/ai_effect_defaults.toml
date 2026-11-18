@@ -1,0 +1,99 @@
+# 모든 AI에 적용되는 패시브·선택형 효과 기본 규칙 (docs/AI_DECK_PROFILE.md 6절)
+# AI 덱 설정의 [[effect]] 규칙이 먼저 적용되고, 맞는 규칙이 없을 때 이 파일을 봅니다.
+# 같은 선택에 여러 규칙이 맞으면 위에 있는 규칙이 이깁니다.
+# 아래 값은 카드 텍스트만 보고 정한 첫 기준입니다. 실전 기록을 보고 고쳐 주세요.
+
+# ── 루트 「차지」 ──────────────────────────────────────
+# 차지: 공격만 레디, 레디한 기술 2속도 느려짐·데미지+200, 해제 후 다음 루멘 페이즈 스킵.
+# 차지 중에는 공격만 레디할 수 있고 2속도 느려진다. 느려져도 상대의 가장 빠른 공격보다
+# 빠를 때(속도 우위 3 이상)만 쓴다. 빠른 카드가 많은 상대(리타 암약요원 5속도 등)에게
+# 무조건 쓰면 카운터만 맞는다.
+[[effect]]
+name = "루트 차지: 느려져도 빠를 때 사용"
+ability = "st2-ps1-charge-enter"
+when = { hand_attack_min = 2, speed_lead_min = 3 }
+use = true
+
+[[effect]]
+name = "루트 차지: 그 밖에는 아낀다"
+ability = "st2-ps1-charge-enter"
+use = false
+
+# ── 요한 「서드아이」 ──────────────────────────────────
+# 예지 카운터 1개로 상대 패 1장 공개 + 상대 선레디. 추가 공개용 카운터는 아낀다.
+[[effect]]
+name = "요한 서드아이: 사용"
+ability = "crs-ps-002-n1"
+use = true
+amount = "min"
+
+# ── CMYK 「잼 데이」 ───────────────────────────────────
+# 8속도 이상 기술의 콤보 전환에 3장 세트가 필요하므로 둘 수 있는 만큼 둔다.
+[[effect]]
+name = "CMYK 잼 데이: 최대한 배치"
+ability = "dfr-ps-001-n1"
+use = true
+count = "max"
+
+# ── 리타 「레기온」 ────────────────────────────────────
+# 직전 턴에 축복한 레기온은 엔진이 후보에서 뺀다.
+[[effect]]
+name = "리타 레기온: 체력이 밀리면 가디언"
+ability = "lmi-ps-001-bless"
+when = { hp_lead_max = -1000 }
+choose = ["guardian", "assassin", "paladin"]
+
+[[effect]]
+name = "리타 레기온: 수비가 많으면 가디언"
+ability = "lmi-ps-001-bless"
+when = { hand_defense_min = 2 }
+choose = ["guardian", "assassin", "paladin"]
+
+[[effect]]
+name = "리타 레기온: 기본은 어쌔신"
+ability = "lmi-ps-001-bless"
+choose = ["assassin", "paladin", "guardian"]
+
+# ── 이제벨 「피의 잔향」 ───────────────────────────────
+[[effect]]
+name = "이제벨 피의 잔향: 거미 토큰으로 200데미지"
+ability = "pmp-ps-001-n2"
+use = true
+
+# ── 니아 「오버 리밋」 ─────────────────────────────────
+# 루멘 존 기술이 8장 이상이면 다음 루멘 페이즈에 자해하므로 6장부터는 브레이크 쪽.
+[[effect]]
+name = "니아 오버 리밋: 루멘 존이 차면 브레이크"
+ability = "st1-ps1-over-limit-recovery"
+when = { my_lumen_min = 6 }
+choose = ["break_nya", "send_two"]
+
+[[effect]]
+name = "니아 오버 리밋: 평소에는 2장 보내기"
+ability = "st1-ps1-over-limit-recovery"
+choose = ["send_two", "break_nya"]
+
+# ── 울프 「위압」 ──────────────────────────────────────
+# 위압: 자신은 공격만, 상대는 수비만 레디. 공격이 충분할 때만 쓴다.
+[[effect]]
+name = "울프 위압: 공격 2장 이상이면 사용"
+ability = "st5-ps1-intimidation-enter"
+when = { hand_attack_min = 2 }
+use = true
+
+[[effect]]
+name = "울프 위압: 그 밖에는 아낀다"
+ability = "st5-ps1-intimidation-enter"
+use = false
+
+# ── 이오몽 「오목눈이 영물」 ───────────────────────────
+[[effect]]
+name = "이오몽: 패 4장 이하면 리스트에서 획득"
+ability = "cb01-ps-001-n3"
+use = true
+
+# ── 부쿠키 「프로스트 베일」 ───────────────────────────
+[[effect]]
+name = "부쿠키: 서리 부여 시 루멘 존으로 보냄"
+ability = "cb04-ps-001-n2"
+use = true

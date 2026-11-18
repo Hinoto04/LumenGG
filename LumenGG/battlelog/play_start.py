@@ -10,10 +10,25 @@ from django.urls import reverse
 
 from deck.models import Deck
 
-from .models import LumenSimulatorSession
+from .models import LumenSimulatorSession, SimulatorAIDeck
 from .simulator_services import can_view_deck_for_simulator, create_simulator_session
 
 DECK_NOT_FOUND = '덱 ID를 확인해주세요.'
+AI_DECK_NOT_FOUND = 'AI 덱을 찾을 수 없습니다.'
+
+
+def active_ai_decks():
+    return (
+        SimulatorAIDeck.objects.filter(is_active=True, deck__deleted=False)
+        .select_related('deck', 'deck__character', 'deck__author')
+    )
+
+
+def _load_ai_deck(ai_deck_id):
+    try:
+        return active_ai_decks().get(id=int(ai_deck_id))
+    except (SimulatorAIDeck.DoesNotExist, ValueError, TypeError):
+        raise ValueError(AI_DECK_NOT_FOUND) from None
 
 
 def _load_deck(deck_id):
@@ -36,6 +51,7 @@ def start_session(
     effect_timeout_seconds='60',
     regulation_version_id=None,
     player2_user=None,
+    ai_deck_id=None,
 ):
     """Create a session or raise ValueError with a user-facing (Korean) message.
 
@@ -43,15 +59,26 @@ def start_session(
     each player picks only their own deck, so each deck is checked against the
     player who chose it). Without it both decks are checked against ``user``.
 
+    ``ai_deck_id`` picks a registered AI opponent (``SimulatorAIDeck``): its
+    deck becomes player 2's deck without a view check, since operators chose
+    it. Without it an AI game still accepts any visible deck (older app
+    versions and the legacy start page) and uses the deck's registered
+    profile when there is one.
+
     Errors that concern one deck are joined with spaces, matching the order the
     legacy start page reported them.
     """
+    ai_deck = None
+    if opponent == 'ai' and ai_deck_id not in (None, ''):
+        ai_deck = _load_ai_deck(ai_deck_id)
+        player2_deck = ai_deck.deck
+    else:
+        player2_deck = _load_deck(player2_deck_id)
     player1_deck = _load_deck(player1_deck_id)
-    player2_deck = _load_deck(player2_deck_id)
     errors = []
     if not can_view_deck_for_simulator(user, player1_deck):
         errors.append('플레이어1 덱을 볼 권한이 없습니다.')
-    if not can_view_deck_for_simulator(player2_user if player2_user is not None else user, player2_deck):
+    if not ai_deck and not can_view_deck_for_simulator(player2_user if player2_user is not None else user, player2_deck):
         errors.append('플레이어2 덱을 볼 권한이 없습니다.')
     if errors:
         raise PermissionError(errors)
@@ -70,6 +97,8 @@ def start_session(
     player2_controller = (
         LumenSimulatorSession.CONTROLLER_AI if opponent == 'ai' else LumenSimulatorSession.CONTROLLER_HUMAN
     )
+    if opponent == 'ai' and not ai_deck:
+        ai_deck = active_ai_decks().filter(deck=player2_deck).first()
     return create_simulator_session(
         player1_name,
         player2_name,
@@ -80,6 +109,7 @@ def start_session(
         player2_controller=player2_controller,
         ready_timeout_seconds=ready_timeout_seconds,
         effect_timeout_seconds=effect_timeout_seconds,
+        ai_deck=ai_deck,
     )
 
 

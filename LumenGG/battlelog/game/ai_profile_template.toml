@@ -1,0 +1,92 @@
+# AI 덱 설정 양식 (TOML). 자세한 설명: docs/AI_DECK_PROFILE.md
+# '#' 뒤는 메모입니다. 필요 없는 항목은 지우거나 주석으로 남겨 두세요.
+# 카드 코드는 아래 "덱 카드 코드" 목록에서 복사합니다.
+
+# 성향: balanced(균형) aggressive(공격적) defensive(수비적) speed(속도 중시)
+style = "balanced"
+
+# ── 공통 가중치 덮어쓰기 ─────────────────────────────
+# 성향 프리셋 위에 덮어씁니다. 쓸 수 있는 키와 뜻은 문서의 "가중치 표"를 보세요.
+[weights]
+# card_attack = 2.0
+# card_speed = 1.2
+
+# ── 항상 적용되는 선호 카드 ──────────────────────────
+# 카드 코드 = 점수(-10~10). 양수는 더 자주, 음수는 덜 씁니다.
+# 레디·획득·콤보·캐치 모든 행동에 더해집니다.
+[prefer]
+# "UNC-AT-001" = 2.5
+
+# ── 상황별 선호 ──────────────────────────────────────
+# when 조건이 모두 맞을 때만 prefer/weights가 더해집니다. 여러 개 쓸 수 있습니다.
+# [[situation]]
+# name = "체력이 낮을 때는 수비"
+# when = { my_hp_max = 1500, action = ["ready"] }
+# prefer = { "UNC-DF-003" = 3 }
+# weights = { card_defense = 2.0 }
+
+# ── 콤보 루트 ────────────────────────────────────────
+# cards: 순서대로 쓸 카드 코드. 첫 장은 배틀에서 이길 레디 카드(콤보 시작)나 첫 콤보 카드.
+# bonus: 루트를 따르는 카드 1장당 점수(기본 3). when을 넣으면 그 상황에서만 씁니다.
+# [[combo]]
+# name = "기본 루트"
+# cards = ["UNC-AT-001", "UNC-AT-002", "UNC-AT-003"]
+# bonus = 3
+#
+# [[combo]]
+# name = "마무리 루트"
+# cards = ["UNC-AT-001", "UNC-AT-005"]
+# bonus = 4
+# when = { rival_hp_max = 1500 }
+
+# ── 선택형 효과·패시브 ───────────────────────────────
+# 어떤 카드·능력의 선택에서, 어떤 상황에 무엇을 할지 정합니다. 위 규칙이 먼저입니다.
+# 맞는 규칙이 없으면 캐릭터별 기본 규칙(battlelog/game/ai_effect_defaults.toml)을,
+# 그것도 없으면 "할 수 있다" 효과는 발동하고 나머지는 엔진 기본값을 따릅니다.
+# [[effect]]
+# name = "체력이 낮을 때만 차지"
+# ability = "st2-ps1-charge-enter"     # 또는 card = "카드 코드"
+# when = { my_hp_max = 2000, hand_attack_min = 2 }
+# use = true                           # false면 발동하지 않음
+#
+# [[effect]]
+# name = "리스트에서 가져올 카드"
+# card = "UNC-AT-001"
+# decision = "effect_choice"
+# pick = ["UNC-AT-002", "UNC-AT-003"]  # 앞쪽 카드부터 가져옴
+# avoid = ["UNC-AT-009"]               # 되도록 고르지 않음
+# count = "max"                        # 고를 장수: max / min / 숫자
+#
+# [[effect]]
+# name = "레기온은 팔라딘 우선"
+# ability = "lmi-ps-001-bless"
+# choose = ["paladin", "assassin", "guardian"]
+
+[effects]
+default_use = true      # 규칙이 없는 "할 수 있다" 효과를 발동할지
+
+# ── 상대 카드 대처 ───────────────────────────────────
+# 상대의 공개된 카드를 막을 카드가 손패에 없으면, 리스트에서 그 카드들을
+# 막을 최소 장수 조합을 계산해 획득 점수에 bonus를 더합니다.
+[counter]
+enabled = true
+bonus = 2.0
+scope = "hand"          # hand: 상대 배틀·손패만 / hand_and_list: 상대 리스트까지
+
+# ── 안전장치 ─────────────────────────────────────────
+# 상대가 낼 수 있는 카드가 모두 공개되어 있고, 그 전부에게 지는 카드는 레디하지 않습니다.
+[safety]
+avoid_certain_loss = true
+
+# ── 수치표 덮어쓰기 ──────────────────────────────────
+# 레디 계산은 "이 카드가 히트하면 평균 얼마를 얻는가" 같은 카드별 수치를 씁니다
+# (ai_outcome_table.json, 자기대전으로 측정). 정립된 값이 있으면 여기 적어 덮어씁니다.
+# 판정 결과: hit counter clash countered dodge opponent_dodge guard guarded failed_defense none
+# 자원: damage(준 데미지) fp(배틀 후 FP) counter(늘어난 카운터) card(늘어난 손패)
+# [outcome."ST2-AT-001".hit]
+# damage = 2000
+# counter = 3
+
+# 자원 1단위를 HP 몇으로 볼지 (기본: fp 67, counter 200, card 300)
+# [resources]
+# counter = 200

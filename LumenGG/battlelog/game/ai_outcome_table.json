@@ -1,0 +1,5051 @@
+{
+ "battles": 7853,
+ "cards": {
+  "AWL-AT-002": {
+   "character_id": 10,
+   "combo": {},
+   "drift": 10,
+   "judged": 163,
+   "printed_damage": 300.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 350.0,
+     "fp": 0.5,
+     "n": 4
+    },
+    "counter": {
+     "card": 1.81,
+     "counter": 0.0,
+     "damage": 333.33,
+     "fp": 2.0,
+     "n": 36
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 9.09,
+     "fp": -0.09,
+     "n": 33
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -1.96,
+     "n": 23
+    },
+    "hit": {
+     "card": 1.4,
+     "counter": 0.0,
+     "damage": 301.75,
+     "fp": 0.95,
+     "n": 57
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 80.0,
+     "fp": 0.0,
+     "n": 10
+    }
+   },
+   "speed": {
+    "": {
+     "n": 142,
+     "offset": 0.01
+    },
+    "dark_night": {
+     "n": 23,
+     "offset": 0.09
+    }
+   }
+  },
+  "AWL-AT-004": {
+   "character_id": 10,
+   "combo": {},
+   "drift": 16,
+   "judged": 193,
+   "printed_damage": 500.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 460.0,
+     "fp": 1.88,
+     "n": 50
+    },
+    "counter": {
+     "card": 1.9,
+     "counter": 0.0,
+     "damage": 500.0,
+     "fp": 2.0,
+     "n": 20
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 45.45,
+     "fp": 0.0,
+     "n": 22
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 54.55,
+     "fp": -4.32,
+     "n": 22
+    },
+    "hit": {
+     "card": 1.87,
+     "counter": 0.0,
+     "damage": 494.94,
+     "fp": 1.95,
+     "n": 79
+    }
+   },
+   "speed": {
+    "": {
+     "n": 165,
+     "offset": 0.0
+    },
+    "dark_night": {
+     "n": 33,
+     "offset": 0.0
+    }
+   }
+  },
+  "AWL-AT-005": {
+   "character_id": 10,
+   "combo": {
+    "hit": true
+   },
+   "drift": 0,
+   "judged": 53,
+   "printed_damage": 700.0,
+   "results": {
+    "counter": {
+     "card": 1.91,
+     "counter": 0.0,
+     "damage": 721.88,
+     "fp": 4.81,
+     "n": 32
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "hit": {
+     "card": 0.79,
+     "counter": 0.0,
+     "damage": 763.16,
+     "fp": -1.11,
+     "n": 19
+    }
+   },
+   "speed": {
+    "": {
+     "n": 55,
+     "offset": 0.0
+    }
+   }
+  },
+  "AWL-AT-009": {
+   "character_id": 10,
+   "combo": {},
+   "drift": 0,
+   "judged": 4,
+   "printed_damage": 600.0,
+   "results": {
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "hit": {
+     "card": 1.5,
+     "counter": 0.0,
+     "damage": 700.0,
+     "fp": 4.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "": {
+     "n": 5,
+     "offset": 0.0
+    }
+   }
+  },
+  "AWL-AT-019": {
+   "character_id": 3,
+   "combo": {},
+   "drift": 25,
+   "judged": 142,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "counter": {
+     "card": 1.96,
+     "counter": 0.0,
+     "damage": 666.67,
+     "fp": 2.0,
+     "n": 24
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 17
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 159.09,
+     "fp": -2.5,
+     "n": 44
+    },
+    "hit": {
+     "card": 1.76,
+     "counter": 0.0,
+     "damage": 645.45,
+     "fp": 3.0,
+     "n": 55
+    }
+   },
+   "speed": {
+    "": {
+     "n": 57,
+     "offset": 0.0
+    },
+    "charge": {
+     "n": 87,
+     "offset": 2.0
+    }
+   }
+  },
+  "AWL-AT-024": {
+   "character_id": 4,
+   "combo": {},
+   "drift": 4,
+   "judged": 120,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 1.05,
+     "counter": 0.0,
+     "damage": 585.0,
+     "fp": 0.2,
+     "n": 20
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 7
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 66.67,
+     "fp": -2.0,
+     "n": 6
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 2.0,
+     "n": 1
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 86
+    }
+   },
+   "speed": {
+    "": {
+     "n": 120,
+     "offset": 0.0
+    },
+    "down_stance": {
+     "n": 4,
+     "offset": 0.0
+    }
+   }
+  },
+  "AWL-AT-025": {
+   "character_id": 4,
+   "combo": {},
+   "drift": 0,
+   "judged": 3,
+   "printed_damage": 600.0,
+   "results": {
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    }
+   },
+   "speed": {
+    "": {
+     "n": 3,
+     "offset": 0.0
+    },
+    "down_stance": {
+     "n": 1,
+     "offset": 1.0
+    }
+   }
+  },
+  "AWL-AT-038": {
+   "character_id": 6,
+   "combo": {
+    "hit": true
+   },
+   "drift": 24,
+   "judged": 115,
+   "printed_damage": 700.0,
+   "results": {
+    "clash": {
+     "card": -1.3,
+     "counter": 2.28,
+     "damage": 880.43,
+     "fp": 1.11,
+     "n": 46
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 41.54,
+     "fp": 0.0,
+     "n": 65
+    },
+    "hit": {
+     "card": -0.5,
+     "counter": 2.0,
+     "damage": 1150.0,
+     "fp": 0.75,
+     "n": 4
+    }
+   },
+   "speed": {
+    "": {
+     "n": 117,
+     "offset": 0.0
+    },
+    "intimidation": {
+     "n": 1,
+     "offset": 0.0
+    }
+   }
+  },
+  "AWL-AT-039": {
+   "character_id": 6,
+   "combo": {},
+   "drift": 1,
+   "judged": 11,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 2.0,
+     "counter": 1.0,
+     "damage": 500.0,
+     "fp": 7.0,
+     "n": 1
+    },
+    "counter": {
+     "card": 1.0,
+     "counter": 1.0,
+     "damage": 400.0,
+     "fp": 4.0,
+     "n": 1
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 50.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "hit": {
+     "card": 0.33,
+     "counter": 2.0,
+     "damage": 766.67,
+     "fp": 3.0,
+     "n": 3
+    }
+   },
+   "speed": {
+    "": {
+     "n": 12,
+     "offset": 0.0
+    }
+   }
+  },
+  "AWL-AT-042": {
+   "character_id": 7,
+   "combo": {},
+   "drift": 12,
+   "judged": 212,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.29,
+     "counter": 0.0,
+     "damage": 228.57,
+     "fp": 0.0,
+     "n": 7
+    },
+    "counter": {
+     "card": 1.73,
+     "counter": 0.0,
+     "damage": 672.73,
+     "fp": 3.0,
+     "n": 11
+    },
+    "countered": {
+     "card": 0.98,
+     "counter": 0.0,
+     "damage": 15.91,
+     "fp": -0.02,
+     "n": 132
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -2.78,
+     "n": 9
+    },
+    "hit": {
+     "card": 1.85,
+     "counter": 0.0,
+     "damage": 390.57,
+     "fp": 3.0,
+     "n": 53
+    }
+   },
+   "speed": {
+    "": {
+     "n": 213,
+     "offset": 0.0
+    }
+   }
+  },
+  "AWL-AT-043": {
+   "character_id": 7,
+   "combo": {
+    "hit": true
+   },
+   "drift": 3,
+   "judged": 34,
+   "printed_damage": 500.0,
+   "results": {
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 6
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 175.0,
+     "fp": 0.0,
+     "n": 8
+    },
+    "hit": {
+     "card": -2.65,
+     "counter": -0.05,
+     "damage": 1120.0,
+     "fp": 0.25,
+     "n": 20
+    }
+   },
+   "speed": {
+    "": {
+     "n": 35,
+     "offset": 0.0
+    }
+   }
+  },
+  "AWL-AT-046": {
+   "character_id": 1,
+   "combo": {},
+   "drift": 84,
+   "judged": 286,
+   "printed_damage": 0.0,
+   "results": {
+    "dodge": {
+     "card": 0.94,
+     "counter": 0.09,
+     "damage": 96.43,
+     "fp": 3.51,
+     "n": 140
+    },
+    "failed_defense": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 83
+    },
+    "grabbed": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": -400.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "none": {
+     "card": 1.1,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 62
+    }
+   },
+   "speed": {}
+  },
+  "AWL-AT-049": {
+   "character_id": 1,
+   "combo": {},
+   "drift": 9,
+   "judged": 91,
+   "printed_damage": 300.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "counter": {
+     "card": 1.76,
+     "counter": 0.0,
+     "damage": 160.0,
+     "fp": 2.12,
+     "n": 25
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": -9.52,
+     "fp": -0.14,
+     "n": 21
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -3.73,
+     "n": 15
+    },
+    "hit": {
+     "card": 1.66,
+     "counter": 0.0,
+     "damage": 113.79,
+     "fp": 1.0,
+     "n": 29
+    }
+   },
+   "speed": {
+    "": {
+     "n": 34,
+     "offset": 0.0
+    },
+    "zero_suit": {
+     "n": 59,
+     "offset": 0.0
+    }
+   }
+  },
+  "AWL-AT-051": {
+   "character_id": 1,
+   "combo": {
+    "hit": true
+   },
+   "drift": 11,
+   "judged": 28,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": -1.5,
+     "counter": 0.75,
+     "damage": 500.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": -42.11,
+     "fp": 0.0,
+     "n": 19
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "hit": {
+     "card": -0.5,
+     "counter": 0.0,
+     "damage": 675.0,
+     "fp": 0.5,
+     "n": 4
+    }
+   },
+   "speed": {
+    "": {
+     "n": 7,
+     "offset": 0.0
+    },
+    "mujin_declined": {
+     "n": 11,
+     "offset": 0.0
+    },
+    "revolver_launcher": {
+     "n": 1,
+     "offset": 0.0
+    },
+    "zero_suit": {
+     "n": 12,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB01-AT-010": {
+   "character_id": 3,
+   "combo": {},
+   "drift": 0,
+   "judged": 2,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 5.0,
+     "n": 1
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 2,
+     "offset": 0.0
+    },
+    "charge": {
+     "n": 2,
+     "offset": 2.0
+    }
+   }
+  },
+  "CB01-AT-017": {
+   "character_id": 6,
+   "combo": {},
+   "drift": 21,
+   "judged": 36,
+   "printed_damage": 500.0,
+   "results": {
+    "counter": {
+     "card": 2.0,
+     "counter": 1.0,
+     "damage": 500.0,
+     "fp": 6.0,
+     "n": 10
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    },
+    "hit": {
+     "card": 1.91,
+     "counter": 1.7,
+     "damage": 573.91,
+     "fp": 4.0,
+     "n": 23
+    }
+   },
+   "speed": {
+    "": {
+     "n": 34,
+     "offset": 0.0
+    },
+    "intimidation": {
+     "n": 4,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB01-AT-021": {
+   "character_id": 7,
+   "combo": {},
+   "drift": 7,
+   "judged": 36,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 1400.0,
+     "fp": 3.0,
+     "n": 1
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 28
+    },
+    "hit": {
+     "card": 1.25,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 2.0,
+     "n": 4
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    }
+   },
+   "speed": {
+    "": {
+     "n": 44,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB01-AT-035": {
+   "character_id": 12,
+   "combo": {},
+   "drift": 1,
+   "judged": 68,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 2.0,
+     "n": 2
+    },
+    "counter": {
+     "card": 1.89,
+     "counter": 0.0,
+     "damage": 405.26,
+     "fp": 2.0,
+     "n": 19
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": -0.38,
+     "n": 8
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 150.0,
+     "fp": -1.88,
+     "n": 8
+    },
+    "hit": {
+     "card": 1.44,
+     "counter": 0.06,
+     "damage": 400.0,
+     "fp": 2.0,
+     "n": 16
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 15
+    }
+   },
+   "speed": {
+    "": {
+     "n": 72,
+     "offset": 0.01
+    }
+   }
+  },
+  "CB02-AT-029": {
+   "character_id": 10,
+   "combo": {},
+   "drift": 1,
+   "judged": 2,
+   "printed_damage": 400.0,
+   "results": {
+    "hit": {
+     "card": -0.5,
+     "counter": 0.0,
+     "damage": 1250.0,
+     "fp": 1.5,
+     "n": 2
+    }
+   },
+   "speed": {
+    "": {
+     "n": 3,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB02-AT-033": {
+   "character_id": 8,
+   "combo": {
+    "counter": true
+   },
+   "drift": 5,
+   "judged": 94,
+   "printed_damage": 300.0,
+   "results": {
+    "clash": {
+     "card": 0.6,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 5
+    },
+    "counter": {
+     "card": -1.05,
+     "counter": 0.72,
+     "damage": 779.07,
+     "fp": 0.0,
+     "n": 43
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 8
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 245.45,
+     "fp": 0.0,
+     "n": 11
+    },
+    "hit": {
+     "card": -0.15,
+     "counter": 0.81,
+     "damage": 648.15,
+     "fp": 0.74,
+     "n": 27
+    }
+   },
+   "speed": {
+    "": {
+     "n": 58,
+     "offset": 0.0
+    },
+    "mujin_declined": {
+     "n": 38,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB02-AT-035": {
+   "character_id": 9,
+   "combo": {},
+   "drift": 3,
+   "judged": 17,
+   "printed_damage": 200.0,
+   "results": {
+    "counter": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 850.0,
+     "fp": 6.0,
+     "n": 2
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 11
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 4
+    }
+   },
+   "speed": {
+    "assassin+guardian+paladin+saintess": {
+     "n": 2,
+     "offset": 0.0
+    },
+    "assassin+saintess": {
+     "n": 11,
+     "offset": 0.0
+    },
+    "guardian+saintess": {
+     "n": 2,
+     "offset": 0.0
+    },
+    "paladin+saintess": {
+     "n": 3,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB02-AT-042": {
+   "character_id": 12,
+   "combo": {},
+   "drift": 2,
+   "judged": 148,
+   "printed_damage": 500.0,
+   "results": {
+    "clash": {
+     "card": 1.4,
+     "counter": 0.1,
+     "damage": 120.0,
+     "fp": 1.0,
+     "n": 10
+    },
+    "counter": {
+     "card": 1.96,
+     "counter": 0.0,
+     "damage": 500.0,
+     "fp": 2.0,
+     "n": 45
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.05,
+     "damage": 123.81,
+     "fp": -2.86,
+     "n": 21
+    },
+    "hit": {
+     "card": 1.91,
+     "counter": 0.0,
+     "damage": 502.94,
+     "fp": 2.0,
+     "n": 68
+    }
+   },
+   "speed": {
+    "": {
+     "n": 149,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB02-AT-044": {
+   "character_id": 13,
+   "combo": {},
+   "drift": 2,
+   "judged": 10,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 0.2,
+     "counter": 0.0,
+     "damage": 860.0,
+     "fp": 2.8,
+     "n": 5
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 4
+    }
+   },
+   "speed": {
+    "": {
+     "n": 11,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB02-AT-045": {
+   "character_id": 13,
+   "combo": {},
+   "drift": 5,
+   "judged": 50,
+   "printed_damage": 100.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 300.0,
+     "fp": 3.0,
+     "n": 15
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 85.71,
+     "fp": -1.71,
+     "n": 7
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 300.0,
+     "fp": 3.0,
+     "n": 23
+    }
+   },
+   "speed": {
+    "": {
+     "n": 52,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB03-AT-019": {
+   "character_id": 11,
+   "combo": {},
+   "drift": 0,
+   "judged": 8,
+   "printed_damage": 500.0,
+   "results": {
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -1.25,
+     "n": 4
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 1.0,
+     "damage": 900.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 9,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB03-AT-024": {
+   "character_id": 13,
+   "combo": {},
+   "drift": 2,
+   "judged": 138,
+   "printed_damage": 500.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 1.0,
+     "n": 4
+    },
+    "counter": {
+     "card": 0.88,
+     "counter": 0.0,
+     "damage": 610.0,
+     "fp": 5.42,
+     "n": 40
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 235.71,
+     "fp": 0.0,
+     "n": 14
+    },
+    "hit": {
+     "card": 0.94,
+     "counter": 0.0,
+     "damage": 653.25,
+     "fp": 4.77,
+     "n": 77
+    }
+   },
+   "speed": {
+    "": {
+     "n": 142,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB03-AT-028": {
+   "character_id": 16,
+   "combo": {
+    "counter": true
+   },
+   "drift": 3,
+   "judged": 13,
+   "printed_damage": 500.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "counter": {
+     "card": -2.0,
+     "counter": 0.0,
+     "damage": 1000.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 500.0,
+     "fp": 2.0,
+     "n": 7
+    }
+   },
+   "speed": {
+    "": {
+     "n": 4,
+     "offset": 0.0
+    },
+    "blue_flame": {
+     "n": 10,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB03-AT-029": {
+   "character_id": 17,
+   "combo": {},
+   "drift": 12,
+   "judged": 49,
+   "printed_damage": 300.0,
+   "results": {
+    "counter": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 285.0,
+     "fp": 4.0,
+     "n": 20
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 150.0,
+     "fp": -1.0,
+     "n": 16
+    },
+    "hit": {
+     "card": 1.73,
+     "counter": 0.0,
+     "damage": 318.18,
+     "fp": 3.0,
+     "n": 11
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 26,
+     "offset": 0.0
+    },
+    "revolver_launcher": {
+     "n": 7,
+     "offset": 0.0
+    },
+    "zero_suit": {
+     "n": 18,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB03-AT-030": {
+   "character_id": 17,
+   "combo": {},
+   "drift": 1,
+   "judged": 209,
+   "printed_damage": 500.0,
+   "results": {
+    "clash": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 250.0,
+     "fp": 4.17,
+     "n": 6
+    },
+    "counter": {
+     "card": -0.93,
+     "counter": 0.0,
+     "damage": 978.57,
+     "fp": 3.0,
+     "n": 14
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 137.5,
+     "fp": 0.0,
+     "n": 8
+    },
+    "hit": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 219.66,
+     "fp": 4.75,
+     "n": 178
+    }
+   },
+   "speed": {
+    "": {
+     "n": 28,
+     "offset": 0.0
+    },
+    "revolver_launcher": {
+     "n": 3,
+     "offset": 0.0
+    },
+    "zero_suit": {
+     "n": 180,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB03-AT-035": {
+   "character_id": 1,
+   "combo": {},
+   "drift": 1,
+   "judged": 31,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 1.67,
+     "counter": 0.0,
+     "damage": 566.67,
+     "fp": 4.0,
+     "n": 3
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 10
+    },
+    "guarded": {
+     "card": 1.3,
+     "counter": 0.0,
+     "damage": 250.0,
+     "fp": 0.0,
+     "n": 10
+    },
+    "hit": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 4.0,
+     "n": 1
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 7
+    }
+   },
+   "speed": {
+    "": {
+     "n": 5,
+     "offset": 0.0
+    },
+    "mujin_declined": {
+     "n": 27,
+     "offset": 0.0
+    }
+   }
+  },
+  "CB04-AT-022": {
+   "character_id": 8,
+   "combo": {
+    "counter": true
+   },
+   "drift": 9,
+   "judged": 71,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 800.0,
+     "fp": 0.0,
+     "n": 12
+    },
+    "counter": {
+     "card": 1.21,
+     "counter": 0.79,
+     "damage": 750.0,
+     "fp": 0.14,
+     "n": 14
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 12
+    },
+    "hit": {
+     "card": 1.9,
+     "counter": 0.66,
+     "damage": 396.55,
+     "fp": 4.0,
+     "n": 29
+    }
+   },
+   "speed": {
+    "": {
+     "n": 51,
+     "offset": -1.53
+    },
+    "mujin_declined": {
+     "n": 21,
+     "offset": -3.05
+    }
+   }
+  },
+  "CRS-AT-001": {
+   "character_id": 11,
+   "combo": {},
+   "drift": 0,
+   "judged": 109,
+   "printed_damage": 300.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 50.0,
+     "fp": 0.5,
+     "n": 2
+    },
+    "counter": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 310.0,
+     "fp": 2.0,
+     "n": 10
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 15.79,
+     "fp": -0.16,
+     "n": 19
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 90.48,
+     "fp": -2.86,
+     "n": 21
+    },
+    "hit": {
+     "card": 1.16,
+     "counter": 0.0,
+     "damage": 328.07,
+     "fp": 0.96,
+     "n": 57
+    }
+   },
+   "speed": {
+    "": {
+     "n": 114,
+     "offset": 0.0
+    }
+   }
+  },
+  "CRS-AT-002": {
+   "character_id": 11,
+   "combo": {},
+   "drift": 0,
+   "judged": 57,
+   "printed_damage": 300.0,
+   "results": {
+    "clash": {
+     "card": 0.0,
+     "counter": 1.0,
+     "damage": 150.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "counter": {
+     "card": 0.0,
+     "counter": 1.6,
+     "damage": 340.0,
+     "fp": 0.0,
+     "n": 20
+    },
+    "countered": {
+     "card": 0.0,
+     "counter": 2.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 6
+    },
+    "guarded": {
+     "card": 0.0,
+     "counter": 2.0,
+     "damage": 192.31,
+     "fp": -3.85,
+     "n": 13
+    },
+    "hit": {
+     "card": 0.0,
+     "counter": 1.06,
+     "damage": 393.75,
+     "fp": 0.0,
+     "n": 16
+    }
+   },
+   "speed": {
+    "": {
+     "n": 58,
+     "offset": 0.0
+    }
+   }
+  },
+  "CRS-AT-005": {
+   "character_id": 11,
+   "combo": {},
+   "drift": 39,
+   "judged": 77,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 4.0,
+     "n": 4
+    },
+    "counter": {
+     "card": 1.0,
+     "counter": 1.92,
+     "damage": 743.24,
+     "fp": 0.32,
+     "n": 37
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 26
+    },
+    "guarded": {
+     "card": 0.5,
+     "counter": 0.0,
+     "damage": 500.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "hit": {
+     "card": 1.57,
+     "counter": 0.0,
+     "damage": 414.29,
+     "fp": 3.43,
+     "n": 7
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 78,
+     "offset": -1.55
+    }
+   }
+  },
+  "CRS-AT-006": {
+   "character_id": 11,
+   "combo": {
+    "counter": true,
+    "hit": true
+   },
+   "drift": 0,
+   "judged": 4,
+   "printed_damage": 600.0,
+   "results": {
+    "counter": {
+     "card": -1.0,
+     "counter": 2.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "guarded": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 300.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "hit": {
+     "card": -3.0,
+     "counter": 3.0,
+     "damage": 1200.0,
+     "fp": 0.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "": {
+     "n": 6,
+     "offset": 0.0
+    }
+   }
+  },
+  "CRS-AT-008": {
+   "character_id": 11,
+   "combo": {},
+   "drift": 0,
+   "judged": 20,
+   "printed_damage": 500.0,
+   "results": {
+    "counter": {
+     "card": 0.5,
+     "counter": 1.5,
+     "damage": 750.0,
+     "fp": 2.0,
+     "n": 2
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 1.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 18
+    }
+   },
+   "speed": {
+    "": {
+     "n": 25,
+     "offset": 0.0
+    }
+   }
+  },
+  "CRS-AT-012": {
+   "character_id": 12,
+   "combo": {},
+   "drift": 10,
+   "judged": 380,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.44,
+     "counter": 0.11,
+     "damage": 355.56,
+     "fp": 0.22,
+     "n": 18
+    },
+    "counter": {
+     "card": 1.98,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 3.0,
+     "n": 93
+    },
+    "countered": {
+     "card": 0.94,
+     "counter": 0.06,
+     "damage": 16.67,
+     "fp": -0.33,
+     "n": 18
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.02,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 58
+    },
+    "hit": {
+     "card": 1.63,
+     "counter": 0.01,
+     "damage": 408.38,
+     "fp": 2.0,
+     "n": 179
+    },
+    "opponent_dodge": {
+     "card": 0.93,
+     "counter": 0.0,
+     "damage": 64.29,
+     "fp": 0.0,
+     "n": 14
+    }
+   },
+   "speed": {
+    "": {
+     "n": 390,
+     "offset": 0.01
+    }
+   }
+  },
+  "CRS-AT-015": {
+   "character_id": 12,
+   "combo": {
+    "hit": true
+   },
+   "drift": 2,
+   "judged": 20,
+   "printed_damage": 600.0,
+   "results": {
+    "counter": {
+     "card": 0.07,
+     "counter": 0.0,
+     "damage": 978.57,
+     "fp": 2.0,
+     "n": 14
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -4.0,
+     "n": 2
+    },
+    "hit": {
+     "card": -0.5,
+     "counter": 0.0,
+     "damage": 1000.0,
+     "fp": 1.0,
+     "n": 2
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "": {
+     "n": 21,
+     "offset": 0.0
+    }
+   }
+  },
+  "CRS-AT-016": {
+   "character_id": 12,
+   "combo": {},
+   "drift": 0,
+   "judged": 12,
+   "printed_damage": 500.0,
+   "results": {
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 150.0,
+     "fp": 0.0,
+     "n": 8
+    },
+    "hit": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 500.0,
+     "fp": 4.0,
+     "n": 4
+    }
+   },
+   "speed": {
+    "": {
+     "n": 13,
+     "offset": 0.0
+    }
+   }
+  },
+  "CRS-AT-018": {
+   "character_id": 12,
+   "combo": {},
+   "drift": 0,
+   "judged": 57,
+   "printed_damage": 500.0,
+   "results": {
+    "clash": {
+     "card": 1.38,
+     "counter": 0.12,
+     "damage": 112.5,
+     "fp": 3.12,
+     "n": 8
+    },
+    "counter": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 900.0,
+     "fp": 2.0,
+     "n": 1
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 11
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 173.33,
+     "fp": 0.0,
+     "n": 15
+    },
+    "hit": {
+     "card": 0.59,
+     "counter": 0.0,
+     "damage": 772.73,
+     "fp": 2.95,
+     "n": 22
+    }
+   },
+   "speed": {
+    "": {
+     "n": 58,
+     "offset": 0.0
+    }
+   }
+  },
+  "CRS-AT-024": {
+   "character_id": 3,
+   "combo": {},
+   "drift": 0,
+   "judged": 3,
+   "printed_damage": 400.0,
+   "results": {
+    "hit": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 600.0,
+     "fp": 5.0,
+     "n": 2
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 2,
+     "offset": 0.0
+    },
+    "charge": {
+     "n": 4,
+     "offset": 2.0
+    }
+   }
+  },
+  "DFR-AT-015": {
+   "character_id": 3,
+   "combo": {},
+   "drift": 0,
+   "judged": 3,
+   "printed_damage": 500.0,
+   "results": {
+    "countered": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "opponent_dodge": {
+     "card": -1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 1,
+     "offset": 0.0
+    },
+    "charge": {
+     "n": 3,
+     "offset": 0.0
+    }
+   }
+  },
+  "DFR-AT-020": {
+   "character_id": 7,
+   "combo": {},
+   "drift": 0,
+   "judged": 2,
+   "printed_damage": 100.0,
+   "results": {
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -4.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "": {
+     "n": 3,
+     "offset": 0.0
+    }
+   }
+  },
+  "DFR-AT-026": {
+   "character_id": 9,
+   "combo": {},
+   "drift": 1,
+   "judged": 7,
+   "printed_damage": 500.0,
+   "results": {
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 500.0,
+     "fp": 3.0,
+     "n": 1
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "hit": {
+     "card": 0.5,
+     "counter": 0.0,
+     "damage": 1050.0,
+     "fp": 1.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "assassin+saintess": {
+     "n": 3,
+     "offset": 0.0
+    },
+    "paladin+saintess": {
+     "n": 6,
+     "offset": 0.0
+    }
+   }
+  },
+  "DFR-AT-031": {
+   "character_id": 12,
+   "combo": {},
+   "drift": 0,
+   "judged": 4,
+   "printed_damage": 500.0,
+   "results": {
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "hit": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 500.0,
+     "fp": 5.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 5,
+     "offset": 0.0
+    }
+   }
+  },
+  "DFR-AT-049": {
+   "character_id": 1,
+   "combo": {},
+   "drift": 21,
+   "judged": 470,
+   "printed_damage": 0.0,
+   "results": {
+    "failed_defense": {
+     "card": 1.0,
+     "counter": 0.04,
+     "damage": 81.89,
+     "fp": 0.0,
+     "n": 127
+    },
+    "grabbed": {
+     "card": 1.0,
+     "counter": 0.25,
+     "damage": -50.0,
+     "fp": 0.0,
+     "n": 8
+    },
+    "guard": {
+     "card": 1.68,
+     "counter": 0.01,
+     "damage": 50.21,
+     "fp": 0.26,
+     "n": 243
+    },
+    "none": {
+     "card": 1.6,
+     "counter": 0.0,
+     "damage": 9.78,
+     "fp": 0.0,
+     "n": 92
+    }
+   },
+   "speed": {}
+  },
+  "LMI-AT-002": {
+   "character_id": 9,
+   "combo": {},
+   "drift": 6,
+   "judged": 234,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 0.75,
+     "counter": 0.0,
+     "damage": 512.5,
+     "fp": 2.12,
+     "n": 8
+    },
+    "counter": {
+     "card": 1.37,
+     "counter": 0.0,
+     "damage": 451.61,
+     "fp": 1.0,
+     "n": 62
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.17,
+     "n": 36
+    },
+    "guarded": {
+     "card": 0.78,
+     "counter": 0.0,
+     "damage": 280.0,
+     "fp": 1.0,
+     "n": 60
+    },
+    "hit": {
+     "card": 1.69,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 2.0,
+     "n": 52
+    },
+    "opponent_dodge": {
+     "card": 0.62,
+     "counter": 0.0,
+     "damage": 112.5,
+     "fp": 1.0,
+     "n": 16
+    }
+   },
+   "speed": {
+    "assassin+guardian+paladin+saintess": {
+     "n": 17,
+     "offset": 0.0
+    },
+    "assassin+saintess": {
+     "n": 117,
+     "offset": 0.0
+    },
+    "guardian+saintess": {
+     "n": 26,
+     "offset": 0.0
+    },
+    "paladin+saintess": {
+     "n": 76,
+     "offset": 0.0
+    }
+   }
+  },
+  "LMI-AT-003": {
+   "character_id": 9,
+   "combo": {},
+   "drift": 0,
+   "judged": 7,
+   "printed_damage": 300.0,
+   "results": {
+    "counter": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 350.0,
+     "fp": 3.0,
+     "n": 4
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "assassin+saintess": {
+     "n": 6,
+     "offset": 0.0
+    },
+    "guardian+saintess": {
+     "n": 2,
+     "offset": 0.0
+    },
+    "paladin+saintess": {
+     "n": 3,
+     "offset": 0.0
+    }
+   }
+  },
+  "LMI-AT-004": {
+   "character_id": 9,
+   "combo": {
+    "counter": true
+   },
+   "drift": 10,
+   "judged": 94,
+   "printed_damage": 500.0,
+   "results": {
+    "counter": {
+     "card": -0.36,
+     "counter": 0.0,
+     "damage": 1018.18,
+     "fp": 0.41,
+     "n": 22
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 35
+    },
+    "guarded": {
+     "card": 0.5,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 2.0,
+     "n": 4
+    },
+    "hit": {
+     "card": 0.52,
+     "counter": 0.0,
+     "damage": 669.7,
+     "fp": 2.21,
+     "n": 33
+    }
+   },
+   "speed": {
+    "assassin+guardian+paladin+saintess": {
+     "n": 7,
+     "offset": 0.0
+    },
+    "assassin+saintess": {
+     "n": 42,
+     "offset": 0.0
+    },
+    "guardian+saintess": {
+     "n": 8,
+     "offset": 0.0
+    },
+    "paladin+saintess": {
+     "n": 38,
+     "offset": 0.0
+    },
+    "saintess": {
+     "n": 1,
+     "offset": 0.0
+    }
+   }
+  },
+  "LMI-AT-005": {
+   "character_id": 9,
+   "combo": {},
+   "drift": 0,
+   "judged": 2,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 900.0,
+     "fp": 2.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "assassin+saintess": {
+     "n": 3,
+     "offset": 0.0
+    }
+   }
+  },
+  "LMI-AT-006": {
+   "character_id": 9,
+   "combo": {},
+   "drift": 9,
+   "judged": 44,
+   "printed_damage": 300.0,
+   "results": {
+    "counter": {
+     "card": 0.86,
+     "counter": 0.0,
+     "damage": 357.14,
+     "fp": 3.0,
+     "n": 7
+    },
+    "countered": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "guarded": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 190.0,
+     "fp": 0.0,
+     "n": 10
+    },
+    "hit": {
+     "card": 0.13,
+     "counter": 0.0,
+     "damage": 665.22,
+     "fp": 2.26,
+     "n": 23
+    }
+   },
+   "speed": {
+    "assassin+guardian+paladin+saintess": {
+     "n": 3,
+     "offset": -3.0
+    },
+    "assassin+saintess": {
+     "n": 18,
+     "offset": -3.0
+    },
+    "guardian+saintess": {
+     "n": 10,
+     "offset": -3.0
+    },
+    "paladin+saintess": {
+     "n": 15,
+     "offset": -3.0
+    }
+   }
+  },
+  "LMI-AT-009": {
+   "character_id": 9,
+   "combo": {},
+   "drift": 0,
+   "judged": 39,
+   "printed_damage": 600.0,
+   "results": {
+    "clash": {
+     "card": 0.3,
+     "counter": 0.0,
+     "damage": 692.59,
+     "fp": 3.59,
+     "n": 27
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": -20.0,
+     "fp": 0.0,
+     "n": 10
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "hit": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 1000.0,
+     "fp": 2.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "assassin+guardian+paladin+saintess": {
+     "n": 2,
+     "offset": 0.0
+    },
+    "assassin+saintess": {
+     "n": 17,
+     "offset": 0.0
+    },
+    "guardian+saintess": {
+     "n": 15,
+     "offset": 0.0
+    },
+    "paladin+saintess": {
+     "n": 7,
+     "offset": 0.0
+    }
+   }
+  },
+  "LMI-AT-010": {
+   "character_id": 9,
+   "combo": {},
+   "drift": 0,
+   "judged": 1,
+   "printed_damage": 0.0,
+   "results": {
+    "none": {
+     "card": -1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {}
+  },
+  "LMI-AT-019": {
+   "character_id": 4,
+   "combo": {},
+   "drift": 4,
+   "judged": 29,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 600.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 576.19,
+     "fp": 0.0,
+     "n": 21
+    }
+   },
+   "speed": {
+    "": {
+     "n": 24,
+     "offset": 0.0
+    },
+    "down_stance": {
+     "n": 6,
+     "offset": 0.0
+    }
+   }
+  },
+  "LMI-AT-043": {
+   "character_id": 8,
+   "combo": {},
+   "drift": 1,
+   "judged": 62,
+   "printed_damage": 300.0,
+   "results": {
+    "counter": {
+     "card": 1.94,
+     "counter": 0.26,
+     "damage": 395.74,
+     "fp": 4.0,
+     "n": 47
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 5
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -4.0,
+     "n": 4
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 6
+    }
+   },
+   "speed": {
+    "": {
+     "n": 48,
+     "offset": 0.0
+    },
+    "mujin_declined": {
+     "n": 15,
+     "offset": 0.0
+    }
+   }
+  },
+  "LMI-AT-044": {
+   "character_id": 8,
+   "combo": {},
+   "drift": 2,
+   "judged": 11,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 1.0,
+     "damage": 80.0,
+     "fp": 3.0,
+     "n": 5
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": -1.67,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": -1.0,
+     "damage": 300.0,
+     "fp": -2.0,
+     "n": 1
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 2.0,
+     "damage": 900.0,
+     "fp": 3.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "": {
+     "n": 1,
+     "offset": 0.0
+    },
+    "mujin_declined": {
+     "n": 11,
+     "offset": 0.0
+    }
+   }
+  },
+  "LMI-AT-050": {
+   "character_id": 1,
+   "combo": {},
+   "drift": 0,
+   "judged": 3,
+   "printed_damage": 400.0,
+   "results": {
+    "countered": {
+     "card": 1.0,
+     "counter": 1.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    }
+   },
+   "speed": {
+    "": {
+     "n": 4,
+     "offset": -2.0
+    }
+   }
+  },
+  "PMP-AT-002": {
+   "character_id": 13,
+   "combo": {},
+   "drift": 2,
+   "judged": 270,
+   "printed_damage": 200.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.67,
+     "n": 9
+    },
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 3.0,
+     "n": 27
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 10
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -1.83,
+     "n": 58
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 386.42,
+     "fp": 2.0,
+     "n": 162
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 4
+    }
+   },
+   "speed": {
+    "": {
+     "n": 275,
+     "offset": 0.0
+    }
+   }
+  },
+  "PMP-AT-004": {
+   "character_id": 13,
+   "combo": {},
+   "drift": 11,
+   "judged": 15,
+   "printed_damage": 500.0,
+   "results": {
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 500.0,
+     "fp": 5.0,
+     "n": 2
+    },
+    "hit": {
+     "card": 0.73,
+     "counter": 0.0,
+     "damage": 472.73,
+     "fp": 4.91,
+     "n": 11
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "": {
+     "n": 16,
+     "offset": 0.0
+    }
+   }
+  },
+  "PMP-AT-010": {
+   "character_id": 13,
+   "combo": {},
+   "drift": 6,
+   "judged": 198,
+   "printed_damage": 0.0,
+   "results": {
+    "clash": {
+     "card": 1.04,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 52
+    },
+    "failed_defense": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 6
+    },
+    "guard": {
+     "card": 1.23,
+     "counter": 0.0,
+     "damage": 47.92,
+     "fp": 0.31,
+     "n": 48
+    },
+    "none": {
+     "card": 1.01,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 92
+    }
+   },
+   "speed": {}
+  },
+  "PMP-AT-011": {
+   "character_id": 13,
+   "combo": {},
+   "drift": 0,
+   "judged": 22,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 4.5,
+     "n": 4
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": -5.0,
+     "n": 1
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 16
+    }
+   },
+   "speed": {
+    "": {
+     "n": 23,
+     "offset": 0.0
+    }
+   }
+  },
+  "PMP-AT-033": {
+   "character_id": 10,
+   "combo": {},
+   "drift": 1,
+   "judged": 7,
+   "printed_damage": 500.0,
+   "results": {
+    "counter": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 880.0,
+     "fp": 1.4,
+     "n": 5
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 500.0,
+     "fp": 5.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 9,
+     "offset": 0.0
+    }
+   }
+  },
+  "PMP-AT-043": {
+   "character_id": 9,
+   "combo": {},
+   "drift": 0,
+   "judged": 1,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 1100.0,
+     "fp": 3.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "assassin+guardian+paladin+saintess": {
+     "n": 2,
+     "offset": 0.0
+    }
+   }
+  },
+  "PMP-AT-044": {
+   "character_id": 11,
+   "combo": {},
+   "drift": 14,
+   "judged": 76,
+   "printed_damage": 500.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 1.0,
+     "damage": 800.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "counter": {
+     "card": 1.0,
+     "counter": 0.78,
+     "damage": 577.78,
+     "fp": 3.89,
+     "n": 9
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 9.76,
+     "fp": -0.15,
+     "n": 41
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 1.35,
+     "damage": 656.52,
+     "fp": 2.26,
+     "n": 23
+    }
+   },
+   "speed": {
+    "": {
+     "n": 77,
+     "offset": 0.0
+    }
+   }
+  },
+  "PMP-AT-045": {
+   "character_id": 11,
+   "combo": {},
+   "drift": 0,
+   "judged": 3,
+   "printed_damage": 0.0,
+   "results": {
+    "failed_defense": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    }
+   },
+   "speed": {}
+  },
+  "RFS-AT-001": {
+   "character_id": 16,
+   "combo": {},
+   "drift": 0,
+   "judged": 25,
+   "printed_damage": 200.0,
+   "results": {
+    "counter": {
+     "card": -1.0,
+     "counter": 0.0,
+     "damage": 600.0,
+     "fp": 1.33,
+     "n": 3
+    },
+    "countered": {
+     "card": 0.12,
+     "counter": 0.0,
+     "damage": 25.0,
+     "fp": 0.0,
+     "n": 8
+    },
+    "guarded": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 175.0,
+     "fp": 2.0,
+     "n": 4
+    },
+    "hit": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 5.0,
+     "n": 4
+    },
+    "opponent_dodge": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 33.33,
+     "fp": 0.0,
+     "n": 6
+    }
+   },
+   "speed": {
+    "blue_flame": {
+     "n": 26,
+     "offset": 0.0
+    }
+   }
+  },
+  "RFS-AT-003": {
+   "character_id": 16,
+   "combo": {},
+   "drift": 2,
+   "judged": 440,
+   "printed_damage": 300.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.43,
+     "n": 7
+    },
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 405.41,
+     "fp": 1.08,
+     "n": 37
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 10
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 130.77,
+     "fp": -1.96,
+     "n": 52
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 311.15,
+     "fp": 1.0,
+     "n": 314
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 20
+    }
+   },
+   "speed": {
+    "": {
+     "n": 377,
+     "offset": 0.0
+    },
+    "blue_flame": {
+     "n": 72,
+     "offset": 0.0
+    }
+   }
+  },
+  "RFS-AT-004": {
+   "character_id": 16,
+   "combo": {},
+   "drift": 0,
+   "judged": 153,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 800.0,
+     "fp": 0.0,
+     "n": 6
+    },
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 490.0,
+     "fp": 1.2,
+     "n": 10
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 8
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -2.38,
+     "n": 53
+    },
+    "hit": {
+     "card": 1.02,
+     "counter": 0.0,
+     "damage": 473.85,
+     "fp": 1.17,
+     "n": 65
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 11
+    }
+   },
+   "speed": {
+    "": {
+     "n": 126,
+     "offset": 0.0
+    },
+    "blue_flame": {
+     "n": 28,
+     "offset": 0.0
+    }
+   }
+  },
+  "RFS-AT-006": {
+   "character_id": 16,
+   "combo": {},
+   "drift": 2,
+   "judged": 63,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 800.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "counter": {
+     "card": 0.62,
+     "counter": 0.0,
+     "damage": 600.0,
+     "fp": 3.38,
+     "n": 13
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 39.13,
+     "fp": 0.0,
+     "n": 23
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -1.17,
+     "n": 6
+    },
+    "hit": {
+     "card": 0.2,
+     "counter": 0.0,
+     "damage": 650.0,
+     "fp": 2.2,
+     "n": 20
+    }
+   },
+   "speed": {
+    "": {
+     "n": 56,
+     "offset": 0.0
+    },
+    "blue_flame": {
+     "n": 8,
+     "offset": 0.0
+    }
+   }
+  },
+  "RFS-AT-007": {
+   "character_id": 16,
+   "combo": {},
+   "drift": 0,
+   "judged": 21,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "counter": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 900.0,
+     "fp": 1.67,
+     "n": 3
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -4.0,
+     "n": 2
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 441.67,
+     "fp": 4.0,
+     "n": 12
+    }
+   },
+   "speed": {
+    "": {
+     "n": 12,
+     "offset": 0.0
+    },
+    "blue_flame": {
+     "n": 10,
+     "offset": -3.0
+    }
+   }
+  },
+  "RFS-AT-010": {
+   "character_id": 16,
+   "combo": {},
+   "drift": 0,
+   "judged": 2,
+   "printed_damage": 500.0,
+   "results": {
+    "counter": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 900.0,
+     "fp": 2.0,
+     "n": 1
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "blue_flame": {
+     "n": 3,
+     "offset": 0.0
+    }
+   }
+  },
+  "RFS-AT-013": {
+   "character_id": 17,
+   "combo": {},
+   "drift": 24,
+   "judged": 37,
+   "printed_damage": 1500.0,
+   "results": {
+    "counter": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 1500.0,
+     "fp": 5.0,
+     "n": 4
+    },
+    "countered": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 12
+    },
+    "hit": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 1500.0,
+     "fp": 5.0,
+     "n": 21
+    }
+   },
+   "speed": {
+    "": {
+     "n": 18,
+     "offset": 3.39
+    },
+    "revolver_launcher": {
+     "n": 1,
+     "offset": 2.0
+    },
+    "zero_suit": {
+     "n": 19,
+     "offset": 2.58
+    }
+   }
+  },
+  "RFS-AT-020": {
+   "character_id": 17,
+   "combo": {},
+   "drift": 31,
+   "judged": 148,
+   "printed_damage": 500.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 3.0,
+     "n": 1
+    },
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 64.1,
+     "fp": 3.0,
+     "n": 39
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 32.5,
+     "fp": -0.38,
+     "n": 40
+    },
+    "guarded": {
+     "card": 0.91,
+     "counter": 0.0,
+     "damage": 169.57,
+     "fp": -0.91,
+     "n": 23
+    },
+    "hit": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 112.5,
+     "fp": 2.88,
+     "n": 24
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 21
+    }
+   },
+   "speed": {
+    "": {
+     "n": 35,
+     "offset": -2.0
+    },
+    "revolver_launcher": {
+     "n": 11,
+     "offset": -2.0
+    },
+    "zero_suit": {
+     "n": 103,
+     "offset": 0.0
+    }
+   }
+  },
+  "RFS-AT-021": {
+   "character_id": 17,
+   "combo": {},
+   "drift": 6,
+   "judged": 15,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 153.85,
+     "fp": 5.0,
+     "n": 13
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "": {
+     "n": 9,
+     "offset": 0.0
+    },
+    "zero_suit": {
+     "n": 8,
+     "offset": 0.0
+    }
+   }
+  },
+  "RFS-AT-024": {
+   "character_id": 17,
+   "combo": {},
+   "drift": 27,
+   "judged": 288,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 272.27,
+     "fp": 4.0,
+     "n": 119
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": -0.17,
+     "n": 18
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 100.0,
+     "fp": -3.0,
+     "n": 10
+    },
+    "hit": {
+     "card": 1.98,
+     "counter": 0.0,
+     "damage": 61.43,
+     "fp": 2.0,
+     "n": 140
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 81,
+     "offset": 0.0
+    },
+    "revolver_launcher": {
+     "n": 27,
+     "offset": 0.0
+    },
+    "zero_suit": {
+     "n": 181,
+     "offset": 0.0
+    }
+   }
+  },
+  "RFS-AT-025": {
+   "character_id": 17,
+   "combo": {},
+   "drift": 3,
+   "judged": 60,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 1000.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "counter": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 3.2,
+     "n": 5
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -0.82,
+     "n": 22
+    },
+    "hit": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 406.45,
+     "fp": 3.74,
+     "n": 31
+    }
+   },
+   "speed": {
+    "": {
+     "n": 29,
+     "offset": 0.0
+    },
+    "revolver_launcher": {
+     "n": 3,
+     "offset": 0.0
+    },
+    "zero_suit": {
+     "n": 33,
+     "offset": 0.0
+    }
+   }
+  },
+  "RFS-AT-035": {
+   "character_id": 7,
+   "combo": {
+    "counter": true,
+    "hit": true
+   },
+   "drift": 1,
+   "judged": 27,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": -3.0,
+     "counter": 0.0,
+     "damage": 700.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 300.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "hit": {
+     "card": -3.78,
+     "counter": 0.28,
+     "damage": 911.11,
+     "fp": 0.0,
+     "n": 18
+    }
+   },
+   "speed": {
+    "": {
+     "n": 29,
+     "offset": 0.0
+    }
+   }
+  },
+  "RFS-AT-041": {
+   "character_id": 9,
+   "combo": {},
+   "drift": 1,
+   "judged": 18,
+   "printed_damage": 300.0,
+   "results": {
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "guarded": {
+     "card": 0.71,
+     "counter": 0.0,
+     "damage": 285.71,
+     "fp": 0.71,
+     "n": 7
+    },
+    "hit": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 300.0,
+     "fp": 3.0,
+     "n": 7
+    }
+   },
+   "speed": {
+    "assassin+guardian+paladin+saintess": {
+     "n": 3,
+     "offset": 0.0
+    },
+    "assassin+saintess": {
+     "n": 6,
+     "offset": 0.0
+    },
+    "guardian+saintess": {
+     "n": 3,
+     "offset": 0.0
+    },
+    "paladin+saintess": {
+     "n": 7,
+     "offset": 0.0
+    }
+   }
+  },
+  "RFS-AT-047": {
+   "character_id": 13,
+   "combo": {},
+   "drift": 3,
+   "judged": 91,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 1.02,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 4.2,
+     "n": 50
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 5
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 173.33,
+     "fp": -1.33,
+     "n": 15
+    },
+    "hit": {
+     "card": 1.25,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 2.0,
+     "n": 4
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 17
+    }
+   },
+   "speed": {
+    "": {
+     "n": 92,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST1-011": {
+   "character_id": 1,
+   "combo": {},
+   "drift": 36,
+   "judged": 1388,
+   "printed_damage": 0.0,
+   "results": {
+    "failed_defense": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 37.68,
+     "fp": 0.0,
+     "n": 621
+    },
+    "grabbed": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": -86.96,
+     "fp": 0.0,
+     "n": 23
+    },
+    "guard": {
+     "card": 0.88,
+     "counter": 0.02,
+     "damage": 148.39,
+     "fp": 0.81,
+     "n": 372
+    },
+    "none": {
+     "card": 1.28,
+     "counter": 0.0,
+     "damage": 11.29,
+     "fp": 0.0,
+     "n": 372
+    }
+   },
+   "speed": {}
+  },
+  "ST1-012": {
+   "character_id": 1,
+   "combo": {},
+   "drift": 90,
+   "judged": 3879,
+   "printed_damage": 0.0,
+   "results": {
+    "dodge": {
+     "card": 1.06,
+     "counter": 0.07,
+     "damage": 50.11,
+     "fp": 0.53,
+     "n": 1389
+    },
+    "failed_defense": {
+     "card": 1.0,
+     "counter": 0.01,
+     "damage": 13.39,
+     "fp": 0.0,
+     "n": 1202
+    },
+    "grabbed": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": -29.41,
+     "fp": 0.0,
+     "n": 68
+    },
+    "guard": {
+     "card": 0.85,
+     "counter": 0.09,
+     "damage": 219.4,
+     "fp": 0.86,
+     "n": 469
+    },
+    "none": {
+     "card": 1.59,
+     "counter": 0.0,
+     "damage": 29.16,
+     "fp": 0.0,
+     "n": 751
+    }
+   },
+   "speed": {}
+  },
+  "ST1-014": {
+   "character_id": 1,
+   "combo": {},
+   "drift": 5,
+   "judged": 30,
+   "printed_damage": 0.0,
+   "results": {
+    "dodge": {
+     "card": 1.56,
+     "counter": 0.0,
+     "damage": 50.0,
+     "fp": 3.81,
+     "n": 16
+    },
+    "failed_defense": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 11
+    },
+    "grabbed": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": -66.67,
+     "fp": 0.0,
+     "n": 3
+    }
+   },
+   "speed": {}
+  },
+  "ST1-016": {
+   "character_id": 1,
+   "combo": {},
+   "drift": 61,
+   "judged": 490,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 2.0,
+     "n": 4
+    },
+    "counter": {
+     "card": 1.57,
+     "counter": 0.0,
+     "damage": 614.75,
+     "fp": 3.0,
+     "n": 122
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 1.9,
+     "fp": -0.2,
+     "n": 105
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 135.56,
+     "fp": -1.76,
+     "n": 90
+    },
+    "hit": {
+     "card": 1.41,
+     "counter": 0.0,
+     "damage": 410.26,
+     "fp": 1.95,
+     "n": 78
+    },
+    "opponent_dodge": {
+     "card": 0.91,
+     "counter": 0.0,
+     "damage": 54.95,
+     "fp": 0.0,
+     "n": 91
+    }
+   },
+   "speed": {
+    "": {
+     "n": 302,
+     "offset": 0.0
+    },
+    "blue_flame": {
+     "n": 19,
+     "offset": 0.0
+    },
+    "charge": {
+     "n": 89,
+     "offset": 2.0
+    },
+    "dark_night": {
+     "n": 26,
+     "offset": 0.0
+    },
+    "mujin_declined": {
+     "n": 58,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST1-018": {
+   "character_id": 1,
+   "combo": {
+    "counter": true,
+    "hit": true
+   },
+   "drift": 2,
+   "judged": 58,
+   "printed_damage": 500.0,
+   "results": {
+    "counter": {
+     "card": -1.0,
+     "counter": 0.0,
+     "damage": 868.75,
+     "fp": 0.0,
+     "n": 16
+    },
+    "countered": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "guarded": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 2
+    },
+    "hit": {
+     "card": -0.72,
+     "counter": 0.21,
+     "damage": 589.74,
+     "fp": 0.1,
+     "n": 39
+    }
+   },
+   "speed": {
+    "": {
+     "n": 40,
+     "offset": 0.0
+    },
+    "assassin+guardian+paladin+saintess": {
+     "n": 1,
+     "offset": 0.0
+    },
+    "assassin+saintess": {
+     "n": 2,
+     "offset": 0.0
+    },
+    "paladin+saintess": {
+     "n": 3,
+     "offset": 0.0
+    },
+    "revolver_launcher": {
+     "n": 1,
+     "offset": 0.0
+    },
+    "zero_suit": {
+     "n": 12,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST1-019": {
+   "character_id": 1,
+   "combo": {},
+   "drift": 0,
+   "judged": 3,
+   "printed_damage": 500.0,
+   "results": {
+    "hit": {
+     "card": -0.5,
+     "counter": 0.0,
+     "damage": 850.0,
+     "fp": 1.5,
+     "n": 2
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 1,
+     "offset": 0.0
+    },
+    "blue_flame": {
+     "n": 3,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST2-002": {
+   "character_id": 3,
+   "combo": {},
+   "drift": 38,
+   "judged": 320,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.33,
+     "counter": 0.0,
+     "damage": 333.33,
+     "fp": 0.0,
+     "n": 6
+    },
+    "counter": {
+     "card": 1.75,
+     "counter": 0.0,
+     "damage": 531.25,
+     "fp": 3.0,
+     "n": 32
+    },
+    "countered": {
+     "card": 0.92,
+     "counter": 0.0,
+     "damage": 58.73,
+     "fp": -0.05,
+     "n": 63
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -0.19,
+     "n": 32
+    },
+    "hit": {
+     "card": 1.72,
+     "counter": 0.0,
+     "damage": 520.12,
+     "fp": 2.0,
+     "n": 164
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 78.26,
+     "fp": 0.0,
+     "n": 23
+    }
+   },
+   "speed": {
+    "": {
+     "n": 126,
+     "offset": -0.17
+    },
+    "charge": {
+     "n": 200,
+     "offset": 1.72
+    }
+   }
+  },
+  "ST2-005": {
+   "character_id": 3,
+   "combo": {
+    "hit": true
+   },
+   "drift": 1,
+   "judged": 1,
+   "printed_damage": 600.0,
+   "results": {
+    "hit": {
+     "card": -3.0,
+     "counter": 0.0,
+     "damage": 1200.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 2,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST3-001": {
+   "character_id": 4,
+   "combo": {},
+   "drift": 6,
+   "judged": 116,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 0.8,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 5
+    },
+    "counter": {
+     "card": 0.62,
+     "counter": 0.0,
+     "damage": 596.15,
+     "fp": 0.35,
+     "n": 26
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 50.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 80.0,
+     "fp": -2.8,
+     "n": 15
+    },
+    "hit": {
+     "card": 1.11,
+     "counter": 0.0,
+     "damage": 524.24,
+     "fp": 0.36,
+     "n": 66
+    }
+   },
+   "speed": {
+    "": {
+     "n": 107,
+     "offset": 0.0
+    },
+    "down_stance": {
+     "n": 11,
+     "offset": -1.0
+    }
+   }
+  },
+  "ST3-003": {
+   "character_id": 4,
+   "combo": {},
+   "drift": 21,
+   "judged": 143,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 800.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "counter": {
+     "card": 0.95,
+     "counter": 0.0,
+     "damage": 610.26,
+     "fp": 0.05,
+     "n": 39
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 20
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -2.22,
+     "n": 27
+    },
+    "hit": {
+     "card": 1.08,
+     "counter": 0.0,
+     "damage": 543.4,
+     "fp": 0.49,
+     "n": 53
+    }
+   },
+   "speed": {
+    "": {
+     "n": 125,
+     "offset": 0.0
+    },
+    "down_stance": {
+     "n": 20,
+     "offset": 1.0
+    }
+   }
+  },
+  "ST3-004": {
+   "character_id": 4,
+   "combo": {},
+   "drift": 2,
+   "judged": 10,
+   "printed_damage": 700.0,
+   "results": {
+    "counter": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 900.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "hit": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 1000.0,
+     "fp": 1.0,
+     "n": 1
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 8
+    }
+   },
+   "speed": {
+    "": {
+     "n": 11,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST3-005": {
+   "character_id": 4,
+   "combo": {},
+   "drift": 0,
+   "judged": 3,
+   "printed_damage": 400.0,
+   "results": {
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -1.0,
+     "n": 3
+    }
+   },
+   "speed": {
+    "": {
+     "n": 6,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST5-001": {
+   "character_id": 6,
+   "combo": {},
+   "drift": 8,
+   "judged": 183,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 2.0,
+     "n": 20
+    },
+    "counter": {
+     "card": 1.8,
+     "counter": 0.96,
+     "damage": 400.0,
+     "fp": 2.0,
+     "n": 25
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 12.5,
+     "fp": 0.0,
+     "n": 24
+    },
+    "guarded": {
+     "card": 0.9,
+     "counter": 0.0,
+     "damage": 155.77,
+     "fp": -1.65,
+     "n": 52
+    },
+    "hit": {
+     "card": 1.25,
+     "counter": 0.95,
+     "damage": 412.5,
+     "fp": 1.95,
+     "n": 40
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 22
+    }
+   },
+   "speed": {
+    "": {
+     "n": 187,
+     "offset": 0.01
+    },
+    "intimidation": {
+     "n": 3,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST5-003": {
+   "character_id": 6,
+   "combo": {},
+   "drift": 3,
+   "judged": 232,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.88,
+     "damage": 175.0,
+     "fp": 0.75,
+     "n": 8
+    },
+    "counter": {
+     "card": 1.46,
+     "counter": 2.04,
+     "damage": 676.92,
+     "fp": 4.31,
+     "n": 26
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 6.25,
+     "fp": 0.0,
+     "n": 16
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 103.23,
+     "fp": -1.74,
+     "n": 31
+    },
+    "hit": {
+     "card": 1.93,
+     "counter": 1.0,
+     "damage": 401.35,
+     "fp": 3.0,
+     "n": 148
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 3
+    }
+   },
+   "speed": {
+    "": {
+     "n": 228,
+     "offset": 0.0
+    },
+    "intimidation": {
+     "n": 5,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST5-004": {
+   "character_id": 6,
+   "combo": {
+    "counter": true
+   },
+   "drift": 48,
+   "judged": 158,
+   "printed_damage": 700.0,
+   "results": {
+    "clash": {
+     "card": 2.0,
+     "counter": 1.0,
+     "damage": 1000.0,
+     "fp": 0.0,
+     "n": 4
+    },
+    "counter": {
+     "card": -0.67,
+     "counter": 1.72,
+     "damage": 1188.89,
+     "fp": 2.06,
+     "n": 18
+    },
+    "countered": {
+     "card": 0.97,
+     "counter": 0.0,
+     "damage": 7.04,
+     "fp": 0.0,
+     "n": 71
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 29
+    },
+    "hit": {
+     "card": 1.19,
+     "counter": 1.25,
+     "damage": 836.11,
+     "fp": 4.67,
+     "n": 36
+    }
+   },
+   "speed": {
+    "": {
+     "n": 161,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST5-005": {
+   "character_id": 6,
+   "combo": {},
+   "drift": 1,
+   "judged": 18,
+   "printed_damage": 600.0,
+   "results": {
+    "clash": {
+     "card": 1.33,
+     "counter": 1.0,
+     "damage": 300.0,
+     "fp": 5.0,
+     "n": 3
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 28.57,
+     "fp": 0.0,
+     "n": 7
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -2.0,
+     "n": 3
+    },
+    "hit": {
+     "card": 2.0,
+     "counter": 0.67,
+     "damage": 600.0,
+     "fp": 5.0,
+     "n": 3
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "": {
+     "n": 17,
+     "offset": 0.06
+    },
+    "intimidation": {
+     "n": 2,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST5-007": {
+   "character_id": 6,
+   "combo": {},
+   "drift": 0,
+   "judged": 8,
+   "printed_damage": 400.0,
+   "results": {
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 100.0,
+     "fp": -2.5,
+     "n": 6
+    },
+    "hit": {
+     "card": 2.0,
+     "counter": 1.0,
+     "damage": 400.0,
+     "fp": 3.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "": {
+     "n": 12,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST6-003": {
+   "character_id": 7,
+   "combo": {},
+   "drift": 4,
+   "judged": 36,
+   "printed_damage": 400.0,
+   "results": {
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 16
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 5
+    },
+    "hit": {
+     "card": 1.67,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 1.0,
+     "n": 15
+    }
+   },
+   "speed": {
+    "": {
+     "n": 37,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST6-004": {
+   "character_id": 7,
+   "combo": {},
+   "drift": 6,
+   "judged": 10,
+   "printed_damage": 500.0,
+   "results": {
+    "counter": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 500.0,
+     "fp": 4.0,
+     "n": 2
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "hit": {
+     "card": 1.86,
+     "counter": 0.0,
+     "damage": 500.0,
+     "fp": 3.0,
+     "n": 7
+    }
+   },
+   "speed": {
+    "": {
+     "n": 11,
+     "offset": 2.27
+    }
+   }
+  },
+  "ST6-005": {
+   "character_id": 7,
+   "combo": {},
+   "drift": 0,
+   "judged": 1,
+   "printed_damage": 600.0,
+   "results": {
+    "countered": {
+     "card": 1.0,
+     "counter": -1.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "": {
+     "n": 2,
+     "offset": 0.0
+    }
+   }
+  },
+  "ST6-007": {
+   "character_id": 7,
+   "combo": {},
+   "drift": 0,
+   "judged": 2,
+   "printed_damage": 600.0,
+   "results": {
+    "hit": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 600.0,
+     "fp": 6.0,
+     "n": 2
+    }
+   },
+   "speed": {
+    "": {
+     "n": 4,
+     "offset": 0.0
+    }
+   }
+  },
+  "UNC-AT-002": {
+   "character_id": 8,
+   "combo": {},
+   "drift": 8,
+   "judged": 159,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 3.08,
+     "n": 12
+    },
+    "counter": {
+     "card": 1.75,
+     "counter": 0.65,
+     "damage": 476.36,
+     "fp": 3.0,
+     "n": 55
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": -0.27,
+     "n": 22
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 186.05,
+     "fp": -3.07,
+     "n": 43
+    },
+    "hit": {
+     "card": 1.4,
+     "counter": 0.6,
+     "damage": 420.0,
+     "fp": 2.8,
+     "n": 10
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": -0.18,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 17
+    }
+   },
+   "speed": {
+    "": {
+     "n": 100,
+     "offset": 0.0
+    },
+    "mujin_declined": {
+     "n": 62,
+     "offset": 0.0
+    }
+   }
+  },
+  "UNC-AT-004": {
+   "character_id": 8,
+   "combo": {},
+   "drift": 12,
+   "judged": 54,
+   "printed_damage": 200.0,
+   "results": {
+    "clash": {
+     "card": 0.36,
+     "counter": 0.29,
+     "damage": 257.14,
+     "fp": 0.71,
+     "n": 14
+    },
+    "counter": {
+     "card": 1.25,
+     "counter": 0.0,
+     "damage": 300.0,
+     "fp": 1.0,
+     "n": 4
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 6
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 250.0,
+     "fp": -2.62,
+     "n": 8
+    },
+    "hit": {
+     "card": 1.77,
+     "counter": 0.45,
+     "damage": 200.0,
+     "fp": 0.95,
+     "n": 22
+    }
+   },
+   "speed": {
+    "": {
+     "n": 25,
+     "offset": 1.6
+    },
+    "mujin_declined": {
+     "n": 31,
+     "offset": 1.42
+    }
+   }
+  },
+  "UNC-AT-010": {
+   "character_id": 8,
+   "combo": {},
+   "drift": 6,
+   "judged": 235,
+   "printed_damage": 0.0,
+   "results": {
+    "failed_defense": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 50.6,
+     "fp": 0.0,
+     "n": 83
+    },
+    "guard": {
+     "card": 0.3,
+     "counter": 0.7,
+     "damage": 171.43,
+     "fp": 1.09,
+     "n": 98
+    },
+    "none": {
+     "card": 1.56,
+     "counter": 0.0,
+     "damage": 11.11,
+     "fp": 0.0,
+     "n": 54
+    }
+   },
+   "speed": {}
+  },
+  "UNC-AT-016": {
+   "character_id": 3,
+   "combo": {},
+   "drift": 0,
+   "judged": 1,
+   "printed_damage": 500.0,
+   "results": {
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 1
+    }
+   },
+   "speed": {
+    "charge": {
+     "n": 2,
+     "offset": 2.0
+    }
+   }
+  },
+  "UNC-AT-017": {
+   "character_id": 3,
+   "combo": {},
+   "drift": 6,
+   "judged": 120,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 69.57,
+     "fp": 2.57,
+     "n": 23
+    },
+    "counter": {
+     "card": 2.0,
+     "counter": 0.0,
+     "damage": 447.06,
+     "fp": 4.0,
+     "n": 17
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 16.22,
+     "fp": 0.0,
+     "n": 37
+    },
+    "guarded": {
+     "card": 0.57,
+     "counter": 0.0,
+     "damage": 414.29,
+     "fp": 0.0,
+     "n": 7
+    },
+    "hit": {
+     "card": 1.94,
+     "counter": 0.0,
+     "damage": 463.89,
+     "fp": 3.28,
+     "n": 36
+    }
+   },
+   "speed": {
+    "": {
+     "n": 38,
+     "offset": 0.0
+    },
+    "charge": {
+     "n": 84,
+     "offset": -0.38
+    }
+   }
+  },
+  "UNC-AT-018": {
+   "character_id": 3,
+   "combo": {},
+   "drift": 25,
+   "judged": 59,
+   "printed_damage": 400.0,
+   "results": {
+    "counter": {
+     "card": 1.89,
+     "counter": 0.0,
+     "damage": 463.16,
+     "fp": 3.0,
+     "n": 19
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 22
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 183.33,
+     "fp": -2.67,
+     "n": 6
+    },
+    "hit": {
+     "card": 1.75,
+     "counter": 0.0,
+     "damage": 516.67,
+     "fp": 2.0,
+     "n": 12
+    }
+   },
+   "speed": {
+    "": {
+     "n": 23,
+     "offset": 0.0
+    },
+    "charge": {
+     "n": 39,
+     "offset": 2.0
+    }
+   }
+  },
+  "UNC-AT-022": {
+   "character_id": 4,
+   "combo": {},
+   "drift": 14,
+   "judged": 1296,
+   "printed_damage": 300.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 1.0,
+     "n": 18
+    },
+    "counter": {
+     "card": 1.93,
+     "counter": 0.0,
+     "damage": 315.0,
+     "fp": 2.0,
+     "n": 40
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 20.0,
+     "fp": -0.15,
+     "n": 20
+    },
+    "guarded": {
+     "card": 0.95,
+     "counter": 0.0,
+     "damage": 69.81,
+     "fp": -0.97,
+     "n": 106
+    },
+    "hit": {
+     "card": 1.25,
+     "counter": 0.0,
+     "damage": 303.08,
+     "fp": 1.0,
+     "n": 65
+    },
+    "opponent_dodge": {
+     "card": 1.97,
+     "counter": 0.0,
+     "damage": 3.72,
+     "fp": 0.0,
+     "n": 1047
+    }
+   },
+   "speed": {
+    "": {
+     "n": 1188,
+     "offset": 0.0
+    },
+    "down_stance": {
+     "n": 111,
+     "offset": 1.0
+    }
+   }
+  },
+  "UNC-AT-038": {
+   "character_id": 7,
+   "combo": {},
+   "drift": 20,
+   "judged": 424,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 2.0,
+     "n": 1
+    },
+    "counter": {
+     "card": 1.97,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 3.0,
+     "n": 35
+    },
+    "countered": {
+     "card": 0.99,
+     "counter": 0.0,
+     "damage": -9.19,
+     "fp": -0.06,
+     "n": 272
+    },
+    "guarded": {
+     "card": 0.88,
+     "counter": 0.0,
+     "damage": 215.38,
+     "fp": -2.19,
+     "n": 26
+    },
+    "hit": {
+     "card": 1.37,
+     "counter": 0.0,
+     "damage": 400.0,
+     "fp": 1.87,
+     "n": 30
+    },
+    "opponent_dodge": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 60
+    }
+   },
+   "speed": {
+    "": {
+     "n": 426,
+     "offset": 0.0
+    }
+   }
+  },
+  "UNC-AT-041": {
+   "character_id": 10,
+   "combo": {},
+   "drift": 16,
+   "judged": 84,
+   "printed_damage": 400.0,
+   "results": {
+    "clash": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 522.22,
+     "fp": 1.78,
+     "n": 9
+    },
+    "counter": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 700.0,
+     "fp": 1.0,
+     "n": 1
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 16
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": -3.57,
+     "n": 28
+    },
+    "hit": {
+     "card": 0.43,
+     "counter": 0.0,
+     "damage": 630.0,
+     "fp": 1.7,
+     "n": 30
+    }
+   },
+   "speed": {
+    "": {
+     "n": 83,
+     "offset": 0.0
+    },
+    "dark_night": {
+     "n": 4,
+     "offset": 0.0
+    }
+   }
+  },
+  "UNC-AT-052": {
+   "character_id": 1,
+   "combo": {},
+   "drift": 2,
+   "judged": 13,
+   "printed_damage": 600.0,
+   "results": {
+    "counter": {
+     "card": 0.0,
+     "counter": 1.5,
+     "damage": 1000.0,
+     "fp": 3.0,
+     "n": 2
+    },
+    "countered": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": -57.14,
+     "fp": -0.43,
+     "n": 7
+    },
+    "guarded": {
+     "card": 1.0,
+     "counter": 0.0,
+     "damage": 200.0,
+     "fp": 0.0,
+     "n": 1
+    },
+    "hit": {
+     "card": 2.0,
+     "counter": 1.0,
+     "damage": 533.33,
+     "fp": 6.0,
+     "n": 3
+    }
+   },
+   "speed": {
+    "": {
+     "n": 15,
+     "offset": 0.0
+    }
+   }
+  },
+  "__NO_RESPONSE__": {
+   "character_id": null,
+   "combo": {},
+   "drift": 0,
+   "judged": 4,
+   "printed_damage": 0.0,
+   "results": {
+    "failed_defense": {
+     "card": 0.0,
+     "counter": 0.0,
+     "damage": 0.0,
+     "fp": 0.0,
+     "n": 4
+    }
+   },
+   "speed": {}
+  }
+ },
+ "decks": [
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21
+ ],
+ "games": 383,
+ "release": 1,
+ "release_version": "2026.11.16-CB04",
+ "state_speed": {
+  "": {
+   "n": 6890,
+   "offset": -0.02
+  },
+  "assassin+guardian+paladin+saintess": {
+   "n": 35,
+   "offset": -0.26
+  },
+  "assassin+saintess": {
+   "n": 217,
+   "offset": -0.24
+  },
+  "blue_flame": {
+   "n": 173,
+   "offset": -0.16
+  },
+  "charge": {
+   "n": 496,
+   "offset": 1.48
+  },
+  "dark_night": {
+   "n": 86,
+   "offset": 0.02
+  },
+  "down_stance": {
+   "n": 153,
+   "offset": 0.79
+  },
+  "guardian+saintess": {
+   "n": 62,
+   "offset": -0.44
+  },
+  "intimidation": {
+   "n": 14,
+   "offset": 0.0
+  },
+  "mujin_declined": {
+   "n": 266,
+   "offset": -0.08
+  },
+  "paladin+saintess": {
+   "n": 154,
+   "offset": -0.29
+  },
+  "revolver_launcher": {
+   "n": 52,
+   "offset": -0.38
+  },
+  "saintess": {
+   "n": 1,
+   "offset": 0.0
+  },
+  "zero_suit": {
+   "n": 613,
+   "offset": 0.08
+  }
+ },
+ "version": 1
+}

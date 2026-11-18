@@ -12,10 +12,12 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
+from common.language import get_language, translated_character_field
 from deck.models import Deck
 
 from .models import LumenSimulatorSession
-from .play_start import opens_in_game_client, session_links, start_session
+from .game.ai_profile import STYLE_CHOICES, ProfileError
+from .play_start import active_ai_decks, opens_in_game_client, session_links, start_session
 from .simulator_services import role_for_token, simulator_queryset
 from .views import deck_rows, deck_search_rows
 
@@ -67,6 +69,32 @@ def play_decks(req):
     return JsonResponse({'decks': deck_search_rows(req, req.GET.get('q', ''))})
 
 
+@require_GET
+def play_ai_decks(req):
+    """Registered AI opponents for the lobby (operators curate them in admin)."""
+    language = get_language(req)
+    styles = dict(STYLE_CHOICES)
+    rows = []
+    for ai_deck in active_ai_decks():
+        try:
+            style = ai_deck.profile()['style']
+        except ProfileError:
+            continue  # 설정 오류가 있는 AI는 로비에 내놓지 않는다.
+        character = ai_deck.deck.character
+        rows.append({
+            'id': ai_deck.id,
+            'name': ai_deck.name,
+            'description': ai_deck.description,
+            'style': style,
+            'style_label': styles.get(style, style),
+            'character': translated_character_field(character, language, 'name'),
+            'character_img': character.icon_img or character.img or '',
+            'deck_id': ai_deck.deck_id,
+            'deck_name': ai_deck.deck.name,
+        })
+    return JsonResponse({'ai_decks': rows})
+
+
 def create_play_session(user, body):
     """Validate a JSON request and create a session (automatic by default). Returns (payload, status)."""
     opponent = body.get('opponent', 'ai')
@@ -89,6 +117,7 @@ def create_play_session(user, body):
             ready_timeout_seconds=body.get('ready_timeout_seconds', 0),
             effect_timeout_seconds=body.get('effect_timeout_seconds', 0),
             regulation_version_id=body.get('regulation_version_id') or None,
+            ai_deck_id=body.get('ai_deck') if opponent == 'ai' else None,
         )
     except PermissionError as exc:
         return {'ok': False, 'error': ' '.join(exc.args[0])}, 403

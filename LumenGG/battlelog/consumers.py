@@ -9,10 +9,10 @@ from django.core.exceptions import PermissionDenied
 from common.language import normalize_language, ui_text
 from tournament.models import Tournament
 
+from .ai_runner import kick_ai
 from .automatic_services import (
     AutomaticRuntimeFailure,
     acknowledge_automatic_clock,
-    advance_ai_session,
     perform_automatic_command,
     reconcile_automatic_session,
 )
@@ -300,6 +300,7 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
             self.send_error('알 수 없는 요청입니다.', request_id=request_id)
             return
 
+        kick_after_ack = False
         body = dict(content.get('payload') or {})
         body.setdefault('seat', self.seat)
         body.setdefault('seat_token', self.seat_token)
@@ -317,7 +318,7 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
                     broadcast_simulator_session(session)
                     return
                 session = perform_automatic_command(session, body)
-                session = advance_ai_session(session)
+                kick_after_ack = True
             else:
                 session = perform_simulator_action(session, body)
         except LumenSimulatorSession.DoesNotExist:
@@ -349,7 +350,10 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
             return
 
         self.send_json({'type': f'{message_type}_ack', 'request_id': request_id, 'ok': True})
+        # 사람의 수를 먼저 화면에 보낸 뒤 AI가 생각한다(battlelog.ai_runner).
         broadcast_simulator_session(session)
+        if kick_after_ack:
+            kick_ai(session)
 
     def simulator_changed(self, event):
         signal = event.get('signal')
@@ -388,7 +392,7 @@ class LumenSimulatorConsumer(RequestRateWarningMixin, JsonWebsocketConsumer):
             version_before = session.version
             session = reconcile_automatic_session(session, both_players_disconnected=False)
             if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
-                session = advance_ai_session(session)
+                session = kick_ai(session)
             # A read can settle an elapsed timer or let the AI move. Tell the
             # other seat and spectators too, or they stay on the old state.
             if (

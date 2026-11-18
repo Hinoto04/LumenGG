@@ -84,6 +84,9 @@ class PreparationTests(TestCase):
         with patch('battlelog.automatic_services.automatic_mode_release', return_value=release):
             session = create_simulator_session('A', 'B', self.deck, self.deck, mode='automatic')
         self.assertNotIn('engine', session.document['state'])
+        # 세션에 고정한 AI 덱 설정은 준비가 끝나 문서를 다시 만들어도 남아야 한다.
+        session.document['ai_deck'] = {'id': 7, 'style': 'defensive'}
+        session.save(update_fields=['document'])
         session = reconcile_automatic_session(session)
         self.assertEqual(session.mode, 'automatic')
         with self.assertRaises(IllegalAction):
@@ -95,6 +98,7 @@ class PreparationTests(TestCase):
             session = perform_simulator_preparation(session, request)
         self.assertIn('engine', session.document['state'])
         self.assertEqual(len([e for e in session.document['events'] if e.get('type') == 'automatic_game_started']), 1)
+        self.assertEqual(session.document['ai_deck'], {'id': 7, 'style': 'defensive'})
         version = session.version
         session = perform_simulator_preparation(session, request)
         self.assertEqual(session.version, version)

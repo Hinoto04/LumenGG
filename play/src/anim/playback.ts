@@ -1,6 +1,6 @@
 import { requestCards } from "../catalog";
 import { withPending } from "../net/optimistic";
-import { PHASE_LABELS } from "../labels";
+import { PHASE_LABELS, ZONE_LABELS } from "../labels";
 import type { BoardCard, GameEvent, PlayEnvelope, Side, VisibleCard, ZoneName } from "../protocol";
 import { perspective, usePlay } from "../store";
 import { addFloat, clearFx, shake, showBanner, showRibbon, useFx, type Tone } from "./fx";
@@ -50,7 +50,7 @@ export function resetPlayback(envelope: PlayEnvelope | null) {
   lastQueued = envelope?.event_count ?? 0;
   running = false;
   clearFx();
-  useFx.setState({ playing: false });
+  useFx.setState({ playing: false, behind: false });
   usePlay.getState().setEnvelope(envelope ? withPending(envelope) : envelope);
 }
 
@@ -70,6 +70,7 @@ export function pushEnvelope(envelope: PlayEnvelope) {
   if (target && envelope.version < target.version) return;
   if (!target && envelope.version < current.version) return;
   target = envelope;
+  useFx.setState({ behind: true });
   kick();
 }
 
@@ -125,6 +126,7 @@ async function run(runGeneration: number) {
       }
       const final = target;
       target = null;
+      useFx.setState({ behind: false });
       showServer(final);
       lastQueued = Math.max(lastQueued, final.event_count);
       break;
@@ -286,9 +288,10 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
           title: `${PHASE_LABELS[phase] ?? phase} 페이즈`,
           sub: turnChanged ? `턴 ${String(payload.turn)}` : undefined,
         },
-        dur(turnChanged ? 1100 : 750),
+        // 페이즈·턴 전환 연출은 1초 안에 끝낸다(AI는 그사이·그 뒤에 생각해도 된다).
+        dur(turnChanged ? 950 : 750),
       );
-      return { envelope, ms: turnChanged ? 1000 : 650 };
+      return { envelope, ms: turnChanged ? 900 : 650 };
     }
 
     case "card_moved":
@@ -302,19 +305,20 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
       if (!players[from] || !players[to] || !players[from].zones[fromZone] || !players[to].zones[toZone]) {
         return { envelope, ms: 0 };
       }
-      // 사이드 덱에서 패로 가져가는 카드는 공개된다: 상대(관전자 포함)에게 잠시 보여 준다.
-      if (!isPrivate && payload.revealed && to !== me) {
+      const found = isPrivate ? null : locate(envelope, payload.card_instance_id);
+      // 패로 들어가는 카드는 공개된다. 내 화면에서 보이지 않던 카드(사이드·뒷면 카드 등)였다면
+      // 상대(관전자 포함)에게 잠시 보여 준다. 이미 보이던 카드는 기록으로 충분하다.
+      if (!isPrivate && payload.revealed && to !== me && !found) {
         showBanner(
           {
             kind: "card",
-            title: "상대가 사이드 덱에서 패로 가져간 카드",
+            title: `상대가 ${ZONE_LABELS[fromZone] ?? "비공개 영역"}에서 패로 가져간 카드`,
             card: { ...visibleStub(to, toZone, payload), face_up: true, hidden: false },
             tone: "neutral",
           },
           dur(1800),
         );
       }
-      const found = isPrivate ? null : locate(envelope, payload.card_instance_id);
       let moved: BoardCard | null;
       if (found) {
         moved = players[found.side].zones[found.zone].splice(found.index, 1)[0];

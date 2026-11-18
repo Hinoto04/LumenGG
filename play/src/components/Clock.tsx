@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { clockDeadline, clockSeen } from "../net/live";
+import { useFx } from "../anim/fx";
+import { clockDeadline, clockSeen, useLive } from "../net/live";
 import type { PlayEnvelope } from "../protocol";
 import { perspective } from "../store";
 import { playSound } from "../sound/sfx";
@@ -26,14 +27,21 @@ function useNow(active: boolean) {
 export function ClockBadge({ envelope }: { envelope: PlayEnvelope }) {
   const clock = envelope.clocks;
   const waiting = clock?.seen === false;
-  const running = !!clock?.deadline && !clock.paused && !waiting && envelope.engine_status.status === "running";
+  // 내 행동을 보냈거나(응답 대기), 결과를 재생하는 중이면 보이는 타이머는 이미 끝난 차례의 것이다.
+  // 새 서버 상태가 화면에 오를 때까지 멈춰 둔다.
+  const busy = useLive((s) => s.busy);
+  const playing = useFx((s) => s.playing);
+  const behind = useFx((s) => s.behind);
+  const stopped = busy || playing || behind;
+  const running =
+    !!clock?.deadline && !clock.paused && !waiting && !stopped && envelope.engine_status.status === "running";
   const now = useNow(running);
   const { me } = perspective(envelope);
   const mine = envelope.role !== "viewer" && (clock?.owner === me || clock?.owner === "both");
   // 이 화면에 표시된 순간을 서버에 알린다. 내 차례 제한 시간은 그때부터 흐른다.
   useEffect(() => {
-    if (waiting && mine && clock?.id && envelope.engine_status.status === "running") clockSeen(String(clock.id));
-  }, [waiting, mine, clock?.id, envelope.engine_status.status]);
+    if (waiting && mine && !stopped && clock?.id && envelope.engine_status.status === "running") clockSeen(String(clock.id));
+  }, [waiting, mine, stopped, clock?.id, envelope.engine_status.status]);
   // 내 제한 시간이 5초 이하이면 1초마다 짧게 울린다.
   const secondsLeft =
     running && mine && clock ? Math.max(0, Math.ceil(((clockDeadline(clock) ?? now) - now) / 1000)) : null;
@@ -57,10 +65,10 @@ export function ClockBadge({ envelope }: { envelope: PlayEnvelope }) {
       ? total
       : Math.min(total || Infinity, Math.max(0, Math.ceil(((clockDeadline(clock) ?? now) - now) / 1000)));
   const ratio = total ? Math.min(1, remaining / total) : 0;
-  const urgent = !clock.paused && remaining <= 10;
+  const urgent = !clock.paused && !stopped && remaining <= 10;
   return (
     <span
-      className={`clock-badge ${mine ? "is-mine" : ""} ${urgent ? "is-urgent" : ""} ${clock.paused ? "is-paused" : ""}`}
+      className={`clock-badge ${mine ? "is-mine" : ""} ${urgent ? "is-urgent" : ""} ${clock.paused ? "is-paused" : ""} ${stopped ? "is-stopped" : ""}`}
       role="timer"
       aria-label={`${owner}${label} 남은 시간 ${remaining}초`}
     >

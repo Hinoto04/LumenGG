@@ -66,7 +66,7 @@ def perform_simulator_preparation(session, body):
             if locked.mode == 'automatic':
                 from .automatic_services import initialize_automatic_document
                 initialized = initialize_automatic_document(state, locked.ruleset_release, seed=f'{locked.view_token}:game:{updated["game_number"]}', settings=document.get('pending_settings'))
-                initialized.update({k: document[k] for k in ('games', 'ai_policy', 'pending_settings') if k in document})
+                initialized.update({k: document[k] for k in ('games', 'ai_policy', 'ai_deck', 'pending_settings') if k in document})
                 document = initialized
             else:
                 document.update(initial_state=copy.deepcopy(state), state=state, events=[])

@@ -1604,6 +1604,16 @@ button {
   color: var(--muted);
 }
 
+/* 내 행동을 마친 뒤 새 상태를 기다리는 동안: 멈춘 타이머 */
+.clock-badge.is-stopped {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.clock-badge.is-stopped i {
+  transition: none;
+}
+
 @keyframes clock-pulse {
   50% {
     box-shadow: 0 0 0.8em rgba(217, 105, 105, 0.5);
@@ -2406,6 +2416,62 @@ button.prep-tile-name {
   grid-column: 2;
   color: var(--muted);
   font-size: 0.75em;
+}
+
+.ai-deck-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4em;
+  max-height: 20em;
+  overflow: auto;
+}
+
+.ai-deck-list button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  text-align: left;
+  padding: 0.5em 0.7em;
+  border-radius: 0.6em;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ai-deck-list button.is-active {
+  border-color: var(--accent);
+  background: rgba(224, 180, 91, 0.1);
+}
+
+.ai-deck-list img,
+.ai-deck-face {
+  flex: none;
+  width: 2.6em;
+  height: 2.6em;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-1);
+}
+
+.ai-deck-text {
+  display: grid;
+  gap: 0.1em;
+  min-width: 0;
+}
+
+.ai-deck-text small {
+  color: var(--muted);
+  font-size: 0.78em;
+}
+
+.ai-deck-text em {
+  font-style: normal;
+  font-size: 0.78em;
+  color: var(--muted);
 }
 
 .lobby-error {

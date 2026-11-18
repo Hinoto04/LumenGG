@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 
 from .engine import AutomaticGameEngine
 from .ai import DEFAULT_POLICY_WEIGHTS, choose_action
+from .ai_engine_eval import EngineReadyEvaluator
+from .ai_outcomes import build_ready_evaluator
 from .spec import PLAYER_SIDES
 
 
@@ -132,8 +134,19 @@ def run_policy_game(
     policies=None,
     seed='self-play',
     max_commands=2000,
+    engine_ready_eval=False,
+    ready_strategy='matrix',
+    ready_eval=None,
+    on_step=None,
 ):
-    """Run AI-vs-AI through the same observe/list/submit API used online."""
+    """Run AI-vs-AI through the same observe/list/submit API used online.
+
+    ``engine_ready_eval`` fills Ready matrices by engine simulation; it is
+    off by default because training plays many games. ``ready_eval`` picks
+    the evaluator by mode instead (``ai_outcomes.READY_EVAL_MODES``; ``table``
+    without engine cells). ``on_step(engine)`` runs before every command and
+    once at the end (``ai_outcomes.OutcomeRecorder``).
+    """
     try:
         engine = AutomaticGameEngine.initialize(initial_state, ruleset, seed=seed)
     except Exception as exc:  # Treat a bad effect as one incomplete sample.
@@ -142,6 +155,8 @@ def run_policy_game(
         )
     policies = policies or {side: DEFAULT_POLICY_WEIGHTS for side in PLAYER_SIDES}
     for command_index in range(max_commands):
+        if on_step:
+            on_step(engine)
         status = engine.engine_state.get('status')
         if status != 'running':
             return SimulationResult(
@@ -153,12 +168,25 @@ def run_policy_game(
             )
         decisions = []
         for side in PLAYER_SIDES:
-            observation = engine.observe(side)
+            observation = engine.observe(side, include_memory=True)
+            side_weights = policies.get(side) or DEFAULT_POLICY_WEIGHTS
+            evaluator = None
+            if ready_eval:
+                evaluator = build_ready_evaluator(
+                    engine, observation, side, mode=ready_eval, weights=side_weights,
+                    engine_cells=engine_ready_eval,
+                )
+            elif engine_ready_eval and any(
+                action.get('type') == 'ready_card' for action in observation.get('legal_actions') or []
+            ):
+                evaluator = EngineReadyEvaluator(engine, side, weights=side_weights)
             decision = choose_action(
                 observation,
                 side,
-                weights=policies.get(side) or DEFAULT_POLICY_WEIGHTS,
+                weights=side_weights,
                 seed=f'{seed}:{command_index}',
+                ready_evaluator=evaluator,
+                ready_strategy=ready_strategy,
             )
             if decision:
                 decisions.append((side, decision))
