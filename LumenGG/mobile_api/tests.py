@@ -327,9 +327,9 @@ class MobileApiTests(TestCase):
             name='플레이 캐릭터', description='', group='테스트', datas={'hand': {'5000': 5}}, img='')
         self.assertNotIn(neutral, playable_characters())
         body = {'player1_character': neutral.pk, 'player2_character': playable.pk}
-        self.assertEqual(APIClient().post('/api/mobile/v1/calculators/', body, format='json').status_code, 404)
+        self.assertEqual(self.client.post('/api/mobile/v1/calculators/', body, format='json').status_code, 404)
         body = {'player1_character': playable.pk, 'player2_character': playable.pk}
-        self.assertEqual(APIClient().post('/api/mobile/v1/calculators/', body, format='json').status_code, 201)
+        self.assertEqual(self.client.post('/api/mobile/v1/calculators/', body, format='json').status_code, 201)
 
     def test_calculator_api_and_expiration(self):
         anon=APIClient();session=self.session()
