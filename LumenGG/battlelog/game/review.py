@@ -36451,7 +36451,7 @@ def _review_st6_005_definition(definition, card_snapshot, extra_root):
 
 def _run_st6_006_judgment_scenario(
     definition, card_snapshot, owner, *, fp,
-    event_type='before_judgment', resolve_judgment=False,
+    event_type='before_judgment', resolve_judgment=False, opponent_frame=8,
 ):
     other = 'p2' if owner == 'p1' else 'p1'
     source = _sandbox_source_snapshot(card_snapshot)
@@ -36467,7 +36467,7 @@ def _run_st6_006_judgment_scenario(
         f'{other}-fouette-opponent',
     )
     opposing.update({
-        'type': '공격', 'frame': 8, 'damage': 400,
+        'type': '공격', 'frame': int(opponent_frame), 'damage': 400,
         'pos': '중단', 'special': '',
     })
     state = _state(source, opposing, owner)
@@ -36488,7 +36488,10 @@ def _run_st6_006_judgment_scenario(
                 },
             },
         },
-        seed=f'fouette-judgment:{owner}:{fp}:{event_type}:{resolve_judgment}',
+        seed=(
+            f'fouette-judgment:{owner}:{fp}:{event_type}:{resolve_judgment}'
+            f'{"" if int(opponent_frame) == 8 else f":{opponent_frame}"}'
+        ),
         now=datetime(2026, 6, 1, tzinfo=timezone.utc),
     )
     engine.engine_state['battle'] = {
@@ -36655,17 +36658,30 @@ def _review_st6_006_definition(definition, card_snapshot, extra_root):
         )
 
     judgment_scenarios = []
+    # Q-AUTO-024: 공격 상쇄는 FP를 반영한 판정 속도가 상대보다 느릴 때만 일어난다.
+    # 3FP로 7속도가 되면 8속도 상대에게는 카운터, 6속도 상대에게는 상쇄다.
+    clash_results = {
+        'fp-applied-faster-speed-counters-instead-of-clash': (
+            8, {'p1': 'counter', 'p2': 'countered'},
+        ),
+        'fp-applied-still-slower-produces-middle-clash': (
+            6, {'p1': 'clash', 'p2': 'clash'},
+        ),
+    }
     for name, owner, fp, event_type, resolve, expected in (
         ('owner-p1-three-fp-adds-clash-and-combo', 'p1', 3, 'before_judgment', False, True),
         ('owner-p2-five-fp-adds-clash-and-combo', 'p2', 5, 'before_judgment', False, True),
         ('two-fp-does-not-change-judgments', 'p1', 2, 'before_judgment', False, False),
         ('wrong-timing-does-not-change-judgments', 'p2', 3, 'use', False, False),
-        ('fp-unapplied-speed-still-produces-middle-clash', 'p1', 3, 'before_judgment', True, True),
+        ('fp-applied-faster-speed-counters-instead-of-clash', 'p1', 3, 'before_judgment', True, True),
+        ('fp-applied-still-slower-produces-middle-clash', 'p1', 3, 'before_judgment', True, True),
     ):
         kwargs = {
             'fp': fp, 'event_type': event_type,
             'resolve_judgment': resolve,
         }
+        if name in clash_results:
+            kwargs['opponent_frame'] = clash_results[name][0]
         first = _run_st6_006_judgment_scenario(
             definition, card_snapshot, owner, **kwargs,
         )
@@ -36683,7 +36699,7 @@ def _review_st6_006_definition(definition, card_snapshot, extra_root):
             result_ok = (
                 first['reference_speed'][owner] == 10
                 and first['final_speed'][owner] == 7
-                and first['result'] == {'p1': 'clash', 'p2': 'clash'}
+                and first['result'] == clash_results[name][1]
             )
         judgment_scenarios.append({
             'name': name,

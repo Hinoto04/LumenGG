@@ -13920,11 +13920,13 @@ class AutomaticEngineTests(SimpleTestCase):
         active = judgment['owner-p1-three-fp-adds-clash-and-combo']
         self.assertEqual(active['special'], '중단 상쇄')
         self.assertEqual(active['hit'], '콤보')
-        clash = judgment[
-            'fp-unapplied-speed-still-produces-middle-clash'
-        ]
-        self.assertEqual(clash['reference_speed'], {'p1': 10, 'p2': 8})
-        self.assertEqual(clash['final_speed'], {'p1': 7, 'p2': 8})
+        # Q-AUTO-024: 3FP로 7속도가 되면 8속도 상대보다 빨라 카운터, 6속도 상대에게는 상쇄.
+        faster = judgment['fp-applied-faster-speed-counters-instead-of-clash']
+        self.assertEqual(faster['reference_speed'], {'p1': 10, 'p2': 8})
+        self.assertEqual(faster['final_speed'], {'p1': 7, 'p2': 8})
+        self.assertEqual(faster['result'], {'p1': 'counter', 'p2': 'countered'})
+        clash = judgment['fp-applied-still-slower-produces-middle-clash']
+        self.assertEqual(clash['final_speed'], {'p1': 7, 'p2': 6})
         self.assertEqual(clash['result'], {'p1': 'clash', 'p2': 'clash'})
         combo = {
             item['name']: item for item in by_id['st6-006-n2'].scenarios

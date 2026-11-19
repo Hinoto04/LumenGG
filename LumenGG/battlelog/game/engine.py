@@ -1792,9 +1792,12 @@ class AutomaticGameEngine:
             elif final_speed['p1'] == final_speed['p2']:
                 result = {'p1': 'hit', 'p2': 'hit'}
             elif (
-                reference_speed['p1'] > reference_speed['p2'] and r1 == 'clash'
+                # 7.5.4: 공격 상쇄는 자신의 공격이 상대보다 느릴 때만 일어난다.
+                # 느리고 빠름은 FP까지 반영한 판정 속도로 비교한다. 상쇄 기술이
+                # 더 빠르면 상쇄가 아니라 카운터다(볼트 스톰프 7속도 +2FP vs 6속도).
+                final_speed['p1'] > final_speed['p2'] and r1 == 'clash'
             ) or (
-                reference_speed['p2'] > reference_speed['p1'] and r2 == 'clash'
+                final_speed['p2'] > final_speed['p1'] and r2 == 'clash'
             ):
                 result = {'p1': 'clash', 'p2': 'clash'}
             elif final_speed['p1'] < final_speed['p2']:

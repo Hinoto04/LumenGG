@@ -738,3 +738,24 @@ class RecoveryKeepsNegativeFpTests(SimpleTestCase):
         engine._recovery_core()
         self.assertEqual(engine.state['players']['p1']['fp'], -6)
         self.assertEqual(engine.state['players']['p2']['fp'], 2)
+
+
+class AttackClashSpeedTests(SimpleTestCase):
+    """Q-AUTO-024: 공격 상쇄는 FP까지 반영한 판정 속도가 상대보다 느릴 때만 일어난다."""
+
+    def judge(self, p1_fp):
+        stomp = attack('stomp', 'p1', frame=7, position='하단', special='하단 상쇄')
+        slide = attack('slide', 'p2', frame=6, position='하단')
+        state = base_state([stomp], [slide], p1_fp=p1_fp)
+        engine = AutomaticGameEngine.initialize(state, ruleset(stomp, slide), seed=f'clash-{p1_fp}', run_startup=False)
+        act = lambda role, kind: engine.submit_action(role, next(
+            a for a in engine.legal_actions(role) if a['type'] == kind)['action_id'])
+        act('p1', 'pass_phase'); act('p2', 'pass_phase')
+        act('p1', 'ready_card'); act('p2', 'ready_card')
+        return next(e for e in engine.events if e['type'] == 'battle_judged')['payload']['result']
+
+    def test_slower_clash_attack_clashes(self):
+        self.assertEqual(self.judge(0), {'p1': 'clash', 'p2': 'clash'})
+
+    def test_clash_attack_made_faster_by_fp_counters(self):
+        self.assertEqual(self.judge(2), {'p1': 'counter', 'p2': 'countered'})

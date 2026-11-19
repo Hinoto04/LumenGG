@@ -45,11 +45,11 @@ def preview_battle(mine, theirs, *, my_fp=0, their_fp=0):
         return 'counter', 'countered'
     if r2 == 'dodge':
         return 'countered', 'counter'
-    reference = (_number(mine.get('frame'), 99), _number(theirs.get('frame'), 99))
     final = (_speed(mine, my_fp), _speed(theirs, their_fp))
     if final[0] == final[1]:
         return 'hit', 'hit'
-    if (reference[0] > reference[1] and r1 == 'clash') or (reference[1] > reference[0] and r2 == 'clash'):
+    # 공격 상쇄는 FP까지 반영한 판정 속도가 상대보다 느릴 때만 일어난다(7.5.4).
+    if (final[0] > final[1] and r1 == 'clash') or (final[1] > final[0] and r2 == 'clash'):
         return 'clash', 'clash'
     if final[0] < final[1]:
         return 'counter', 'countered'
