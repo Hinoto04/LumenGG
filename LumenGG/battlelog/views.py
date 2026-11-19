@@ -21,8 +21,9 @@ from .automatic_services import (
     advance_ai_session,
     ai_policy_payload,
     automatic_mode_release,
-    perform_automatic_command,
+    perform_settled_automatic_command,
     reconcile_automatic_session,
+    settle_automatic_session,
 )
 from .game.engine import IllegalAction, StaleState
 from .models import LumenSimulatorSession
@@ -312,11 +313,8 @@ def _render_simulator(req, view_token, seat, seat_token, template_name='battlelo
             return redirect(play_url(view_token, role, seat_token))
         return redirect(play_url(view_token))
     if role_for_token(session, seat, seat_token) in ('p1', 'p2'):
-        was_automatic = session.mode == 'automatic'
-        session = reconcile_automatic_session(session, both_players_disconnected=False)
-        if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
-            session = advance_ai_session(session)
-        if was_automatic and session.mode != 'automatic':
+        session, changed = settle_automatic_session(session)
+        if changed:
             broadcast_simulator_session(session)
     state = serialize_simulator_session(session, seat, seat_token, language=language, include_events=False)
     context = {
@@ -384,11 +382,8 @@ def simulatorState(req, view_token):
     seat_token = req.GET.get('seat_token', '')
     role = role_for_token(session, seat, seat_token)
     if role in ('p1', 'p2'):
-        was_automatic = session.mode == 'automatic'
-        session = reconcile_automatic_session(session, both_players_disconnected=False)
-        if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
-            session = advance_ai_session(session)
-        if was_automatic and session.mode != 'automatic':
+        session, changed = settle_automatic_session(session)
+        if changed:
             broadcast_simulator_session(session)
     since_version = req.GET.get('since_version')
     if since_version and str(since_version) == str(session.version):
@@ -474,6 +469,7 @@ def simulatorCommand(req, view_token):
     seat_token = body.get('seat_token', '')
     try:
         was_automatic = session.mode == 'automatic'
+        version_before = session.version
         session = reconcile_automatic_session(session, both_players_disconnected=False)
         if was_automatic and session.mode != 'automatic':
             broadcast_simulator_session(session)
@@ -482,8 +478,9 @@ def simulatorCommand(req, view_token):
                 'error': '타이머 정산 오류로 세션을 수동 모드로 전환했습니다.',
                 'code': 'automatic_fallback',
             }, status=409)
-        session = perform_automatic_command(session, body)
-        session = advance_ai_session(session)
+        session = perform_settled_automatic_command(
+            session, body, settled=session.version != version_before,
+        )
     except PermissionDenied:
         return JsonResponse({'ok': False, 'error': ui_text('조작 권한이 없습니다.', get_language(req))}, status=403)
     except StaleState as exc:

@@ -4,6 +4,7 @@ Set ``LUMEN_PLAY_FIXTURE_DIR`` to also write the envelopes these tests produce
 as JSON fixtures for ``play/`` (see scripts/export-play-fixtures.ps1).
 """
 
+import copy
 import inspect
 import json
 import os
@@ -14,16 +15,20 @@ from unittest.mock import patch
 
 from asgiref.sync import async_to_sync
 from channels.routing import URLRouter
+from channels.db import database_sync_to_async
 from channels.testing import WebsocketCommunicator
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase, TransactionTestCase
+from django.urls import reverse
 
 from .automatic_services import (
+    advance_ai_session, ai_policy_payload,
     automatic_session_settings, initialize_automatic_document, perform_automatic_command,
 )
+from .game.ai import DEFAULT_POLICY_WEIGHTS
 from .game.engine import ACTION_UI_KINDS, AutomaticGameEngine, IllegalAction
-from .models import LumenSimulatorSession, RulesetRelease
+from .models import LumenSimulatorSession, RulesetRelease, SimulatorAIPolicy
 from .play_protocol import PLAY_PROTOCOL_VERSION, validate_play_envelope
 from .routing import websocket_urlpatterns
 from .simulator_services import _filtered_event, _render_payload_markup, serialize_simulator_session
@@ -435,6 +440,117 @@ class PlayClockBroadcastTests(TransactionTestCase):
                 await seat.disconnect()
         finally:
             await viewer.disconnect()
+
+
+class AiTimeoutSettlementTests(TransactionTestCase):
+    """레디 시간 초과 정산으로 AI 좌석에 선택이 생기면 AI가 바로 처리해야 한다.
+
+    마감 직후 도착한 사람의 명령은 정산 때문에 거절되는데, 예전에는 그 경로에서 AI를
+    진행하지 않아 AI가 ``no_response_card`` 선택 중으로 새로고침 전까지 멈췄다.
+    """
+
+    def setUp(self):
+        p1_cards = [attack('ai-to-p1-a', 'p1', code='AITO-P1A'), attack('ai-to-p1-b', 'p1', code='AITO-P1B')]
+        p2_cards = [attack('ai-to-p2-a', 'p2', code='AITO-P2A'), attack('ai-to-p2-b', 'p2', code='AITO-P2B')]
+        release = RulesetRelease.objects.create(
+            version='ai-timeout-v1', snapshot=ruleset(*p1_cards, *p2_cards),
+            content_hash='e' * 64, source_manifest={},
+        )
+        document = initialize_automatic_document(
+            base_state(p1_cards, p2_cards), release, seed='ai-timeout',
+            settings=automatic_session_settings(ready_timeout_seconds=10),
+        )
+        # TransactionTestCase는 테스트마다 마이그레이션 데이터를 지우므로 정책을 직접 만든다.
+        policy = SimulatorAIPolicy.objects.create(
+            name='Timeout AI', version='ai-timeout-policy', weights=copy.deepcopy(DEFAULT_POLICY_WEIGHTS),
+        )
+        document['ai_policy'] = ai_policy_payload(policy)
+        session = LumenSimulatorSession.objects.create(
+            view_token='ai-timeout-view', player1_token='ai-timeout-p1', player2_token='ai-timeout-p2',
+            mode=LumenSimulatorSession.MODE_AUTOMATIC,
+            player2_controller=LumenSimulatorSession.CONTROLLER_AI,
+            ruleset_release=release, ai_policy=policy, document=document,
+        )
+        envelope = serialize_simulator_session(session, 'p1', 'ai-timeout-p1')
+        confirm = next(action for action in envelope['legal_actions'] if action['type'] == 'confirm_opening_review')
+        session = perform_automatic_command(session, {
+            'command_id': 'ai-timeout-review', 'action_id': confirm['action_id'],
+            'expected_version': session.version, 'selections': {},
+            'seat': 'p1', 'seat_token': 'ai-timeout-p1',
+        })
+        session = advance_ai_session(session)
+        engine_state = session.document['state']['engine']
+        self.assertEqual(session.document['state']['phase'], 'ready')
+        self.assertIn('p2', engine_state['ready_cards'])
+        self.assertEqual(engine_state['clock']['owner'], 'p1')
+        # p1이 레디하려던 행동. 마감이 지난 뒤에 도착한다.
+        envelope = serialize_simulator_session(session, 'p1', 'ai-timeout-p1')
+        ready = next(action for action in envelope['legal_actions'] if action['type'] == 'ready_card')
+        self.late_command = {
+            'command_id': 'ai-timeout-late-ready', 'action_id': ready['action_id'],
+            'expected_version': session.version, 'selections': {},
+        }
+
+    def expire_p1_ready_clock(self):
+        session = LumenSimulatorSession.objects.get(view_token='ai-timeout-view')
+        session.document['state']['engine']['clock']['deadline'] = '2000-01-01T00:00:00+00:00'
+        session.save(update_fields=['document'])
+        return session.version
+
+    def assert_ai_resolved_no_response_choice(self, expired_version):
+        session = LumenSimulatorSession.objects.get(view_token='ai-timeout-view')
+        self.assertEqual(session.mode, LumenSimulatorSession.MODE_AUTOMATIC)
+        requested = [
+            event for event in session.document['events']
+            if event.get('type') == 'decision_requested'
+            and (event.get('payload') or {}).get('kind') == 'no_response_card'
+        ]
+        self.assertTrue(requested, '시간 초과 정산이 AI 좌석에 강제 레디 선택을 만들지 않았습니다.')
+        pending = session.document['state']['engine'].get('pending_decision') or {}
+        self.assertNotEqual(
+            (pending.get('owner'), pending.get('kind')), ('p2', 'no_response_card'),
+            'AI가 강제 레디 선택을 처리하지 않고 멈췄습니다.',
+        )
+        # 정산(+1) 뒤에 AI 명령이 적어도 하나 더 실행되었다.
+        self.assertGreaterEqual(session.version, expired_version + 2)
+
+    def test_late_http_command_still_lets_ai_resolve_timeout_choice(self):
+        expired_version = self.expire_p1_ready_clock()
+        response = self.client.post(
+            reverse('battlelog:simulatorCommand', kwargs={'view_token': 'ai-timeout-view'}),
+            data=json.dumps({**self.late_command, 'seat': 'p1', 'seat_token': 'ai-timeout-p1'}),
+            content_type='application/json',
+        )
+        self.assertIn(response.status_code, (400, 409))
+        self.assertIn(response.json().get('code'), ('stale_state', 'illegal_action'))
+        self.assert_ai_resolved_no_response_choice(expired_version)
+
+    def test_late_socket_command_still_lets_ai_resolve_timeout_choice(self):
+        async_to_sync(self._exercise_socket)()
+
+    async def _exercise_socket(self):
+        app = URLRouter(websocket_urlpatterns)
+        seat = WebsocketCommunicator(app, '/ws/battlelog/simulator/ai-timeout-view/?seat=p1&seat_token=ai-timeout-p1')
+        self.assertTrue((await seat.connect())[0])
+        try:
+            first = await seat.receive_json_from(timeout=2)
+            self.assertEqual(first['type'], 'state')
+            # 접속 때 상태를 읽은 뒤에 마감이 지난다(클라이언트가 아직 다시 묻지 않음).
+            expired_version = await database_sync_to_async(self.expire_p1_ready_clock)()
+            await seat.send_json_to({
+                'type': 'command', 'request_id': 'late-ready', 'payload': self.late_command,
+            })
+            for _attempt in range(10):
+                message = await seat.receive_json_from(timeout=2)
+                if message.get('request_id') == 'late-ready':
+                    break
+            else:
+                self.fail('늦은 명령에 대한 응답을 받지 못했습니다.')
+            self.assertEqual(message['type'], 'error')
+            self.assertIn(message.get('code'), ('stale_state', 'illegal_action'))
+            await database_sync_to_async(self.assert_ai_resolved_no_response_choice)(expired_version)
+        finally:
+            await seat.disconnect()
 
 
 class GetPhaseSkipRuleTests(SimpleTestCase):

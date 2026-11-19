@@ -1017,6 +1017,51 @@ def _session_engine(session):
     )
 
 
+def settle_automatic_session(session, *, advance=None):
+    """읽기 경계에서 지난 마감을 정산하고, 그 결과 생긴 AI 차례·선택을 바로 진행한다.
+
+    (세션, 바뀌었는지)를 돌려준다. 바뀌었으면 다른 좌석·관전자에게도 알려야 한다.
+    ``advance``는 AI 진행 함수다. 웹소켓 경로는 백그라운드로 도는 ``ai_runner.kick_ai``를 넘긴다.
+    """
+    advance = advance or advance_ai_session
+    was_automatic = session.mode == LumenSimulatorSession.MODE_AUTOMATIC
+    version_before = session.version
+    session = reconcile_automatic_session(session, both_players_disconnected=False)
+    if session.mode == LumenSimulatorSession.MODE_AUTOMATIC:
+        session = advance(session)
+    changed = (
+        (was_automatic and session.mode != LumenSimulatorSession.MODE_AUTOMATIC)
+        or session.version != version_before
+    )
+    return session, changed
+
+
+def perform_settled_automatic_command(
+    session, body, *, settled, advance=None, advance_on_success=True,
+):
+    """정산을 마친 세션에 사람 좌석의 명령을 실행하고 AI를 진행한다.
+
+    ``settled``는 직전 ``reconcile_automatic_session``이 세션을 바꿨는지다. 시간 초과
+    정산은 AI 차례나 선택(예: 상대 무응답 시 ``no_response_card``)을 만들 수 있는데,
+    마감 직후 도착한 명령은 그 정산 때문에 거절되곤 한다. 거절되더라도 AI를 진행하고
+    모두에게 알린다. 그러지 않으면 AI가 "선택 중"으로 멈춘 상태가 새로고침 전까지 남는다.
+
+    ``advance``는 AI 진행 함수(기본 ``advance_ai_session``)다. ``advance_on_success=False``면
+    명령이 성공했을 때 AI를 진행하지 않는다. 웹소켓 경로는 사람의 수를 먼저 보낸 뒤 AI를 깨운다.
+    """
+    advance = advance or advance_ai_session
+    try:
+        session = perform_automatic_command(session, body)
+    except Exception:
+        if settled:
+            from .realtime import broadcast_simulator_session
+
+            latest = LumenSimulatorSession.objects.get(pk=session.pk)
+            broadcast_simulator_session(advance(latest))
+        raise
+    return advance(session) if advance_on_success else session
+
+
 def automatic_observation(session, role, *, include_state=True, include_memory=False):
     if session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
         return None
