@@ -55,6 +55,7 @@ CONDITION_TRAITS = (
 SEMANTIC_CARD_REFERENCES = {
     'ST1-PS1': ('state', 'over_limit'),
     'ST4-PS1': ('state', 'advance_notice'),
+    'CB04-TK-001': ('token', 'garage'),
     **{
         code: (reference['kind'], reference['slug'])
         for code, reference in SEMANTIC_REFERENCES.items()
@@ -89,6 +90,7 @@ SEMANTIC_ALIASES = {
         'blue_flame': {'ko': ('청염',), 'en': ('Blue Flame',), 'ja': ('青炎',)},
         'yin': {'ko': ('음',), 'en': ('Yin',), 'ja': ('陰',)},
         'yang': {'ko': ('양',), 'en': ('Yang',), 'ja': ('陽',)},
+        'frost': {'ko': ('서리',), 'en': ('Frost',), 'ja': ('霜',)},
     },
     'token': {
         'hidden_bond': {'ko': ('은연',), 'en': ('Hidden Bond',), 'ja': ('隠縁',)},
@@ -101,6 +103,7 @@ SEMANTIC_ALIASES = {
         'bass': {'ko': ('베이스',), 'en': ('Bass',), 'ja': ('ベース',)},
         'yin': {'ko': ('음',), 'en': ('Yin',), 'ja': ('陰',)},
         'yang': {'ko': ('양',), 'en': ('Yang',), 'ja': ('陽',)},
+        'garage': {'ko': ('개러지',), 'en': ('Garage',), 'ja': ('ガレージ',)},
     },
 }
 for _reference in SEMANTIC_REFERENCES.values():

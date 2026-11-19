@@ -1,0 +1,419 @@
+{
+ "terms": [
+  {
+   "kind": "state",
+   "slug": "frost",
+   "ko": "서리",
+   "en": "Frost",
+   "ja": "霜"
+  },
+  {
+   "kind": "token",
+   "slug": "garage",
+   "ko": "개러지",
+   "en": "Garage",
+   "ja": "ガレージ"
+  }
+ ],
+ "changes": [
+  {
+   "code": "CB04-AT-001",
+   "language": "ko",
+   "field": "text",
+   "old": "이 기술은 자신의 체력이 2500 이하일 경우에만 사용할 수 있다.\r\n①사용 시, 배틀 존의 상대 기술 효과를 무효로 한다.\r\n②사용 후, 이 기술을 브레이크하고 다음 턴 종료 시까지 상대에게 「서리」 상태를 부여한다.\r\n그 후, 배틀 페이즈를 종료한다.",
+   "new": "이 기술은 자신의 체력이 2500 이하일 경우에만 사용할 수 있다.\r\n①사용 시, 배틀 존의 상대 기술 효과를 무효로 한다.\r\n②사용 후, 이 기술을 브레이크하고 다음 턴 종료 시까지 상대에게 [[state:frost]] 상태를 부여한다.\r\n그 후, 배틀 페이즈를 종료한다."
+  },
+  {
+   "code": "CB04-AT-002",
+   "language": "ko",
+   "field": "text",
+   "old": "①상대 회피 시, 상대는 2FP를 얻고 루멘 존의 [부쿠키] 기술을 1장 골라 리스트로 보낸다.\r\n②히트/카운터/콤보 시, 패나 리스트의 [부쿠키] 기술 1장을 루멘 존에 보낼 수 있다.",
+   "new": "①상대 회피 시, 상대는 2FP를 얻고 루멘 존의 <[[character:부쿠키]]> 기술을 1장 골라 리스트로 보낸다.\r\n②히트/카운터/콤보 시, 패나 리스트의 <[[character:부쿠키]]> 기술 1장을 루멘 존에 보낼 수 있다."
+  },
+  {
+   "code": "CB04-AT-003",
+   "language": "ko",
+   "field": "text",
+   "old": "①상대 「서리」: 이 기술 데미지+200 \r\n②상대 회피 시, 상대는 3FP를 얻는다. \r\n③카운터 시, 리스트에서 기술 1장을 브레이크할 수 있다. 그 경우, 다음 턴 종료 시까지 상대에게 「서리」 상태를 부여한다",
+   "new": "①상대 [[state:frost]]: 이 기술 데미지+200 \r\n②상대 회피 시, 상대는 3FP를 얻는다. \r\n③카운터 시, 리스트에서 기술 1장을 브레이크할 수 있다. 그 경우, 다음 턴 종료 시까지 상대에게 [[state:frost]] 상태를 부여한다"
+  },
+  {
+   "code": "CB04-AT-004",
+   "language": "ko",
+   "field": "text",
+   "old": "이 기술은 <8속도 이하기술만 회피한다. \r\n①히트 및 카운터 시, 리스트에서 기술 1장을 브레이크할 수 있다. 그 경우, 사이드 덱에서 [부쿠키] 기술 1장을 루멘 존에 보낸다.",
+   "new": "이 기술은 <8속도 이하기술만 회피한다. \r\n①히트 및 카운터 시, 리스트에서 기술 1장을 브레이크할 수 있다. 그 경우, 사이드 덱에서 <[[character:부쿠키]]> 기술 1장을 루멘 존에 보낸다."
+  },
+  {
+   "code": "CB04-AT-007",
+   "language": "ko",
+   "field": "text",
+   "old": "이 기술은 <8속도 이하>기술만 회피한다.\r\n①상대 「서리」: 이 기술 데미지 +200\r\n②히트 및 카운터 시, 다음 턴 종료 시까지 상대에게 「서리」 상태를 부여한다.\r\n③콤보 시, 이번 턴 루멘 존의 [부쿠키] 기술을 콤보에 사용할 수 있다.",
+   "new": "이 기술은 <8속도 이하>기술만 회피한다.\r\n①상대 [[state:frost]]: 이 기술 데미지 +200\r\n②히트 및 카운터 시, 다음 턴 종료 시까지 상대에게 [[state:frost]] 상태를 부여한다.\r\n③콤보 시, 이번 턴 루멘 존의 <[[character:부쿠키]]> 기술을 콤보에 사용할 수 있다."
+  },
+  {
+   "code": "CB04-AT-011",
+   "language": "ko",
+   "field": "text",
+   "old": "상대는 이 기술을 상쇄할 수 없다. \r\n이 기술은 3콤보 후에만 콤보에 사용할 수 있다. \r\n①상대 「서리」 : 이 기술 데미지+200",
+   "new": "상대는 이 기술을 상쇄할 수 없다. \r\n이 기술은 3콤보 후에만 콤보에 사용할 수 있다. \r\n①상대 [[state:frost]] : 이 기술 데미지+200"
+  },
+  {
+   "code": "CB04-AT-012",
+   "language": "ko",
+   "field": "text",
+   "old": "이 기술은 가드 판정이 <X>인 기술만 회피한다.\r\n①이 기술이 루멘 존에 존재하는 한, 콤보 시 [부쿠키] 기술 데미지+100",
+   "new": "이 기술은 가드 판정이 <X>인 기술만 회피한다.\r\n①이 기술이 루멘 존에 존재하는 한, 콤보 시 <[[character:부쿠키]]> 기술 데미지+100"
+  },
+  {
+   "code": "CB04-AT-013",
+   "language": "ko",
+   "field": "text",
+   "old": "①판정 후, 데미지를 받지 않았다면 상대는 8FP를 잃는다. 그 후, 상대에게 「서리」 상태를 부여한다.",
+   "new": "①판정 후, 데미지를 받지 않았다면 상대는 8FP를 잃는다. 그 후, 상대에게 [[state:frost]] 상태를 부여한다."
+  },
+  {
+   "code": "CB04-AT-021",
+   "language": "ko",
+   "field": "text",
+   "old": "상대는 이 기술을 방어할 수 없다. \r\n①판정 전, 서로의 속도를 고정한다. 그 후, [양]카운터를 1개 제거할 수 있다. \r\n「음」: [음]카운터를 1개 얻는다. \r\n②「조화」: 히트 및 카운터 시, 이 기술 데미지+400",
+   "new": "상대는 이 기술을 방어할 수 없다. \r\n①판정 전, 서로의 속도를 고정한다. 그 후, [[token:yang]]카운터를 1개 제거할 수 있다. \r\n[[state:yin]]: [[token:yin]]카운터를 1개 얻는다. \r\n②[[state:harmony]]: 히트 및 카운터 시, 이 기술 데미지+400"
+  },
+  {
+   "code": "CB04-AT-022",
+   "language": "ko",
+   "field": "text",
+   "old": "상대는 이 기술을 특수 판정으로 회피할 수 없다.\r\n①판정 전, [양]카운터 2개당 1FP를 얻는다.\r\n「양」: 대신 1개당 1FP를 얻는다.\r\n②「조화」: 상대는 이 기술을 회피할 수 없다.\r\n③콤보 타임 종료 시, 배틀 존의 기술을 모두 획득한다.",
+   "new": "상대는 이 기술을 특수 판정으로 회피할 수 없다.\r\n①판정 전, [[token:yang]]카운터 2개당 1FP를 얻는다.\r\n[[state:yang]]: 대신 1개당 1FP를 얻는다.\r\n②[[state:harmony]]: 상대는 이 기술을 회피할 수 없다.\r\n③콤보 타임 종료 시, 배틀 존의 기술을 모두 획득한다."
+  },
+  {
+   "code": "CB04-AT-024",
+   "language": "ko",
+   "field": "text",
+   "old": "①콤보 시, <6~8속도>로 사용할 수 있다. 그 경우, 이 기술을 브레이크하고 [불씨]카운터를 3개 얻는다.\r\n②이 기술이 그랩 무효 되었을 경우, [불씨]카운터를 1개 얻는다.",
+   "new": "①콤보 시, <6~8속도>로 사용할 수 있다. 그 경우, 이 기술을 브레이크하고 [[token:ember]]카운터를 3개 얻는다.\r\n②이 기술이 그랩 무효 되었을 경우, [[token:ember]]카운터를 1개 얻는다."
+  },
+  {
+   "code": "CB04-AT-027",
+   "language": "ko",
+   "field": "text",
+   "old": "①히트/카운터/콤보 시, 상대 리스트의 [거미]토큰을 전부 자신의 루멘 존에 배치하고 1장당 200데미지를 줄 수 있다. \r\n②콤보 시, <9속도>로 사용할 수 있다.",
+   "new": "①히트/카운터/콤보 시, 상대 리스트의 [[token:spider]]토큰을 전부 자신의 루멘 존에 배치하고 1장당 200데미지를 줄 수 있다. \r\n②콤보 시, <9속도>로 사용할 수 있다."
+  },
+  {
+   "code": "CB04-AT-030",
+   "language": "ko",
+   "field": "text",
+   "old": "이 기술은 <발> 판정 이외의 기술만 상쇄한다.\r\n①상쇄 시, 루멘 존의 [귀섬] 1장당 1FP와 보호막 100을 얻는다.\r\n3장 이상인 경우, 상대 기술의 히트 판정을 <+2>로 변경한다.",
+   "new": "이 기술은 <발> 판정 이외의 기술만 상쇄한다.\r\n①상쇄 시, 루멘 존의 [[card:RFS-AT-002]] 1장당 1FP와 보호막 100을 얻는다.\r\n3장 이상인 경우, 상대 기술의 히트 판정을 <+2>로 변경한다."
+  },
+  {
+   "code": "CB04-AT-031",
+   "language": "ko",
+   "field": "text",
+   "old": "①콤보 시, 루멘 존의 [귀섬] 1장당 이 기술 데미지+100\r\n②「청염」: 사용 후, 리커버리 페이즈 시 루멘 존의 [귀섬] 2장을 사이드 덱으로 되돌리고 리스트에서 기술 1장을 획득한다.",
+   "new": "①콤보 시, 루멘 존의 [[card:RFS-AT-002]] 1장당 이 기술 데미지+100\r\n②[[state:blue_flame]]: 사용 후, 리커버리 페이즈 시 루멘 존의 [[card:RFS-AT-002]] 2장을 사이드 덱으로 되돌리고 리스트에서 기술 1장을 획득한다."
+  },
+  {
+   "code": "CB04-AT-034",
+   "language": "ko",
+   "field": "text",
+   "old": "\"OPTION\"명을 포함하는 기술은 루멘 존에 1장만 배치할 수 있다.\r\n①1턴에 1번 콤보 시, 패를 1장 버릴 수 있다. 그 후, 속도를 무시하고 [핀프] 기술로 이을 수 있다. 이번 턴 자신의 리커버리 페이즈를 스킵한다.",
+   "new": "\"OPTION\"명을 포함하는 기술은 루멘 존에 1장만 배치할 수 있다.\r\n①1턴에 1번 콤보 시, 패를 1장 버릴 수 있다. 그 후, 속도를 무시하고 <[[character:pinp]]> 기술로 이을 수 있다. 이번 턴 자신의 리커버리 페이즈를 스킵한다."
+  },
+  {
+   "code": "CB04-AT-035",
+   "language": "ko",
+   "field": "text",
+   "old": "①【보컬】(사용 시, 이 기술에 세트된 [CMYK] 기술의 효과를 적용할 때 그 수치를 2배로 한다.)\r\n②판정 전, 이 기술에 세트된 기술이 1장 이상이라면 상대는 이 기술을 상쇄할 수 없다.\r\n③히트/카운터/콤보 시, 리스트에서 카드를 2장까지 획득한다.",
+   "new": "①[[token:vocal]](사용 시, 이 기술에 세트된 <[[character:cmyk]]> 기술의 효과를 적용할 때 그 수치를 2배로 한다.)\r\n②판정 전, 이 기술에 세트된 기술이 1장 이상이라면 상대는 이 기술을 상쇄할 수 없다.\r\n③히트/카운터/콤보 시, 리스트에서 카드를 2장까지 획득한다."
+  },
+  {
+   "code": "CB04-AT-036",
+   "language": "ko",
+   "field": "text",
+   "old": "①【기타】([CMYK] 기술에 세트된 경우, 사용 시 해당 기술 데미지+100 이 효과는 중첩되지 않는다.)\r\n②사용 시, 세트된 기술 【드럼】효과가 있다면 FP를 얻는 대신 데미지+200.",
+   "new": "①[[token:guitar]](<[[character:cmyk]]> 기술에 세트된 경우, 사용 시 해당 기술 데미지+100 이 효과는 중첩되지 않는다.)\r\n②사용 시, 세트된 기술 [[token:drum]]효과가 있다면 FP를 얻는 대신 데미지+200."
+  },
+  {
+   "code": "CB04-PS-001",
+   "language": "ko",
+   "field": "text",
+   "old": "①방어 및 상쇄 시, 다음 턴 종료 시까지 상대에게 「서리 」상태를 부여한다. \r\n②상대에게 「서리」 상태를 부여할 때마다 패나 리스트의 [부쿠키] 기술 1장을 루멘 존에 보낼 수 있다. ③리커버리 페이즈 시, FP가 불리할 경우 루멘 존의 [부쿠키] 기술 1장을 리스트로 보낸다.",
+   "new": "①방어 및 상쇄 시, 다음 턴 종료 시까지 상대에게 [[state:frost]]상태를 부여한다. \r\n②상대에게 [[state:frost]] 상태를 부여할 때마다 패나 리스트의 <[[character:부쿠키]]> 기술 1장을 루멘 존에 보낼 수 있다. ③리커버리 페이즈 시, FP가 불리할 경우 루멘 존의 <[[character:부쿠키]]> 기술 1장을 리스트로 보낸다."
+  },
+  {
+   "code": "DFR-AT-017",
+   "language": "ko",
+   "field": "text",
+   "old": "게임 시작 시, 【개러지】토큰 3장을 루멘 존에 배치한다.\r\n①이 기술이 얼티밋 존에 있는 동안 기술의 사용 후, 루멘 존의 【개러지】토큰 1장을 제거할 수 있다.\r\n그 경우, 이하의 효과를 적용한다.\r\n-이번 턴 동안 캐치 시, 턴 종료 시까지 더 이상 캐치할 수 없다.\r\n-[[state:down_stance]] 상태를 해제할 수 있다.\r\n-<상단 회피>판정 기술 혹은 <하단>판정 공격 기술을 버릴 수 있다.\r\n그 경우, 자신에게 [[state:down_stance]] 상태를 부여한다.",
+   "new": "게임 시작 시, [[token:garage]]토큰 3장을 루멘 존에 배치한다.\r\n①이 기술이 얼티밋 존에 있는 동안 기술의 사용 후, 루멘 존의 [[token:garage]]토큰 1장을 제거할 수 있다.\r\n그 경우, 이하의 효과를 적용한다.\r\n-이번 턴 동안 캐치 시, 턴 종료 시까지 더 이상 캐치할 수 없다.\r\n-[[state:down_stance]] 상태를 해제할 수 있다.\r\n-<상단 회피>판정 기술 혹은 <하단>판정 공격 기술을 버릴 수 있다.\r\n그 경우, 자신에게 [[state:down_stance]] 상태를 부여한다."
+  },
+  {
+   "code": "CB04-AT-001",
+   "language": "en",
+   "field": "text",
+   "old": "This Technique can only be used if your HP is 2500 or lower.\n①On use, negate the effects of your opponent's Technique in the Battle Zone.\n②After use, break this Technique and give your opponent \"Frost\" status until the end of next turn.\nThen end the Battle Phase.",
+   "new": "This Technique can only be used if your HP is 2500 or lower.\n①On use, negate the effects of your opponent's Technique in the Battle Zone.\n②After use, break this Technique and give your opponent [[state:frost]] status until the end of next turn.\nThen end the Battle Phase."
+  },
+  {
+   "code": "CB04-AT-001",
+   "language": "ja",
+   "field": "text",
+   "old": "この技は自分のHPが2500以下の場合のみ使用できる。\n①使用時、バトルゾーンの相手の技の効果を無効にする。\n②使用後、この技をブレイクし、次のターン終了時まで相手に「霜」状態を付与する。\nその後、バトルフェイズを終了する。",
+   "new": "この技は自分のHPが2500以下の場合のみ使用できる。\n①使用時、バトルゾーンの相手の技の効果を無効にする。\n②使用後、この技をブレイクし、次のターン終了時まで相手に[[state:frost]]状態を付与する。\nその後、バトルフェイズを終了する。"
+  },
+  {
+   "code": "CB04-AT-002",
+   "language": "en",
+   "field": "text",
+   "old": "①When your opponent dodges, your opponent gains 2 FP, then chooses 1 [BUKUKI] Technique in the Lumen Zone and sends it to the List.\n②On hit/counter/combo, you may send 1 [BUKUKI] Technique from your hand or List to the Lumen Zone.",
+   "new": "①When your opponent dodges, your opponent gains 2 FP, then chooses 1 <[[character:부쿠키]]> Technique in the Lumen Zone and sends it to the List.\n②On hit/counter/combo, you may send 1 <[[character:부쿠키]]> Technique from your hand or List to the Lumen Zone."
+  },
+  {
+   "code": "CB04-AT-002",
+   "language": "ja",
+   "field": "text",
+   "old": "①相手が回避した時、相手は2FPを得て、ルーメンゾーンの[ブクキ]技を1枚選んでリストに送る。\n②ヒット/カウンター/コンボ時、手札やリストの[ブクキ]技1枚をルーメンゾーンに送ることができる。",
+   "new": "①相手が回避した時、相手は2FPを得て、ルーメンゾーンの<[[character:부쿠키]]> 技を1枚選んでリストに送る。\n②ヒット/カウンター/コンボ時、手札やリストの<[[character:부쿠키]]> 技1枚をルーメンゾーンに送ることができる。"
+  },
+  {
+   "code": "CB04-AT-003",
+   "language": "en",
+   "field": "text",
+   "old": "①Opponent in \"Frost\": This Technique's damage +200\n②When your opponent dodges, your opponent gains 3 FP.\n③On counter, you may break 1 Technique from your List. If you do, give your opponent \"Frost\" status until the end of next turn.",
+   "new": "①Opponent in [[state:frost]]: This Technique's damage +200\n②When your opponent dodges, your opponent gains 3 FP.\n③On counter, you may break 1 Technique from your List. If you do, give your opponent [[state:frost]] status until the end of next turn."
+  },
+  {
+   "code": "CB04-AT-003",
+   "language": "ja",
+   "field": "text",
+   "old": "①相手「霜」：この技のダメージ+200\n②相手が回避した時、相手は3FPを得る。\n③カウンター時、リストから技1枚をブレイクできる。その場合、次のターン終了時まで相手に「霜」状態を付与する。",
+   "new": "①相手[[state:frost]]：この技のダメージ+200\n②相手が回避した時、相手は3FPを得る。\n③カウンター時、リストから技1枚をブレイクできる。その場合、次のターン終了時まで相手に[[state:frost]]状態を付与する。"
+  },
+  {
+   "code": "CB04-AT-004",
+   "language": "en",
+   "field": "text",
+   "old": "This Technique can only dodge Techniques with <Speed 8 or lower>.\n①On hit or counter, you may break 1 Technique from your List. If you do, send 1 [BUKUKI] Technique from your Side Deck to the Lumen Zone.",
+   "new": "This Technique can only dodge Techniques with <Speed 8 or lower>.\n①On hit or counter, you may break 1 Technique from your List. If you do, send 1 <[[character:부쿠키]]> Technique from your Side Deck to the Lumen Zone."
+  },
+  {
+   "code": "CB04-AT-004",
+   "language": "ja",
+   "field": "text",
+   "old": "この技は〈速度8以下〉の技のみ回避できる。\n①ヒットおよびカウンター時、リストから技1枚をブレイクできる。その場合、サイドデッキから[ブクキ]技1枚をルーメンゾーンに送る。",
+   "new": "この技は〈速度8以下〉の技のみ回避できる。\n①ヒットおよびカウンター時、リストから技1枚をブレイクできる。その場合、サイドデッキから<[[character:부쿠키]]> 技1枚をルーメンゾーンに送る。"
+  },
+  {
+   "code": "CB04-AT-007",
+   "language": "en",
+   "field": "text",
+   "old": "This Technique can only dodge Techniques with <Speed 8 or lower>.\n①Opponent in \"Frost\": This Technique's damage +200\n②On hit or counter, give your opponent \"Frost\" status until the end of next turn.\n③On combo, this turn, you may use [BUKUKI] Techniques in the Lumen Zone in the combo.",
+   "new": "This Technique can only dodge Techniques with <Speed 8 or lower>.\n①Opponent in [[state:frost]]: This Technique's damage +200\n②On hit or counter, give your opponent [[state:frost]] status until the end of next turn.\n③On combo, this turn, you may use <[[character:부쿠키]]> Techniques in the Lumen Zone in the combo."
+  },
+  {
+   "code": "CB04-AT-007",
+   "language": "ja",
+   "field": "text",
+   "old": "この技は〈速度8以下〉の技のみ回避できる。\n①相手「霜」：この技のダメージ+200\n②ヒットおよびカウンター時、次のターン終了時まで相手に「霜」状態を付与する。\n③コンボ時、このターン、ルーメンゾーンの[ブクキ]技をコンボに使用できる。",
+   "new": "この技は〈速度8以下〉の技のみ回避できる。\n①相手[[state:frost]]：この技のダメージ+200\n②ヒットおよびカウンター時、次のターン終了時まで相手に[[state:frost]]状態を付与する。\n③コンボ時、このターン、ルーメンゾーンの<[[character:부쿠키]]> 技をコンボに使用できる。"
+  },
+  {
+   "code": "CB04-AT-011",
+   "language": "en",
+   "field": "text",
+   "old": "Your opponent cannot clash this Technique.\nThis Technique can only be used in a combo after the 3rd Combo.\n①Opponent in \"Frost\": This Technique's damage +200",
+   "new": "Your opponent cannot clash this Technique.\nThis Technique can only be used in a combo after the 3rd Combo.\n①Opponent in [[state:frost]]: This Technique's damage +200"
+  },
+  {
+   "code": "CB04-AT-011",
+   "language": "ja",
+   "field": "text",
+   "old": "相手はこの技を相殺できない。\nこの技は3コンボ後にのみコンボに使用できる。\n①相手「霜」：この技のダメージ+200",
+   "new": "相手はこの技を相殺できない。\nこの技は3コンボ後にのみコンボに使用できる。\n①相手[[state:frost]]：この技のダメージ+200"
+  },
+  {
+   "code": "CB04-AT-012",
+   "language": "en",
+   "field": "text",
+   "old": "This Technique can only dodge Techniques whose guard judgment is <X>.\n①While this Technique is in the Lumen Zone, on combo, [BUKUKI] Techniques' damage +100.",
+   "new": "This Technique can only dodge Techniques whose guard judgment is <X>.\n①While this Technique is in the Lumen Zone, on combo, <[[character:부쿠키]]> Techniques' damage +100."
+  },
+  {
+   "code": "CB04-AT-012",
+   "language": "ja",
+   "field": "text",
+   "old": "この技はガード判定が〈X〉の技のみ回避できる。\n①この技がルーメンゾーンにある限り、コンボ時、[ブクキ]技のダメージ+100。",
+   "new": "この技はガード判定が〈X〉の技のみ回避できる。\n①この技がルーメンゾーンにある限り、コンボ時、<[[character:부쿠키]]> 技のダメージ+100。"
+  },
+  {
+   "code": "CB04-AT-013",
+   "language": "en",
+   "field": "text",
+   "old": "①After judgment, if you did not take damage, your opponent loses 8 FP. Then, give your opponent \"Frost\" status.",
+   "new": "①After judgment, if you did not take damage, your opponent loses 8 FP. Then, give your opponent [[state:frost]] status."
+  },
+  {
+   "code": "CB04-AT-013",
+   "language": "ja",
+   "field": "text",
+   "old": "①判定後、ダメージを受けていなかった場合、相手は8FPを失う。その後、相手に「霜」状態を付与する。",
+   "new": "①判定後、ダメージを受けていなかった場合、相手は8FPを失う。その後、相手に[[state:frost]]状態を付与する。"
+  },
+  {
+   "code": "CB04-AT-021",
+   "language": "en",
+   "field": "text",
+   "old": "Your opponent cannot guard this Technique.\n①Before judgment, fix both Speeds. Then, you may remove 1 [Yang] counter.\n「Yin」: Gain 1 [Yin] counter.\n②「Harmony」: On hit or counter, this Technique's damage +400",
+   "new": "Your opponent cannot guard this Technique.\n①Before judgment, fix both Speeds. Then, you may remove 1 [[token:yang]] counter.\n[[state:yin]]: Gain 1 [[token:yin]] counter.\n②[[state:harmony]]: On hit or counter, this Technique's damage +400"
+  },
+  {
+   "code": "CB04-AT-021",
+   "language": "ja",
+   "field": "text",
+   "old": "相手はこの技をガードできない。\n①判定前、お互いの速度を固定する。その後、[陽]カウンターを1個取り除くことができる。\n「陰」：[陰]カウンターを1個得る。\n②「調和」：ヒットおよびカウンター時、この技のダメージ+400",
+   "new": "相手はこの技をガードできない。\n①判定前、お互いの速度を固定する。その後、[[token:yang]]カウンターを1個取り除くことができる。\n[[state:yin]]：[[token:yin]]カウンターを1個得る。\n②[[state:harmony]]：ヒットおよびカウンター時、この技のダメージ+400"
+  },
+  {
+   "code": "CB04-AT-022",
+   "language": "en",
+   "field": "text",
+   "old": "Your opponent cannot dodge this Technique with special judgments.\n①Before judgment, gain 1 FP for every 2 [Yang] counters.\n「Yang」: Instead, gain 1 FP for each counter.\n②「Harmony」: Your opponent cannot dodge this Technique.\n③At the end of Combo Time, gain all Techniques in the Battle Zone.",
+   "new": "Your opponent cannot dodge this Technique with special judgments.\n①Before judgment, gain 1 FP for every 2 [[token:yang]] counters.\n[[state:yang]]: Instead, gain 1 FP for each counter.\n②[[state:harmony]]: Your opponent cannot dodge this Technique.\n③At the end of Combo Time, gain all Techniques in the Battle Zone."
+  },
+  {
+   "code": "CB04-AT-022",
+   "language": "ja",
+   "field": "text",
+   "old": "相手はこの技を特殊判定で回避できない。\n①判定前、[陽]カウンター2個につき1FPを得る。\n「陽」：代わりに1個につき1FPを得る。\n②「調和」：相手はこの技を回避できない。\n③コンボタイム終了時、バトルゾーンの技をすべて獲得する。",
+   "new": "相手はこの技を特殊判定で回避できない。\n①判定前、[[token:yang]]カウンター2個につき1FPを得る。\n[[state:yang]]：代わりに1個につき1FPを得る。\n②[[state:harmony]]：相手はこの技を回避できない。\n③コンボタイム終了時、バトルゾーンの技をすべて獲得する。"
+  },
+  {
+   "code": "CB04-AT-024",
+   "language": "en",
+   "field": "text",
+   "old": "①On combo, this can be used at <Speed 6-8>. If so, break this Technique and gain 3 [Ember] Counters.\n②If this Technique's Grab is negated, gain 1 [Ember] Counter.",
+   "new": "①On combo, this can be used at <Speed 6-8>. If so, break this Technique and gain 3 [[token:ember]] Counters.\n②If this Technique's Grab is negated, gain 1 [[token:ember]] Counter."
+  },
+  {
+   "code": "CB04-AT-024",
+   "language": "ja",
+   "field": "text",
+   "old": "①コンボ時、〈速度6～8〉として使用できる。その場合、この技をブレイクし、[火種]カウンターを3個得る。\n②この技の投げが無効になった場合、[火種]カウンターを1個得る。",
+   "new": "①コンボ時、〈速度6～8〉として使用できる。その場合、この技をブレイクし、[[token:ember]]カウンターを3個得る。\n②この技の投げが無効になった場合、[[token:ember]]カウンターを1個得る。"
+  },
+  {
+   "code": "CB04-AT-027",
+   "language": "en",
+   "field": "text",
+   "old": "①On hit/counter/combo, you may place all [Spider] Tokens in your opponent's List into your Lumen Zone and deal 200 damage for each.\n②On combo, this can be used at <Speed 9>.",
+   "new": "①On hit/counter/combo, you may place all [[token:spider]] Tokens in your opponent's List into your Lumen Zone and deal 200 damage for each.\n②On combo, this can be used at <Speed 9>."
+  },
+  {
+   "code": "CB04-AT-027",
+   "language": "ja",
+   "field": "text",
+   "old": "①ヒット/カウンター/コンボ時、相手のリストの[蜘蛛]トークンをすべて自分のルーメンゾーンに配置し、1枚につき200ダメージを与えることができる。\n②コンボ時、〈速度9〉として使用できる。",
+   "new": "①ヒット/カウンター/コンボ時、相手のリストの[[token:spider]]トークンをすべて自分のルーメンゾーンに配置し、1枚につき200ダメージを与えることができる。\n②コンボ時、〈速度9〉として使用できる。"
+  },
+  {
+   "code": "CB04-AT-030",
+   "language": "en",
+   "field": "text",
+   "old": "This Technique can only clash Techniques without a <Foot> judgment.\n①On clash, gain 1 FP and Shield 100 for each [Oni Flash] in your Lumen Zone.\nIf there are 3 or more, change your opponent's Technique's hit judgment to <+2>.",
+   "new": "This Technique can only clash Techniques without a <Foot> judgment.\n①On clash, gain 1 FP and Shield 100 for each [[card:RFS-AT-002]] in your Lumen Zone.\nIf there are 3 or more, change your opponent's Technique's hit judgment to <+2>."
+  },
+  {
+   "code": "CB04-AT-030",
+   "language": "ja",
+   "field": "text",
+   "old": "この技は〈足〉判定以外の技のみ相殺する。\n①相殺時、ルーメンゾーンの[鬼閃]1枚につき1FPとシールド100を得る。\n3枚以上の場合、相手の技のヒット判定を〈+2〉に変更する。",
+   "new": "この技は〈足〉判定以外の技のみ相殺する。\n①相殺時、ルーメンゾーンの[[card:RFS-AT-002]]1枚につき1FPとシールド100を得る。\n3枚以上の場合、相手の技のヒット判定を〈+2〉に変更する。"
+  },
+  {
+   "code": "CB04-AT-031",
+   "language": "en",
+   "field": "text",
+   "old": "①On combo, this Technique's damage +100 for each [Oni Flash] in your Lumen Zone.\n②「Blue Flame」: After use, during the Recovery Phase, return 2 [Oni Flash] from your Lumen Zone to your Side Deck and gain 1 Technique from your List.",
+   "new": "①On combo, this Technique's damage +100 for each [[card:RFS-AT-002]] in your Lumen Zone.\n②[[state:blue_flame]]: After use, during the Recovery Phase, return 2 [[card:RFS-AT-002]] from your Lumen Zone to your Side Deck and gain 1 Technique from your List."
+  },
+  {
+   "code": "CB04-AT-031",
+   "language": "ja",
+   "field": "text",
+   "old": "①コンボ時、ルーメンゾーンの[鬼閃]1枚につきこの技のダメージ+100\n②「青炎」：使用後、リカバリーフェイズ時にルーメンゾーンの[鬼閃]2枚をサイドデッキに戻し、リストから技1枚を獲得する。",
+   "new": "①コンボ時、ルーメンゾーンの[[card:RFS-AT-002]]1枚につきこの技のダメージ+100\n②[[state:blue_flame]]：使用後、リカバリーフェイズ時にルーメンゾーンの[[card:RFS-AT-002]]2枚をサイドデッキに戻し、リストから技1枚を獲得する。"
+  },
+  {
+   "code": "CB04-AT-034",
+   "language": "en",
+   "field": "text",
+   "old": "Only 1 Technique with \"OPTION\" in its name can be placed in the Lumen Zone.\n①Once per turn, on combo, you may discard 1 card from your hand. Then, ignoring Speed, you can chain into a [PINP] Technique. Skip your Recovery Phase this turn.",
+   "new": "Only 1 Technique with \"OPTION\" in its name can be placed in the Lumen Zone.\n①Once per turn, on combo, you may discard 1 card from your hand. Then, ignoring Speed, you can chain into a <[[character:pinp]]> Technique. Skip your Recovery Phase this turn."
+  },
+  {
+   "code": "CB04-AT-034",
+   "language": "ja",
+   "field": "text",
+   "old": "\"OPTION\"名を含む技はルーメンゾーンに1枚まで配置できる。\n①1ターンに1回、コンボ時、手札を1枚捨ててもよい。その後、速度を無視して[ピンプ]技につなげられる。このターン、自分のリカバリーフェイズをスキップする。",
+   "new": "\"OPTION\"名を含む技はルーメンゾーンに1枚まで配置できる。\n①1ターンに1回、コンボ時、手札を1枚捨ててもよい。その後、速度を無視して<[[character:pinp]]> 技につなげられる。このターン、自分のリカバリーフェイズをスキップする。"
+  },
+  {
+   "code": "CB04-AT-035",
+   "language": "en",
+   "field": "text",
+   "old": "①【Vocal】(On use, when applying effects of [CMYK] Techniques set to this Technique, double those values.)\n②Before judgment, if 1 or more Techniques are set to this Technique, your opponent cannot clash this Technique.\n③On hit/counter/combo, gain up to 2 cards from your List.",
+   "new": "①[[token:vocal]](On use, when applying effects of <[[character:cmyk]]> Techniques set to this Technique, double those values.)\n②Before judgment, if 1 or more Techniques are set to this Technique, your opponent cannot clash this Technique.\n③On hit/counter/combo, gain up to 2 cards from your List."
+  },
+  {
+   "code": "CB04-AT-035",
+   "language": "ja",
+   "field": "text",
+   "old": "①【ボーカル】（使用時、この技にセットされた[CMYK]技の効果を適用する際、その数値を2倍にする。）\n②判定前、この技にセットされた技が1枚以上なら、相手はこの技を相殺できない。\n③ヒット/カウンター/コンボ時、リストからカードを2枚まで獲得する。",
+   "new": "①[[token:vocal]]（使用時、この技にセットされた<[[character:cmyk]]> 技の効果を適用する際、その数値を2倍にする。）\n②判定前、この技にセットされた技が1枚以上なら、相手はこの技を相殺できない。\n③ヒット/カウンター/コンボ時、リストからカードを2枚まで獲得する。"
+  },
+  {
+   "code": "CB04-AT-036",
+   "language": "en",
+   "field": "text",
+   "old": "①【Guitar】(If set to a [CMYK] Technique, on use, that Technique's damage +100. This effect does not stack.)\n②On use, if a set Technique has the 【Drum】 effect, instead of gaining FP, damage +200.",
+   "new": "①[[token:guitar]](If set to a <[[character:cmyk]]> Technique, on use, that Technique's damage +100. This effect does not stack.)\n②On use, if a set Technique has the [[token:drum]] effect, instead of gaining FP, damage +200."
+  },
+  {
+   "code": "CB04-AT-036",
+   "language": "ja",
+   "field": "text",
+   "old": "①【ギター】（[CMYK]技にセットされた場合、使用時、その技のダメージ+100。この効果は重複しない。）\n②使用時、セットされた技に【ドラム】効果があるなら、FPを得る代わりにダメージ+200。",
+   "new": "①[[token:guitar]]（<[[character:cmyk]]> 技にセットされた場合、使用時、その技のダメージ+100。この効果は重複しない。）\n②使用時、セットされた技に[[token:drum]]効果があるなら、FPを得る代わりにダメージ+200。"
+  },
+  {
+   "code": "CB04-PS-001",
+   "language": "en",
+   "field": "text",
+   "old": "①On guard or clash, give your opponent \"Frost\" status until the end of next turn.\n②Each time you give your opponent \"Frost\" status, you may send 1 [BUKUKI] Technique from your hand or List to the Lumen Zone.\n③During the Recovery Phase, if you are behind in FP, send 1 [BUKUKI] Technique from the Lumen Zone to the List.",
+   "new": "①On guard or clash, give your opponent [[state:frost]] status until the end of next turn.\n②Each time you give your opponent [[state:frost]] status, you may send 1 <[[character:부쿠키]]> Technique from your hand or List to the Lumen Zone.\n③During the Recovery Phase, if you are behind in FP, send 1 <[[character:부쿠키]]> Technique from the Lumen Zone to the List."
+  },
+  {
+   "code": "CB04-PS-001",
+   "language": "ja",
+   "field": "text",
+   "old": "①ガードまたは相殺時、次のターン終了時まで相手に「霜」状態を付与する。\n②相手に「霜」状態を付与するたびに、手札やリストの[ブクキ]技1枚をルーメンゾーンに送ることができる。\n③リカバリーフェイズ時、FPが不利な場合、ルーメンゾーンの[ブクキ]技1枚をリストに送る。",
+   "new": "①ガードまたは相殺時、次のターン終了時まで相手に[[state:frost]]状態を付与する。\n②相手に[[state:frost]]状態を付与するたびに、手札やリストの<[[character:부쿠키]]> 技1枚をルーメンゾーンに送ることができる。\n③リカバリーフェイズ時、FPが不利な場合、ルーメンゾーンの<[[character:부쿠키]]> 技1枚をリストに送る。"
+  },
+  {
+   "code": "DFR-AT-017",
+   "language": "en",
+   "field": "text",
+   "old": "At the start of the game, place 3 【Garage】 Tokens in your Lumen Zone.\n①While this Technique is in your Ultimate Zone, after using a Technique, you may remove 1 【Garage】 Token from your Lumen Zone.\nIn that case, apply the following effects.\n-If you catch this turn, you cannot catch again until the end of the turn.\n-You may remove [[state:down_stance]].\n-You may discard a Technique with a <High Dodge> judgment or an Attack Technique with a <Low> judgment.\nIn that case, give yourself [[state:down_stance]].",
+   "new": "At the start of the game, place 3 [[token:garage]] Tokens in your Lumen Zone.\n①While this Technique is in your Ultimate Zone, after using a Technique, you may remove 1 [[token:garage]] Token from your Lumen Zone.\nIn that case, apply the following effects.\n-If you catch this turn, you cannot catch again until the end of the turn.\n-You may remove [[state:down_stance]].\n-You may discard a Technique with a <High Dodge> judgment or an Attack Technique with a <Low> judgment.\nIn that case, give yourself [[state:down_stance]]."
+  },
+  {
+   "code": "DFR-AT-017",
+   "language": "ja",
+   "field": "text",
+   "old": "ゲーム開始時、【ガレージ】トークン3枚をルーメンゾーンに配置する。\n①この技がアルティメットゾーンにある間、技の使用後、ルーメンゾーンの【ガレージ】トークン1枚を除去できる。\nその場合、以下の効果を適用する。\n-このターン中にキャッチした場合、ターン終了時までこれ以上キャッチできない。\n-[[state:down_stance]]状態を解除できる。\n-〈上段回避〉判定の技、または〈下段〉判定の攻撃技を捨ててもよい。\nその場合、自分に[[state:down_stance]]状態を付与する。",
+   "new": "ゲーム開始時、[[token:garage]]トークン3枚をルーメンゾーンに配置する。\n①この技がアルティメットゾーンにある間、技の使用後、ルーメンゾーンの[[token:garage]]トークン1枚を除去できる。\nその場合、以下の効果を適用する。\n-このターン中にキャッチした場合、ターン終了時までこれ以上キャッチできない。\n-[[state:down_stance]]状態を解除できる。\n-〈上段回避〉判定の技、または〈下段〉判定の攻撃技を捨ててもよい。\nその場合、自分に[[state:down_stance]]状態を付与する。"
+  }
+ ]
+}

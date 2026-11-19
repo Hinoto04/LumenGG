@@ -802,7 +802,78 @@ def _fang_haken(code):
     ]
 
 
+def _blazing_thunder(code):
+    ember_speeds = [6, 7, 8]
+    return {
+        'combo_rules': [{'speed_options': list(ember_speeds), 'numbered_effect': True}],
+    }, [
+        _ability(
+            code, 'n1',
+            '콤보 시, <6~8속도>로 사용할 수 있다. 그 경우, 이 기술을 브레이크하고 [불씨]카운터를 3개 얻는다.',
+            timing='combo', active_zones=['battle'], trigger={'event': 'combo'},
+            # Q-AUTO-025: 그 속도로 사용하면 콤보 시 타이밍에 바로 브레이크한다(판정·데미지 처리는 이어진다).
+            # 일반 브레이크이므로 나찰염희(CRS-PS-001)의 [불씨] 1개도 얻어 합계 4개가 된다.
+            effects=[
+                {'op': 'static_rule', 'rules': ['combo_rules']},
+                {'op': 'conditional',
+                 'condition': {'op': 'in', 'left': 'context.combo_speed', 'right': list(ember_speeds)},
+                 'then': [
+                     {'op': 'break_card', 'card_instance_id': {'path': 'context.source_card_instance_id'},
+                      'continue_resolution': True},
+                     {'op': 'change_counter', 'player': {'controller': True}, 'counter': 'ember',
+                      'amount': 3, 'min': 0},
+                 ],
+                 'else': []},
+            ],
+        ),
+        _ability(
+            code, 'n2', '이 기술이 그랩 무효 되었을 경우, [불씨]카운터를 1개 얻는다.',
+            timing='result', active_zones=['battle'], trigger={'event': 'grab_negated'},
+            condition={'op': 'equals', 'left': 'context.event_controller', 'right': {'controller': True}},
+            effects=[{'op': 'change_counter', 'player': {'controller': True}, 'counter': 'ember',
+                      'amount': 1, 'min': 0}],
+        ),
+    ]
+
+
+def _merciful_lullaby(code):
+    moved = 'cb04_at_027_spider_lumen'
+    rival_spiders = {
+        'kind': 'card', 'player': {'opponent': True}, 'zones': ['list'], 'min': 1, 'all': True,
+        'where': {'token_key': 'spider'}, 'as_operation': 'move_card', 'to_zone': 'lumen',
+        'allow_special_destination': True,
+    }
+    return {
+        'combo_rules': [{'speed_options': [9], 'numbered_effect': True}],
+    }, [
+        _ability(
+            code, 'n1',
+            '히트/카운터/콤보 시, 상대 리스트의 [거미]토큰을 전부 자신의 루멘 존에 배치하고 '
+            '1장당 200데미지를 줄 수 있다.',
+            mode='optional', timing='hit_counter', active_zones=['battle'],
+            trigger={'event': 'hit', 'events': ['hit', 'counter', 'combo']},
+            availability_selector=copy.deepcopy(rival_spiders),
+            effects=[
+                {'op': 'move_card', 'selector': copy.deepcopy(rival_spiders), 'to_zone': 'lumen',
+                 'to_player': {'controller': True}, 'allow_special_destination': True,
+                 'result_key': moved},
+                {'op': 'deal_damage', 'player': {'opponent': True},
+                 'amount': {'op': 'multiply', 'values': [
+                     {'op': 'selection_count', 'selection_key': moved}, 200,
+                 ]}},
+            ],
+        ),
+        _ability(
+            code, 'n2', '콤보 시, <9속도>로 사용할 수 있다.',
+            timing='combo', trigger={'event': 'combo'},
+            effects=[{'op': 'static_rule', 'rules': ['combo_rules']}],
+        ),
+    ]
+
+
 BUILDERS = {
+    'CB04-AT-024': _blazing_thunder,
+    'CB04-AT-027': _merciful_lullaby,
     'CB04-AT-031': _tiptoe_walk,
     'CB04-AT-033': _panzer_reisser,
     'CB04-AT-034': _fang_haken,

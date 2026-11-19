@@ -20,6 +20,7 @@ CHARACTER_BY_CODE = {
     'CB04-TK-001': 'delphi', 'CB04-AT-021': 'tao', 'CB04-AT-022': 'tao',
     'CB04-AT-030': 'muyoung', 'CB04-AT-032': None,
     'CB04-AT-031': 'muyoung', 'CB04-AT-033': 'pinp', 'CB04-AT-034': 'pinp',
+    'CB04-AT-024': 'rin', 'CB04-AT-027': 'ezebel',
 }
 META_ROOT_KEYS = {'reviewed', 'draft', 'review_evidence', 'source_digest', 'source_refs'}
 META_ABILITY_KEYS = {'draft', 'source_refs'}
@@ -776,6 +777,85 @@ def _run_at034_recovery(definition, snapshot, owner, *, use=True):
     }
 
 
+def _ember(engine, side):
+    return int((engine.state['players'][side]['passive_state'].get('ember') or {}).get('count') or 0)
+
+
+def _combo_rule_summary(engine, owner, source):
+    live = engine._find_card(source['instance_id'])
+    combo = {'owner': owner, 'used': [], 'last_speed': 5}
+    rules = engine._combo_rules(owner, live, combo)
+    return live, rules, sorted({speed for rule in rules for speed in (rule.get('speed_options') or [])})
+
+
+def _rin_trait(owner):
+    from .drafts import build_effect_draft
+
+    text = '자신의 <[[character:rin]]> 기술이 브레이크될 때마다 [[token:ember]]카운터 1개를 얻는다.'
+    trait = _card(f'{owner}-rin-trait', owner, code='CRS-PS-001', type_='특성', character='rin', text=text)
+    return trait, build_effect_draft('CRS-PS-001', text)
+
+
+def _run_at024_combo(definition, snapshot, owner, *, speed, trait=False):
+    source = _source(snapshot, 'CB04-AT-024', owner)
+    zones = {owner: {'battle': [source]}}
+    definitions = {}
+    if trait:
+        trait_card, trait_definition = _rin_trait(owner)
+        zones[owner]['passive'] = [trait_card]
+        definitions['CRS-PS-001'] = trait_definition
+    engine = _engine(definition, source, zones, definitions=definitions,
+                     seed=f'cb04-at024-combo:{owner}:{speed}:{trait}')
+    _live, rules, speeds = _combo_rule_summary(engine, owner, source)
+    _fire(engine, 'combo', source, combo_speed=speed)
+    return {
+        'combo_speeds': speeds,
+        'zone_after_combo': _zone_of(engine, source['instance_id']),
+        'breaks_after_use': any(engine._combo_rule_breaks_after_use(rule, speed) for rule in rules),
+        'ember': _ember(engine, owner),
+    }
+
+
+def _run_at024_grab(definition, snapshot, owner, *, opponent_grab=False):
+    source = _source(snapshot, 'CB04-AT-024', owner)
+    rival = _card(f'{_opp(owner)}-grab', _opp(owner), code='REVIEW-CB04-RIVAL-GRAB', special='그랩')
+    engine = _engine(definition, source, {owner: {'battle': [source]}, _opp(owner): {'battle': [rival]}},
+                     seed=f'cb04-at024-grab:{owner}:{opponent_grab}')
+    _fire(engine, 'grab_negated', rival if opponent_grab else source, source_zone='battle')
+    return {'ember': _ember(engine, owner), 'opponent_ember': _ember(engine, _opp(owner))}
+
+
+def _spider_tokens(owner, count):
+    tokens = []
+    for index in range(count):
+        token = _card(f'{owner}-spider-{index}', owner, code='PMP-AT-053', type_='토큰', character='ezebel')
+        token['token_key'] = 'spider'
+        tokens.append(token)
+    return tokens
+
+
+def _run_at027_hit(definition, snapshot, owner, *, spiders, event='hit'):
+    source = _source(snapshot, 'CB04-AT-027', owner)
+    rival = _opp(owner)
+    engine = _engine(definition, source, {owner: {'battle': [source]}, rival: {'list': _spider_tokens(owner, spiders)}},
+                     seed=f'cb04-at027-hit:{owner}:{spiders}:{event}')
+    hp_before = engine.state['players'][rival]['hp']
+    _fire(engine, event, source)
+    zones = engine.state['players']
+    return {
+        'own_lumen_spiders': sum(card.get('token_key') == 'spider' for card in zones[owner]['zones']['lumen']),
+        'rival_list_spiders': sum(card.get('token_key') == 'spider' for card in zones[rival]['zones']['list']),
+        'rival_hp_delta': zones[rival]['hp'] - hp_before,
+    }
+
+
+def _run_at027_combo(definition, snapshot, owner):
+    source = _source(snapshot, 'CB04-AT-027', owner)
+    engine = _engine(definition, source, {owner: {'battle': [source]}}, seed=f'cb04-at027-combo:{owner}')
+    _live, _rules, speeds = _combo_rule_summary(engine, owner, source)
+    return {'combo_speeds': speeds}
+
+
 def _run_at034_n1(definition, snapshot, owner, *, recovery=False, **kwargs):
     runner = _run_at034_recovery if recovery else _run_at034_combo
     return runner(definition, snapshot, owner, **kwargs)
@@ -786,6 +866,37 @@ def _run_at034_n1(definition, snapshot, owner, *, recovery=False, **kwargs):
 def _cases():
     frost_ok = {'opponent_frost': True}
     return {
+        'cb04-at-024-n1': (_run_at024_combo, (
+            ('owner-p1-speed-7-breaks-on-combo-and-gains-three-ember', 'p1', {'speed': 7},
+             {'combo_speeds': [6, 7, 8], 'zone_after_combo': 'break', 'breaks_after_use': False, 'ember': 3}),
+            ('owner-p2-speed-8-with-trait-gains-four-ember', 'p2', {'speed': 8, 'trait': True},
+             {'zone_after_combo': 'break', 'ember': 4}),
+            ('owner-p1-speed-6-with-trait-gains-four-ember', 'p1', {'speed': 6, 'trait': True},
+             {'zone_after_combo': 'break', 'ember': 4}),
+            ('printed-speed-12-keeps-card-and-gains-nothing', 'p1', {'speed': 12, 'trait': True},
+             {'zone_after_combo': 'battle', 'breaks_after_use': False, 'ember': 0}),
+        )),
+        'cb04-at-024-n2': (_run_at024_grab, (
+            ('owner-p1-grab-negated-gains-one-ember', 'p1', {}, {'ember': 1, 'opponent_ember': 0}),
+            ('owner-p2-grab-negated-gains-one-ember', 'p2', {}, {'ember': 1, 'opponent_ember': 0}),
+            ('opponent-grab-negated-does-not-trigger', 'p1', {'opponent_grab': True},
+             {'ember': 0, 'opponent_ember': 0}),
+        )),
+        'cb04-at-027-n1': (_run_at027_hit, (
+            ('owner-p1-hit-moves-three-spiders-and-deals-600', 'p1', {'spiders': 3},
+             {'own_lumen_spiders': 3, 'rival_list_spiders': 0, 'rival_hp_delta': -600}),
+            ('owner-p2-combo-moves-two-spiders-and-deals-400', 'p2', {'spiders': 2, 'event': 'combo'},
+             {'own_lumen_spiders': 2, 'rival_list_spiders': 0, 'rival_hp_delta': -400}),
+            ('owner-p1-counter-moves-four-spiders-and-deals-800', 'p1', {'spiders': 4, 'event': 'counter'},
+             {'own_lumen_spiders': 4, 'rival_list_spiders': 0, 'rival_hp_delta': -800}),
+            ('no-spider-in-rival-list-does-nothing', 'p2', {'spiders': 0},
+             {'own_lumen_spiders': 0, 'rival_hp_delta': 0}),
+        )),
+        'cb04-at-027-n2': (_run_at027_combo, (
+            ('owner-p1-can-combo-at-speed-9', 'p1', {}, {'combo_speeds': [9]}),
+            ('owner-p2-can-combo-at-speed-9', 'p2', {}, {'combo_speeds': [9]}),
+            ('combo-rule-has-only-speed-9', 'p1', {}, {'combo_speeds': [9]}),
+        )),
         'cb04-at-031-n1': (_run_at031_combo, (
             ('owner-p1-three-oni-flash-adds-300', 'p1', {'oni_flash': 3}, {'damage_delta': 300}),
             ('owner-p2-two-oni-flash-adds-200', 'p2', {'oni_flash': 2}, {'damage_delta': 200}),

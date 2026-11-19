@@ -1,0 +1,96 @@
+[
+ {
+  "snapshot": {
+   "code": "CB04-AT-024",
+   "name": "폭염천뢰",
+   "ruby": "",
+   "text": "①콤보 시, <6~8속도>로 사용할 수 있다. 그 경우, 이 기술을 브레이크하고 [불씨]카운터를 3개 얻는다.\r\n②이 기술이 그랩 무효 되었을 경우, [불씨]카운터를 1개 얻는다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "공격",
+   "frame": 12,
+   "damage": 500,
+   "pos": "중단",
+   "body": "손",
+   "hit": "5",
+   "guard": "-4",
+   "counter": "8",
+   "special": "그랩",
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 11
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "Blazing Heavenly Thunder",
+    "text": "①On combo, this can be used at <Speed 6-8>. If so, break this Technique and gain 3 [Ember] Counters.\n②If this Technique's Grab is negated, gain 1 [Ember] Counter."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "爆炎天雷",
+    "text": "①コンボ時、〈速度6～8〉として使用できる。その場合、この技をブレイクし、[火種]カウンターを3個得る。\n②この技の投げが無効になった場合、[火種]カウンターを1個得る。"
+   }
+  }
+ },
+ {
+  "snapshot": {
+   "code": "CB04-AT-027",
+   "name": "머시풀 럴러바이",
+   "ruby": "",
+   "text": "①히트/카운터/콤보 시, 상대 리스트의 [거미]토큰을 전부 자신의 루멘 존에 배치하고 1장당 200데미지를 줄 수 있다. \r\n②콤보 시, <9속도>로 사용할 수 있다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "공격",
+   "frame": 11,
+   "damage": 400,
+   "pos": "하단",
+   "body": "잔향",
+   "hit": "5",
+   "guard": "-7",
+   "counter": "5",
+   "special": null,
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 13
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "Merciful Lullaby",
+    "text": "①On hit/counter/combo, you may place all [Spider] Tokens in your opponent's List into your Lumen Zone and deal 200 damage for each.\n②On combo, this can be used at <Speed 9>."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "マーシフル・ララバイ",
+    "text": "①ヒット/カウンター/コンボ時、相手のリストの[蜘蛛]トークンをすべて自分のルーメンゾーンに配置し、1枚につき200ダメージを与えることができる。\n②コンボ時、〈速度9〉として使用できる。"
+   }
+  }
+ }
+]
