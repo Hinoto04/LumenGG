@@ -759,3 +759,49 @@ class AttackClashSpeedTests(SimpleTestCase):
 
     def test_clash_attack_made_faster_by_fp_counters(self):
         self.assertEqual(self.judge(2), {'p1': 'counter', 'p2': 'countered'})
+
+
+class ClashTimingOwnerTests(SimpleTestCase):
+    """6.1.3: "상쇄 시"는 "자신이 상쇄 시"다. 상쇄 판정을 쓴 쪽만 상쇄 시 효과를 맞는다.
+
+    허퓨즈가 상대 방어를 상쇄로 바꿔 수비 상쇄가 나도 공격 측(레브)의 검은 깃털은
+    유발되지 않는다. 공격끼리의 상쇄도 상쇄 판정을 가진 느린 공격 쪽만 해당한다.
+    """
+
+    ON_CLASH = {'abilities': [{
+        'id': 'on-clash', 'kind': 'effect', 'mode': 'mandatory', 'timing': 'clash',
+        'visibility': 'public', 'trigger': {'event': 'clash'},
+        'effects': [{'op': 'change_fp', 'player': {'controller': True}, 'amount': 10}],
+    }]}
+
+    def run_battle(self, p1_card, p2_card):
+        rules = ruleset(p1_card, p2_card)
+        for card in (p1_card, p2_card):
+            rules['cards'][card['code']]['effect_definition'] = self.ON_CLASH
+        engine = AutomaticGameEngine.initialize(
+            base_state([p1_card], [p2_card]), rules, seed='clash-owner', run_startup=False,
+        )
+        act = lambda role, kind: engine.submit_action(role, next(
+            a for a in engine.legal_actions(role) if a['type'] == kind)['action_id'])
+        act('p1', 'pass_phase'); act('p2', 'pass_phase')
+        act('p1', 'ready_card'); act('p2', 'ready_card')
+        judged = next(e for e in engine.events if e['type'] == 'battle_judged')['payload']['result']
+        resolved = [
+            e['actor'] for e in engine.events
+            if e['type'] == 'effect_resolved' and e['payload'].get('ability_id') == 'on-clash'
+        ]
+        return judged, resolved
+
+    def test_defense_clash_triggers_only_defender(self):
+        hit = attack('hapfuse', 'p1', frame=11, position='상단')
+        guard = defense('changed-guard', 'p2', top='상쇄')
+        judged, resolved = self.run_battle(hit, guard)
+        self.assertEqual(judged, {'p1': 'clash', 'p2': 'clash'})
+        self.assertEqual(resolved, ['p2'])
+
+    def test_attack_clash_triggers_only_slower_clashing_attack(self):
+        cutter = attack('cutter', 'p1', frame=10, position='하단', special='하단 상쇄')
+        slide = attack('slide', 'p2', frame=6, position='하단')
+        judged, resolved = self.run_battle(cutter, slide)
+        self.assertEqual(judged, {'p1': 'clash', 'p2': 'clash'})
+        self.assertEqual(resolved, ['p1'])

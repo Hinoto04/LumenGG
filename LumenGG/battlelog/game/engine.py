@@ -1743,6 +1743,7 @@ class AutomaticGameEngine:
 
         c1, c2 = battle['p1']['card'], battle['p2']['card']
         result = {'p1': 'none', 'p2': 'none'}
+        battle.pop('clash_sides', None)
         invalidated = {
             'p1': bool(c1.get('technique_invalidated')),
             'p2': bool(c2.get('technique_invalidated')),
@@ -1758,9 +1759,16 @@ class AutomaticGameEngine:
             pass
         elif _is_attack(c1) and _is_defense(c2):
             result['p1'], result['p2'] = self._attack_vs_defense(c1, c2, 'p1', 'p2')
+            if result['p2'] == 'clash':
+                # 수비 상쇄(7.5.5)에서 "상쇄 시"를 맞는 것은 수비 측뿐이다.
+                # 허퓨즈가 상대 방어를 상쇄로 바꿔도 공격 측(레브)의 검은
+                # 깃털 같은 "상쇄 시" 효과는 유발되지 않는다(6.1.3).
+                battle['clash_sides'] = ['p2']
         elif _is_defense(c1) and _is_attack(c2):
             defender_result, attacker_result = self._attack_vs_defense(c2, c1, 'p2', 'p1')
             result['p1'], result['p2'] = attacker_result, defender_result
+            if result['p1'] == 'clash':
+                battle['clash_sides'] = ['p1']
         elif _is_attack(c1) and _is_attack(c2):
             r1 = _special_result(c1, c2.get('pos'))
             r2 = _special_result(c2, c1.get('pos'))
@@ -1800,6 +1808,13 @@ class AutomaticGameEngine:
                 final_speed['p2'] > final_speed['p1'] and r2 == 'clash'
             ):
                 result = {'p1': 'clash', 'p2': 'clash'}
+                # 상쇄를 일으킨 쪽은 상쇄 판정을 가진 느린 공격이다(6.1.3:
+                # "상쇄 시"는 "자신이 상쇄 시").
+                battle['clash_sides'] = [
+                    side for side, own in (('p1', r1), ('p2', r2))
+                    if own == 'clash'
+                    and final_speed[side] > final_speed[opponent(side)]
+                ]
             elif final_speed['p1'] < final_speed['p2']:
                 result = {'p1': 'counter', 'p2': 'countered'}
             else:
@@ -2215,8 +2230,11 @@ class AutomaticGameEngine:
                 sequence.append(('hit', result_context(
                     side, result='clash', clash_hit=True,
                 )))
+        clash_sides = battle.get('clash_sides')
         for side in self._priority_order():
-            if results.get(side) == 'clash':
+            if results.get(side) == 'clash' and (
+                clash_sides is None or side in clash_sides
+            ):
                 sequence.append(('clash', result_context(
                     side, result='clash',
                 )))
