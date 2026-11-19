@@ -1,6 +1,6 @@
 {
   "name": "lumendb-mobile",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
