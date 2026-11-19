@@ -2085,7 +2085,7 @@ def _localized_card_metadata(card, language):
         _localized_card_term_labels(metadata, language)
     # 상태 응답의 카드와 같은 렌더링 결과(마크업 → 표시 문자열). 필드 추가만.
     for field_name in ('text', 'detail_text'):
-        metadata[f'{field_name}_label'] = render_localized_markup(metadata.get(field_name), language)
+        metadata[f'{field_name}_label'] = render_visible_markup(metadata.get(field_name) or '', language)
     return metadata
 
 
@@ -2098,8 +2098,8 @@ def _render_card_markup_labels(state, language):
                     continue
                 for field_name in ('text', 'detail_text'):
                     if field_name in card:
-                        card[f'{field_name}_label'] = render_localized_markup(
-                            card.get(field_name), language,
+                        card[f'{field_name}_label'] = render_visible_markup(
+                            card.get(field_name) or '', language,
                         )
     return state
 
@@ -2534,7 +2534,59 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
         payload['protocol_version'] = PLAY_PROTOCOL_VERSION
     if language == DEFAULT_LANGUAGE:
         payload['state'] = _render_card_markup_labels(payload['state'], language)
-    return payload
+    return _render_payload_markup(payload, language)
+
+
+RAW_TEXT_FIELDS = {'text', 'detail_text'}
+
+
+def _render_payload_markup(payload, language=DEFAULT_LANGUAGE):
+    """Render every player-visible ``[[kind:slug]]`` token before it leaves the server.
+
+    Card text, ability labels, decision prompts/options and the deck-preparation
+    catalog all carry semantic markup. The whole payload is rendered once
+    (memoized per call). Card ``text``/``detail_text`` keep their source and get
+    a ``*_label`` added (field addition only). ``legal_actions[].payload`` is
+    echoed back to the engine verbatim and is therefore left untouched.
+    """
+    memo = {}
+
+    def render(value):
+        if isinstance(value, str):
+            if '[[' not in value:
+                return value
+            if value not in memo:
+                memo[value] = render_visible_markup(value, language)
+            return memo[value]
+        if isinstance(value, dict):
+            result = {}
+            for key, item in value.items():
+                if key in RAW_TEXT_FIELDS and isinstance(item, str):
+                    # 원문은 그대로 두고(이미 배포된 앱 호환) 표시용 *_label을 더한다.
+                    result[key] = item
+                    label = f'{key}_label'
+                    if label not in value and '[[' in item:
+                        result[label] = render(item)
+                    continue
+                result[key] = render(item)
+            return result
+        if isinstance(value, list):
+            return [render(item) for item in value]
+        return value
+
+    rendered = {}
+    for key, value in payload.items():
+        if key == 'legal_actions' and isinstance(value, list):
+            rendered[key] = [
+                {
+                    name: (item if name == 'payload' else render(item))
+                    for name, item in action.items()
+                } if isinstance(action, dict) else action
+                for action in value
+            ]
+        else:
+            rendered[key] = render(value)
+    return rendered
 
 
 def serialize_simulator_events(session, seat='', token='', language=DEFAULT_LANGUAGE, event_limit=SIMULATOR_DEFAULT_EVENT_LIMIT):

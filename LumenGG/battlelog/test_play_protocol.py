@@ -26,7 +26,7 @@ from .game.engine import ACTION_UI_KINDS, AutomaticGameEngine, IllegalAction
 from .models import LumenSimulatorSession, RulesetRelease
 from .play_protocol import PLAY_PROTOCOL_VERSION, validate_play_envelope
 from .routing import websocket_urlpatterns
-from .simulator_services import _filtered_event, serialize_simulator_session
+from .simulator_services import _filtered_event, _render_payload_markup, serialize_simulator_session
 from .test_automatic_engine import attack, base_state, defense, ruleset
 
 
@@ -146,6 +146,44 @@ def _play_scenario(sample=None):
         for card in cards
     }
     return state, _play_ruleset(cards, characters), metadata
+
+
+class PayloadMarkupRenderingTests(SimpleTestCase):
+    """다국어용 [[kind:slug]] 마크업이 화면으로 나가는 문자열에 남지 않는다."""
+
+    def test_display_text_is_rendered_but_action_payload_is_echoed_verbatim(self):
+        payload = {
+            'state': {'players': {'p1': {'zones': {'hand': [{'text': '[[term_missing:charge_up]] 효과'}]}}}},
+            'pending_decision': {
+                'prompt': '[[unknown_kind:first_choice]]를 고르세요',
+                'options': [{'id': 'opt-1', 'label': '[[token-card:spare_part]] 생성'}],
+            },
+            'preparation': {'players': {'p1': {'registered': {'catalog': {'7': {'text': '[[plain_slug]]'}}}}}},
+            'legal_actions': [{
+                'type': 'activate', 'label': '[[unknown_kind:boost_mode]] 발동',
+                'payload': {'note': '[[keep:me]]'},
+            }],
+        }
+        rendered = _render_payload_markup(payload)
+        card = rendered['state']['players']['p1']['zones']['hand'][0]
+        self.assertEqual(card['text'], '[[term_missing:charge_up]] 효과')
+        self.assertEqual(card['text_label'], 'charge up 효과')
+        catalog_card = rendered['preparation']['players']['p1']['registered']['catalog']['7']
+        self.assertEqual(catalog_card['text_label'], 'plain slug')
+        for raw in (card, catalog_card):
+            raw.pop('text')
+        text = json.dumps(
+            {key: value for key, value in rendered.items() if key != 'legal_actions'},
+            ensure_ascii=False,
+        )
+        self.assertNotIn('[[', text)
+        self.assertIn('first choice', rendered['pending_decision']['prompt'])
+        self.assertEqual(rendered['pending_decision']['options'][0]['id'], 'opt-1')
+        action = rendered['legal_actions'][0]
+        self.assertNotIn('[[', action['label'])
+        self.assertEqual(action['payload'], {'note': '[[keep:me]]'})
+        # 원본은 바꾸지 않는다(세션 문서를 그대로 넘겨받는 경우가 있다).
+        self.assertIn('[[', payload['pending_decision']['prompt'])
 
 
 class PlayActionUiTableTests(SimpleTestCase):

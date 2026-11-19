@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlayEnvelope, PrepActive, PrepCatalogCard } from "../protocol";
 import { perspective, usePlay } from "../store";
 import { playSound } from "../sound/sfx";
+import { plainMarkup } from "../markup";
 import {
   available,
   canMove,
@@ -78,7 +79,7 @@ function CopyTile({
 }
 
 function cardText(card: PrepCatalogCard): string {
-  return String(card.text ?? "").replace(/\[\[[a-z_]+:([^\]]+)\]\]/g, "「$1」");
+  return plainMarkup(card.text_label || card.text);
 }
 
 function Thumb({ card, onPreview }: { card: PrepCatalogCard; onPreview: (card: PrepCatalogCard) => void }) {

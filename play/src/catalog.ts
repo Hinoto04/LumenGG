@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { BoardCard, CardMeta, PlayEnvelope, VisibleCard } from "./protocol";
+import { plainMarkup } from "./markup";
 
 /**
  * card_id → 카드 메타데이터(이미지, 효과문). 상태 응답에는 이미지가 없으므로
@@ -40,10 +41,10 @@ export function cardImage(view: CardView | null, size: ImageSize): string | null
   return view.img || view.img_sm || null;
 }
 
-/** 서버가 렌더한 *_label을 우선 쓰고, 없을 때만 [[kind:slug]] → 「slug」로 최소 처리한다. */
+/** 서버가 렌더한 *_label을 우선 쓰고, 남은 마크업은 markup.ts에서 이름만 남긴다. */
 function renderText(label: unknown, raw: unknown): string {
   const text = String(label || raw || "");
-  return text.replace(/\[\[[a-z_]+:([^\]]+)\]\]/g, "「$1」").replace(/\r\n/g, "\n");
+  return plainMarkup(text).replace(/\r\n/g, "\n");
 }
 
 export function cardText(view: CardView | null): string {

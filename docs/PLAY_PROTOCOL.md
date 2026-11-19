@@ -75,6 +75,15 @@ GET simulator/<view_token>/card-metadata/?ids=109,110   (최대 200개)
 | `img_lg` | 원본 크기, 확대 보기 |
 | `text_label`, `detail_text_label` | `[[state:charge]]` 같은 마크업을 표시 문자열(「차지」)로 렌더한 효과문 |
 
+다국어용 의미 마크업(`[[card:CODE]]`, `[[state:charge]]`, `[[token-card:...]]` 등)은 서버가 보내기 전에 모두 표시 문자열로 렌더한다(`simulator_services._render_payload_markup`).
+
+- 카드 `text`·`detail_text`는 원문을 그대로 두고 `*_label`을 더한다. 이미 배포된 앱과 호환하기 위해 필드는 추가만 한다.
+- 덱 준비 카탈로그에도 같은 방식으로 `*_label`을 더한다.
+- 선택 프롬프트·선택지·행동 라벨·능력 라벨 등 나머지 표시 문자열은 그 자리에서 렌더한다.
+- `legal_actions[].payload`는 엔진에 그대로 돌려보내야 하므로 건드리지 않는다.
+- 번역이 없는 토큰은 종류를 떼고 이름만 남긴다(`[[foo:bar_baz]]` → `bar baz`).
+- 클라이언트도 같은 규칙의 안전망(`play/src/markup.ts`)을 거쳐, 대괄호 표기가 화면에 그대로 나오지 않게 한다.
+
 화면에서는 상태 카드의 값(게임 중 바뀐 수치)을 우선하고, 비어 있는 값만 카탈로그로 채운다(`play/src/catalog.ts`).
 캐릭터 이미지(`img` 전신, `icon_img` 아이콘)와 `color`는 `state.players[side].character`에 이미 들어 있다.
 

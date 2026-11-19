@@ -5,6 +5,7 @@ import type { BoardCard, GameEvent, PlayEnvelope, Side, VisibleCard, ZoneName } 
 import { perspective, usePlay } from "../store";
 import { addFloat, clearFx, shake, showBanner, showRibbon, useFx, type Tone } from "./fx";
 import { soundForEvent } from "../sound/events";
+import { plainMarkup } from "../markup";
 
 /**
  * 이벤트 재생기.
@@ -408,7 +409,7 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
     }
 
     case "effect_resolved": {
-      const text = String(payload.effect_label ?? "").replace(/\[\[[a-z_]+:([^\]]+)\]\]/g, "「$1」");
+      const text = plainMarkup(payload.effect_label);
       if (!text) return { envelope, ms: 0 };
       showRibbon({ side: actor === "p1" || actor === "p2" ? actor : "system", card: String(payload.card_label ?? ""), text }, dur(1500));
       return { envelope, ms: 900 };
