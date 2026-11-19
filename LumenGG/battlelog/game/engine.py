@@ -1114,8 +1114,36 @@ class AutomaticGameEngine:
                 continue
             if self._auto_advance_actionless_phase():
                 continue
+            if self._settle_unplayable_combo():
+                continue
             return
         raise EngineError('자동 진행 단계 제한을 초과했습니다.')
+
+    def _settle_unplayable_combo(self):
+        """콤보 타임에 들어왔지만 낼 수 있는 행동이 없으면 콤보 타임을 끝낸다.
+
+        콤보 타임 진입 시 효과(드리프트 컨버전)를 보고 들어왔다가 그 효과를
+        발동하지 않으면 2·3콤보 조합이 없을 수 있다.
+        """
+        if self.state.get('phase') != 'battle' or self.engine_state.get('step') != 'combo':
+            return False
+        if self.engine_state.get('pending_decision') or self.engine_state.get('pipeline'):
+            return False
+        combo = self.engine_state.get('combo') or {}
+        role = combo.get('owner')
+        if (
+            role not in PLAYER_SIDES or combo.get('proposal_submitted')
+            or (combo.get('used') or [])
+        ):
+            return False
+        if any(
+            action.get('type') not in {'concede', 'request_rewind'}
+            for action in self.legal_actions(role)
+        ):
+            return False
+        self._emit_unavailable_combo(combo)
+        self.end_combo()
+        return True
 
     def _confirm_opening_review(self, role):
         if self.engine_state.get('startup_stage') != 'opening_review':
@@ -2528,6 +2556,18 @@ class AutomaticGameEngine:
                     'use_context': str(use_context or 'ready'),
                 })
             self._fire('combo', combo_context)
+        if announce_start and not special:
+            # 콤보 타임 진입 시(2·3콤보를 제시하기 전). 드리프트 컨버전처럼 이번
+            # 콤보를 잇는 방법을 바꾸는 효과가 여기서 유발된다.
+            entry_context = {
+                'controller': owner_side,
+                'source_card_instance_id': source,
+                'combo_number': 1,
+                'special_combo': False,
+            }
+            if source_card:
+                entry_context['source_card'] = copy.deepcopy(source_card)
+            self._fire('combo_time_start', entry_context)
 
     def _combo_grant_can_open(self, item):
         """Return whether a newly opened Combo has its mandatory first pair.
@@ -2546,8 +2586,97 @@ class AutomaticGameEngine:
             and self._combo_review_isolation()
         ):
             return True
-        return self._combo_has_legal_initial_pair(
+        if self._combo_has_legal_initial_pair(
             item.get('owner'), source=item.get('source'), special=special,
+        ):
+            return True
+        # 그대로는 2·3콤보 조합이 없어도, 콤보 타임 진입 시 효과(드리프트
+        # 컨버전)를 적용하면 이을 수 있다면 콤보 타임에 들어간다.
+        return not special and self._combo_entry_grant_available(
+            item.get('owner'), source=item.get('source'),
+        )
+
+    def _combo_entry_grant_available(self, role, *, source=None):
+        if role not in PLAYER_SIDES:
+            return False
+        from .effects import _ability_limit_key
+        for zone_name, cards in self.state['players'][role]['zones'].items():
+            for card in cards:
+                definition = self._definition_for_card(card)
+                for ability in definition.get('abilities') or []:
+                    spec = ability.get('availability_combo_grant')
+                    trigger = ability.get('trigger') or {}
+                    events = set(trigger.get('events') or [trigger.get('event')])
+                    if not spec or 'combo_time_start' not in events:
+                        continue
+                    if zone_name not in (ability.get('active_zones') or ['battle']):
+                        continue
+                    if (
+                        card.get('numbered_effects_negated')
+                        and ability.get('kind') == 'effect'
+                    ):
+                        continue
+                    context = {
+                        'controller': role, 'player': role,
+                        'opponent': opponent(role),
+                        'event_controller': role,
+                        'source_card': card,
+                        'source_card_instance_id': card.get('instance_id'),
+                        'combo_number': 1, 'special_combo': False,
+                    }
+                    limit = ability.get('limit') or {}
+                    if limit:
+                        scope = str(limit.get('scope') or 'game')
+                        key = _ability_limit_key(ability, context)
+                        used = (
+                            ((self.engine_state.get('usage') or {}).get(scope) or {})
+                            .get(role) or {}
+                        ).get(key, 0)
+                        if _number(used) >= _number(limit.get('max', 1)):
+                            continue
+                    if not condition_matches(
+                        ability.get('condition'), self.state, context,
+                    ):
+                        continue
+                    if self._combo_has_legal_initial_pair(
+                        role, source=source,
+                        extra_modifiers=self._combo_grant_previews(
+                            spec, role, card.get('instance_id'),
+                        ),
+                    ):
+                        return True
+        return False
+
+    @staticmethod
+    def _combo_grant_previews(spec, role, source_id):
+        previews = []
+        for modifier in (spec or {}).get('modifiers') or []:
+            resolved = copy.deepcopy(modifier)
+            resolved.update({
+                'op': 'modify_combo', 'controller': role, 'player': role,
+                'source': source_id, 'proposal_preview': True,
+            })
+            previews.append(resolved)
+        return previews
+
+    def combo_grant_available(self, spec, context=None):
+        """availability_combo_grant: 이 콤보 변경을 적용하면 2·3콤보를 함께 제시할 수 있는가."""
+        if not spec:
+            return True
+        context = context or {}
+        role = context.get('controller')
+        combo = self.engine_state.get('combo') or {}
+        if (
+            role not in PLAYER_SIDES or combo.get('owner') != role
+            or combo.get('used') or combo.get('proposal_submitted')
+            or combo.get('special')
+        ):
+            return False
+        return self._combo_has_legal_initial_pair(
+            role, source=combo.get('source'),
+            extra_modifiers=self._combo_grant_previews(
+                spec, role, context.get('source_card_instance_id'),
+            ),
         )
 
     def _combo_review_isolation(self):
@@ -3136,7 +3265,7 @@ class AutomaticGameEngine:
         return first_actions
 
     def _combo_has_legal_initial_pair(
-        self, role, *, source=None, special=False,
+        self, role, *, source=None, special=False, extra_modifiers=None,
     ):
         if role not in PLAYER_SIDES:
             return False
@@ -3145,6 +3274,8 @@ class AutomaticGameEngine:
             'used': [], 'next_penalty': 0 if special else 100,
             'proposal_submitted': False,
         }
+        if extra_modifiers:
+            combo['proposal_modifiers'] = list(extra_modifiers)
         if source and not special:
             source_card = self._find_card(source)
             if source_card and _is_attack(source_card):

@@ -41826,7 +41826,7 @@ class AutomaticEngineTests(SimpleTestCase):
             validate_effect_definition(definition, card_has_text=True), [],
         )
 
-    def test_crs_at_054_reviews_side_break_and_required_slow_third_combo(self):
+    def test_crs_at_054_reviews_combo_entry_side_break_and_slow_third_combo(self):
         text = (
             '이 기술은 3장까지 덱에 넣을 수 있다.\n'
             '①콤보 시, 사이드 덱에서 이 기술을 브레이크할 수 있다.'
@@ -41852,29 +41852,35 @@ class AutomaticEngineTests(SimpleTestCase):
 
         self.assertTrue(result.passed, result.as_dict())
         self.assertEqual(len(result.abilities), 2)
-        self.assertEqual(result.as_dict()['scenario_count'], 13)
+        self.assertEqual(result.as_dict()['scenario_count'], 15)
         by_id = {ability.ability_id: ability for ability in result.abilities}
         conversion = {
             item['name']: item
             for item in by_id['crs-at-054-n1'].scenarios
         }
         full_flow = conversion[
-            'qna594-full-flow-uses-slow-third-and-ends-combo'
+            'qna594-full-flow-slow-third-then-combo-ends'
         ]
-        self.assertFalse(full_flow['slow_before'])
-        self.assertTrue(full_flow['slow_after'])
+        self.assertTrue(full_flow['slow_pair'])
         self.assertTrue(full_flow['third_used'])
+        self.assertFalse(full_flow['fourth_offered'])
         self.assertTrue(full_flow['combo_ended'])
         self.assertEqual(full_flow['replenishment_count'], 0)
+        entry = conversion['owner-p1-combo-entry-breaks-side-source']
+        self.assertFalse(entry['pair_before'])
+        self.assertTrue(entry['combo_opens'])
+        self.assertFalse(
+            conversion['no-second-technique-does-not-offer']['offered'],
+        )
         failed_break = conversion[
             'failed-break-does-not-grant-followup'
         ]
         self.assertTrue(failed_break['break_prevented'])
         self.assertEqual(failed_break['modifier_count'], 0)
         mutated = copy.deepcopy(definition)
-        mutated['abilities'][1]['effects'][1]['then'][0][
-            'end_after_use'
-        ] = False
+        mutated['abilities'][1]['effects'][1]['then'][1][
+            'max_combo_cap'
+        ] = 4
         self.assertFalse(review_automatic_definition(
             mutated, card_has_text=True, card_snapshot=snapshot,
         ).passed)

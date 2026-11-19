@@ -240,7 +240,7 @@ EVENT_LABELS = {
     'opponent_hit': '상대 히트 시', 'counter': '카운터 시',
     'opponent_counter': '상대 카운터 시', 'clash': '상쇄 시',
     'opponent_clash': '상대 상쇄 시', 'combo': '콤보 시',
-    'combo_window': '콤보 타임', 'catch': '캐치 시',
+    'combo_window': '콤보 타임', 'combo_time_start': '콤보 타임 진입 시', 'catch': '캐치 시',
     'combo_end': '콤보 종료', 'opponent_combo_end': '상대 콤보 종료',
     'after_judgment': '판정 후', 'after_use': '사용 후',
     'damage_before': '데미지 전', 'damage_after': '데미지 후',

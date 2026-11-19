@@ -16,6 +16,7 @@ EVENT_TIMING = {
     'opponent_counter': 'opponent_hit_counter',
     'clash': 'clash', 'opponent_clash': 'opponent_clash',
     'combo': 'combo', 'combo_window': 'combo', 'catch': 'catch',
+    'combo_time_start': 'combo',
     'combo_end': 'cleanup', 'opponent_combo_end': 'cleanup',
     'battle_end': 'cleanup',
     'card_guess_resolved': 'result', 'grab_negated': 'result',
@@ -898,6 +899,9 @@ class EffectResolver:
                     and self.engine.selector_has_minimum(
                         ability.get('availability_selector'), context,
                     )
+                    and self.engine.combo_grant_available(
+                        ability.get('availability_combo_grant'), context,
+                    )
                 ):
                     dedupe_key = str(ability.get('dedupe_trigger_key') or '').strip()
                     dedupe_identity = (controller, event_type, dedupe_key)
@@ -1151,6 +1155,8 @@ class EffectResolver:
                 continue
             if not self.engine.selector_has_minimum(
                 ability.get('availability_selector'), context,
+            ) or not self.engine.combo_grant_available(
+                ability.get('availability_combo_grant'), context,
             ):
                 continue
             mode = ability.get('mode')
@@ -1225,6 +1231,8 @@ class EffectResolver:
             )
         ) and self.engine.selector_has_minimum(
             item['ability'].get('availability_selector'), item['context'],
+        ) and self.engine.combo_grant_available(
+            item['ability'].get('availability_combo_grant'), item['context'],
         ):
             self.execute_ability(item)
         return self.drain()

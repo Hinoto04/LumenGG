@@ -21132,29 +21132,43 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             function.pop('condition', None)
         if conversion:
             broken_key = 'crs_at_054_source_broken'
+            # 3콤보만 패에서 속도를 무시하고 잇고, 3콤보 후 콤보 타임을 끝낸다.
+            drift_modifiers = [
+                {
+                    'op': 'modify_combo',
+                    'player': {'controller': True},
+                    'source_zones': ['hand'],
+                    'ignore_speed': True,
+                    'condition': {
+                        'op': 'equals',
+                        'left': 'context.combo_number', 'right': 3,
+                    },
+                    'duration': 'combo',
+                },
+                {
+                    'op': 'modify_combo',
+                    'player': {'controller': True},
+                    'max_combo_cap': 3,
+                    'duration': 'combo',
+                },
+            ]
             conversion.update({
                 'kind': 'effect', 'mode': 'optional',
                 'timing': 'combo', 'active_zones': ['side'],
                 'allow_non_source_trigger': True,
-                # 사이드의 여러 장이 같은 콤보 창에서 함께 발동하지 않도록
+                # 사이드의 여러 장이 같은 콤보 타임에 함께 발동하지 않도록
                 # 같은 이름의 효과는 턴당 1회만 해결한다.
                 'limit': {'scope': 'turn', 'max': 1},
-                # ``combo`` is source-only for the Technique currently being
-                # resolved.  ``combo_window`` is the shared timing window in
-                # which a Side-zone Technique may react.
-                'trigger': {'event': 'combo_window'},
+                # 콤보 타임 진입 시(2·3콤보 제시 전)에 유발한다. 적용했을 때
+                # 2·3콤보를 함께 제시할 수 있을 때만 발동을 묻는다.
+                'trigger': {'event': 'combo_time_start'},
                 'condition': {
-                    'op': 'all', 'conditions': [
-                        {
-                            'op': 'equals',
-                            'left': 'context.event_controller',
-                            'right': {'path': 'context.controller'},
-                        },
-                        {
-                            'op': 'equals',
-                            'left': 'context.combo_number', 'right': 2,
-                        },
-                    ],
+                    'op': 'equals',
+                    'left': 'context.event_controller',
+                    'right': {'path': 'context.controller'},
+                },
+                'availability_combo_grant': {
+                    'modifiers': copy.deepcopy(drift_modifiers),
                 },
                 'draft_compiled': True,
                 'effects': [
@@ -21171,20 +21185,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                             },
                             'right': 1,
                         },
-                        'then': [{
-                            'op': 'modify_combo',
-                            'player': {'controller': True},
-                            'allow_zones': ['hand'],
-                            'source_zones': ['hand'],
-                            'min_combo': 3, 'max_combo': 3,
-                            'ignore_speed': True,
-                            'requires_followup': True,
-                            'end_after_use': True,
-                            'usage_key': 'crs_at_054_followup',
-                            'usage_key_source_scoped': True,
-                            'max_uses': 1, 'usage_scope': 'battle',
-                            'duration': 'combo',
-                        }],
+                        'then': copy.deepcopy(drift_modifiers),
                         'else': [],
                     },
                 ],

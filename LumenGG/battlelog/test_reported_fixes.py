@@ -531,64 +531,102 @@ class DaggerCounterTokenTests(SimpleTestCase):
         )
 
 
-DRIFT_CONVERSION = {
-    'abilities': [{
-        'id': 'crs-at-054-n1', 'kind': 'effect', 'mode': 'optional', 'timing': 'combo',
-        'visibility': 'public', 'trigger': {'event': 'combo_window'}, 'active_zones': ['side'],
-        'limit': {'scope': 'turn', 'max': 1},
-        'condition': {'op': 'all', 'conditions': [
-            {'op': 'equals', 'left': 'context.event_controller', 'right': {'path': 'context.controller'}},
-            {'op': 'equals', 'left': 'context.combo_number', 'right': 2},
-        ]},
-        'effects': [
-            {'op': 'break_card', 'result_key': 'crs_at_054_source_broken'},
-            {'op': 'conditional', 'condition': {
-                'op': 'gte', 'left': {'op': 'selection_count', 'selection_key': 'crs_at_054_source_broken'},
-                'right': 1,
-            }, 'then': [{
-                'op': 'modify_combo', 'player': {'controller': True}, 'allow_zones': ['hand'],
-                'source_zones': ['hand'], 'min_combo': 3, 'max_combo': 3, 'ignore_speed': True,
-                'requires_followup': True, 'end_after_use': True, 'usage_key': 'crs_at_054_followup',
-                'usage_key_source_scoped': True, 'max_uses': 1, 'usage_scope': 'battle', 'duration': 'combo',
-            }], 'else': []},
-        ],
-    }],
-}
+DRIFT_TEXT = (
+    '이 기술은 3장까지 덱에 넣을 수 있다.\n'
+    '①콤보 시, 사이드 덱에서 이 기술을 브레이크할 수 있다.'
+    '(사이드 덱에서 브레이크할 경우, 사이드 덱에서 리스트로 카드를 놓지 않는다.)\n'
+    '그 경우, 3콤보 기술을 속도를 무시하고 패에서 1장 이을 수 있다.\n'
+    '그 기술의 사용 후, 콤보 타임을 종료한다.'
+)
 
 
-class DriftConversionPresentedPairTests(SimpleTestCase):
-    """드리프트 컨버전: 2콤보와 함께 제시한 패의 기술을 속도를 무시하고 3콤보로 잇는다."""
+class DriftConversionComboEntryTests(SimpleTestCase):
+    """드리프트 컨버전: 콤보 타임 진입 시, 적용하면 2·3콤보를 이을 수 있을 때 유발한다.
 
-    def test_presented_hand_card_continues_after_conversion(self):
+    3콤보만 패에서 속도를 무시하고 잇고, 3콤보 후 콤보 타임을 끝낸다.
+    """
+
+    def build(self, hand_frames):
+        from .game.drafts import build_effect_draft
         starter = attack('st', 'p1', frame=5, hit='콤보')
-        first = attack('a', 'p1', frame=5)
-        slow = attack('b', 'p1', frame=6)
+        hand = [attack(f'h{i}', 'p1', frame=frame) for i, frame in enumerate(hand_frames)]
         drift = {**attack('drift', 'p1', code='CRS-AT-054'), 'type': '특수', 'frame': None, 'damage': None}
-        opposing = attack('opp', 'p2', frame=9)
+        opposing = defense('opp', 'p2', top=None, mid=None, bottom=None)
         state = base_state([], [])
         state['phase'] = 'battle'
         state['players']['p1']['zones']['battle'] = [starter]
-        state['players']['p1']['zones']['hand'] = [first, slow]
+        state['players']['p1']['zones']['hand'] = hand
         state['players']['p1']['zones']['side'] = [drift]
         state['players']['p2']['zones']['battle'] = [opposing]
-        rules = ruleset(starter, first, slow, drift, opposing)
-        rules['cards']['CRS-AT-054'].update({'type': '특수', 'effect_definition': DRIFT_CONVERSION})
-        engine = AutomaticGameEngine.initialize(state, rules, seed='drift-pair', run_startup=False)
+        rules = ruleset(starter, *hand, drift, opposing)
+        rules['cards']['CRS-AT-054'].update({
+            'type': '특수', 'effect_definition': build_effect_draft('CRS-AT-054', DRIFT_TEXT, qna_ids=[594]),
+        })
+        engine = AutomaticGameEngine.initialize(state, rules, seed='drift-entry', run_startup=False)
         engine.state['phase'] = 'battle'
         engine.engine_state['battle'] = {
             'p1': {'instance_id': 'st', 'card': starter},
             'p2': {'instance_id': 'opp', 'card': opposing},
         }
-        engine.grant_combo('p1', source='st')
-        engine._play_combo('p1', ['a', 'b'])
-        engine._continue()
+        return engine
+
+    def open_combo(self, engine):
+        item = {'owner': 'p1', 'source': 'st', 'special': False, 'combo_triggered': True}
+        can_open = engine._combo_grant_can_open(item)
+        if can_open:
+            engine.grant_combo('p1', source='st', trigger_event=False)
+            engine._continue()
+        return can_open
+
+    def answer(self, engine, accept):
         decision = engine.engine_state['pending_decision']
         self.assertEqual(decision['kind'], 'optional_effect')
-        engine._submit_decision('p1', decision['id'], ['accept'])
+        engine._submit_decision('p1', decision['id'], ['accept' if accept else 'decline'])
         engine._continue()
+
+    def play_pair(self, engine, first, second):
+        action = next(
+            a for a in engine.legal_actions('p1')
+            if a['type'] == 'select_combo_first' and a['payload'].get('card_instance_id') == first
+        )
+        engine.submit_action('p1', action['action_id'])
+        action = next(
+            a for a in engine.legal_actions('p1')
+            if a['type'] == 'select_combo_followup' and second in str(a['payload'])
+        )
+        engine.submit_action('p1', action['action_id'])
+
+    def test_slow_third_combo_then_combo_time_ends(self):
+        engine = self.build([10, 2])
+        self.assertTrue(self.open_combo(engine))
+        self.answer(engine, True)
+        self.assertEqual(engine._find_location('drift')[1], 'break')
+        self.play_pair(engine, 'h0', 'h1')
         used = [e['payload']['card_instance_id'] for e in engine.events if e['type'] == 'combo_card_used']
-        self.assertEqual(used, ['a', 'b'])
-        self.assertFalse(any(e['type'] == 'combo_interrupted' for e in engine.events))
+        self.assertEqual(used, ['h0', 'h1'])
+        self.assertTrue(any(e['type'] == 'combo_ended' for e in engine.events))
+        self.assertFalse(any(e['type'] == 'combo_continuation_opened' for e in engine.events))
+
+    def test_combo_ends_after_three_even_with_linked_fourth(self):
+        engine = self.build([10, 11, 12])
+        self.open_combo(engine)
+        self.answer(engine, True)
+        self.play_pair(engine, 'h0', 'h1')
+        self.assertTrue(any(e['type'] == 'combo_ended' for e in engine.events))
+        self.assertFalse(any(e['type'] == 'combo_continuation_opened' for e in engine.events))
+
+    def test_declined_conversion_without_pair_ends_combo(self):
+        engine = self.build([10, 2])
+        self.open_combo(engine)
+        self.answer(engine, False)
+        self.assertEqual(engine._find_location('drift')[1], 'side')
+        self.assertTrue(any(e['type'] == 'combo_ended' for e in engine.events))
+        self.assertIsNone(engine.engine_state.get('pending_decision'))
+
+    def test_not_offered_without_two_hand_techniques(self):
+        engine = self.build([10])
+        self.assertFalse(self.open_combo(engine))
+        self.assertEqual(engine._find_location('drift')[1], 'side')
 
 
 class IdenticalTokenPlayCostTests(SimpleTestCase):

@@ -30,7 +30,7 @@ TRIGGERS = {
     'game_start', 'turn_start', 'turn_end', 'phase_start', 'phase_end', 'battle_end',
     'ready', 'battle_reveal', 'use', 'before_judgment', 'dodge', 'opponent_dodge',
     'guard', 'opponent_guard', 'hit', 'opponent_hit', 'counter',
-    'opponent_counter', 'clash', 'opponent_clash', 'combo', 'combo_window', 'catch',
+    'opponent_counter', 'clash', 'opponent_clash', 'combo', 'combo_window', 'combo_time_start', 'catch',
     'combo_end', 'opponent_combo_end', 'catch_opportunity_resolved',
     'after_judgment', 'after_use', 'damage_before', 'damage_after',
     'hp_changed', 'fp_changed', 'card_moved', 'card_broken', 'card_attached',

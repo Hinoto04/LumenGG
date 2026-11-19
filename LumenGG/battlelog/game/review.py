@@ -138134,7 +138134,8 @@ def _review_crs_at_053_definition(definition, card_snapshot, extra_root):
 
 def _crs_at_054_engine(
     definition, card_snapshot, owner, *, source_zone='side',
-    numbered_negated=False, prevent_break=False,
+    numbered_negated=False, prevent_break=False, single_hand_card=False,
+    linked_third=False,
 ):
     other = 'p2' if owner == 'p1' else 'p1'
     source = _sandbox_source_snapshot(card_snapshot)
@@ -138176,12 +138177,25 @@ def _crs_at_054_engine(
     state['players'][owner]['zones']['battle'].append(
         copy.deepcopy(battle_source)
     )
-    state['players'][owner]['zones']['hand'].extend([
-        copy.deepcopy(combo_two), copy.deepcopy(combo_three),
-    ])
+    hand_cards = [copy.deepcopy(combo_two)]
+    if not single_hand_card:
+        hand_cards.append(copy.deepcopy(combo_three))
+    linked = _card(
+        'REVIEW-CRS-AT-054-COMBO-LINKED', owner,
+        f'{owner}-crs-at-054-combo-linked',
+    )
+    linked.update({
+        'name': '드리프트 컨버전 검토 연결 3콤보',
+        'frame': 11, 'damage': 400,
+    })
+    if linked_third:
+        hand_cards.append(copy.deepcopy(linked))
+    state['players'][owner]['zones']['hand'].extend(hand_cards)
     no_effect = _st2_no_effect_definition()
     ruleset = {
         'version': AUTOMATIC_SCENARIO_VERSION,
+        # 2·3콤보를 함께 제시하는 실제 콤보 경로로 검증한다.
+        'review_execution_mode': 'battle_pipeline',
         'cards': {
             source['code']: {
                 **copy.deepcopy(source),
@@ -138192,7 +138206,9 @@ def _crs_at_054_engine(
                     **copy.deepcopy(card),
                     'effect_definition': copy.deepcopy(no_effect),
                 }
-                for card in (battle_source, opposing, combo_two, combo_three)
+                for card in (
+                    battle_source, opposing, combo_two, combo_three, linked,
+                )
             },
         },
     }
@@ -138229,15 +138245,20 @@ def _crs_at_054_engine(
         'battle_source_id': battle_source['instance_id'],
         'combo_two_id': combo_two['instance_id'],
         'combo_three_id': combo_three['instance_id'],
+        'linked_id': linked['instance_id'],
     }
 
 
-def _crs_at_054_followup_modifiers(engine, owner):
+def _crs_at_054_followup_modifiers(engine, owner, source_id=None):
     return [
         modifier for modifier in engine.engine_state.get('modifiers') or []
         if modifier.get('op') == 'modify_combo'
         and modifier.get('player') == owner
-        and modifier.get('usage_key') == 'crs_at_054_followup'
+        and (
+            modifier.get('source') == source_id
+            if source_id else
+            str(modifier.get('source') or '').endswith('crs-at-054-source')
+        )
     ]
 
 
@@ -138256,61 +138277,28 @@ def _run_crs_at_054_function_scenario(
 def _run_crs_at_054_conversion_scenario(
     definition, card_snapshot, owner, *, accept=True,
     source_zone='side', numbered_negated=False, prevent_break=False,
-    event_owner=None, combo_number=2, full_flow=False,
+    event_owner=None, full_flow=False, single_hand_card=False,
+    linked_third=False,
 ):
+    """드리프트 컨버전: 콤보 타임 진입 시, 적용하면 2·3콤보를 이을 수 있을 때 유발."""
     fixture = _crs_at_054_engine(
         definition, card_snapshot, owner, source_zone=source_zone,
         numbered_negated=numbered_negated, prevent_break=prevent_break,
+        single_hand_card=single_hand_card, linked_third=linked_third,
     )
     engine = fixture['engine']
     event_owner = event_owner or owner
-    event_card = engine._find_card(fixture['battle_source_id'])
-    slow_before = False
-    slow_after = False
-    third_used = False
-    combo_ended = False
-
-    if full_flow:
-        engine.grant_combo(
-            owner, source=fixture['battle_source_id'],
-            trigger_event=False,
-        )
-        before_actions = engine._combo_actions(
-            owner, engine.engine_state.get('combo') or {},
-        )
-        slow_before = any(
-            fixture['combo_three_id'] in (
-                [str((action.get('payload') or {}).get('card_instance_id'))]
-                if (action.get('payload') or {}).get('card_instance_id')
-                else [
-                    str(item) for item in
-                    (action.get('payload') or {}).get(
-                        'card_instance_ids',
-                    ) or []
-                ]
-            )
-            for action in before_actions
-        )
-        engine._play_combo(
-            owner, [fixture['combo_two_id']], [10], [False], [False],
-        )
-        engine._continue()
-    else:
-        engine.engine_state['combo'] = {
-            'owner': event_owner, 'source': fixture['battle_source_id'],
-            'special': False, 'used': [fixture['combo_two_id']],
-            'next_penalty': 200, 'last_speed': 10,
-            'proposal_submitted': True,
-        }
-        engine._fire('combo_window', {
-            'controller': event_owner, 'event_controller': event_owner,
-            'source_card_instance_id': event_card['instance_id'],
-            'source_card': copy.deepcopy(event_card),
-            'combo': True, 'use_context': 'combo',
-            'combo_number': combo_number,
-            'combo_speed': event_card.get('frame'),
-        })
-
+    pair_before = engine._combo_has_legal_initial_pair(
+        owner, source=fixture['battle_source_id'],
+    )
+    combo_opens = engine._combo_grant_can_open({
+        'owner': owner, 'source': fixture['battle_source_id'],
+        'special': False, 'combo_triggered': True,
+    })
+    engine.grant_combo(
+        event_owner, source=fixture['battle_source_id'], trigger_event=False,
+    )
+    engine._continue()
     offered = (
         (engine.engine_state.get('pending_decision') or {}).get('kind')
         == 'optional_effect'
@@ -138320,25 +138308,30 @@ def _run_crs_at_054_conversion_scenario(
         engine._submit_decision(
             owner, decision['id'], ['accept' if accept else 'decline'],
         )
-        if full_flow:
-            engine._continue()
-
-    if full_flow and accept and _crs_at_054_followup_modifiers(engine, owner):
+        engine._continue()
+    modifier_count = len(_crs_at_054_followup_modifiers(
+        engine, owner, fixture['source_id'],
+    ))
+    slow_pair = False
+    third_used = False
+    fourth_offered = False
+    if full_flow and modifier_count:
         combo = engine.engine_state.get('combo') or {}
-        after_actions = engine._combo_actions(owner, combo)
-        slow_action = next((
-            action for action in after_actions
-            if str((action.get('payload') or {}).get('card_instance_id'))
-            == fixture['combo_three_id']
+        pair = next((
+            action for action in engine._combo_actions(owner, combo)
+            if action.get('type') == 'play_combo_pair'
+            and (action.get('payload') or {}).get('card_instance_ids') == [
+                fixture['combo_two_id'], fixture['combo_three_id'],
+            ]
         ), None)
-        slow_after = slow_action is not None
-        if slow_action:
-            payload = slow_action.get('payload') or {}
+        slow_pair = pair is not None
+        if pair:
+            payload = pair.get('payload') or {}
             engine._play_combo(
-                owner, [fixture['combo_three_id']],
-                [payload.get('combo_speed')],
-                payload.get('ignore_damage_penalty') or [False],
-                payload.get('ignore_speed') or [False],
+                owner, payload.get('card_instance_ids'),
+                payload.get('combo_speeds'),
+                payload.get('ignore_damage_penalty') or [False, False],
+                payload.get('ignore_speed') or [False, False],
             )
             engine._continue()
             third_used = any(
@@ -138347,12 +138340,14 @@ def _run_crs_at_054_conversion_scenario(
                 == fixture['combo_three_id']
                 for event in engine.events
             )
-            combo_ended = any(
-                event.get('type') == 'combo_ended'
-                and event.get('actor') == owner
+            fourth_offered = any(
+                event.get('type') == 'combo_continuation_opened'
                 for event in engine.events
             )
-
+    combo_ended = any(
+        event.get('type') == 'combo_ended' and event.get('actor') == event_owner
+        for event in engine.events
+    )
     source_location = engine._find_location(fixture['source_id'])
     replenishment_count = sum(
         event.get('type') == 'decision_requested'
@@ -138360,9 +138355,11 @@ def _run_crs_at_054_conversion_scenario(
         for event in engine.events
     ) + len(engine.engine_state.get('break_replenishment_queue') or [])
     return {
+        'pair_before': pair_before,
+        'combo_opens': combo_opens,
         'offered': offered,
         'source_zone': source_location[1] if source_location else None,
-        'modifier_count': len(_crs_at_054_followup_modifiers(engine, owner)),
+        'modifier_count': modifier_count,
         'replenishment_count': replenishment_count,
         'break_prevented': any(
             event.get('type') == 'card_break_prevented'
@@ -138370,8 +138367,8 @@ def _run_crs_at_054_conversion_scenario(
             == fixture['source_id']
             for event in engine.events
         ),
-        'slow_before': slow_before, 'slow_after': slow_after,
-        'third_used': third_used, 'combo_ended': combo_ended,
+        'slow_pair': slow_pair, 'third_used': third_used,
+        'fourth_offered': fourth_offered, 'combo_ended': combo_ended,
         'resolved': _st2_resolution_count(engine, 'crs-at-054-n1'),
         'pending': bool(engine.engine_state.get('pending_decision')),
     }
@@ -138386,16 +138383,23 @@ def _review_crs_at_054_definition(definition, card_snapshot, extra_root):
     conversion = by_id.get('crs-at-054-n1')
     broken_key = 'crs_at_054_source_broken'
     condition = {
-        'op': 'all', 'conditions': [
-            {
-                'op': 'equals', 'left': 'context.event_controller',
-                'right': {'path': 'context.controller'},
-            },
-            {
-                'op': 'equals', 'left': 'context.combo_number', 'right': 2,
-            },
-        ],
+        'op': 'equals', 'left': 'context.event_controller',
+        'right': {'path': 'context.controller'},
     }
+    drift_modifiers = [
+        {
+            'op': 'modify_combo', 'player': {'controller': True},
+            'source_zones': ['hand'], 'ignore_speed': True,
+            'condition': {
+                'op': 'equals', 'left': 'context.combo_number', 'right': 3,
+            },
+            'duration': 'combo',
+        },
+        {
+            'op': 'modify_combo', 'player': {'controller': True},
+            'max_combo_cap': 3, 'duration': 'combo',
+        },
+    ]
     effects = [
         {'op': 'break_card', 'result_key': broken_key},
         {
@@ -138407,19 +138411,7 @@ def _review_crs_at_054_definition(definition, card_snapshot, extra_root):
                 },
                 'right': 1,
             },
-            'then': [{
-                'op': 'modify_combo',
-                'player': {'controller': True},
-                'allow_zones': ['hand'],
-                'source_zones': ['hand'],
-                'min_combo': 3, 'max_combo': 3,
-                'ignore_speed': True, 'requires_followup': True,
-                'end_after_use': True,
-                'usage_key': 'crs_at_054_followup',
-                'usage_key_source_scoped': True,
-                'max_uses': 1, 'usage_scope': 'battle',
-                'duration': 'combo',
-            }],
+            'then': copy.deepcopy(drift_modifiers),
             'else': [],
         },
     ]
@@ -138444,8 +138436,11 @@ def _review_crs_at_054_definition(definition, card_snapshot, extra_root):
         and conversion.get('mode') == 'optional'
         and conversion.get('timing') == 'combo'
         and conversion.get('active_zones') == ['side']
-        and conversion.get('trigger') == {'event': 'combo_window'}
+        and conversion.get('trigger') == {'event': 'combo_time_start'}
         and conversion.get('condition') == condition
+        and conversion.get('availability_combo_grant') == {
+            'modifiers': drift_modifiers,
+        }
         and conversion.get('effects') == effects
         and _st2_snapshot_matches(card_snapshot, {
             'code': 'CRS-AT-054', 'name': '드리프트 컨버전',
@@ -138487,47 +138482,60 @@ def _review_crs_at_054_definition(definition, card_snapshot, extra_root):
     conversion_scenarios = _st2_scenarios(
         _run_crs_at_054_conversion_scenario, definition, card_snapshot,
         (
-            ('owner-p1-breaks-side-source-and-gains-followup', 'p1', {}, {
+            ('owner-p1-combo-entry-breaks-side-source', 'p1', {}, {
+                'pair_before': False, 'combo_opens': True,
                 'offered': True, 'source_zone': 'break',
-                'modifier_count': 1, 'replenishment_count': 0,
+                'modifier_count': 2, 'replenishment_count': 0,
                 'resolved': 1, 'pending': False,
             }),
-            ('owner-p2-breaks-side-source-and-gains-followup', 'p2', {}, {
+            ('owner-p2-combo-entry-breaks-side-source', 'p2', {}, {
                 'offered': True, 'source_zone': 'break',
-                'modifier_count': 1, 'replenishment_count': 0,
+                'modifier_count': 2, 'replenishment_count': 0,
                 'resolved': 1,
             }),
-            ('optional-conversion-can-be-declined', 'p1', {
+            ('declined-conversion-ends-unplayable-combo', 'p1', {
                 'accept': False,
             }, {'offered': True, 'source_zone': 'side',
-                'modifier_count': 0, 'resolved': 0}),
+                'modifier_count': 0, 'resolved': 0, 'combo_ended': True,
+                'pending': False}),
             ('opponent-combo-does-not-offer-conversion', 'p2', {
                 'event_owner': 'p1',
             }, {'offered': False, 'source_zone': 'side',
                 'modifier_count': 0, 'resolved': 0}),
-            ('third-combo-window-does-not-offer-conversion', 'p1', {
-                'combo_number': 3,
-            }, {'offered': False, 'source_zone': 'side',
+            ('no-second-technique-does-not-offer', 'p1', {
+                'single_hand_card': True,
+            }, {'pair_before': False, 'combo_opens': False,
+                'offered': False, 'source_zone': 'side',
                 'modifier_count': 0, 'resolved': 0}),
+            ('normal-pair-still-offers-conversion', 'p2', {
+                'linked_third': True,
+            }, {'pair_before': True, 'combo_opens': True,
+                'offered': True, 'source_zone': 'break',
+                'modifier_count': 2, 'resolved': 1}),
             ('source-outside-side-is-inactive', 'p2', {
                 'source_zone': 'hand',
-            }, {'offered': False, 'source_zone': 'hand',
-                'modifier_count': 0, 'resolved': 0}),
+            }, {'combo_opens': False, 'offered': False,
+                'source_zone': 'hand', 'modifier_count': 0, 'resolved': 0}),
             ('numbered-negation-disables-conversion', 'p1', {
                 'numbered_negated': True,
-            }, {'offered': False, 'source_zone': 'side',
-                'modifier_count': 0, 'resolved': 0}),
+            }, {'combo_opens': False, 'offered': False,
+                'source_zone': 'side', 'modifier_count': 0, 'resolved': 0}),
             ('failed-break-does-not-grant-followup', 'p2', {
                 'prevent_break': True,
             }, {'offered': True, 'source_zone': 'side',
                 'modifier_count': 0, 'break_prevented': True,
                 'resolved': 1}),
-            ('qna594-full-flow-uses-slow-third-and-ends-combo', 'p1', {
+            ('qna594-full-flow-slow-third-then-combo-ends', 'p1', {
                 'full_flow': True,
             }, {'offered': True, 'source_zone': 'break',
-                'replenishment_count': 0, 'slow_before': False,
-                'slow_after': True, 'third_used': True,
+                'replenishment_count': 0, 'slow_pair': True,
+                'third_used': True, 'fourth_offered': False,
                 'combo_ended': True, 'resolved': 1, 'pending': False}),
+            ('full-flow-linked-third-also-ends-after-three', 'p2', {
+                'full_flow': True, 'linked_third': True,
+            }, {'slow_pair': True, 'third_used': True,
+                'fourth_offered': False, 'combo_ended': True,
+                'pending': False}),
         ),
     )
     reviews = [
