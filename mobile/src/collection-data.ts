@@ -23,6 +23,8 @@ export interface CollectionFilters {
   onlyZero: boolean;
   /** "" 전체, "any" 분류된 카드, "1"~"5" 해당 하트. */
   category: string;
+  /** 정렬 기준. 필터 개수에는 세지 않는다. */
+  sort: CollectionSort;
 }
 export const emptyCollectionFilters: CollectionFilters = {
   pack: "",
@@ -31,6 +33,7 @@ export const emptyCollectionFilters: CollectionFilters = {
   type: "",
   onlyZero: false,
   category: "",
+  sort: "",
 };
 export function collectionFilterCount(filters: CollectionFilters): number {
   return (
@@ -109,4 +112,75 @@ export function cardPrintings(
       order.compare(a.code, b.code) ||
       a.items[0]!.id - b.items[0]!.id,
   );
+}
+
+/** "" 카탈로그(등록) 순, 나머지는 웹 컬렉션(`collection/views/views.py`)의 정렬과 같다. */
+export type CollectionSort = "" | "speed" | "name" | "code";
+export const COLLECTION_SORTS: CollectionSort[] = ["", "speed", "name", "code"];
+
+/** 웹의 custom_order와 같은 레어도 순서. 목록에 없는 레어도는 맨 뒤다. */
+const RARE_ORDER = ["N", "SR", "EXR", "AN", "AEX", "SAR", "SP"];
+export function rareOrder(rare: string): number {
+  const index = RARE_ORDER.indexOf(rare);
+  return index < 0 ? RARE_ORDER.length : index;
+}
+
+/** 값이 없으면(null) 앞에 둔다. 웹이 쓰는 MySQL·SQLite 오름차순 정렬과 같다. */
+function compareNullable<T>(
+  a: T | null | undefined,
+  b: T | null | undefined,
+  compare: (a: T, b: T) => number,
+): number {
+  const aMissing = a === null || a === undefined;
+  const bMissing = b === null || b === undefined;
+  if (aMissing && bMissing) return 0;
+  if (aMissing) return -1;
+  if (bMissing) return 1;
+  return compare(a as T, b as T);
+}
+const textOrder = new Intl.Collator("ko");
+
+/**
+ * 컬렉션 항목을 정렬한 새 배열을 돌려준다.
+ * - speed: 카드 속도(frame) → 이름 → 팩 발매일 → 레어도. 카드가 없는 스킨·토큰은 속도가 없어 앞에 온다.
+ * - name: 이름 → 팩 발매일 → 코드 → 레어도
+ * - code: 코드 → 팩 발매일 → 레어도
+ * 모든 기준이 같으면 등록(id) 순으로 둔다.
+ */
+export function sortCollectionRows(
+  rows: CollectionItem[],
+  catalog: Pick<Catalog, "cards" | "packs">,
+  sort: CollectionSort,
+): CollectionItem[] {
+  if (!sort) return rows;
+  const frames = new Map(catalog.cards.map((card) => [card.id, card.frame]));
+  const released = new Map(
+    catalog.packs.map((pack) => [pack.id, pack.released]),
+  );
+  const frameOf = (item: CollectionItem) =>
+    item.card_id === null ? null : frames.get(item.card_id);
+  const releasedOf = (item: CollectionItem) =>
+    item.pack_id === null ? null : released.get(item.pack_id);
+  const byFrame = (a: CollectionItem, b: CollectionItem) =>
+    compareNullable(frameOf(a), frameOf(b), (x, y) => x - y);
+  const byName = (a: CollectionItem, b: CollectionItem) =>
+    textOrder.compare(a.name, b.name);
+  const byCode = (a: CollectionItem, b: CollectionItem) =>
+    textOrder.compare(a.code, b.code);
+  const byReleased = (a: CollectionItem, b: CollectionItem) =>
+    compareNullable(releasedOf(a), releasedOf(b), (x, y) => x.localeCompare(y));
+  const byRare = (a: CollectionItem, b: CollectionItem) =>
+    rareOrder(a.rare) - rareOrder(b.rare);
+  const keys = {
+    speed: [byFrame, byName, byReleased, byRare],
+    name: [byName, byReleased, byCode, byRare],
+    code: [byCode, byReleased, byRare],
+  }[sort];
+  return [...rows].sort((a, b) => {
+    for (const compare of keys) {
+      const result = compare(a, b);
+      if (result) return result;
+    }
+    return a.id - b.id;
+  });
 }

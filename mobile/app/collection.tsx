@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   EmptyState,
   FilterButton,
   Icon,
+  IconButton,
   Notice,
   SearchInput,
   Stepper,
@@ -24,12 +25,14 @@ import {
   styles,
 } from "../src/ui";
 import { CollectionFilterScreen } from "../src/collection-filter-screen";
+import { CollectionExportSheet } from "../src/collection-export-sheet";
 import {
   COLLECTION_CATEGORIES,
   categoryColors,
   collectionRows,
   collectionFilterCount,
   emptyCollectionFilters,
+  sortCollectionRows,
   type CollectionFilters,
 } from "../src/collection-data";
 import { BottomSheet } from "../src/character-picker";
@@ -59,9 +62,25 @@ export default function Collection() {
     ...emptyCollectionFilters,
   });
   const [filterVisible, setFilterVisible] = useState(false);
-  const rows = catalog
-    ? collectionRows(catalog, filters, query, amounts, language, categories)
-    : [];
+  const [exportVisible, setExportVisible] = useState(false);
+  const rows = useMemo(
+    () =>
+      catalog
+        ? sortCollectionRows(
+            collectionRows(
+              catalog,
+              filters,
+              query,
+              amounts,
+              language,
+              categories,
+            ),
+            catalog,
+            filters.sort,
+          )
+        : [],
+    [catalog, filters, query, amounts, language, categories],
+  );
   const owned = rows.filter((c) => (amounts[c.id] || 0) > 0).length;
   const ratio = rows.length ? owned / rows.length : 0;
   return (
@@ -84,6 +103,14 @@ export default function Collection() {
             onPress={() => {
               Keyboard.dismiss();
               setFilterVisible(true);
+            }}
+          />
+          <IconButton
+            icon="download-outline"
+            label="즐겨찾기 내보내기"
+            onPress={() => {
+              Keyboard.dismiss();
+              setExportVisible(true);
             }}
           />
           <View style={{ flex: 1, gap: 6 }}>
@@ -118,6 +145,10 @@ export default function Collection() {
           setFilters(next);
           setFilterVisible(false);
         }}
+      />
+      <CollectionExportSheet
+        visible={exportVisible}
+        onClose={() => setExportVisible(false)}
       />
       <Notice text={status} />
       <FlatList

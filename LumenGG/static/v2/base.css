@@ -4098,6 +4098,61 @@ body.v2-card-edition-open {
     margin-top: 12px;
 }
 
+.v2-collection-export {
+    margin-bottom: 12px;
+    padding: 0;
+}
+
+.v2-collection-export summary {
+    padding: 12px 16px;
+    cursor: pointer;
+    font-weight: 900;
+}
+
+.v2-collection-export-form {
+    display: grid;
+    gap: 12px;
+    padding: 0 16px 16px;
+}
+
+.v2-collection-export-help {
+    margin: 0;
+    color: var(--v2-muted);
+    font-size: .9rem;
+}
+
+.v2-collection-export fieldset {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.v2-collection-export legend {
+    float: left;
+    min-width: 88px;
+    margin-right: 8px;
+    padding: 0;
+    color: var(--v2-muted);
+    font-size: .85rem;
+    font-weight: 900;
+}
+
+.v2-collection-export label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.v2-collection-export-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
 .v2-collection-notice {
     margin-bottom: 12px;
     padding: 10px 12px;

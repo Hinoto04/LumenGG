@@ -3,6 +3,7 @@ import { useApp } from "./provider";
 import { localized } from "./core";
 import {
   COLLECTION_CATEGORIES,
+  COLLECTION_SORTS,
   categoryColors,
   collectionRows,
   emptyCollectionFilters,
@@ -35,6 +36,12 @@ export function CollectionFilterScreen({
   const set = (key: keyof CollectionFilters, value: string | boolean) =>
     setDraft((current) => ({ ...current, [key]: value }));
   const all = { key: "", label: t("전체") };
+  const sortLabels: Record<string, string> = {
+    "": "등록 순",
+    speed: "속도 순",
+    name: "이름 순",
+    code: "코드 순",
+  };
   return (
     <FilterSheet
       visible={visible}
@@ -45,6 +52,15 @@ export function CollectionFilterScreen({
       onReset={() => setDraft({ ...emptyCollectionFilters })}
       onApply={() => onApply({ ...draft })}
     >
+      <FilterChoices
+        title="정렬"
+        value={draft.sort}
+        onChange={(value) => set("sort", value)}
+        values={COLLECTION_SORTS.map((sort) => ({
+          key: sort,
+          label: t(sortLabels[sort]!),
+        }))}
+      />
       <FilterChoices
         title="팩"
         value={draft.pack}

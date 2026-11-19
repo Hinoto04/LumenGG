@@ -2,7 +2,9 @@ from django.shortcuts import render, redirect
 
 from ..models import CollectionCard, Collected, COLLECTION_CATEGORY_COUNT
 from django.db.models import OuterRef, Subquery, IntegerField, Q, Case, When
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
 from card.models import Card
 from django.core.paginator import Paginator
 from django.conf import settings
@@ -10,6 +12,10 @@ from django.conf import settings
 from card.models import Character
 from common.language import get_language
 from ..forms import CollectionForm, CollectionCreateForm
+from ..export import (
+    CONTENT_TYPES, export_file_name, export_headers, favorite_export_entries,
+    format_collection_export, parse_export_options, parse_heart,
+)
 import re, random, os, json
 from decorators import permission_required
 
@@ -219,3 +225,17 @@ def updateCollected(req):
                 continue
             Collected.objects.update_or_create(user=req.user, card_id=int(key), defaults=defaults)
         return JsonResponse({'result': 'ok', 'failed': failed})
+
+
+@login_required
+def export_favorites(req):
+    """하트를 붙인 컬렉션 항목을 txt/csv 파일로 내려준다."""
+    language = get_language(req)
+    options = parse_export_options(req.GET)
+    entries = favorite_export_entries(req.user, language, parse_heart(req.GET.get('heart')))
+    content = format_collection_export(entries, options, export_headers(language))
+    response = HttpResponse(content.encode('utf-8'), content_type=CONTENT_TYPES[options.format])
+    file_name = export_file_name(options.format, timezone.localdate())
+    response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+    response['Cache-Control'] = 'no-store'
+    return response

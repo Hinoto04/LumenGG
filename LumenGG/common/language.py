@@ -1574,6 +1574,27 @@ UI_TRANSLATIONS[LANGUAGE_JAPANESE].update({
     '북마크한 덱만': 'ブックマークのみ',
     '북마크한 덱': 'ブックマークしたデッキ',
 })
+# 컬렉션 즐겨찾기 내보내기
+UI_TRANSLATIONS[LANGUAGE_ENGLISH].update({
+    '즐겨찾기 내보내기': 'Export favorites',
+    '하트를 붙인 카드를 속도 순으로 파일에 저장합니다. 카드명은 항상 포함됩니다.': 'Saves hearted cards to a file in speed order. Card names are always included.',
+    '형식': 'Format',
+    '엑셀': 'Excel',
+    '포함할 열': 'Columns',
+    '갯수': 'Count',
+    '하트': 'Heart',
+    '내보내기': 'Export',
+})
+UI_TRANSLATIONS[LANGUAGE_JAPANESE].update({
+    '즐겨찾기 내보내기': 'お気に入りを書き出す',
+    '하트를 붙인 카드를 속도 순으로 파일에 저장합니다. 카드명은 항상 포함됩니다.': 'ハートを付けたカードを速度順でファイルに保存します。カード名は常に含まれます。',
+    '형식': '形式',
+    '엑셀': 'Excel',
+    '포함할 열': '含める列',
+    '갯수': '枚数',
+    '하트': 'ハート',
+    '내보내기': '書き出し',
+})
 
 def normalize_language(language):
     if not language:

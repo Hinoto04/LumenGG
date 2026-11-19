@@ -1,4 +1,5 @@
 import json
+import datetime
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -54,3 +55,94 @@ class CollectionCategoryTests(TestCase):
         self.assertContains(response, 'data-collection-hearts')
         self.assertContains(response, '<span class="v2-heart v2-heart-1">&#9829;</span>', html=False)
         self.assertContains(response, 'data-category="3"')
+
+
+class CollectionFavoriteExportTests(TestCase):
+    def setUp(self):
+        from card.models import Card, Character
+
+        self.user = User.objects.create_user('exporter', password='test-password')
+        character = Character.objects.create(name='니아', description='', group='', datas={}, img='')
+        old = Pack.objects.create(name='옛 팩', code='OLD', released=datetime.date(2023, 1, 1))
+        new = Pack.objects.create(name='새 팩', code='NEW', released=datetime.date(2024, 1, 1))
+        fast = Card.objects.create(name='잽', type='공격', frame=3, character=character, img='')
+        slow = Card.objects.create(name='강타', type='공격', frame=7, character=character, img='')
+
+        def item(code, name, rare, card=None, pack=new):
+            return CollectionCard.objects.create(card=card, pack=pack, code=code, name=name, rare=rare)
+
+        self.slow_sr = item('NEW-002', '강타', 'SR', slow)
+        self.slow_n = item('NEW-002', '강타', 'N', slow)
+        self.slow_old = item('OLD-002', '강타', 'SP', slow, old)
+        self.fast = item('NEW-001', '잽', 'N', fast)
+        self.skin = item('NEW-S01', '니아, "스킨"', 'SP')
+        self.plain = item('NEW-003', '하트 없음', 'N', fast)
+        for collection_card, amount, category in (
+            (self.slow_sr, 2, 1), (self.slow_n, 0, 3), (self.slow_old, 1, 1),
+            (self.fast, 4, 2), (self.skin, 1, 5), (self.plain, 9, 0),
+        ):
+            Collected.objects.create(user=self.user, card=collection_card, amount=amount, category=category)
+        other = User.objects.create_user('other', password='test-password')
+        Collected.objects.create(user=other, card=self.plain, amount=1, category=1)
+
+    def export(self, **params):
+        self.client.force_login(self.user)
+        return self.client.get(reverse('collection:export_favorites'), params)
+
+    def test_pure_format_matches_app_format(self):
+        from collection.export import ExportEntry, ExportOptions, csv_field, format_collection_export
+
+        entries = [ExportEntry('번개', 'ST1-001', 'SR', 2), ExportEntry('Say "Hi", ok', 'PR-1', '', 0)]
+        self.assertEqual(
+            format_collection_export(entries, ExportOptions(format='csv')),
+            '﻿카드명,코드,레어도,갯수\r\n번개,ST1-001,SR,2\r\n"Say ""Hi"", ok",PR-1,,0\r\n',
+        )
+        self.assertEqual(
+            format_collection_export(entries, ExportOptions(format='csv', code=False, amount=False)),
+            '﻿카드명,레어도\r\n번개,SR\r\n"Say ""Hi"", ok",\r\n',
+        )
+        self.assertEqual(
+            format_collection_export(entries, ExportOptions()),
+            '번개 [ST1-001] (SR) x2\nSay "Hi", ok [PR-1] x0\n',
+        )
+        self.assertEqual(
+            format_collection_export(entries, ExportOptions(code=False, rare=False, amount=False)),
+            '번개\nSay "Hi", ok\n',
+        )
+        self.assertEqual(csv_field('a\nb'), '"a\nb"')
+
+    def test_txt_export_lists_only_my_hearts_in_speed_order(self):
+        response = self.export(format='txt', code='1', rare='1', amount='1')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/plain; charset=utf-8')
+        self.assertRegex(response['Content-Disposition'], r'attachment; filename="lumen-favorites-\d{8}\.txt"')
+        # 속도 없는 스킨 → 속도 3 → 속도 7(먼저 나온 팩 → 레어도 N < SR). 하트 없는 항목과 남의 하트는 빠진다.
+        self.assertEqual(response.content.decode('utf-8').splitlines(), [
+            '니아, "스킨" [NEW-S01] (SP) x1',
+            '잽 [NEW-001] (N) x4',
+            '강타 [OLD-002] (SP) x1',
+            '강타 [NEW-002] (N) x0',
+            '강타 [NEW-002] (SR) x2',
+        ])
+
+    def test_csv_export_has_bom_selected_columns_and_heart_filter(self):
+        response = self.export(format='csv', rare='1', heart='1')
+        self.assertEqual(response['Content-Type'], 'text/csv; charset=utf-8')
+        self.assertTrue(response.content.startswith(b'\xef\xbb\xbf'))
+        self.assertEqual(
+            response.content.decode('utf-8-sig'),
+            '카드명,레어도\r\n강타,SP\r\n강타,SR\r\n',
+        )
+        # 체크박스가 모두 꺼지면 카드명만 남는다.
+        self.assertEqual(self.export(format='csv', heart='5').content.decode('utf-8-sig'),
+                         '카드명\r\n"니아, ""스킨"""\r\n')
+
+    def test_export_requires_login(self):
+        response = self.client.get(reverse('collection:export_favorites'))
+        self.assertEqual(response.status_code, 302)
+
+    def test_collection_page_offers_export_panel(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('collection:index'))
+        self.assertContains(response, reverse('collection:export_favorites'))
+        self.assertContains(response, 'name="amount" value="1"')

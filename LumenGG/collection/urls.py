@@ -13,6 +13,7 @@ urlpatterns = [
     path('v2/create/', views.createV2, name='createV2'),
     path('create/', views.createV2, name='create'),
     path('update/', views.updateCollected, name='update_collected'),
+    path('export/favorites/', views.export_favorites, name='export_favorites'),
     #path('export/', util_views.export_cards, name='export_cards'),
     #path('initinit/', util_views.initinit, name='initinit'),
 ]
