@@ -5380,6 +5380,9 @@ class AutomaticGameEngine:
         # card applies its own hit judgment FP.
         for side in PLAYER_SIDES:
             self.set_fp(side, 0, source='catch_declared')
+        # 캐치로 FP가 초기화됐으니, 캐치 기술이 다시 얻은 FP는 새 캐치 조건이다
+        # (8.8.1 연속 캐치). 같은 FP 수치라도 이전 서명으로 막지 않는다.
+        self.engine_state['catch_fp_history'] = []
         self._consume_limited_grant(catch, role)
         # 캐치한 기술은 공개된 채 배틀 존에 놓인다. 이동 기록도 공개해야 상대 화면에
         # 뒷면 카드로 남지 않는다.

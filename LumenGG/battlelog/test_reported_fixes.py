@@ -843,3 +843,36 @@ class ClashTimingOwnerTests(SimpleTestCase):
         judged, resolved = self.run_battle(cutter, slide)
         self.assertEqual(judged, {'p1': 'clash', 'p2': 'clash'})
         self.assertEqual(resolved, ['p1'])
+
+
+class ChainedFpCatchTests(SimpleTestCase):
+    """8.8.1 연속 캐치: 캐치 기술의 히트로 다시 같은 FP를 얻어도 다시 캐치할 수 있다.
+
+    네메시스(히트 +5) → 달빛화살 캐치(히트 +5) → 패의 5속도 달빛펀치로 캐치.
+    """
+
+    def test_same_fp_after_catch_opens_next_catch(self):
+        nemesis = attack('nemesis', 'p1', frame=8, hit='5')
+        arrow = attack('arrow', 'p1', frame=5, hit='5')
+        punch = attack('punch', 'p1', frame=5, hit='1')
+        guard = defense('guard', 'p2', top=None, mid=None, bottom=None)
+        state = base_state([nemesis, arrow, punch], [guard])
+        engine = AutomaticGameEngine.initialize(
+            state, ruleset(nemesis, arrow, punch, guard), seed='chain-catch', run_startup=False,
+        )
+        act = lambda role, kind, pick=None: engine.submit_action(role, next(
+            a for a in engine.legal_actions(role)
+            if a['type'] == kind and (pick is None or a['payload'].get('card_instance_id') == pick)
+        )['action_id'])
+        act('p1', 'pass_phase'); act('p2', 'pass_phase')
+        act('p1', 'ready_card', 'nemesis'); act('p2', 'ready_card')
+        self.assertEqual(engine.engine_state.get('step'), 'catch')
+        act('p1', 'play_catch_card', 'arrow')
+        self.assertEqual(engine.engine_state.get('step'), 'catch')
+        self.assertEqual(engine.engine_state['catch'].get('max_speed'), 5)
+        act('p1', 'play_catch_card', 'punch')
+        caught = [
+            e['payload']['card_instance_id'] for e in engine.events
+            if e['type'] == 'card_moved' and e['payload'].get('reason') == 'catch'
+        ]
+        self.assertEqual(caught, ['arrow', 'punch'])
