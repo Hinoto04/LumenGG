@@ -220,6 +220,80 @@ class ChimeraImportedDeckTests(SimpleTestCase):
         self.assertTrue(any('사용할 수 없는 캐릭터 마크' in e for e in errors), errors)
 
 
+PROVIDENCE_ACQUIRE_ABILITY = {
+    'id': 'cb02-at-002-n1', 'kind': 'effect', 'mode': 'optional', 'timing': 'cleanup',
+    'visibility': 'public', 'trigger': {'event': 'card_broken'}, 'active_zones': ['lumen'],
+    'recheck_condition': True,
+    'condition': {'op': 'all', 'conditions': [
+        {'op': 'equals', 'left': 'context.event_controller', 'right': {'controller': True}},
+        {'op': 'card_matches', 'card': {'path': 'context.event_card'}, 'where': {'is_technique': True}},
+        {'op': 'equals', 'left': {'path': 'engine.combo'}, 'right': None},
+    ]},
+    'availability_selector': {
+        'kind': 'card', 'player': {'controller': True}, 'zones': ['list'],
+        'min': 1, 'max': 1, 'as_operation': 'move_card', 'to_zone': 'hand',
+    },
+    'effects': [{
+        'op': 'request_choice', 'player': {'controller': True},
+        'prompt': '리스트에서 획득할 기술을 선택하세요.',
+        'selector': {
+            'kind': 'card', 'player': {'controller': True}, 'zones': ['list'],
+            'min': 1, 'max': 1, 'as_operation': 'move_card', 'to_zone': 'hand',
+        },
+        'selection_key': 'cb02_at_002_acquire', 'default': [],
+        'then': [{'op': 'move_card', 'selection_key': 'cb02_at_002_acquire', 'to_zone': 'hand'}],
+    }],
+}
+
+
+class BreakReplenishBeforeProvidenceTests(SimpleTestCase):
+    """9.2.1: 브레이크 보충을 먼저 끼워 넣고, 섭리의 궤 획득은 그 뒤에 묻는다."""
+
+    def build(self):
+        broken = attack('chimera-broken', 'p1', code='CHIMERA-BROKEN')
+        listed = attack('chimera-listed', 'p1', code='CHIMERA-LISTED')
+        spare = attack('chimera-spare', 'p1', code='CHIMERA-SPARE')
+        providence = {
+            'instance_id': 'p1-providence', 'kind': 'card', 'owner': 'p1',
+            'code': 'CB02-AT-002', 'name': '섭리의 궤', 'type': '특수', 'face_up': True,
+        }
+        state = base_state([broken], [])
+        zones = state['players']['p1']['zones']
+        zones['list'] = [listed]
+        zones['side'] = [spare]
+        zones['lumen'] = [providence]
+        rules = ruleset(broken, listed, spare)
+        rules['cards']['CB02-AT-002'] = {
+            'code': 'CB02-AT-002', 'name': '섭리의 궤', 'type': '특수',
+            'effect_definition': {'abilities': [PROVIDENCE_ACQUIRE_ABILITY]},
+        }
+        return AutomaticGameEngine.initialize(state, rules, seed='providence-order', run_startup=False)
+
+    def assert_replenish_then_providence(self, engine):
+        decision = engine.engine_state.get('pending_decision') or {}
+        self.assertEqual(decision.get('kind'), 'break_replenish')
+        engine._submit_decision('p1', decision['id'], ['chimera-spare'])
+        engine._continue()
+        list_ids = [c['instance_id'] for c in engine.state['players']['p1']['zones']['list']]
+        self.assertIn('chimera-spare', list_ids)
+        decision = engine.engine_state.get('pending_decision') or {}
+        self.assertEqual(decision.get('kind'), 'optional_effect')
+        ability = ((decision.get('continuation') or {}).get('item') or {}).get('ability') or {}
+        self.assertEqual(ability.get('id'), 'cb02-at-002-n1')
+
+    def test_single_break_offers_replenish_before_providence(self):
+        engine = self.build()
+        engine.break_card('chimera-broken', reason='deck_rule_after_use')
+        engine._continue()
+        self.assert_replenish_then_providence(engine)
+
+    def test_batch_break_offers_replenish_before_providence(self):
+        engine = self.build()
+        engine.break_cards(['chimera-broken'], reason='deck_rule_after_use')
+        engine._continue()
+        self.assert_replenish_then_providence(engine)
+
+
 SPIDER_PAYMENT_ABILITY = {
     'id': 'pmp-ps-001-n1', 'kind': 'effect', 'mode': 'mandatory', 'timing': 'result',
     'visibility': 'public', 'trigger': {'event': 'hp_changed'}, 'active_zones': ['passive'],
@@ -934,3 +1008,54 @@ class ChainedFpCatchTests(SimpleTestCase):
             if e['type'] == 'card_moved' and e['payload'].get('reason') == 'catch'
         ]
         self.assertEqual(caught, ['arrow', 'punch'])
+
+
+class DeckRuleBreakAfterUseTimingTests(SimpleTestCase):
+    """키메라 특성: 타 캐릭터 기술의 '사용 후 브레이크'는 그 기술의 사용 후 타이밍에 처리한다.
+
+    배틀 정리까지 미루면 프레임 캐치보다 늦게 브레이크된다.
+    """
+
+    def build(self, ready_imported=True, catch_imported=False):
+        ready = attack('ready', 'p1', frame=8, hit='5')
+        arrow = attack('arrow', 'p1', frame=5, hit='5')
+        punch = attack('punch', 'p1', frame=5, hit='1')
+        if ready_imported:
+            ready['break_after_use'] = True
+        if catch_imported:
+            arrow['break_after_use'] = True
+        guard = defense('guard', 'p2', top=None, mid=None, bottom=None)
+        engine = AutomaticGameEngine.initialize(
+            base_state([ready, arrow, punch], [guard]),
+            ruleset(ready, arrow, punch, guard), seed='after-use-break', run_startup=False,
+        )
+
+        def act(role, kind, pick=None):
+            engine.submit_action(role, next(
+                a for a in engine.legal_actions(role)
+                if a['type'] == kind and (pick is None or a['payload'].get('card_instance_id') == pick)
+            )['action_id'])
+        return engine, act
+
+    def zone_of(self, engine, instance_id):
+        return engine._find_location(instance_id)[1]
+
+    def test_ready_card_breaks_before_frame_catch_opens(self):
+        engine, act = self.build()
+        act('p1', 'pass_phase'); act('p2', 'pass_phase')
+        act('p1', 'ready_card', 'ready'); act('p2', 'ready_card')
+        self.assertEqual(engine.engine_state.get('step'), 'catch')
+        self.assertEqual(self.zone_of(engine, 'ready'), 'break')
+
+    def test_catch_card_breaks_before_next_catch_opens(self):
+        engine, act = self.build(ready_imported=False, catch_imported=True)
+        act('p1', 'pass_phase'); act('p2', 'pass_phase')
+        act('p1', 'ready_card', 'ready'); act('p2', 'ready_card')
+        act('p1', 'play_catch_card', 'arrow')
+        self.assertEqual(engine.engine_state.get('step'), 'catch')
+        self.assertEqual(self.zone_of(engine, 'arrow'), 'break')
+        breaks = [
+            e for e in engine.events
+            if e['type'] == 'card_broken' and e['payload'].get('card_instance_id') == 'arrow'
+        ]
+        self.assertEqual(len(breaks), 1)

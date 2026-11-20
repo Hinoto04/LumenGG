@@ -1033,6 +1033,14 @@ class AutomaticGameEngine:
                 if self.is_waiting:
                     return
                 continue
+            replenishments = self.engine_state.get('break_replenishment_queue') or []
+            if replenishments:
+                # 9.2.1: 대기 중인 브레이크 보충은 유발 효과 해결보다 먼저 처리한다.
+                owner = replenishments.pop(0)
+                self._start_break_replenishment(owner)
+                if self.is_waiting:
+                    return
+                continue
             if self.engine_state.get('resolution_queue'):
                 if not self.resolver.drain():
                     return
@@ -1095,13 +1103,6 @@ class AutomaticGameEngine:
             if deferred:
                 item = deferred.pop(0)
                 self.resolver.execute_effects(item.get('effects'), item.get('context') or {})
-                continue
-            replenishments = self.engine_state.get('break_replenishment_queue') or []
-            if replenishments:
-                owner = replenishments.pop(0)
-                self._start_break_replenishment(owner)
-                if self.is_waiting:
-                    return
                 continue
             pipeline = self.engine_state.get('pipeline')
             if pipeline:
@@ -1661,6 +1662,13 @@ class AutomaticGameEngine:
             pipeline['stage'] = 'after_use'
             return not self.is_waiting
         if stage == 'after_use':
+            if not pipeline.get('deck_rule_after_use_broken'):
+                pipeline['deck_rule_after_use_broken'] = True
+                for side in self._priority_order():
+                    self._break_deck_rule_after_use(
+                        ((self.engine_state.get('battle') or {}).get(side) or {})
+                        .get('instance_id'), side,
+                    )
             self._battle_trigger('after_use')
             if self.engine_state.pop('end_battle_requested', False):
                 return self._cleanup_battle()
@@ -3818,6 +3826,7 @@ class AutomaticGameEngine:
             return not self.is_waiting
         if stage == 'after_use':
             pipeline['stage'] = 'done'
+            self._break_deck_rule_after_use(pipeline.get('card_instance_id'), role)
             self._fire('after_use', context)
             return not self.is_waiting
         resolved_rules = pipeline.get('combo_rules') or self._combo_rules(role, card, combo)
@@ -3836,10 +3845,11 @@ class AutomaticGameEngine:
             and not pipeline.get('break_after_use_resolved')
         ):
             pipeline['break_after_use_resolved'] = True
-            self.break_card(
-                pipeline['card_instance_id'], reason='combo_rule_after_use',
-                effect_controller=role, effect_source=pipeline.get('card_instance_id'),
-            )
+            if self._find_location(pipeline['card_instance_id'])[1] not in {None, 'break'}:
+                self.break_card(
+                    pipeline['card_instance_id'], reason='combo_rule_after_use',
+                    effect_controller=role, effect_source=pipeline.get('card_instance_id'),
+                )
             if self.is_waiting:
                 return False
         if any(rule.get('end_after_use') for rule in resolved_rules):
@@ -3876,6 +3886,20 @@ class AutomaticGameEngine:
             ):
                 self.end_combo()
         return True
+
+    def _break_deck_rule_after_use(self, instance_id, owner):
+        """키메라 등 덱 규칙의 '사용 후, 브레이크한다'는 그 기술의 사용 후 타이밍에 처리한다.
+
+        배틀 정리까지 미루면 프레임·효과 캐치가 먼저 열려 순서가 어긋난다.
+        """
+        if not instance_id:
+            return None
+        location_owner, zone, _index, card = self._find_location(instance_id)
+        if not card or not card.get('break_after_use') or zone in {None, 'break'}:
+            return None
+        if owner in PLAYER_SIDES and location_owner not in {None, owner}:
+            return None
+        return self.break_card(instance_id, reason='deck_rule_after_use')
 
     @staticmethod
     def _combo_rule_breaks_after_use(
@@ -5520,8 +5544,9 @@ class AutomaticGameEngine:
             pipeline['stage'] = 'after_use'
             return True
         if stage == 'after_use':
-            self._fire('after_use', context)
             pipeline['stage'] = 'card_rule_cleanup'
+            self._break_deck_rule_after_use(pipeline.get('card_instance_id'), role)
+            self._fire('after_use', context)
             return not self.is_waiting
         if stage == 'card_rule_cleanup':
             # Set the continuation first: breaking a normal attack can open a
@@ -5847,7 +5872,9 @@ class AutomaticGameEngine:
                 return True
             card_owner = card.get('owner') if card.get('owner') in PLAYER_SIDES else side
             if card.get('break_after_use'):
-                self.break_card(instance_id, reason='deck_rule_after_use')
+                # 보통은 '사용 후' 타이밍에 이미 브레이크됐다.
+                if self._find_location(instance_id)[1] != 'break':
+                    self.break_card(instance_id, reason='deck_rule_after_use')
             elif _is_special(card):
                 self.break_card(instance_id, reason='battle_cleanup')
             elif defense_over:
@@ -7490,9 +7517,11 @@ class AutomaticGameEngine:
             if _trigger_queue is not None:
                 _trigger_queue.append(('card_broken', broken_context))
         else:
+            # 9.2.1: 브레이크 직후 보충 처리를 즉시 끼워 넣는다. 섭리의 궤처럼
+            # 브레이크 시 유발하는 효과는 보충을 마친 뒤 해결한다.
+            if was_normal:
+                self._offer_break_replenishment(owner)
             self._fire('card_broken', broken_context)
-        if was_normal and not _defer_followups:
-            self._offer_break_replenishment(owner)
         return moved
 
     def break_cards(
@@ -7591,10 +7620,11 @@ class AutomaticGameEngine:
                 if was_normal:
                     replenish_owners.append(owner)
 
-        for event_type, context in trigger_queue:
-            self._fire(event_type, context)
+        # 9.2.1: 보충을 먼저 끼워 넣고, 브레이크로 유발한 효과는 그 뒤에 해결한다.
         for owner in replenish_owners:
             self._offer_break_replenishment(owner)
+        for event_type, context in trigger_queue:
+            self._fire(event_type, context)
         return moved_cards
 
     def _break_rule_prevents(
