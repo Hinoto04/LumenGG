@@ -16436,11 +16436,23 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             }
             distance.update({
                 'kind': 'effect', 'mode': 'optional',
-                'timing': 'use', 'active_zones': ['battle'],
+                # 루멘 존에 놓인 이 카드가 자신의 기술 사용 시 유발한다.
+                'timing': 'use', 'active_zones': ['lumen'],
+                'allow_non_source_trigger': True,
                 'trigger': {'event': 'use'},
                 'condition': {
-                    'op': 'gte',
-                    'left': 'context.opponent_card.guard', 'right': -7,
+                    'op': 'all', 'conditions': [
+                        {
+                            'op': 'equals',
+                            'left': 'context.event_controller',
+                            'right': {'path': 'context.controller'},
+                        },
+                        {
+                            'op': 'gte',
+                            'left': 'context.opponent_card.guard',
+                            'right': -7,
+                        },
+                    ],
                 },
                 'availability_selector': copy.deepcopy(discard_selector),
                 'draft_compiled': True,

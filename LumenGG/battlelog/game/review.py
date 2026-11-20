@@ -120011,16 +120011,32 @@ def _run_cb03_at_034_setup_scenario(
 def _run_cb03_at_034_distance_scenario(
     definition, card_snapshot, owner, *, opponent_guard='-7',
     candidate_type='수비', candidate_count=1, accept=True,
-    event_type='use', source_zone='battle', numbered_negated=False,
-    break_blocked=False, expire_turn=False,
+    event_type='use', source_zone='lumen', numbered_negated=False,
+    break_blocked=False, expire_turn=False, event_owner=None,
 ):
+    """루멘 존의 세이프티 디스턴스: 자신의 기술 사용 시 상대 가드 판정을 본다."""
     other = 'p2' if owner == 'p1' else 'p1'
+    event_owner = event_owner or owner
     engine, source, opposing = _st2_battle_engine(
         definition, card_snapshot, owner,
         source_zone=source_zone, source_type='특수',
         numbered_negated=numbered_negated,
     )
     opposing['guard'] = opponent_guard
+    for card in engine.state['players'][other]['zones']['battle']:
+        if card.get('instance_id') == opposing['instance_id']:
+            card['guard'] = opponent_guard
+    user = _card(
+        'REVIEW-CB03-AT-034-USER', owner, f'{owner}-cb03-at-034-user',
+    )
+    user.update({'name': '세이프티 디스턴스 사용 기술', 'face_up': True})
+    engine.state['players'][owner]['zones']['battle'].append(
+        copy.deepcopy(user)
+    )
+    engine.ruleset['cards'][user['code']] = {
+        **copy.deepcopy(user),
+        'effect_definition': _st2_no_effect_definition(),
+    }
     candidates = []
     no_effect = _st2_no_effect_definition()
     for index in range(candidate_count):
@@ -120059,14 +120075,17 @@ def _run_cb03_at_034_distance_scenario(
             'where': {'instance_id': source['instance_id']},
             'duration': 'turn',
         })
-    event_source = source
+    event_source, event_opponent = (
+        (user, opposing) if event_owner == owner else (opposing, user)
+    )
     engine._fire(event_type, {
-        'controller': owner,
+        'controller': event_owner,
         'source_card_instance_id': event_source['instance_id'],
         'source_card': copy.deepcopy(event_source),
-        'opponent_card': copy.deepcopy(opposing),
+        'opponent_card': copy.deepcopy(event_opponent),
         'controller_speed': 0, 'opponent_speed': 8,
         'source_battle_card_only': True,
+        'global_reaction_slot_owner': event_owner,
     })
     activation = copy.deepcopy(
         engine.engine_state.get('pending_decision') or {}
@@ -120117,8 +120136,10 @@ def _run_cb03_at_034_distance_scenario(
             next_card, other, 'combo',
         ),
         'replacement_count': replacement_count,
-        'current_battle_card_preserved': bool(
-            (engine.engine_state.get('battle') or {}).get(other)
+        # 이번 배틀의 두 기술은 그대로 두고 '추가' 카드 사용만 막는다.
+        'current_battle_card_preserved': (
+            engine._find_location(opposing['instance_id'])[1] == 'battle'
+            and engine._find_location(user['instance_id'])[1] == 'battle'
         ),
         'resolved': _st2_resolution_count(engine, 'cb03-at-034-n1'),
         'pending': bool(engine.engine_state.get('pending_decision')),
@@ -120196,11 +120217,20 @@ def _review_cb03_at_034_definition(definition, card_snapshot, extra_root):
         and distance.get('kind') == 'effect'
         and distance.get('mode') == 'optional'
         and distance.get('timing') == 'use'
-        and distance.get('active_zones') == ['battle']
+        and distance.get('active_zones') == ['lumen']
+        and distance.get('allow_non_source_trigger') is True
         and distance.get('trigger') == {'event': 'use'}
         and distance.get('condition') == {
-            'op': 'gte',
-            'left': 'context.opponent_card.guard', 'right': -7,
+            'op': 'all', 'conditions': [
+                {
+                    'op': 'equals', 'left': 'context.event_controller',
+                    'right': {'path': 'context.controller'},
+                },
+                {
+                    'op': 'gte',
+                    'left': 'context.opponent_card.guard', 'right': -7,
+                },
+            ],
         }
         and distance.get('availability_selector') == discard_selector
         and distance.get('effects') == expected_distance_effects
@@ -120261,34 +120291,34 @@ def _review_cb03_at_034_definition(definition, card_snapshot, extra_root):
             }),
             ('optional-decline-pays-no-cost', 'p1', {'accept': False}, {
                 'activation_kind': 'optional_effect',
-                'choice_kind': None, 'source_zone': 'battle',
+                'choice_kind': None, 'source_zone': 'lumen',
                 'candidate_zones': ['hand'], 'use_blocked': False,
                 'replacement_count': 0, 'resolved': 0, 'pending': False,
             }),
             ('guard-below-minus-seven-does-not-offer', 'p2', {
                 'opponent_guard': '-8',
             }, {
-                'activation_kind': None, 'source_zone': 'battle',
+                'activation_kind': None, 'source_zone': 'lumen',
                 'candidate_zones': ['hand'], 'use_blocked': False,
                 'resolved': 0, 'pending': False,
             }),
             ('non-numeric-guard-does-not-offer', 'p1', {
                 'opponent_guard': 'X',
             }, {
-                'activation_kind': None, 'source_zone': 'battle',
+                'activation_kind': None, 'source_zone': 'lumen',
                 'use_blocked': False, 'resolved': 0, 'pending': False,
             }),
             ('no-defense-card-does-not-offer', 'p2', {
                 'candidate_count': 0,
             }, {
-                'activation_kind': None, 'source_zone': 'battle',
+                'activation_kind': None, 'source_zone': 'lumen',
                 'candidate_zones': [], 'use_blocked': False,
                 'resolved': 0, 'pending': False,
             }),
             ('attack-card-cannot-pay-defense-discard', 'p1', {
                 'candidate_type': '공격',
             }, {
-                'activation_kind': None, 'source_zone': 'battle',
+                'activation_kind': None, 'source_zone': 'lumen',
                 'candidate_zones': ['hand'], 'use_blocked': False,
                 'resolved': 0, 'pending': False,
             }),
@@ -120296,7 +120326,7 @@ def _review_cb03_at_034_definition(definition, card_snapshot, extra_root):
                 'break_blocked': True,
             }, {
                 'activation_kind': 'optional_effect',
-                'choice_kind': None, 'source_zone': 'battle',
+                'choice_kind': None, 'source_zone': 'lumen',
                 'candidate_zones': ['hand'], 'use_blocked': False,
                 'replacement_count': 0, 'resolved': 1, 'pending': False,
             }),
@@ -120307,8 +120337,15 @@ def _review_cb03_at_034_definition(definition, card_snapshot, extra_root):
                 'source_zone': 'break', 'selected_zone': 'list',
                 'replacement_count': 1, 'pending': False,
             }),
-            ('source-outside-battle-is-inactive', 'p2', {
-                'source_zone': 'lumen',
+            ('source-outside-lumen-is-inactive', 'p2', {
+                'source_zone': 'hand',
+            }, {
+                'activation_kind': None, 'source_zone': 'hand',
+                'candidate_zones': ['hand'], 'use_blocked': False,
+                'resolved': 0, 'pending': False,
+            }),
+            ('opponent-technique-use-does-not-offer', 'p1', {
+                'event_owner': 'p2',
             }, {
                 'activation_kind': None, 'source_zone': 'lumen',
                 'candidate_zones': ['hand'], 'use_blocked': False,
@@ -120317,7 +120354,7 @@ def _review_cb03_at_034_definition(definition, card_snapshot, extra_root):
             ('numbered-negation-disables-effect', 'p1', {
                 'numbered_negated': True,
             }, {
-                'activation_kind': None, 'source_zone': 'battle',
+                'activation_kind': None, 'source_zone': 'lumen',
                 'candidate_zones': ['hand'], 'use_blocked': False,
                 'resolved': 0, 'pending': False,
             }),

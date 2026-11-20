@@ -20151,7 +20151,7 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertTrue(result.passed, result.as_dict())
         self.assertEqual(len(result.abilities), 2)
         self.assertEqual(
-            sum(len(item.scenarios) for item in result.abilities), 14,
+            sum(len(item.scenarios) for item in result.abilities), 15,
         )
         self.assertTrue(all(
             item.passed and len(item.scenarios) >= 3

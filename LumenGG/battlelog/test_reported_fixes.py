@@ -1214,3 +1214,66 @@ class ComboPairFollowupConditionTests(SimpleTestCase):
             for action in engine._combo_actions('p1', combo)
         ))
         self.assertFalse(engine.state['players']['p1'].get('passive_state', {}).get('down_stance'))
+
+
+SAFETY_DISTANCE_TEXT = (
+    '게임 시작 시, 사이드 덱에서 루멘 존에 배치한다. '
+    '①기술의 사용 시, 상대 기술의 가드 판정이 <-7> 이상이라면 '
+    '패에서 수비 기술 1장을 버리고 이 기술을 브레이크할 수 있다. '
+    '그 경우, 이번 턴 상대는 추가로 카드를 사용할 수 없다.'
+)
+
+
+class SafetyDistanceLumenTriggerTests(SimpleTestCase):
+    """세이프티 디스턴스: 루멘 존에서 자신의 기술 사용 시 유발한다(상대 사용 시에는 아님)."""
+
+    def build(self):
+        from .game.drafts import build_effect_draft
+
+        mine = attack('mine', 'p1', code='MINE', frame=5)
+        spare = defense('spare', 'p1')
+        theirs = attack('theirs', 'p2', code='THEIRS', frame=6)
+        theirs['guard'] = '-3'
+        distance = {
+            'instance_id': 'p1-distance', 'kind': 'card', 'owner': 'p1',
+            'code': 'CB03-AT-034', 'name': '세이프티 디스턴스', 'type': '특수', 'face_up': True,
+        }
+        state = base_state([mine, spare], [theirs])
+        state['players']['p1']['zones']['lumen'] = [distance]
+        rules = ruleset(mine, spare, theirs)
+        rules['cards']['THEIRS']['guard'] = '-3'
+        rules['cards']['CB03-AT-034'] = {
+            'code': 'CB03-AT-034', 'name': '세이프티 디스턴스', 'type': '특수',
+            'effect_definition': build_effect_draft('CB03-AT-034', SAFETY_DISTANCE_TEXT),
+        }
+        engine = AutomaticGameEngine.initialize(state, rules, seed='safety-distance', run_startup=False)
+
+        def act(role, kind, pick=None):
+            engine.submit_action(role, next(
+                a for a in engine.legal_actions(role)
+                if a['type'] == kind and (pick is None or a['payload'].get('card_instance_id') == pick)
+            )['action_id'])
+        act('p1', 'pass_phase'); act('p2', 'pass_phase')
+        act('p1', 'ready_card', 'mine'); act('p2', 'ready_card')
+        return engine
+
+    def test_own_technique_use_offers_safety_distance_once(self):
+        engine = self.build()
+        decision = engine.engine_state.get('pending_decision') or {}
+        self.assertEqual(decision.get('owner'), 'p1')
+        self.assertEqual(decision.get('kind'), 'optional_effect')
+        ability = ((decision.get('continuation') or {}).get('item') or {}).get('ability') or {}
+        self.assertEqual(ability.get('id'), 'cb03-at-034-n1')
+        engine._submit_decision('p1', decision['id'], ['accept'])
+        engine._continue()
+        choice = engine.engine_state.get('pending_decision') or {}
+        self.assertEqual(choice.get('kind'), 'effect_choice')
+        engine._submit_decision('p1', choice['id'], ['spare'])
+        engine._continue()
+        self.assertEqual(engine._find_location('p1-distance')[1], 'break')
+        self.assertEqual(engine._find_location('spare')[1], 'list')
+        offers = [
+            e for e in engine.events
+            if e['type'] == 'effect_resolved' and e['payload'].get('ability_id') == 'cb03-at-034-n1'
+        ]
+        self.assertEqual(len(offers), 1)
