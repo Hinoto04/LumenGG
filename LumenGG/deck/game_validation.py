@@ -215,7 +215,11 @@ def validate_automatic_deck(deck, *, side='', ruleset=None, entries=None, check_
                 card, same_name_limit, ruleset=ruleset, supplements=supplements,
             ),
         )
-        if card.character_id == deck.character_id:
+        # 키메라처럼 타 캐릭터 기술을 '자신의 기술로도 취급'하면 캐릭터 마크
+        # 기술 최소 수에도 포함한다.
+        if card.character_id == deck.character_id or (
+            imported and imported_rule.get('treat_as_own_character')
+        ):
             character_count += count
         if _is_special(card):
             special_character_ids = rules.get('special_allowed_character_ids')

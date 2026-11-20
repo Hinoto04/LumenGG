@@ -410,7 +410,12 @@ function analyzeDeck(
         [c.id],
       );
     total += e.count;
-    if (c.character_id === deck.character_id) own += e.count;
+    // 타 캐릭터 기술을 자신의 기술로도 취급하면(키메라) 최소 수에 포함한다.
+    if (
+      c.character_id === deck.character_id ||
+      (isImported && foreign.treat_as_own_character)
+    )
+      own += e.count;
     const name = cardName(c),
       limit = sameNameLimit(c, rules);
     const previous = names.get(name) || { n: 0, limit: 0, ids: [] };

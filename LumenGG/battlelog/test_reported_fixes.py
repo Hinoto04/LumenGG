@@ -162,6 +162,64 @@ class PartsSupplementDeckTests(SimpleTestCase):
         self.assertTrue(any('기술 카드' in error or '기본 기술 덱' in error for error in errors), errors)
 
 
+class ChimeraImportedDeckTests(SimpleTestCase):
+    """키메라: 타 캐릭터 공격 기술은 키메라 기술로도 취급하므로 최소 10장에 포함된다."""
+
+    CHIMERA = 15
+    RULES = {
+        'main_size': {'min': 30, 'max': 30},
+        'other_character_cards': {
+            'allowed_types': ['공격'], 'exclude_ultimate': True,
+            'exclude_character_ids': [1], 'max_per_character': 3,
+            'treat_as_own_character': True, 'negate_effects': True,
+            'break_after_use': True,
+        },
+    }
+
+    def card(self, name, character_id, card_type='공격'):
+        return SimpleNamespace(
+            name=name, code=name, type=card_type, ultimate=False,
+            character_id=character_id, text='', effect_definition={},
+        )
+
+    def validate(self, cards, rules=None):
+        trait = SimpleNamespace(
+            trait_config={}, effect_definition={'deck_rules': rules or self.RULES},
+            code='CB02-PS-001',
+        )
+        deck = SimpleNamespace(
+            character_id=self.CHIMERA, schema_version=2, trait_card=trait,
+            character=SimpleNamespace(datas={}),
+        )
+        entries = [SimpleNamespace(card=c, count=1, hand=0, side=0) for c in cards]
+        return validate_automatic_deck(deck, entries=entries, check_setup=False).errors
+
+    def imported_deck(self):
+        # 실제 키메라 덱처럼 키메라 기술 1장 + 세츠메이(중립)가 아닌 타 캐릭터 공격 29장
+        cards = [self.card('chimera-own', self.CHIMERA)]
+        for index in range(29):
+            cards.append(self.card(f'foreign-{index}', 2 + index // 3))
+        return cards
+
+    def test_imported_attacks_count_toward_character_minimum(self):
+        self.assertEqual(self.validate(self.imported_deck()), [])
+
+    def test_without_own_treatment_imported_attacks_do_not_count(self):
+        rules = copy.deepcopy(self.RULES)
+        rules['other_character_cards']['treat_as_own_character'] = False
+        errors = self.validate(self.imported_deck(), rules)
+        self.assertTrue(any('캐릭터 마크 기술은 최소' in e for e in errors), errors)
+
+    def test_neutral_cards_are_not_imported(self):
+        cards = self.imported_deck()[:-3] + [
+            self.card(f'neutral-{index}', 1) for index in range(3)
+        ]
+        self.assertEqual(self.validate(cards), [])
+        defenses = self.imported_deck()[:-1] + [self.card('foreign-def', 9, '수비')]
+        errors = self.validate(defenses)
+        self.assertTrue(any('사용할 수 없는 캐릭터 마크' in e for e in errors), errors)
+
+
 SPIDER_PAYMENT_ABILITY = {
     'id': 'pmp-ps-001-n1', 'kind': 'effect', 'mode': 'mandatory', 'timing': 'result',
     'visibility': 'public', 'trigger': {'event': 'hp_changed'}, 'active_zones': ['passive'],
