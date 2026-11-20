@@ -66,17 +66,41 @@ def _engine_eval_allowed():
     return _pending < worker_count() * factor
 
 
+def _worker_ruleset(release_id):
+    """Load a released ruleset inside a long-lived worker process.
+
+    Workers query the database only when a release is not cached yet (for
+    example right after a new release is published). By then their MySQL
+    connection has usually been idle past ``wait_timeout`` and the server has
+    dropped it ("Lost connection to MySQL server during query"). Request
+    signals that normally recycle connections never run here, so drop the
+    connection after use and retry once on a broken one.
+    """
+    from django.db import connection
+    from django.db.utils import InterfaceError, OperationalError
+
+    from .automatic_services import _cached_ruleset
+
+    for attempt in range(2):
+        try:
+            return _cached_ruleset(release_id)
+        except (OperationalError, InterfaceError):
+            if attempt:
+                raise
+        finally:
+            connection.close()
+
+
 def compute_decision(job):
     """Pure computation: build the engine from ``job`` and choose a move."""
     from django.utils.dateparse import parse_datetime
 
-    from .automatic_services import _cached_ruleset
     from .game.ai import choose_action
     from .game.ai_outcomes import build_ready_evaluator
     from .game.engine import AutomaticGameEngine
 
     engine = AutomaticGameEngine(
-        job['state'], _cached_ruleset(job['release_id']), version=job['version'],
+        job['state'], _worker_ruleset(job['release_id']), version=job['version'],
         now=parse_datetime(job['now']), events=[], seed=job['engine_seed'],
     )
     role = job['role']

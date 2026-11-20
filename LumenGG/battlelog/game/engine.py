@@ -2882,6 +2882,19 @@ class AutomaticGameEngine:
                         base_cards.append(card)
 
         actions = []
+        followup_engines = {}
+
+        def followup_engine(first_card, speed, ignore, speed_ignore):
+            key = (
+                first_card.get('instance_id'), speed, bool(ignore),
+                bool(speed_ignore),
+            )
+            if key not in followup_engines:
+                followup_engines[key] = self._simulate_combo_first_card(
+                    role, first_card.get('instance_id'), speed, ignore,
+                    speed_ignore, combo,
+                )
+            return followup_engines[key]
 
         def candidate_cards(projected):
             cards = list(base_cards)
@@ -3081,12 +3094,29 @@ class AutomaticGameEngine:
                             # to only one card in a proposed chain.
                             if ignore and any(ignores):
                                 continue
-                            if not self._combo_card_legal(
-                                role, projected_card, projected,
-                                selected_speed=speed,
-                                use_optional_ignore=ignore,
-                                use_optional_speed_ignore=speed_ignore,
+                            check_engine = None
+                            if (
+                                proposal_size == 2 and len(proposed_cards) == 1
+                                and not projected.get('special')
+                                and self._definition_for_card(
+                                    projected_card,
+                                ).get('play_condition') is not None
                             ):
+                                check_engine = followup_engine(
+                                    proposed_cards[0], speeds[0], ignores[0],
+                                    speed_ignores[0],
+                                )
+                            self._combo_followup_check_engine = check_engine
+                            try:
+                                legal = self._combo_card_legal(
+                                    role, projected_card, projected,
+                                    selected_speed=speed,
+                                    use_optional_ignore=ignore,
+                                    use_optional_speed_ignore=speed_ignore,
+                                )
+                            finally:
+                                self._combo_followup_check_engine = None
+                            if not legal:
                                 continue
                             next_projected = {
                                 **copy.deepcopy(projected),
@@ -4238,6 +4268,58 @@ class AutomaticGameEngine:
             maximum = hard_cap if maximum is None else min(maximum, hard_cap)
         return max(1, int(maximum)) if maximum is not None else None
 
+    def _simulate_combo_first_card(
+        self, role, card_id, speed, ignore, speed_ignore, combo=None,
+    ):
+        """Resolve only the first card of a 2·3-Combo pair on a copy.
+
+        The second card of a pair may be placed when it can be used once the
+        first card has finished (e.g. a card unusable in Down Stance cannot
+        follow a card that causes Down Stance, while a card needing N counters
+        can follow a card that raises them). Returns ``None`` when the copy
+        cannot be resolved, in which case the current state is used.
+        """
+        if getattr(self, '_combo_simulation', False) or not card_id:
+            return None
+        sim = type(self)(
+            copy.deepcopy(self.state), self.ruleset, version=self.version,
+            now=self.now, events=[], seed=self.seed,
+        )
+        sim._combo_simulation = True
+        # 2번째 카드를 이어 낼 자리이므로 콤보 타임을 끝내지 않는다.
+        sim._reopen_required_combo_followup = lambda *_args, **_kwargs: True
+        # 콤보 타임을 열 수 있는지 미리 보는 경우에는 아직 콤보가 없다.
+        projected = copy.deepcopy(combo or {})
+        projected.pop('proposal_modifiers', None)
+        projected['proposal_submitted'] = False
+        if projected.get('owner') == role:
+            sim.engine_state['combo'] = projected
+            sim.engine_state['step'] = 'combo'
+            sim.engine_state['pipeline'] = None
+        try:
+            sim._play_combo(role, [card_id], [speed], [bool(ignore)], [bool(speed_ignore)])
+            for _attempt in range(40):
+                sim._continue()
+                decision = sim.engine_state.get('pending_decision')
+                if not decision:
+                    break
+                options = [
+                    option.get('id') for option in decision.get('options') or []
+                    if isinstance(option, dict)
+                ]
+                selected = list(decision.get('default') or [])
+                minimum = _number(decision.get('minimum'), 0)
+                if len(selected) < minimum:
+                    selected = options[:minimum]
+                sim._submit_decision(decision.get('owner'), decision.get('id'), selected)
+            else:
+                return None
+        except (EngineError, KeyError, TypeError, ValueError, IndexError):
+            return None
+        if sim.engine_state.get('pending_decision'):
+            return None
+        return sim
+
     def _combo_card_legal(
         self, role, card, combo, *, selected_speed=None, ignore_cost=False,
         use_optional_ignore=False, use_optional_speed_ignore=False,
@@ -4265,10 +4347,16 @@ class AutomaticGameEngine:
             if use_optional_speed_ignore
             and rule.get('optional_any_speed') and rule.get('counter_cost')
         ), None)
-        projected_counters = copy.deepcopy(
-            ((combo.get('counter_overrides') or {}).get(role) or {})
+        # 함께 제시하는 2번째 카드는 1번째 카드의 처리를 마친 상태에서
+        # 사용 조건을 본다(_combo_actions가 시뮬레이션 엔진을 넘겨준다).
+        check_engine = getattr(self, '_combo_followup_check_engine', None) or self
+        projected_counters = (
+            copy.deepcopy(
+                ((combo.get('counter_overrides') or {}).get(role) or {})
+            )
+            if check_engine is self else {}
         )
-        passive_state = self.state['players'][role].setdefault(
+        passive_state = check_engine.state['players'][role].setdefault(
             'passive_state', {},
         )
         originals = {}
@@ -4310,7 +4398,7 @@ class AutomaticGameEngine:
             # temporary state and restore it without emitting public events.
             state_entry['count'] = before_count - counter_amount
         try:
-            use_allowed = self._card_use_allowed(
+            use_allowed = check_engine._card_use_allowed(
                 card, role, 'combo', ignore_cost=ignore_cost,
             )
         finally:

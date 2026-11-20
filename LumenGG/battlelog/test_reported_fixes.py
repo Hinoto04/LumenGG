@@ -1110,3 +1110,107 @@ class ChimeraImportedFunctionTests(SimpleTestCase):
             for e in engine.events
         ))
         self.assertEqual(engine.state['players']['p1']['fp'], 0)
+
+
+class AiWorkerRulesetConnectionTests(SimpleTestCase):
+    """AI 워커가 끊긴 MySQL 연결로 새 룰셋을 읽다 실패하면 한 번 다시 연결해 읽는다."""
+
+    def test_retries_once_after_lost_connection(self):
+        from unittest import mock
+
+        from django.db.utils import OperationalError
+
+        from . import ai_compute
+
+        calls = []
+
+        def flaky(release_id):
+            calls.append(release_id)
+            if len(calls) == 1:
+                raise OperationalError(2013, 'Lost connection to MySQL server during query')
+            return {'version': 'ok'}
+
+        with mock.patch('battlelog.automatic_services._cached_ruleset', side_effect=flaky), \
+                mock.patch('django.db.connection.close') as close:
+            self.assertEqual(ai_compute._worker_ruleset(6), {'version': 'ok'})
+        self.assertEqual(calls, [6, 6])
+        self.assertEqual(close.call_count, 2)
+
+    def test_second_failure_is_raised(self):
+        from unittest import mock
+
+        from django.db.utils import OperationalError
+
+        from . import ai_compute
+
+        with mock.patch(
+            'battlelog.automatic_services._cached_ruleset',
+            side_effect=OperationalError(2013, 'lost'),
+        ), mock.patch('django.db.connection.close'):
+            with self.assertRaises(OperationalError):
+                ai_compute._worker_ruleset(6)
+
+
+class ComboPairFollowupConditionTests(SimpleTestCase):
+    """2·3콤보를 함께 낼 때 2번째 카드의 사용 조건은 1번째 카드 처리 후 기준으로 본다."""
+
+    def build(self, first_effect, second_condition, *, filler=False):
+        opener = attack('opener', 'p1', frame=8, hit='콤보')
+        first = attack('first', 'p1', code='FIRST', frame=5)
+        second = attack('second', 'p1', code='SECOND', frame=6)
+        extra = [attack('filler', 'p1', code='FILLER', frame=6)] if filler else []
+        guard = defense('guard', 'p2', top=None, mid=None, bottom=None)
+        rules = ruleset(opener, first, second, guard, *extra)
+        rules['cards']['FIRST']['effect_definition'] = {'abilities': [{
+            'id': 'first-n1', 'kind': 'effect', 'mode': 'mandatory', 'timing': 'use',
+            'visibility': 'public', 'trigger': {'event': 'use'}, 'active_zones': ['battle'],
+            'effects': [first_effect],
+        }]}
+        rules['cards']['SECOND']['effect_definition'] = {
+            'abilities': [], 'play_condition': second_condition,
+        }
+        engine = AutomaticGameEngine.initialize(
+            base_state([opener, first, second, *extra], [guard]), rules,
+            seed='combo-followup-condition', run_startup=False,
+        )
+
+        def act(role, kind, pick=None):
+            engine.submit_action(role, next(
+                a for a in engine.legal_actions(role)
+                if a['type'] == kind and (pick is None or a['payload'].get('card_instance_id') == pick)
+            )['action_id'])
+        act('p1', 'pass_phase'); act('p2', 'pass_phase')
+        act('p1', 'ready_card', 'opener'); act('p2', 'ready_card')
+        self.assertEqual(engine.engine_state.get('step'), 'combo')
+        return engine
+
+    def pair_offered(self, engine):
+        combo = engine.engine_state.get('combo') or {}
+        return any(
+            action.get('type') == 'play_combo_pair'
+            and (action.get('payload') or {}).get('card_instance_ids') == ['first', 'second']
+            for action in engine._combo_actions('p1', combo)
+        )
+
+    def test_counter_gained_by_first_card_allows_second(self):
+        engine = self.build(
+            {'op': 'change_counter', 'player': {'controller': True}, 'counter': 'test_charge', 'amount': 1},
+            {'op': 'counter_at_least', 'player': {'controller': True}, 'counter': 'test_charge', 'value': 1},
+        )
+        self.assertTrue(self.pair_offered(engine))
+
+    def test_down_stance_from_first_card_blocks_second(self):
+        engine = self.build(
+            {'op': 'gain_state', 'player': {'controller': True}, 'state': 'down_stance'},
+            {'op': 'not', 'condition': {
+                'op': 'has_state', 'player': {'controller': True}, 'state': 'down_stance',
+            }},
+            filler=True,
+        )
+        self.assertFalse(self.pair_offered(engine))
+        combo = engine.engine_state.get('combo') or {}
+        self.assertTrue(any(
+            (action.get('payload') or {}).get('card_instance_ids') == ['first', 'filler']
+            for action in engine._combo_actions('p1', combo)
+        ))
+        self.assertFalse(engine.state['players']['p1'].get('passive_state', {}).get('down_stance'))

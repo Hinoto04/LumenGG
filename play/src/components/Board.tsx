@@ -77,9 +77,16 @@ export function useCardHandlers(side: Side, zone: ZoneName, actions: ActionIndex
       if (compact) usePlay.getState().setInspect({ card, ref });
       else usePlay.getState().setSelected(selectedKey === key ? null : { card, ref });
     };
+    // 끌어 놓았는데 같은 자리로 가는 행동이 여럿(예: 콤보 속도 선택 호신장·포르티시모)이면
+    // 고르는 창을 연다. 누르기(select)처럼 토글하면, 끌기 전에 이미 선택돼 있던 카드는
+    // 놓는 순간 선택이 풀려 속도 선택지가 뜨지 않고 손패로 돌아간다.
+    const open = () => {
+      if (compact) usePlay.getState().setInspect({ card, ref });
+      else usePlay.getState().setSelected({ card, ref });
+    };
     const optionId = candidates ? optionForCard(candidates, ref, card)?.id : undefined;
     const cancelCombo = envelope && !card.hidden && card.instance_id === comboFirstId(envelope) ? comboCancelAction(envelope) : null;
-    const plan = envelope ? dragPlan(envelope, ref, card, onAction, select) : null;
+    const plan = envelope ? dragPlan(envelope, ref, card, onAction, open) : null;
     const dragHandlers = plan
       ? {
           start: () => {
