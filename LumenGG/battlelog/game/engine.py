@@ -9556,7 +9556,9 @@ class AutomaticGameEngine:
             if owner_character.get('key'):
                 card['character_key'] = owner_character['key']
         if imported.get('negate_effects'):
-            card['effects_negated'] = True
+            # 번호가 붙은 효과(①②…)만 무효로 한다. 번호 없는 기능
+            # ("상대는 이 기술을 방어할 수 없다" 등)은 그대로 적용한다.
+            card['numbered_effects_negated'] = True
         if imported.get('break_after_use'):
             card['break_after_use'] = True
 

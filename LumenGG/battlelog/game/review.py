@@ -128934,7 +128934,9 @@ def _run_cb02_ps_001_scenario(
         ),
         'character_id': (live_foreign or {}).get('character_id'),
         'character_key': (live_foreign or {}).get('character_key'),
-        'effects_negated': bool((live_foreign or {}).get('effects_negated')),
+        'effects_negated': bool(
+            (live_foreign or {}).get('numbered_effects_negated')
+        ),
         'break_after_use': bool((live_foreign or {}).get('break_after_use')),
         'fp_delta': fp_delta,
         'foreign_zone': engine._find_location(foreign['instance_id'])[1],

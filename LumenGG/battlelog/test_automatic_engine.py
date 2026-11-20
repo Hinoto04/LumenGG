@@ -7358,8 +7358,8 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(live['original_character_id'], 3)
         self.assertEqual(live['character_id'], 15)
         self.assertEqual(live['character_key'], 'chimera')
-        self.assertTrue(live['effects_negated'])
-        self.assertEqual(engine._definition_for_card(live), {})
+        self.assertTrue(live['numbered_effects_negated'])
+        self.assertNotIn('effects_negated', live)
 
         engine.move_card('imported-card', 'battle', reason='test')
         engine.engine_state['battle'] = {

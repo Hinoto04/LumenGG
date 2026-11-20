@@ -1059,3 +1059,54 @@ class DeckRuleBreakAfterUseTimingTests(SimpleTestCase):
             if e['type'] == 'card_broken' and e['payload'].get('card_instance_id') == 'arrow'
         ]
         self.assertEqual(len(breaks), 1)
+
+
+class ChimeraImportedFunctionTests(SimpleTestCase):
+    """키메라 특성: 가져온 기술은 번호 효과(①…)만 무효이고, 번호 없는 기능은 적용된다."""
+
+    def test_unnumbered_function_applies_and_numbered_effect_is_negated(self):
+        from .game.drafts import build_effect_draft
+
+        imported = attack('imported', 'p1', code='IMPORTED', frame=5, position='상단')
+        guard = defense('guard', 'p2', top='방어')
+        state = base_state([imported], [guard])
+        state['players']['p1']['character'] = {'id': 15}
+        state['players']['p2']['character'] = {'id': 2}
+        rules = ruleset(imported, guard)
+        rules['cards']['IMPORTED']['character_id'] = 3
+        rules['cards']['IMPORTED']['type'] = '공격'
+        rules['cards']['IMPORTED']['effect_definition'] = build_effect_draft(
+            'IMPORTED', '이 기술은 방어할 수 없다.\n①히트 시, 자신은 2FP를 얻는다.',
+        )
+        rules['characters'] = {
+            '2': {'id': 2, 'key': 'opponent'},
+            '3': {'id': 3, 'key': 'foreign'},
+            '15': {'id': 15, 'key': 'chimera', 'deck_rules': {
+                'other_character_cards': {
+                    'allowed_types': ['공격'], 'exclude_ultimate': True,
+                    'exclude_character_ids': [1], 'max_per_character': 3,
+                    'treat_as_own_character': True, 'negate_effects': True,
+                    'break_after_use': True,
+                },
+            }},
+        }
+        engine = AutomaticGameEngine.initialize(state, rules, seed='chimera-function', run_startup=False)
+        live = engine._find_card('imported')
+        self.assertTrue(live.get('numbered_effects_negated'))
+        self.assertNotEqual(engine._definition_for_card(live), {})
+
+        def act(role, kind, pick=None):
+            engine.submit_action(role, next(
+                a for a in engine.legal_actions(role)
+                if a['type'] == kind and (pick is None or a['payload'].get('card_instance_id') == pick)
+            )['action_id'])
+        act('p1', 'pass_phase'); act('p2', 'pass_phase')
+        act('p1', 'ready_card', 'imported'); act('p2', 'ready_card')
+        results = [e['payload'] for e in engine.events if e['type'] == 'battle_judged']
+        self.assertTrue(results, [e['type'] for e in engine.events][-30:])
+        self.assertEqual((results[-1].get('result') or results[-1]).get('p1'), 'hit')
+        self.assertFalse(any(
+            e['type'] == 'effect_resolved' and e['payload'].get('ability_id') == 'imported-n1'
+            for e in engine.events
+        ))
+        self.assertEqual(engine.state['players']['p1']['fp'], 0)
