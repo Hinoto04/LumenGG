@@ -1,0 +1,152 @@
+[
+ {
+  "snapshot": {
+   "code": "CB04-AT-005",
+   "name": "아이스 블로",
+   "ruby": "",
+   "text": "①판정 전, 루멘 존에 [부쿠키] 기술이 3장 이상인 경우 히트 및 카운터 판정을 <콤보>로 변경한다. \r\n②콤보 시, 이번 턴 루멘 존의 [부쿠키] 기술을 콤보에 사용할 수 있다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "공격",
+   "frame": 8,
+   "damage": 500,
+   "pos": "중단",
+   "body": "손",
+   "hit": "5",
+   "guard": "-7",
+   "counter": "6",
+   "special": null,
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 24
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "Ice Blow",
+    "text": "①Before judgment, if there are 3 or more <[[character:부쿠키]]> Techniques in your Lumen Zone, change the hit and counter judgments to <Combo>.\n②On combo, this turn, you may use <[[character:부쿠키]]> Techniques in the Lumen Zone in the combo."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "アイス・ブロー",
+    "text": "①判定前、ルーメンゾーンに<[[character:부쿠키]]> 技が3枚以上ある場合、ヒットおよびカウンター判定を〈コンボ〉に変更する。\n②コンボ時、このターン、ルーメンゾーンの<[[character:부쿠키]]> 技をコンボに使用できる。"
+   }
+  },
+  "source_markup": {
+   "text": "①판정 전, 루멘 존에 <[[character:부쿠키]]> 기술이 3장 이상인 경우 히트 및 카운터 판정을 <콤보>로 변경한다. \r\n②콤보 시, 이번 턴 루멘 존의 <[[character:부쿠키]]> 기술을 콤보에 사용할 수 있다."
+  }
+ },
+ {
+  "snapshot": {
+   "code": "CB04-AT-008",
+   "name": "아이시클 필러",
+   "ruby": "",
+   "text": "이 기술은 <손> 및 <발>판정 기술만 상쇄한다.\r\n①판정 전, 상대 기술이 500데미지 이상 공격 기술인 경우 <중단 상쇄> 특수 판정을 추가한다.\r\n②상쇄 시, 상대 기술의 히트 판정을 <+0>로 변경한다. 그 후, 사용한 이 기술을 브레이크한다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "공격",
+   "frame": 10,
+   "damage": 500,
+   "pos": "중단",
+   "body": "",
+   "hit": "5",
+   "guard": "-8",
+   "counter": "5",
+   "special": "하단 상쇄",
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 24
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "Icicle Pillar",
+    "text": "This Technique can only clash Techniques with a <Hand> or <Foot> judgment.\n①Before judgment, if your opponent's Technique is an Attack Technique with 500 or more damage, add a <Mid Clash> special judgment.\n②On clash, change your opponent's Technique's hit judgment to <+0>. Then, break this used Technique."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "アイシクル・ピラー",
+    "text": "この技は〈手〉および〈足〉判定の技のみ相殺する。\n①判定前、相手の技が500ダメージ以上の攻撃技である場合、〈中段相殺〉特殊判定を追加する。\n②相殺時、相手の技のヒット判定を〈+0〉に変更する。その後、使用したこの技をブレイクする。"
+   }
+  },
+  "source_markup": {
+   "text": "이 기술은 <손> 및 <발>판정 기술만 상쇄한다.\r\n①판정 전, 상대 기술이 500데미지 이상 공격 기술인 경우 <중단 상쇄> 특수 판정을 추가한다.\r\n②상쇄 시, 상대 기술의 히트 판정을 <+0>로 변경한다. 그 후, 사용한 이 기술을 브레이크한다."
+  }
+ },
+ {
+  "snapshot": {
+   "code": "CB04-AT-009",
+   "name": "트리거 크레바스",
+   "ruby": "",
+   "text": "①상대 「서리」: 이 기술이 루멘 존에 존재하는 한, 상대는 캐치할 수 없다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "공격",
+   "frame": 11,
+   "damage": 400,
+   "pos": "상단",
+   "body": "",
+   "hit": "7",
+   "guard": "-4",
+   "counter": "8",
+   "special": "하단 상쇄",
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 24
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "Trigger Crevasse",
+    "text": "①Opponent in [[state:frost]]: While this Technique is in your Lumen Zone, your opponent cannot catch."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "トリガー・クレバス",
+    "text": "①相手[[state:frost]]：この技がルーメンゾーンにある限り、相手はキャッチできない。"
+   }
+  },
+  "source_markup": {
+   "text": "①상대 [[state:frost]]: 이 기술이 루멘 존에 존재하는 한, 상대는 캐치할 수 없다."
+  }
+ }
+]

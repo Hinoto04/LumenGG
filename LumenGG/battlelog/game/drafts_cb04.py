@@ -871,7 +871,87 @@ def _merciful_lullaby(code):
     ]
 
 
+# --- CB04 추가 공개분(2026-11-21): 부쿠키 -----------------------------------------
+
+def _lumen_bukuki_combo(code, suffix):
+    return _ability(
+        code, suffix, '콤보 시, 이번 턴 루멘 존의 [부쿠키] 기술을 콤보에 사용할 수 있다.',
+        timing='combo', active_zones=['battle'], trigger={'event': 'combo'},
+        effects=[{
+            'op': 'modify_combo', 'player': {'controller': True},
+            'allow_zones': ['lumen'], 'where': dict(BUKUKI_TECHNIQUE),
+            'usage_key': f'{code.lower()}-lumen-combo', 'duration': 'turn',
+        }],
+    )
+
+
+def _ice_blow(code):
+    return {}, [
+        _ability(
+            code, 'n1', '판정 전, 루멘 존에 [부쿠키] 기술이 3장 이상인 경우 히트 및 카운터 판정을 <콤보>로 변경한다.',
+            timing='before_judgment', active_zones=['battle'], trigger={'event': 'before_judgment'},
+            condition={'op': 'zone_count', 'player': {'controller': True}, 'zone': 'lumen',
+                       'min': 3, 'where': dict(BUKUKI_TECHNIQUE)},
+            effects=[
+                {'op': 'modify_judgment', 'player': {'controller': True}, 'field': 'hit', 'value': '콤보'},
+                {'op': 'modify_judgment', 'player': {'controller': True}, 'field': 'counter', 'value': '콤보'},
+            ],
+        ),
+        _lumen_bukuki_combo(code, 'n2'),
+    ]
+
+
+def _icicle_pillar(code):
+    return {
+        'defense_rules': [
+            {'judgment': 'clash', 'where': {'body': '손'}},
+            {'judgment': 'clash', 'where': {'body': '발'}},
+        ],
+    }, [
+        _ability(
+            code, 'function', '이 기술은 <손> 및 <발>판정 기술만 상쇄한다.',
+            kind='function', mode='continuous', timing='function', active_zones=['battle'],
+            effects=[{'op': 'static_rule', 'rules': ['defense_rules']}],
+        ),
+        _ability(
+            code, 'n1', '판정 전, 상대 기술이 500데미지 이상 공격 기술인 경우 <중단 상쇄> 특수 판정을 추가한다.',
+            timing='before_judgment', active_zones=['battle'], trigger={'event': 'before_judgment'},
+            condition={'op': 'all', 'conditions': [
+                {'op': 'card_matches', 'card': {'path': 'context.opponent_card'},
+                 'where': {'type_contains': '공격'}},
+                {'op': 'gte', 'left': 'context.opponent_damage', 'right': 500},
+            ]},
+            effects=[{'op': 'modify_judgment', 'player': {'controller': True},
+                      'field': 'special', 'value': '중단 상쇄', 'mode': 'append'}],
+        ),
+        _ability(
+            code, 'n2', '상쇄 시, 상대 기술의 히트 판정을 <+0>로 변경한다. 그 후, 사용한 이 기술을 브레이크한다.',
+            timing='clash', active_zones=['battle'], trigger={'event': 'clash'},
+            effects=[
+                {'op': 'modify_judgment', 'player': {'opponent': True}, 'field': 'hit', 'value': '+0'},
+                {'op': 'break_card', 'card_instance_id': {'path': 'context.source_card_instance_id'},
+                 'continue_resolution': True},
+            ],
+        ),
+    ]
+
+
+def _trigger_crevasse(code):
+    return {}, [
+        _ability(
+            code, 'n1', '상대 「서리」: 이 기술이 루멘 존에 존재하는 한, 상대는 캐치할 수 없다.',
+            mode='continuous', timing='function', active_zones=['lumen'],
+            condition={'op': 'has_state', 'player': {'opponent': True}, 'state': FROST_STATE},
+            effects=[{'op': 'prevent', 'kind': 'catch', 'player': {'opponent': True},
+                      'duration': 'continuous'}],
+        ),
+    ]
+
+
 BUILDERS = {
+    'CB04-AT-005': _ice_blow,
+    'CB04-AT-008': _icicle_pillar,
+    'CB04-AT-009': _trigger_crevasse,
     'CB04-AT-024': _blazing_thunder,
     'CB04-AT-027': _merciful_lullaby,
     'CB04-AT-031': _tiptoe_walk,

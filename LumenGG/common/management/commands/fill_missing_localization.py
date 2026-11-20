@@ -30,6 +30,9 @@ from common.localization_batches.batch_cb04_20261118 import (
 from common.localization_batches.batch_cb04_20261119 import (
     restore_missing_translations as restore_cb04_fifth_translations,
 )
+from common.localization_batches.batch_cb04_20261121 import (
+    restore_missing_translations as restore_cb04_sixth_translations,
+)
 
 
 HANGUL_RE = re.compile(r'[가-힣]')
@@ -418,6 +421,7 @@ class Command(BaseCommand):
             stats['translated'] += restore_cb04_third_translations(apps)
             stats['translated'] += restore_cb04_fourth_translations(apps)
             stats['translated'] += restore_cb04_fifth_translations(apps)
+            stats['translated'] += restore_cb04_sixth_translations(apps)
             self.ensure_manual_sources()
             self.normalize_empty_sources(stats)
             lookup = self.translation_lookup()

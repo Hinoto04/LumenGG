@@ -863,9 +863,143 @@ def _run_at034_n1(definition, snapshot, owner, *, recovery=False, **kwargs):
 
 # --- 능력별 시나리오 표 -----------------------------------------------------------
 
+# --- CB04 추가 공개분(2026-11-21): 부쿠키 ------------------------------------------
+
+def _battle_pair(engine, source, enemy):
+    engine.engine_state['battle'] = {
+        source['owner']: {'instance_id': source['instance_id'],
+                          'card': engine._find_card(source['instance_id'])},
+        enemy['owner']: {'instance_id': enemy['instance_id'], 'card': engine._find_card(enemy['instance_id'])},
+    }
+
+
+def _judgment_changes(engine):
+    return [
+        {key: (event.get('payload') or {}).get(key) for key in ('card_instance_id', 'field', 'after')}
+        for event in engine.events if event.get('type') == 'judgment_modified'
+    ]
+
+
+def _run_at005_before(definition, snapshot, owner, *, bukuki, others=0):
+    source = _source(snapshot, 'CB04-AT-005', owner)
+    lumen = [_card(f'{owner}-bukuki-{index}', owner, code=f'REVIEW-CB04-BUKUKI-{index}', character=BUKUKI)
+             for index in range(bukuki)]
+    lumen += [_card(f'{owner}-other-{index}', owner, code=f'REVIEW-CB04-OTHER-{index}', character='rin')
+              for index in range(others)]
+    enemy = _card(f'{_opp(owner)}-enemy', _opp(owner), code='REVIEW-CB04-ENEMY')
+    engine = _engine(definition, source, {owner: {'battle': [source], 'lumen': lumen},
+                                          _opp(owner): {'battle': [enemy]}},
+                     seed=f'cb04-at005:{owner}:{bukuki}:{others}')
+    _battle_pair(engine, source, enemy)
+    _fire(engine, 'before_judgment', source, opponent_card=engine._find_card(enemy['instance_id']))
+    live = engine._find_card(source['instance_id'])
+    return {'hit': live.get('hit'), 'counter': live.get('counter'), 'judgment_modified': _judgment_changes(engine)}
+
+
+def _run_at008_restriction(definition, snapshot, owner, *, body):
+    source = _source(snapshot, 'CB04-AT-008', owner)
+    attacker = _card(f'{_opp(owner)}-attacker', _opp(owner), code='REVIEW-CB04-ATTACKER')
+    attacker['body'] = body
+    engine = _engine(definition, source, {owner: {'battle': [source]}, _opp(owner): {'battle': [attacker]}},
+                     seed=f'cb04-at008-restriction:{owner}:{body}')
+    return {'clash_allowed': bool(engine._defense_judgment_allowed(
+        engine._find_card(source['instance_id']), attacker, 'clash', _opp(owner),
+    ))}
+
+
+def _run_at008_before(definition, snapshot, owner, *, damage, enemy_type='공격'):
+    source = _source(snapshot, 'CB04-AT-008', owner)
+    enemy = _card(f'{_opp(owner)}-enemy', _opp(owner), code='REVIEW-CB04-ENEMY', type_=enemy_type, damage=damage)
+    engine = _engine(definition, source, {owner: {'battle': [source]}, _opp(owner): {'battle': [enemy]}},
+                     seed=f'cb04-at008-before:{owner}:{damage}:{enemy_type}')
+    _battle_pair(engine, source, enemy)
+    live_enemy = engine._find_card(enemy['instance_id'])
+    _fire(engine, 'before_judgment', source, opponent_card=live_enemy,
+          opponent_damage=engine.card_stat(live_enemy, 'damage', _opp(owner), include_fp=False)
+          if enemy_type == '공격' else None)
+    printed = [item for item in str(source.get('special') or '').split(' · ') if item]
+    special = [item for item in str(engine._find_card(source['instance_id']).get('special') or '').split(' · ')
+               if item]
+    return {'mid_clash_added': '중단 상쇄' in special and '중단 상쇄' not in printed,
+            'printed_kept': special[:len(printed)] == printed}
+
+
+def _run_at008_clash(definition, snapshot, owner, *, negated=False):
+    source = _source(snapshot, 'CB04-AT-008', owner, negated=negated)
+    enemy = _card(f'{_opp(owner)}-enemy', _opp(owner), code='REVIEW-CB04-ENEMY', hit='3')
+    engine = _engine(definition, source, {owner: {'battle': [source]}, _opp(owner): {'battle': [enemy]}},
+                     seed=f'cb04-at008-clash:{owner}:{negated}')
+    _battle_pair(engine, source, enemy)
+    _fire(engine, 'clash', source)
+    return {'judgment_modified': _judgment_changes(engine), 'source_zone': _zone_of(engine, source['instance_id'])}
+
+
+def _run_at009(definition, snapshot, owner, *, zone='lumen', frost=True):
+    source = _source(snapshot, 'CB04-AT-009', owner)
+    engine = _engine(definition, source, {owner: {zone: [source]}},
+                     seed=f'cb04-at009:{owner}:{zone}:{frost}')
+    if frost:
+        engine.set_passive(_opp(owner), 'frost', value=True)
+    engine._refresh_continuous_rules()
+    return {
+        'opponent_catch_blocked': bool(engine._rule_blocked('catch', _opp(owner))),
+        'owner_catch_blocked': bool(engine._rule_blocked('catch', owner)),
+    }
+
+
 def _cases():
     frost_ok = {'opponent_frost': True}
     return {
+        'cb04-at-005-n1': (_run_at005_before, (
+            ('owner-p1-three-bukuki-changes-hit-and-counter-to-combo', 'p1', {'bukuki': 3},
+             {'hit': '콤보', 'counter': '콤보'}),
+            ('owner-p2-four-bukuki-changes-hit-and-counter-to-combo', 'p2', {'bukuki': 4},
+             {'hit': '콤보', 'counter': '콤보'}),
+            ('two-bukuki-and-other-techniques-change-nothing', 'p1', {'bukuki': 2, 'others': 2},
+             {'judgment_modified': []}),
+        )),
+        'cb04-at-005-n2': (_run_on_event, (
+            ('owner-p1-combo-allows-lumen-bukuki', 'p1', {'code': 'CB04-AT-005', 'event': 'combo'},
+             {'lumen_combo_rules': [(['lumen'], BUKUKI, 'turn')]}),
+            ('owner-p2-combo-allows-lumen-bukuki', 'p2', {'code': 'CB04-AT-005', 'event': 'combo'},
+             {'lumen_combo_rules': [(['lumen'], BUKUKI, 'turn')]}),
+            ('negated-source-adds-no-combo-rule', 'p1',
+             {'code': 'CB04-AT-005', 'event': 'combo', 'negated': True}, {'lumen_combo_rules': []}),
+        )),
+        'cb04-at-008-function': (_run_at008_restriction, (
+            ('owner-p1-clashes-hand-technique', 'p1', {'body': '손'}, {'clash_allowed': True}),
+            ('owner-p2-clashes-foot-technique', 'p2', {'body': '발'}, {'clash_allowed': True}),
+            ('technique-without-hand-or-foot-cannot-be-clashed', 'p1', {'body': ''}, {'clash_allowed': False}),
+            ('echo-technique-cannot-be-clashed', 'p2', {'body': '잔향'}, {'clash_allowed': False}),
+        )),
+        'cb04-at-008-n1': (_run_at008_before, (
+            ('owner-p1-500-damage-attack-adds-mid-clash', 'p1', {'damage': 500},
+             {'mid_clash_added': True, 'printed_kept': True}),
+            ('owner-p2-700-damage-attack-adds-mid-clash', 'p2', {'damage': 700},
+             {'mid_clash_added': True, 'printed_kept': True}),
+            ('400-damage-attack-adds-nothing', 'p1', {'damage': 400},
+             {'mid_clash_added': False, 'printed_kept': True}),
+            ('defense-technique-adds-nothing', 'p2', {'damage': 600, 'enemy_type': '수비'},
+             {'mid_clash_added': False, 'printed_kept': True}),
+        )),
+        'cb04-at-008-n2': (_run_at008_clash, (
+            ('owner-p1-clash-sets-opponent-hit-plus-0-and-breaks', 'p1', {},
+             {'judgment_modified': [{'card_instance_id': 'p2-enemy', 'field': 'hit', 'after': '+0'}],
+              'source_zone': 'break'}),
+            ('owner-p2-clash-sets-opponent-hit-plus-0-and-breaks', 'p2', {},
+             {'judgment_modified': [{'card_instance_id': 'p1-enemy', 'field': 'hit', 'after': '+0'}],
+              'source_zone': 'break'}),
+            ('negated-source-changes-nothing', 'p1', {'negated': True},
+             {'judgment_modified': [], 'source_zone': 'battle'}),
+        )),
+        'cb04-at-009-n1': (_run_at009, (
+            ('owner-p1-lumen-and-opponent-frost-blocks-opponent-catch', 'p1', {},
+             {'opponent_catch_blocked': True, 'owner_catch_blocked': False}),
+            ('owner-p2-lumen-and-opponent-frost-blocks-opponent-catch', 'p2', {},
+             {'opponent_catch_blocked': True, 'owner_catch_blocked': False}),
+            ('no-frost-allows-catch', 'p1', {'frost': False}, {'opponent_catch_blocked': False}),
+            ('outside-lumen-zone-allows-catch', 'p2', {'zone': 'battle'}, {'opponent_catch_blocked': False}),
+        )),
         'cb04-at-024-n1': (_run_at024_combo, (
             ('owner-p1-speed-7-breaks-on-combo-and-gains-three-ember', 'p1', {'speed': 7},
              {'combo_speeds': [6, 7, 8], 'zone_after_combo': 'break', 'breaks_after_use': False, 'ember': 3}),
