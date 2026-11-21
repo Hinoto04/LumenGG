@@ -205,7 +205,11 @@ export function DecisionPanel({
   useEffect(() => {
     staleSelection.current = selected;
     const valid = new Set(options.map((option) => option.id));
-    setSelected(onBoard ? [] : (decision?.default ?? []).filter((id) => valid.has(id)).slice(0, maximum));
+    // 임의 효과(발동/발동하지 않음)는 아무것도 고르지 않은 채로 연다. 기본값(발동하지 않음)을
+    // 미리 골라 두면 "발동"을 누르지 않고 확정해 발동 기회를 놓친다(부스터 펀치 ② 제보).
+    // 시간 초과 시 기본값 처리는 서버가 그대로 한다.
+    const startEmpty = onBoard || decision?.kind === "optional_effect";
+    setSelected(startEmpty ? [] : (decision?.default ?? []).filter((id) => valid.has(id)).slice(0, maximum));
     setCollapsed(onBoard);
   }, [decisionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
