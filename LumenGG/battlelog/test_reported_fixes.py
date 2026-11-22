@@ -1151,6 +1151,17 @@ class AiWorkerRulesetConnectionTests(SimpleTestCase):
                 ai_compute._worker_ruleset(6)
 
 
+    def test_pool_spawns_workers_instead_of_forking(self):
+        """fork는 서버의 MySQL 소켓을 워커와 공유해 첫 질의부터 연결이 끊긴다."""
+        from unittest import mock
+
+        from . import ai_compute
+
+        with mock.patch.object(ai_compute, '_pool', None),                 mock.patch.object(ai_compute, 'ProcessPoolExecutor') as executor:
+            ai_compute._get_pool()
+        self.assertEqual(executor.call_args.kwargs['mp_context'].get_start_method(), 'spawn')
+
+
 class ComboPairFollowupConditionTests(SimpleTestCase):
     """2·3콤보를 함께 낼 때 2번째 카드의 사용 조건은 1번째 카드 처리 후 기준으로 본다."""
 

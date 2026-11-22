@@ -17,6 +17,7 @@ Settings
   times the pool size) a decision falls back to base-stat cells.
 """
 
+import multiprocessing
 import os
 import threading
 from concurrent.futures import ProcessPoolExecutor
@@ -44,11 +45,16 @@ def _init_worker(settings_module):
 
 
 def _get_pool():
+    # spawn: 리눅스 기본값인 fork로 띄우면 워커가 Daphne 프로세스의 열린 MySQL 소켓을
+    # 물려받아 부모와 같은 연결로 동시에 질의하게 되고, 첫 질의부터
+    # "Lost connection to MySQL server during query"(2013)로 끊긴다. 새 프로세스로
+    # 띄워 워커마다 자기 연결을 쓰게 한다.
     global _pool
     with _pool_guard:
         if _pool is None:
             _pool = ProcessPoolExecutor(
                 max_workers=worker_count(),
+                mp_context=multiprocessing.get_context('spawn'),
                 initializer=_init_worker,
                 initargs=(os.environ.get('DJANGO_SETTINGS_MODULE', 'LumenGG.settings'),),
             )
