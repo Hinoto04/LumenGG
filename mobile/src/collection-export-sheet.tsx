@@ -3,11 +3,10 @@ import { Alert, Text, View } from "react-native";
 import { useApp } from "./provider";
 import { Button, Chip, Segmented, space, styles } from "./ui";
 import { BottomSheet } from "./character-picker";
-import { COLLECTION_CATEGORIES } from "./collection-data";
 import {
   collectionExportFileName,
   defaultExportOptions,
-  favoriteExportEntries,
+  collectionExportEntries,
   formatCollectionExport,
   koreanExportHeaders,
   type ExportFormat,
@@ -15,27 +14,30 @@ import {
   type ExportOptions,
 } from "./collection-export";
 import { saveExportFile, shareExportText } from "./collection-export-file";
+import type { CollectionItem } from "./types";
 
-/** 컬렉션 즐겨찾기(하트) 목록을 txt/csv로 저장하거나 공유하는 시트. */
+/** 컬렉션 화면에 보이는 목록(검색·필터·정렬 그대로)을 txt/csv로 저장하거나 공유하는 시트. */
 export function CollectionExportSheet({
   visible,
+  rows,
   onClose,
 }: {
   visible: boolean;
+  /** 컬렉션 화면이 지금 보여주는 행. */
+  rows: CollectionItem[];
   onClose: () => void;
 }) {
-  const { catalog, language, amounts, categories, t } = useApp();
+  const { catalog, language, amounts, t } = useApp();
   const [options, setOptions] = useState<ExportOptions>({
     ...defaultExportOptions,
   });
-  const [heart, setHeart] = useState("");
   const [busy, setBusy] = useState(false);
   const entries = useMemo(
     () =>
       catalog && visible
-        ? favoriteExportEntries(catalog, categories, amounts, language, heart)
+        ? collectionExportEntries(rows, catalog, amounts, language)
         : [],
-    [catalog, visible, categories, amounts, language, heart],
+    [catalog, visible, rows, amounts, language],
   );
   const headers = Object.fromEntries(
     Object.entries(koreanExportHeaders).map(([key, label]) => [key, t(label)]),
@@ -60,11 +62,11 @@ export function CollectionExportSheet({
     }
   }
   return (
-    <BottomSheet visible={visible} title="즐겨찾기 내보내기" onClose={onClose}>
+    <BottomSheet visible={visible} title="목록 내보내기" onClose={onClose}>
       {() => (
         <View style={{ gap: space.md, paddingBottom: space.md }}>
           <Text style={styles.muted}>
-            {t("하트를 붙인 카드를 속도 순으로 내보냅니다.") +
+            {t("지금 보이는 목록을 검색·필터·정렬 그대로 내보냅니다.") +
               " " +
               entries.length.toLocaleString() +
               t("개")}
@@ -101,25 +103,6 @@ export function CollectionExportSheet({
                 selected={options.amount}
                 onPress={() => toggle("amount")}
               />
-            </View>
-          </View>
-          <View style={{ gap: space.xs }}>
-            <Text style={styles.muted}>{t("하트")}</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              <Chip
-                label="전체"
-                selected={heart === ""}
-                onPress={() => setHeart("")}
-              />
-              {COLLECTION_CATEGORIES.map((n) => (
-                <Chip
-                  key={n}
-                  label={String(n)}
-                  icon="heart"
-                  selected={heart === String(n)}
-                  onPress={() => setHeart(String(n))}
-                />
-              ))}
             </View>
           </View>
           <View style={{ flexDirection: "row", gap: space.sm }}>

@@ -1574,10 +1574,10 @@ UI_TRANSLATIONS[LANGUAGE_JAPANESE].update({
     '북마크한 덱만': 'ブックマークのみ',
     '북마크한 덱': 'ブックマークしたデッキ',
 })
-# 컬렉션 즐겨찾기 내보내기
+# 컬렉션 목록 내보내기
 UI_TRANSLATIONS[LANGUAGE_ENGLISH].update({
-    '즐겨찾기 내보내기': 'Export favorites',
-    '하트를 붙인 카드를 속도 순으로 파일에 저장합니다. 카드명은 항상 포함됩니다.': 'Saves hearted cards to a file in speed order. Card names are always included.',
+    '목록 내보내기': 'Export list',
+    '지금 적용된 검색 조건과 정렬 그대로 전체 페이지를 파일로 저장합니다. 카드명은 항상 포함됩니다.': 'Saves every page of the current search and sort to a file. Card names are always included.',
     '형식': 'Format',
     '엑셀': 'Excel',
     '포함할 열': 'Columns',
@@ -1586,8 +1586,8 @@ UI_TRANSLATIONS[LANGUAGE_ENGLISH].update({
     '내보내기': 'Export',
 })
 UI_TRANSLATIONS[LANGUAGE_JAPANESE].update({
-    '즐겨찾기 내보내기': 'お気に入りを書き出す',
-    '하트를 붙인 카드를 속도 순으로 파일에 저장합니다. 카드명은 항상 포함됩니다.': 'ハートを付けたカードを速度順でファイルに保存します。カード名は常に含まれます。',
+    '목록 내보내기': 'リストを書き出す',
+    '지금 적용된 검색 조건과 정렬 그대로 전체 페이지를 파일로 저장합니다. 카드명은 항상 포함됩니다.': '現在の検索条件と並び順のまま、全ページをファイルに保存します。カード名は常に含まれます。',
     '형식': '形式',
     '엑셀': 'Excel',
     '포함할 열': '含める列',

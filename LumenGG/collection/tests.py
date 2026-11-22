@@ -57,7 +57,7 @@ class CollectionCategoryTests(TestCase):
         self.assertContains(response, 'data-category="3"')
 
 
-class CollectionFavoriteExportTests(TestCase):
+class CollectionExportTests(TestCase):
     def setUp(self):
         from card.models import Card, Character
 
@@ -85,9 +85,10 @@ class CollectionFavoriteExportTests(TestCase):
         other = User.objects.create_user('other', password='test-password')
         Collected.objects.create(user=other, card=self.plain, amount=1, category=1)
 
-    def export(self, **params):
-        self.client.force_login(self.user)
-        return self.client.get(reverse('collection:export_favorites'), params)
+    def export(self, login=True, **params):
+        if login:
+            self.client.force_login(self.user)
+        return self.client.get(reverse('collection:export'), params)
 
     def test_pure_format_matches_app_format(self):
         from collection.export import ExportEntry, ExportOptions, csv_field, format_collection_export
@@ -95,11 +96,11 @@ class CollectionFavoriteExportTests(TestCase):
         entries = [ExportEntry('번개', 'ST1-001', 'SR', 2), ExportEntry('Say "Hi", ok', 'PR-1', '', 0)]
         self.assertEqual(
             format_collection_export(entries, ExportOptions(format='csv')),
-            '﻿카드명,코드,레어도,갯수\r\n번개,ST1-001,SR,2\r\n"Say ""Hi"", ok",PR-1,,0\r\n',
+            '\ufeff카드명,코드,레어도,갯수\r\n번개,ST1-001,SR,2\r\n"Say ""Hi"", ok",PR-1,,0\r\n',
         )
         self.assertEqual(
             format_collection_export(entries, ExportOptions(format='csv', code=False, amount=False)),
-            '﻿카드명,레어도\r\n번개,SR\r\n"Say ""Hi"", ok",\r\n',
+            '\ufeff카드명,레어도\r\n번개,SR\r\n"Say ""Hi"", ok",\r\n',
         )
         self.assertEqual(
             format_collection_export(entries, ExportOptions()),
@@ -111,38 +112,48 @@ class CollectionFavoriteExportTests(TestCase):
         )
         self.assertEqual(csv_field('a\nb'), '"a\nb"')
 
-    def test_txt_export_lists_only_my_hearts_in_speed_order(self):
-        response = self.export(format='txt', code='1', rare='1', amount='1')
+    def test_txt_export_without_filters_lists_everything_in_speed_order(self):
+        response = self.export(format='txt', col_code='1', col_rare='1', col_amount='1')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'text/plain; charset=utf-8')
         self.assertRegex(response['Content-Disposition'], r'attachment; filename="lumen-favorites-\d{8}\.txt"')
-        # 속도 없는 스킨 → 속도 3 → 속도 7(먼저 나온 팩 → 레어도 N < SR). 하트 없는 항목과 남의 하트는 빠진다.
+        # 목록 화면 기본 정렬: 속도 없는 스킨 → 속도 3(이름순) → 속도 7(먼저 나온 팩 → 레어도 N < SR).
         self.assertEqual(response.content.decode('utf-8').splitlines(), [
             '니아, "스킨" [NEW-S01] (SP) x1',
             '잽 [NEW-001] (N) x4',
+            '잽 [NEW-003] (N) x9',
             '강타 [OLD-002] (SP) x1',
             '강타 [NEW-002] (N) x0',
             '강타 [NEW-002] (SR) x2',
         ])
 
-    def test_csv_export_has_bom_selected_columns_and_heart_filter(self):
-        response = self.export(format='csv', rare='1', heart='1')
+    def test_export_follows_list_filters_and_sort(self):
+        # 분류(하트) 1 + 레어도 SR 필터: 검색 조건의 rare와 열 옵션 col_rare가 섞이지 않는다.
+        response = self.export(format='csv', category='1', rare='SR', col_rare='1')
         self.assertEqual(response['Content-Type'], 'text/csv; charset=utf-8')
         self.assertTrue(response.content.startswith(b'\xef\xbb\xbf'))
+        self.assertEqual(response.content.decode('utf-8-sig'), '카드명,레어도\r\n강타,SR\r\n')
+        # 팩 필터(code)와 코드순 정렬, 미보유만 보기.
+        new = Pack.objects.get(code='NEW')
         self.assertEqual(
-            response.content.decode('utf-8-sig'),
-            '카드명,레어도\r\n강타,SP\r\n강타,SR\r\n',
+            self.export(format='txt', code=str(new.pk), sortValue='code', col_code='1').content.decode(),
+            '잽 [NEW-001]\n강타 [NEW-002]\n강타 [NEW-002]\n잽 [NEW-003]\n니아, "스킨" [NEW-S01]\n',
         )
-        # 체크박스가 모두 꺼지면 카드명만 남는다.
-        self.assertEqual(self.export(format='csv', heart='5').content.decode('utf-8-sig'),
+        self.assertEqual(self.export(format='txt', onlyZero='on', col_amount='1').content.decode(), '강타 x0\n')
+        # 열을 모두 끄면 카드명만 남고, 따옴표는 이스케이프된다.
+        self.assertEqual(self.export(format='csv', category='5').content.decode('utf-8-sig'),
                          '카드명\r\n"니아, ""스킨"""\r\n')
 
-    def test_export_requires_login(self):
-        response = self.client.get(reverse('collection:export_favorites'))
-        self.assertEqual(response.status_code, 302)
+    def test_anonymous_export_has_no_counts(self):
+        response = self.export(login=False, format='txt', col_amount='1', rare='SR')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content.decode(), '강타 x0\n')
 
-    def test_collection_page_offers_export_panel(self):
+    def test_collection_page_export_form_carries_current_filters(self):
         self.client.force_login(self.user)
-        response = self.client.get(reverse('collection:index'))
-        self.assertContains(response, reverse('collection:export_favorites'))
-        self.assertContains(response, 'name="amount" value="1"')
+        response = self.client.get(reverse('collection:index'), {'rare': 'SR', 'category': 'any', 'page': '1'})
+        self.assertContains(response, reverse('collection:export'))
+        self.assertContains(response, '<input type="hidden" name="rare" value="SR">', html=False)
+        self.assertContains(response, '<input type="hidden" name="category" value="any">', html=False)
+        self.assertNotContains(response, '<input type="hidden" name="page"', html=False)
+        self.assertContains(response, 'name="col_amount" value="1"')

@@ -1,22 +1,17 @@
-"""컬렉션 즐겨찾기(하트 분류) 목록 내보내기.
+"""컬렉션 목록 내보내기. 목록 화면에 적용된 검색·정렬 조건 그대로 내보낸다.
 
 앱(`mobile/src/collection-export.ts`)과 같은 형식을 만든다. 둘 중 하나를 바꾸면 다른 쪽도 맞춘다.
 """
 import re
 from dataclasses import dataclass
 
-from django.db.models import Case, IntegerField, When
-
 from common.language import translated_card_field, ui_text
 
-from .models import COLLECTION_CATEGORY_COUNT, Collected
 
 EXPORT_FORMATS = ('txt', 'csv')
 EXPORT_COLUMNS = ('name', 'code', 'rare', 'amount')
 EXPORT_HEADERS = {'name': '카드명', 'code': '코드', 'rare': '레어도', 'amount': '갯수'}
 CONTENT_TYPES = {'txt': 'text/plain; charset=utf-8', 'csv': 'text/csv; charset=utf-8'}
-# 웹 컬렉션 목록의 custom_order와 같은 레어도 순서.
-RARE_ORDER = ('N', 'SR', 'EXR', 'AN', 'AEX', 'SAR', 'SP')
 _CSV_SPECIAL = re.compile(r'[",\r\n]')
 
 
@@ -40,21 +35,20 @@ class ExportOptions:
         return [key for key in EXPORT_COLUMNS if key == 'name' or getattr(self, key)]
 
 
+# 목록 화면의 검색 조건 파라미터. 내보내기 폼이 숨은 값으로 그대로 넘긴다.
+EXPORT_FILTER_PARAMS = ('char', 'rare', 'code', 'sortValue', 'category', 'onlyZero')
+
+
 def parse_export_options(params):
-    """GET 파라미터에서 옵션을 읽는다. 열 체크박스는 체크했을 때만 '1'로 넘어온다."""
+    """GET 파라미터에서 옵션을 읽는다. 열 체크박스는 체크했을 때만 '1'로 넘어온다.
+    code·rare는 검색 조건(팩·레어도)이 이미 쓰는 이름이라 열 옵션은 col_ 접두사를 붙인다."""
     fmt = params.get('format', 'txt')
     return ExportOptions(
         format=fmt if fmt in EXPORT_FORMATS else 'txt',
-        code=params.get('code') == '1',
-        rare=params.get('rare') == '1',
-        amount=params.get('amount') == '1',
+        code=params.get('col_code') == '1',
+        rare=params.get('col_rare') == '1',
+        amount=params.get('col_amount') == '1',
     )
-
-
-def parse_heart(value):
-    """'' 하트 전체, '1'~'5' 그 하트만. 그 밖의 값은 전체로 본다."""
-    value = str(value or '').strip()
-    return value if value.isdigit() and 1 <= int(value) <= COLLECTION_CATEGORY_COUNT else ''
 
 
 def csv_field(value):
@@ -76,7 +70,7 @@ def format_collection_export(entries, options, headers=None):
     if options.format == 'csv':
         rows = [[csv_field(headers[key]) for key in columns]]
         rows += [[csv_field(getattr(entry, key)) for key in columns] for entry in entries]
-        return '﻿' + '\r\n'.join(','.join(row) for row in rows) + '\r\n'
+        return '\ufeff' + '\r\n'.join(','.join(row) for row in rows) + '\r\n'
     lines = []
     for entry in entries:
         line = entry.name
@@ -99,25 +93,15 @@ def export_headers(language):
     return {key: ui_text(label, language) for key, label in EXPORT_HEADERS.items()}
 
 
-def favorite_export_entries(user, language, heart=''):
-    """사용자가 하트를 붙인 인쇄본을 웹 컬렉션 기본 정렬(속도 순)로 모은다."""
-    rows = Collected.objects.filter(user=user)
-    rows = rows.filter(category=int(heart)) if heart else rows.filter(category__gte=1)
-    rows = rows.select_related('card__card', 'card__pack').annotate(
-        rare_order=Case(
-            *[When(card__rare=rare, then=index) for index, rare in enumerate(RARE_ORDER)],
-            default=len(RARE_ORDER),
-            output_field=IntegerField(),
-        )
-    ).order_by('card__card__frame', 'card__name', 'card__pack__released', 'rare_order', 'card_id')
+def collection_export_entries(collection, language):
+    """목록 화면과 같은 queryset(검색·정렬 적용)을 내보낼 항목으로 바꾼다. 비로그인이면 갯수는 0이다."""
     entries = []
-    for row in rows:
-        item = row.card
+    for item in collection:
         name = translated_card_field(item.card, language, 'name') if item.card else ''
         entries.append(ExportEntry(
             name=name or item.name,
             code=item.code,
             rare=item.rare,
-            amount=max(0, row.amount),
+            amount=max(0, getattr(item, 'amount', None) or 0),
         ))
     return entries

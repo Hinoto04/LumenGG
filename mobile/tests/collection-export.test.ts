@@ -1,11 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rareOrder, sortCollectionRows } from "../src/collection-data";
+import {
+  collectionRows,
+  emptyCollectionFilters,
+  rareOrder,
+  sortCollectionRows,
+} from "../src/collection-data";
 import {
   collectionExportFileName,
   csvField,
   defaultExportOptions,
-  favoriteExportEntries,
+  collectionExportEntries,
   formatCollectionExport,
   type ExportEntry,
 } from "../src/collection-export";
@@ -94,19 +99,32 @@ test("name and code sorts and the default keep their own order without mutating"
   );
 });
 
-test("favorite entries keep hearted prints only, sorted by speed with localized names", () => {
+test("export entries follow the screen's filtered and sorted rows with localized names", () => {
   const categories = { 1: 2, 3: 1, 5: 4, 2: 0 };
   const amounts = { 1: 3, 5: 1 };
-  assert.deepEqual(favoriteExportEntries(catalog, categories, amounts, "en"), [
+  // 화면과 같은 과정: 분류된 카드 필터 → 속도 순 정렬.
+  const rows = sortCollectionRows(
+    collectionRows(
+      catalog,
+      { ...emptyCollectionFilters, category: "any" },
+      "",
+      amounts,
+      "en",
+      categories,
+    ),
+    catalog,
+    "speed",
+  );
+  assert.deepEqual(collectionExportEntries(rows, catalog, amounts, "en"), [
     { name: "스킨", code: "PR-1", rare: "N", amount: 1 },
     { name: "가드", code: "ST1-002", rare: "N", amount: 0 },
     { name: "Lightning", code: "ST1-001", rare: "SR", amount: 3 },
   ]);
+  // 코드 순으로 바꾸면 내보내기 순서도 그대로 따라간다.
+  const byCode = sortCollectionRows(catalog.collection, catalog, "code");
   assert.deepEqual(
-    favoriteExportEntries(catalog, categories, amounts, "ko", "2").map(
-      (e) => e.name,
-    ),
-    ["번개"],
+    collectionExportEntries(byCode, catalog, {}, "ko").map((e) => e.code),
+    ["PR-1", "PR-2", "ST1-001", "ST1-001", "ST1-002", "ST1-003"],
   );
 });
 

@@ -71,11 +71,11 @@
     </div>
 </form>
 
-{% if user.is_authenticated %}
-<details class="v2-panel v2-collection-export" id="즐겨찾기내보내기">
-    <summary>{% tr "즐겨찾기 내보내기" %}</summary>
-    <form action="{% url "collection:export_favorites" %}" method="get" class="v2-collection-export-form">
-        <p class="v2-collection-export-help">{% tr "하트를 붙인 카드를 속도 순으로 파일에 저장합니다. 카드명은 항상 포함됩니다." %}</p>
+<details class="v2-panel v2-collection-export" id="컬렉션내보내기">
+    <summary>{% tr "목록 내보내기" %}</summary>
+    <form action="{% url "collection:export" %}" method="get" class="v2-collection-export-form">
+        {% for key, value in export_filters %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+        <p class="v2-collection-export-help">{% tr "지금 적용된 검색 조건과 정렬 그대로 전체 페이지를 파일로 저장합니다. 카드명은 항상 포함됩니다." %} ({% tr "총" %} {{ data.paginator.count }}{% tr "종" %})</p>
         <fieldset>
             <legend>{% tr "형식" %}</legend>
             <label><input type="radio" name="format" value="txt" checked> TXT</label>
@@ -84,23 +84,15 @@
         <fieldset>
             <legend>{% tr "포함할 열" %}</legend>
             <label><input type="checkbox" checked disabled> {% tr "카드명" %}</label>
-            <label><input type="checkbox" name="code" value="1" checked> {% tr "코드" %}</label>
-            <label><input type="checkbox" name="rare" value="1" checked> {% tr "레어도" %}</label>
-            <label><input type="checkbox" name="amount" value="1" checked> {% tr "갯수" %}</label>
-        </fieldset>
-        <fieldset>
-            <legend>{% tr "하트" %}</legend>
-            <label><input type="radio" name="heart" value="" checked> {% tr "전체" %}</label>
-            {% for n in category_choices %}
-            <label title="{% tr "분류" %} {{ n }}"><input type="radio" name="heart" value="{{ n }}"> <span class="v2-heart v2-heart-{{ n }}" aria-hidden="true">&#9829;</span><span class="v2-visually-hidden">{% tr "분류" %} {{ n }}</span></label>
-            {% endfor %}
+            <label><input type="checkbox" name="col_code" value="1" checked> {% tr "코드" %}</label>
+            <label><input type="checkbox" name="col_rare" value="1" checked> {% tr "레어도" %}</label>
+            {% if user.is_authenticated %}<label><input type="checkbox" name="col_amount" value="1" checked> {% tr "갯수" %}</label>{% endif %}
         </fieldset>
         <div class="v2-collection-export-actions">
             <button class="v2-button v2-button-primary" type="submit">{% tr "내보내기" %}</button>
         </div>
     </form>
 </details>
-{% endif %}
 
 <form action="{% url "collection:update_collected" %}" method="post" id="컬렉션업데이트">{% csrf_token %}</form>
 

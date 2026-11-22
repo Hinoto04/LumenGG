@@ -1,9 +1,8 @@
-import type { Catalog } from "./types";
+import type { Catalog, CollectionItem } from "./types";
 import { localized } from "./core";
-import { sortCollectionRows } from "./collection-data";
 
 /**
- * 컬렉션 즐겨찾기(하트 분류) 목록 내보내기.
+ * 컬렉션 목록 내보내기. 화면에 보이는 검색·필터·정렬 결과를 그대로 내보낸다.
  * 웹(`collection/export.py`)과 같은 형식을 만든다. 둘 중 하나를 바꾸면 다른 쪽도 맞춘다.
  */
 export type ExportFormat = "txt" | "csv";
@@ -39,23 +38,15 @@ export const koreanExportHeaders: ExportHeaders = {
   amount: "갯수",
 };
 
-/**
- * 하트가 붙은 항목을 웹 컬렉션 기본 정렬(속도 순)로 모은다.
- * heart가 ""이면 하트 1~5 전체, "1"~"5"면 그 하트만.
- */
-export function favoriteExportEntries(
-  catalog: Pick<Catalog, "collection" | "cards" | "packs">,
-  categories: Record<number, number>,
+/** 컬렉션 화면의 행(이미 검색·필터·정렬된 순서)을 내보낼 항목으로 바꾼다. */
+export function collectionExportEntries(
+  rows: CollectionItem[],
+  catalog: Pick<Catalog, "cards">,
   amounts: Record<number, number>,
   language: string,
-  heart = "",
 ): ExportEntry[] {
   const cards = new Map(catalog.cards.map((card) => [card.id, card]));
-  const rows = catalog.collection.filter((item) => {
-    const category = categories[item.id] || 0;
-    return heart ? String(category) === heart : category > 0;
-  });
-  return sortCollectionRows(rows, catalog, "speed").map((item) => {
+  return rows.map((item) => {
     const card = item.card_id === null ? undefined : cards.get(item.card_id);
     return {
       name: (card ? localized(card, language) : "") || item.name,

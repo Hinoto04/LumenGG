@@ -371,8 +371,11 @@ const words: Record<string, [string, string]> = {
   "속도 순": ["Speed", "速度順"],
   "이름 순": ["Name", "名前順"],
   "코드 순": ["Code", "コード順"],
-  "즐겨찾기 내보내기": ["Export favorites", "お気に入りを書き出す"],
-  "하트를 붙인 카드를 속도 순으로 내보냅니다.": ["Exports hearted cards in speed order.", "ハートを付けたカードを速度順で書き出します。"],
+  "목록 내보내기": ["Export list", "リストを書き出す"],
+  "지금 보이는 목록을 검색·필터·정렬 그대로 내보냅니다.": [
+    "Exports the list as shown, with the current search, filters and sort.",
+    "現在の検索・フィルター・並び順のまま書き出します。",
+  ],
   "포함할 열": ["Columns", "含める列"],
   카드명: ["Card name", "カード名"],
   코드: ["Code", "コード"],

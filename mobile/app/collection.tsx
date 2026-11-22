@@ -107,7 +107,7 @@ export default function Collection() {
           />
           <IconButton
             icon="download-outline"
-            label="즐겨찾기 내보내기"
+            label="목록 내보내기"
             onPress={() => {
               Keyboard.dismiss();
               setExportVisible(true);
@@ -148,6 +148,7 @@ export default function Collection() {
       />
       <CollectionExportSheet
         visible={exportVisible}
+        rows={rows}
         onClose={() => setExportVisible(false)}
       />
       <Notice text={status} />

@@ -3,7 +3,6 @@ from django.shortcuts import render, redirect
 from ..models import CollectionCard, Collected, COLLECTION_CATEGORY_COUNT
 from django.db.models import OuterRef, Subquery, IntegerField, Q, Case, When
 from django.http import Http404, HttpResponse, JsonResponse
-from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from card.models import Card
 from django.core.paginator import Paginator
@@ -13,8 +12,8 @@ from card.models import Character
 from common.language import get_language
 from ..forms import CollectionForm, CollectionCreateForm
 from ..export import (
-    CONTENT_TYPES, export_file_name, export_headers, favorite_export_entries,
-    format_collection_export, parse_export_options, parse_heart,
+    CONTENT_TYPES, EXPORT_FILTER_PARAMS, collection_export_entries, export_file_name,
+    export_headers, format_collection_export, parse_export_options,
 )
 import re, random, os, json
 from decorators import permission_required
@@ -42,11 +41,8 @@ def parse_category(value):
     return value if 0 <= value <= COLLECTION_CATEGORY_COUNT else None
 
 
-# Create your views here.
-def index(req, template_name='collection/index.html'):
-    page_number = req.GET.get('page', 1)
-    
-    form = CollectionForm(req.GET, language=get_language(req))
+def filtered_collection(req, form):
+    """컬렉션 목록 화면과 내보내기가 함께 쓰는 검색·정렬 결과. (queryset, category_filter)"""
     q = Q()
     
     if form.data.get('char'):
@@ -79,10 +75,8 @@ def index(req, template_name='collection/index.html'):
             collection = collection.filter(category__gte=1)
         elif category_filter:
             collection = collection.filter(category=int(category_filter))
-        #print(collection.values())
     else:
         collection = CollectionCard.objects.filter(q)
-    #filter(code__contains='CRS').order_by('code')
     
     collection = collection.annotate(
         custom_order=Case(
@@ -98,16 +92,21 @@ def index(req, template_name='collection/index.html'):
         )
     )
     
-    if form.data.get('sortValue'):
-        if form.data.get('sortValue') == 'name':
-            collection = collection.order_by('name', 'pack__released', 'code', 'custom_order')
-        elif form.data.get('sortValue') == 'code':
-            collection = collection.order_by('code', 'pack__released', 'custom_order')
-        else:
-            collection = collection.order_by('card__frame', 'name', 'pack__released', 'custom_order')
+    if form.data.get('sortValue') == 'name':
+        collection = collection.order_by('name', 'pack__released', 'code', 'custom_order', 'id')
+    elif form.data.get('sortValue') == 'code':
+        collection = collection.order_by('code', 'pack__released', 'custom_order', 'id')
     else:
-        collection = collection.order_by('card__frame', 'name', 'pack__released', 'custom_order')
+        collection = collection.order_by('card__frame', 'name', 'pack__released', 'custom_order', 'id')
+    return collection, category_filter
+
+
+# Create your views here.
+def index(req, template_name='collection/index.html'):
+    page_number = req.GET.get('page', 1)
     
+    form = CollectionForm(req.GET, language=get_language(req))
+    collection, category_filter = filtered_collection(req, form)
     
     paginator = Paginator(collection, 40)  # Show 20 collection cards per page.
     page_data = paginator.get_page(page_number)
@@ -117,6 +116,8 @@ def index(req, template_name='collection/index.html'):
         'form': form,
         'category_filter': category_filter,
         'category_choices': list(range(1, COLLECTION_CATEGORY_COUNT + 1)),
+        # 내보내기 폼이 지금 적용된 검색 조건을 그대로 넘긴다.
+        'export_filters': [(key, value) for key in EXPORT_FILTER_PARAMS for value in req.GET.getlist(key)],
     }
     
     return render(req, template_name, context=context)
@@ -227,12 +228,13 @@ def updateCollected(req):
         return JsonResponse({'result': 'ok', 'failed': failed})
 
 
-@login_required
-def export_favorites(req):
-    """하트를 붙인 컬렉션 항목을 txt/csv 파일로 내려준다."""
+def export_collection(req):
+    """현재 검색·정렬 조건의 컬렉션 목록을 txt/csv 파일로 내려준다."""
     language = get_language(req)
     options = parse_export_options(req.GET)
-    entries = favorite_export_entries(req.user, language, parse_heart(req.GET.get('heart')))
+    form = CollectionForm(req.GET, language=language)
+    collection, _category_filter = filtered_collection(req, form)
+    entries = collection_export_entries(collection.select_related('card', 'pack'), language)
     content = format_collection_export(entries, options, export_headers(language))
     response = HttpResponse(content.encode('utf-8'), content_type=CONTENT_TYPES[options.format])
     file_name = export_file_name(options.format, timezone.localdate())
