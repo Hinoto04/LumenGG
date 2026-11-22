@@ -59,6 +59,9 @@ call_command('migrate', interactive=False, verbosity=0)
 settings.ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 # Vite(5175)가 프록시한 POST도 받는다. 운영에서는 같은 출처라 필요 없다.
 settings.CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:5175', 'http://localhost:5175']
+# 운영처럼 AI는 사람 명령을 먼저 보낸 뒤 백그라운드에서 생각하고, 레디 전에 잠시 기다린다.
+# (테스트 설정은 결과를 바로 확인하려고 동기로 돌린다.)
+settings.LUMEN_AI_BACKGROUND = True
 
 from django.contrib.auth.models import User  # noqa: E402
 from django.contrib.auth import login  # noqa: E402

@@ -3,8 +3,10 @@
 import copy
 import hashlib
 import json
+import random
 import re
 import secrets
+import time
 import traceback
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -1097,15 +1099,56 @@ def _ai_roles(session):
     ]
 
 
-def advance_ai_session(session, *, max_commands=100, on_command=None):
+def ai_ready_wait(state, role, seconds, *, now=None):
+    """Seconds the AI should still wait before its Ready, capped by the clock.
+
+    ``seconds`` is the wanted thinking time. The AI never waits past half of
+    the time left on the Ready clock, so a short timer still leaves the human
+    most of it.
+    """
+    if seconds <= 0:
+        return 0.0
+    clock = ((state or {}).get('engine') or {}).get('clock') or {}
+    deadline = clock.get('deadline')
+    if deadline and not clock.get('paused'):
+        parsed = parse_datetime(str(deadline))
+        left = (parsed - (now or timezone.now())).total_seconds() if parsed else None
+        if left is not None:
+            seconds = min(seconds, max(0.0, left / 2))
+    return max(0.0, seconds)
+
+
+def _ready_think_seconds(session, state, role):
+    """Wanted thinking time before an AI Ready (``LUMEN_AI_READY_DELAY``).
+
+    A ``(low, high)`` range in seconds, drawn once per session, turn and seat.
+    Without it the AI readied the instant the Ready phase opened, right after
+    the opening hands were shown, which felt like it never looked.
+    """
+    configured = getattr(django_settings, 'LUMEN_AI_READY_DELAY', (2.0, 4.5))
+    try:
+        low, high = (float(value) for value in configured)
+    except (TypeError, ValueError):
+        low = high = float(configured or 0)
+    if high <= 0:
+        return 0.0
+    rng = random.Random(f'ai-ready:{session.id}:{state.get("turn")}:{role}')
+    return rng.uniform(max(0.0, low), max(low, high))
+
+
+def advance_ai_session(session, *, max_commands=100, on_command=None, think=False):
     """Advance every AI seat until the engine needs human input or finishes.
 
     ``on_command(session)`` runs after each AI command (the background runner
     broadcasts it so each AI move reaches the screens as it happens). When a
     human command lands while the AI is thinking, the AI's choice may be
     stale; it then re-reads the session and chooses again.
+
+    ``think=True`` (the background runner) holds an AI Ready until it has
+    "thought" for ``LUMEN_AI_READY_DELAY`` since it first saw that Ready.
     """
     stale_retries = 0
+    ready_seen = {}
     if session.mode != LumenSimulatorSession.MODE_AUTOMATIC or not _ai_roles(session) or (session.document or {}).get('preparation', {}).get('status') == 'editing':
         return session
     try:
@@ -1139,6 +1182,13 @@ def advance_ai_session(session, *, max_commands=100, on_command=None):
                 key=lambda item: (item[1].score, item[0] == priority),
                 reverse=True,
             )[0]
+            if think and decision.action.get('type') == 'ready_card':
+                started = ready_seen.setdefault((state.get('turn'), role), time.monotonic())
+                wanted = _ready_think_seconds(session, state, role) - (time.monotonic() - started)
+                wait = ai_ready_wait(state, role, wanted)
+                if wait > 0:
+                    time.sleep(wait)
+                    continue  # 기다리는 동안 상태가 바뀌었을 수 있으니 다시 읽고 고른다.
             token = session.player1_token if role == 'p1' else session.player2_token
             try:
                 session = perform_automatic_command(

@@ -4,7 +4,10 @@ The websocket consumer broadcasts a human command first and then calls
 ``kick_ai``. With ``LUMEN_AI_BACKGROUND`` (default on) the AI thinks in a
 background thread, so the human sees the phase/turn change immediately and
 can choose their own Ready while the AI evaluates; each AI command is
-broadcast as it lands. Tests and tools that need the AI to have moved before
+broadcast as it lands. Before each Ready the AI also "thinks" for a
+moment (``LUMEN_AI_READY_DELAY``, default 2~4.5 seconds, at most half the
+time left on the Ready clock), so it does not ready the instant the phase
+opens. Tests and tools that need the AI to have moved before
 the call returns set ``LUMEN_AI_BACKGROUND = False``.
 
 One loop per session runs at a time: a process-local guard plus a cache lock
@@ -61,7 +64,7 @@ def _worker(session_id):
             if cache.add(_lock_key(session_id), 1, LOCK_SECONDS):
                 try:
                     session = LumenSimulatorSession.objects.select_related('ai_policy').get(pk=session_id)
-                    advance_ai_session(session, on_command=broadcast_simulator_session)
+                    advance_ai_session(session, on_command=broadcast_simulator_session, think=True)
                 finally:
                     cache.delete(_lock_key(session_id))
             with _guard:

@@ -110,3 +110,73 @@ class ReadyClockTests(SimpleTestCase):
         shown = start + timedelta(seconds=5)
         self.assertTrue(acknowledge_clock(engine.engine_state, 'p1', clock['id'], shown))
         self.assertEqual(engine.engine_state['clock']['deadline'], (shown + timedelta(seconds=10)).isoformat())
+
+
+class AIReadyThinkTests(TestCase):
+    """AI는 레디 페이즈가 열리자마자 레디하지 않고 잠시 '생각'한다(LUMEN_AI_READY_DELAY)."""
+
+    setUp = engine_tests.SimulatorAIHTTPTests.setUp
+    new_ai_session = AIRunnerTests.new_ai_session
+    human_pass = AIRunnerTests.human_pass
+
+    def test_ai_waits_before_its_ready_but_not_before_other_actions(self):
+        clock = {'now': 0.0}
+        sleeps = []
+
+        def fake_sleep(seconds):
+            sleeps.append(seconds)
+            clock['now'] += seconds
+
+        session = self.new_ai_session()
+        readied = False
+        with patch('battlelog.automatic_services.time.monotonic', side_effect=lambda: clock['now']), \
+                patch('battlelog.automatic_services.time.sleep', side_effect=fake_sleep), \
+                patch('battlelog.automatic_services._ready_think_seconds', return_value=3.0):
+            for _step in range(12):
+                before = len((session.document or {}).get('events') or [])
+                session = automatic_services.advance_ai_session(session, think=True)
+                events = ((session.document or {}).get('events') or [])[before:]
+                if any(e.get('type') == 'card_readied' and e.get('actor') == 'p2' for e in events):
+                    readied = True
+                    break
+                session = self.human_pass(session)
+
+        self.assertTrue(readied)
+        self.assertEqual(len(sleeps), 1)
+        self.assertAlmostEqual(sleeps[0], 3.0)
+
+    def test_without_think_the_ai_never_sleeps(self):
+        session = self.human_pass(self.new_ai_session())
+        with patch('battlelog.automatic_services.time.sleep') as sleep:
+            automatic_services.advance_ai_session(session)
+        sleep.assert_not_called()
+
+
+class AIReadyWaitTests(SimpleTestCase):
+    NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    def state(self, seconds_left=None, paused=False):
+        clock = {} if seconds_left is None else {
+            'deadline': (self.NOW + timedelta(seconds=seconds_left)).isoformat(), 'paused': paused,
+        }
+        return {'turn': 1, 'engine': {'clock': clock}}
+
+    def test_wait_is_capped_at_half_the_ready_clock(self):
+        wait = automatic_services.ai_ready_wait
+
+        self.assertEqual(wait(self.state(), 'p2', 3.0, now=self.NOW), 3.0)
+        self.assertEqual(wait(self.state(4), 'p2', 3.0, now=self.NOW), 2.0)
+        self.assertEqual(wait(self.state(-1), 'p2', 3.0, now=self.NOW), 0.0)
+        self.assertEqual(wait(self.state(4, paused=True), 'p2', 3.0, now=self.NOW), 3.0)
+        self.assertEqual(wait(self.state(), 'p2', -1.0, now=self.NOW), 0.0)
+
+    def test_think_time_is_stable_per_turn_and_can_be_turned_off(self):
+        session = LumenSimulatorSession(id=5)
+        think = automatic_services._ready_think_seconds
+
+        with self.settings(LUMEN_AI_READY_DELAY=(2.0, 4.0)):
+            first = think(session, {'turn': 1}, 'p2')
+            self.assertEqual(first, think(session, {'turn': 1}, 'p2'))
+            self.assertTrue(2.0 <= first <= 4.0)
+        with self.settings(LUMEN_AI_READY_DELAY=(0, 0)):
+            self.assertEqual(think(session, {'turn': 1}, 'p2'), 0.0)
