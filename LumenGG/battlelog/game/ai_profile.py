@@ -13,6 +13,7 @@ Normalized shape (pinned into the session as ``document['ai_deck']``)::
         'combos': [{'name': ..., 'cards': [...], 'bonus': 3.0, 'when': {...}}],
         'counter': {'enabled': True, 'bonus': 2.0, 'scope': 'hand', 'guard_bonus': 6.0, 'guard_fp': 3.0},
         'safety': {'avoid_certain_loss': True},
+        'hand': {'enabled': True, 'bonus': 8.0, 'keep': 3, 'swap_margin': 0.1},
     }
 """
 
@@ -83,6 +84,12 @@ DEFAULT_COUNTER_BONUS = 2.0
 DEFAULT_GUARD_BONUS = 6.0
 DEFAULT_GUARD_FP = 3.0
 GUARD_FP_LIMIT = 20.0
+# 겟 페이즈: 패 가치(ai_hand)가 1 오를 때의 가산, 상대 카드에 강한 카드를 몇 장 두텁게 쥘지,
+# 패가 가득 찼을 때 교체할 최소 이득(이보다 작으면 패스).
+DEFAULT_HAND_BONUS = 8.0
+DEFAULT_HAND_KEEP = 3
+DEFAULT_SWAP_MARGIN = 0.1
+HAND_KEEP_LIMIT = 10
 MAX_ITEMS = 30
 MAX_ROUTE_LENGTH = 10
 COUNTER_SCOPES = ('hand', 'hand_and_list')
@@ -211,7 +218,7 @@ def normalize_profile(raw, *, allowed_codes=None):
     errors = []
     known = {
         'style', 'weights', 'prefer', 'situation', 'combo', 'counter', 'safety', 'effect', 'effects',
-        'outcome', 'resources',
+        'outcome', 'resources', 'hand',
     }
     for key in raw:
         if key not in known:
@@ -437,6 +444,19 @@ def normalize_profile(raw, *, allowed_codes=None):
     if guard_fp is not None and guard_fp < 0:
         errors.append('counter.guard_fp는 0 이상이어야 합니다.')
         guard_fp = None
+    hand_raw = raw.get('hand') or {}
+    if not isinstance(hand_raw, dict):
+        errors.append('hand는 표(table)여야 합니다.')
+        hand_raw = {}
+    hand_bonus = _bounded(hand_raw.get('bonus', DEFAULT_HAND_BONUS), WEIGHT_LIMIT, 'hand.bonus', errors)
+    hand_keep = _bounded(hand_raw.get('keep', DEFAULT_HAND_KEEP), HAND_KEEP_LIMIT, 'hand.keep', errors)
+    if hand_keep is not None and hand_keep < 1:
+        errors.append('hand.keep은 1 이상이어야 합니다.')
+        hand_keep = None
+    swap_margin = _bounded(hand_raw.get('swap_margin', DEFAULT_SWAP_MARGIN), 4.0, 'hand.swap_margin', errors)
+    if swap_margin is not None and swap_margin < 0:
+        errors.append('hand.swap_margin은 0 이상이어야 합니다.')
+        swap_margin = None
     safety_raw = raw.get('safety') or {}
     if not isinstance(safety_raw, dict):
         errors.append('safety는 표(table)여야 합니다.')
@@ -501,6 +521,12 @@ def normalize_profile(raw, *, allowed_codes=None):
             'guard_fp': guard_fp if guard_fp is not None else DEFAULT_GUARD_FP,
         },
         'safety': {'avoid_certain_loss': bool(safety_raw.get('avoid_certain_loss', True))},
+        'hand': {
+            'enabled': bool(hand_raw.get('enabled', True)),
+            'bonus': hand_bonus if hand_bonus is not None else DEFAULT_HAND_BONUS,
+            'keep': int(hand_keep) if hand_keep is not None else DEFAULT_HAND_KEEP,
+            'swap_margin': swap_margin if swap_margin is not None else DEFAULT_SWAP_MARGIN,
+        },
         'effects': effects,
         'effect_settings': {'default_use': default_use},
         'outcome': outcome,
@@ -517,11 +543,18 @@ DEFAULT_COUNTER = {
     'guard_bonus': DEFAULT_GUARD_BONUS, 'guard_fp': DEFAULT_GUARD_FP,
 }
 DEFAULT_SAFETY = {'avoid_certain_loss': True}
+DEFAULT_HAND = {
+    'enabled': True, 'bonus': DEFAULT_HAND_BONUS, 'keep': DEFAULT_HAND_KEEP, 'swap_margin': DEFAULT_SWAP_MARGIN,
+}
 
 
 def counter_settings(profile):
     # 예전에 고정된 프로필(세션 문서)에는 나중에 생긴 키가 없으므로 기본값을 채운다.
     return {**DEFAULT_COUNTER, **((profile or {}).get('counter') or {})}
+
+
+def hand_settings(profile):
+    return {**DEFAULT_HAND, **((profile or {}).get('hand') or {})}
 
 
 def safety_settings(profile):

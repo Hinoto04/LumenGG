@@ -2105,8 +2105,8 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertGreater(metrics['score'], 0.5)
         self.assertEqual(
             (metrics['wins'], metrics['losses'], metrics['draws']),
-            # 가중 랜덤·상대 손패 기억·배틀 예측 반영 후 스냅샷. 같은 시드면 재현된다.
-            (14, 5, 1),
+            # 가중 랜덤·상대 손패 기억·배틀 예측·겟 페이즈 패 구성 반영 후 스냅샷. 같은 시드면 재현된다.
+            (13, 6, 1),
         )
 
     def test_training_command_uses_non_conflicting_policy_version_option(self):

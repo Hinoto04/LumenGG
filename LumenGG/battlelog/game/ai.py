@@ -6,9 +6,10 @@ import random
 from dataclasses import dataclass
 
 from .ai_decisions import decide
+from .ai_hand import HandValue, hand_cards
 from .ai_matrix import SCORE_PER_VALUE, choose_ready
 from .ai_preview import battle_outlook, certain_loss, fp_values, minimum_answer_cards, own_card
-from .ai_profile import counter_settings, profile_bonus, profile_weights, safety_settings
+from .ai_profile import counter_settings, hand_settings, profile_bonus, profile_weights, safety_settings
 
 
 DEFAULT_POLICY_VERSION = 'linear-selfplay-v1.4.0'
@@ -214,7 +215,59 @@ def _decision_selections(observation, action, *, role=None, profile=None):
     fallback = _engine_default_selections(observation, action)
     if action.get('type') != 'submit_decision':
         return fallback
+    fallback = _hand_limit_discard(observation, role, action, profile) or fallback
     return decide(observation, role, action, profile, fallback=fallback)
+
+
+def _hand_limit_discard(observation, role, action, profile):
+    """Throw back the cards whose loss costs the hand least (``ai_hand``)."""
+    if (observation.get('pending_decision') or {}).get('kind') != 'hand_limit_discard' or role is None:
+        return None
+    settings = hand_settings(profile)
+    if not settings.get('enabled'):
+        return None
+    hand = HandValue(observation, role, keep=settings.get('keep') or 1)
+    if not hand.known:
+        return None
+    ids = {str(option.get('id')) for option in action.get('options') or [] if isinstance(option, dict)}
+    cards = [card for card in hand_cards(observation, role) if str(card.get('instance_id')) in ids]
+    count = max(0, int(action.get('minimum') or 0))
+    if count <= 0 or len(cards) < count:
+        return None
+    return {'selected': [str(card.get('instance_id')) for card in hand.best_discard(cards, count)]}
+
+
+def _get_plan(observation, role, candidates, profile):
+    """Hand-value bonus for each get action and, with a full hand, the pass.
+
+    ``pass`` is the pass action when the hand is full (passing is legal) and
+    no get gains ``hand.swap_margin`` hand value; ``gains`` lists each get's
+    gain for logs.
+    """
+    plan = {'bonus': {}, 'pass': None, 'gains': {}}
+    settings = hand_settings(profile)
+    gets = [action for action in candidates if action.get('type') == 'select_get_card']
+    if not settings.get('enabled') or not gets:
+        return plan
+    hand = HandValue(observation, role, keep=settings.get('keep') or 1)
+    pass_action = next((action for action in candidates if action.get('type') == 'pass_phase'), None)
+    full = pass_action is not None
+    if not hand.known:
+        # 상대 카드를 하나도 모르면 교체가 나은지 판단할 수 없다: 가득 찬 패는 그대로 둔다.
+        plan['pass'] = pass_action
+        return plan
+    cards = hand_cards(observation, role)
+    bonus = _number(settings.get('bonus'))
+    for action in gets:
+        card = _full_card(observation, role, action)
+        if not card:
+            continue
+        gain = hand.get_gain(cards, card, full=full)
+        plan['gains'][(card.get('code') or card.get('instance_id'))] = round(gain, 3)
+        plan['bonus'][action.get('action_id')] = bonus * gain
+    if full and max(plan['gains'].values(), default=0.0) < _number(settings.get('swap_margin')):
+        plan['pass'] = pass_action
+    return plan
 
 
 def choose_action(
@@ -268,11 +321,13 @@ def choose_action(
         candidates = rewind_decline
     candidates = _drop_certain_losses(observation, role, candidates, profile)
     counter_bonus = _counter_bonus(observation, role, candidates, profile)
+    get_plan = _get_plan(observation, role, candidates, profile)
     ranked = sorted(
         (
             (
                 score_action(observation, role, action, weights, profile)
-                + counter_bonus.get(action.get('action_id'), 0.0),
+                + counter_bonus.get(action.get('action_id'), 0.0)
+                + get_plan['bonus'].get(action.get('action_id'), 0.0),
                 action,
             )
             for action in candidates
@@ -281,6 +336,14 @@ def choose_action(
         reverse=True,
     )
     score, action = ranked[0]
+    if get_plan['pass'] is not None and action.get('type') == 'select_get_card':
+        # 패가 가득 찼는데 어떤 교체도 패를 낫게 하지 못한다: 가져왔다 되돌려 놓는 대신 넘긴다.
+        pass_action = get_plan['pass']
+        return AIDecision(
+            action=pass_action, selections={},
+            score=score_action(observation, role, pass_action, weights, profile),
+            details={'get_gains': get_plan['gains']},
+        )
     details = None
     matrix_choice = None
     if action.get('type') == 'ready_card' and ready_strategy == 'matrix':
