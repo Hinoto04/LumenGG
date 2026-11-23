@@ -315,6 +315,7 @@ function Piles({
 }) {
   const setOpenZone = usePlay((s) => s.setOpenZone);
   const ultimateHandlers = useCardHandlers(side, "ultimate", actions, onAction);
+  const passiveHandlers = useCardHandlers(side, "passive", actions, onAction);
   const envelope = usePlay((s) => s.envelope);
   const picks = usePlay((s) => s.decisionPicks);
   const candidates = useMemo(() => (envelope ? decisionCandidates(envelope) : null), [envelope]);
@@ -331,11 +332,13 @@ function Piles({
         });
         const hasStaged = cards.some((card) => !card.hidden && staged.has(String(card.instance_id)));
         const top = shown[shown.length - 1];
-        // 얼티밋은 1장뿐이라 장 수 대신 카드 자체를 보여 주고, 바로 끌어 쓸 수 있게 한다(겟 페이즈 등).
-        if (zone === "ultimate" && cards.length === 1) {
+        // 얼티밋·패시브는 1장뿐이라 장 수 대신 카드 자체를 앞면으로 보여 주고, 바로 끌어 쓰거나 볼 수 있게 한다.
+        if ((zone === "ultimate" || zone === "passive") && shown.length === 1) {
+          const index = cards.indexOf(shown[0]);
+          const handlers = zone === "ultimate" ? ultimateHandlers : passiveHandlers;
           return (
-            <div key={zone} className="pile pile-ultimate" data-drop-owner={side} data-drop-zone={zone}>
-              <Card card={cards[0]} size="mini" {...ultimateHandlers(cards[0], 0)} />
+            <div key={zone} className={`pile pile-single pile-${zone}`} data-drop-owner={side} data-drop-zone={zone}>
+              <Card card={shown[0]} size="mini" {...handlers(shown[0], index)} />
               <span className="pile-label">{ZONE_LABELS[zone]}</span>
             </div>
           );

@@ -3606,8 +3606,8 @@ body.play-lobby-page #root.play-embedded {
   }
 }
 
-/* 얼티밋: 장 수 대신 카드 한 장을 그대로 보여 준다 */
-.pile.pile-ultimate {
+/* 얼티밋·패시브: 장 수 대신 카드 한 장을 앞면 그대로 보여 준다 */
+.pile.pile-single {
   display: flex;
   flex-direction: column;
   align-items: center;
