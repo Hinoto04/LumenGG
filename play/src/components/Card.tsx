@@ -1,4 +1,4 @@
-import { animate, motion, useMotionValue, type MotionStyle } from "motion/react";
+import { animate, motion, useIsPresent, useMotionValue, type MotionStyle } from "motion/react";
 import { useRef, useState } from "react";
 import type { BoardCard, CardRef, Side, VisibleCard, ZoneName } from "../protocol";
 import { showCardInfo } from "../store";
@@ -98,8 +98,19 @@ export function Card({
   detached,
   enter,
   selectKey,
-  dragHandlers,
+  dragHandlers: liveDragHandlers,
 }: CardProps) {
+  // 존을 떠나 사라지는 중인 카드(AnimatePresence의 exit)는 떠나기 전 속성을 그대로 들고 있다.
+  // 이미 낸 카드가 사용 가능 강조·선택 표시를 단 채 남아 보이지 않도록 상호작용을 모두 뗀다.
+  const present = useIsPresent();
+  if (!present) {
+    playable = false;
+    selected = false;
+    staged = false;
+    onClick = undefined;
+    selectKey = undefined;
+  }
+  const dragHandlers = present ? liveDragHandlers : undefined;
   // 끌었다 놓은 직후에 click이 한 번 더 오는 것을 막는다.
   const dragged = useRef(false);
   // 끈 거리. 놓은 뒤에는 항상 0으로 되돌린다: 놓아도 상태가 바뀌지 않으면(거절, 픽스처 모드)
