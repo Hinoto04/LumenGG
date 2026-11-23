@@ -1238,6 +1238,20 @@ class AutomaticGameEngine:
             return
         engine = self.engine_state
         previous = self.state.get('phase')
+        # 콤보 타임 종료 시 효과(엔드리스 발라레 ② 등)로 레디를 다시 진행하면, 남은 종료
+        # 처리 단계를 기다리지 않고 여기서 파이프라인을 버린다. 콤보 타임은 이미 끝났으므로
+        # 그 정리(양쪽 FP 0: 룰 8.4.2·Q&A 171, 빌린 카드 반환, 콤보 한정 효과 만료)는 먼저 한다.
+        ending = engine.get('pipeline') or {}
+        if ending.get('kind') in {'combo_end', 'mutual_combo_end'}:
+            for side in PLAYER_SIDES:
+                self.set_fp(side, 0, source='combo_cleanup')
+            for ended in (
+                [ending.get('combo')] if ending.get('kind') == 'combo_end'
+                else ending.get('combos') or []
+            ):
+                if ended:
+                    self._return_borrowed_combo_cards(ended)
+            self._expire_modifiers('combo')
         self._return_presented_combo_cards(engine.get('combo'))
         # Returning to Ready is part of the resolving effect. Remaining effects
         # at the old timing miss their window, and no battle-end expiration is

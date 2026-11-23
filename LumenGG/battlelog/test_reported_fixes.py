@@ -1335,3 +1335,111 @@ class ArmLumenOwnComboOnlyTests(SimpleTestCase):
             self.assertTrue(own['offered'], code)
             self.assertFalse(opponent['offered'], code)
             self.assertFalse(opponent['resolved'], code)
+
+
+ENDLESS_BALLARE_TEXT = (
+    '이 기술은 자신의 체력이 3000 이하일 경우에만 사용할 수 있다.\n'
+    '이 기술은 데미지 보정을 받지 않는다.\n'
+    '①사용 시, 이번 턴 리커버리 페이즈 종료 시에 패/리스트/사이드 '
+    '덱의 [엔드리스 발라레]를 브레이크한다.\n'
+    '②콤보 타임 종료 시, 이하의 효과를 적용한다.\n'
+    '-리스트나 배틀 존의 기술을 3장까지 패로 가져올 수 있다.\n'
+    '-상대는 리스트에서 기술 1장을 획득할 수 있다.\n\n'
+    '-레디 페이즈를 다시 진행한다.'
+)
+
+
+class EndlessBallareReadyRestartFpTests(SimpleTestCase):
+    """엔드리스 발라레 ②로 레디를 다시 진행해도 콤보 타임 종료 시 양쪽 FP는 0이 된다(룰 8.4.2)."""
+
+    def test_ready_restart_clears_both_fp(self):
+        from .game.drafts import build_effect_draft
+
+        endless = attack('endless', 'p1', code='DFR-AT-020', frame=9, damage=100)
+        endless['name'] = '엔드리스 발라레'
+        starter = attack('starter', 'p1', code='STARTER')
+        opposing = attack('opposing', 'p2', code='OPPOSING')
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['hp'] = 3000
+        state['players']['p1']['fp'] = 6
+        state['players']['p2']['fp'] = -2
+        state['players']['p1']['zones']['battle'] = [starter, endless]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        release = ruleset(endless, starter, opposing)
+        release['cards']['DFR-AT-020']['effect_definition'] = build_effect_draft(
+            'DFR-AT-020', ENDLESS_BALLARE_TEXT,
+        )
+        engine = AutomaticGameEngine(state, release, seed='endless-fp')
+        engine.engine_state.update({
+            'step': 'combo',
+            'combo': {
+                'owner': 'p1', 'source': starter['instance_id'],
+                'used': [endless['instance_id']], 'next_penalty': 200,
+            },
+        })
+        engine.end_combo()
+        engine._continue()
+        for _ in range(4):
+            decision = engine.engine_state.get('pending_decision')
+            if not decision:
+                break
+            engine._submit_decision(decision['owner'], decision['id'], [])
+            engine._continue()
+
+        self.assertEqual(engine.state['phase'], 'ready')
+        self.assertEqual(engine.state['players']['p1']['fp'], 0)
+        self.assertEqual(engine.state['players']['p2']['fp'], 0)
+
+
+DIVERTISSEMENT_TEXT = (
+    '①콤보 시, [[token:hidden_bond]]카운터 3개가 있을 경우 리스트에서 '
+    '사용할 수 있다.\n'
+    '②콤보 시, [[token:hidden_bond]]카운터 1개를 소모하고 이 기술 외 '
+    '콤보에 사용한 〈발〉 혹은 〈손〉판정 기술 1장을 속도를 무시하고 '
+    '이 기술 뒤에 이을 수 있다.\n'
+    '그 기술의 사용 후, 콤보 타임을 종료하고 해당 기술을 패로 가져온다.'
+)
+
+
+class DivertissementOwnSpeedTests(SimpleTestCase):
+    """디베르티스망 ②의 속도 무시는 뒤에 잇는 기술의 것이다. 자신은 9속 뒤 13속으로 이을 수 없다."""
+
+    def pairs(self, definition):
+        one_combo = attack('one', 'p1', frame=3, damage=500, hit='콤보')
+        one_combo['body'] = '손'
+        diver = attack('diver', 'p1', code='CRS-AT-037', frame=13, damage=400)
+        low = attack('low', 'p1', code='LOW', frame=9, damage=400)
+        state = base_state([diver, low], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [one_combo]
+        state['players']['p1']['passive_state']['hidden_bond'] = {'count': 1, 'label': 'hidden_bond'}
+        release = ruleset(one_combo, diver, low)
+        release['cards']['CRS-AT-037']['effect_definition'] = definition
+        engine = AutomaticGameEngine.initialize(state, release, seed='divertissement-speed')
+        engine.state['phase'] = 'battle'
+        engine.grant_combo('p1', source=one_combo['instance_id'])
+        return [
+            action['payload']['card_instance_ids']
+            for action in engine._combo_actions('p1', engine.engine_state['combo'])
+            if action['type'] == 'play_combo_pair'
+        ]
+
+    def test_cannot_follow_nine_speed_but_reuse_pair_remains(self):
+        from .game.drafts import build_effect_draft
+
+        definition = build_effect_draft('CRS-AT-037', DIVERTISSEMENT_TEXT)
+        self.assertFalse(any(rule.get('ignore_speed') for rule in definition['combo_rules']))
+        pairs = self.pairs(definition)
+        self.assertNotIn(['low', 'diver'], pairs)
+        self.assertIn(['diver', 'one'], pairs)  # Q&A 643: 디베르티스망 → 손/발 기술 재사용
+
+    def test_migration_removes_own_ignore_speed(self):
+        import importlib
+
+        from .game.drafts import build_effect_draft
+
+        migration = importlib.import_module('card.migrations.0039_divertissement_own_speed')
+        definition = build_effect_draft('CRS-AT-037', DIVERTISSEMENT_TEXT)
+        legacy = [*definition['combo_rules'], {'ignore_speed': True, 'numbered_effect': True}]
+        self.assertEqual(migration.fixed_rules(legacy), definition['combo_rules'])

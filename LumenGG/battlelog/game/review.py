@@ -135548,7 +135548,6 @@ def _review_crs_at_037_definition(definition, card_snapshot, extra_root):
             'condition': copy.deepcopy(three_counter_condition),
             'numbered_effect': True,
         },
-        {'ignore_speed': True, 'numbered_effect': True},
     ]
     valid = bool(
         extra_root == {'combo_rules'}

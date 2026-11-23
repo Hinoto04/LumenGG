@@ -20589,6 +20589,12 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 ],
             })
     if normalized_code == 'CRS-AT-037':
+        # ②의 "속도를 무시하고 이 기술 뒤에 이을 수 있다"는 뒤에 잇는 기술의 규칙이다
+        # (modify_combo가 처리). 디베르티스망 자신은 속도를 무시하지 않는다(Q&A 643).
+        definition['combo_rules'] = [
+            rule for rule in definition.get('combo_rules') or []
+            if not rule.get('ignore_speed')
+        ]
         for ability in abilities:
             ability['active_zones'] = ['battle']
             if ability.get('id') == 'crs-at-037-n2':
