@@ -112038,7 +112038,7 @@ def _run_rfs_at_015_limit_scenario(
 def _run_rfs_at_015_combo_scenario(
     definition, card_snapshot, owner, *, source_zone='lumen',
     event_type='combo', accept=True, candidate_character='pinp',
-    negated=False, check_turn_reset=False,
+    negated=False, check_turn_reset=False, event_owner=None,
 ):
     other = 'p2' if owner == 'p1' else 'p1'
     source = _rfs_at_015_source(card_snapshot, owner, negated=negated)
@@ -112104,7 +112104,8 @@ def _run_rfs_at_015_combo_scenario(
         state, {'version': AUTOMATIC_SCENARIO_VERSION, 'cards': cards},
         seed=(
             f'agility-hands-combo:{owner}:{source_zone}:{event_type}:'
-            f'{accept}:{candidate_character}:{negated}:{check_turn_reset}'
+            f'{accept}:{candidate_character}:{negated}:{check_turn_reset}:'
+            f'{event_owner}'
         ),
         now=datetime(2026, 8, 20, tzinfo=timezone.utc),
     )
@@ -112115,7 +112116,7 @@ def _run_rfs_at_015_combo_scenario(
     }
     engine.engine_state['combo'] = combo
     event_context = {
-        'controller': owner,
+        'controller': event_owner or owner,
         'source_card_instance_id': combo_source['instance_id'],
         'source_card': engine._find_card(combo_source['instance_id']),
         'opponent_card': engine._find_card(opposing['instance_id']),
@@ -112228,7 +112229,10 @@ def _review_rfs_at_015_definition(definition, card_snapshot, extra_root):
         and combo.get('mode') == 'optional'
         and combo.get('active_zones') == ['lumen']
         and combo.get('trigger') == {'event': 'combo'}
-        and not combo.get('condition')
+        and combo.get('condition') == {
+            'op': 'equals', 'left': 'context.event_controller',
+            'right': {'controller': True},
+        }
         and combo.get('limit') == {
             'scope': 'turn', 'max': 1, 'key': 'rfs-at-015-n1:usage',
         }
@@ -112320,6 +112324,12 @@ def _review_rfs_at_015_definition(definition, card_snapshot, extra_root):
         }),
         ('numbered-negation-is-not-offered', 'p1', {
             'negated': True,
+        }, {
+            'offered': False, 'modifier': 0, 'legal': False,
+            'second': False, 'second_rules': 0, 'resolved': False,
+        }),
+        ('opponent-combo-is-not-offered', 'p1', {
+            'event_owner': 'p2',
         }, {
             'offered': False, 'modifier': 0, 'legal': False,
             'second': False, 'second_rules': 0, 'resolved': False,
@@ -113131,7 +113141,7 @@ def _run_rfs_at_018_limit_scenario(
 def _run_rfs_at_018_combo_scenario(
     definition, card_snapshot, owner, *, source_zone='lumen',
     event_type='combo', event_character='pinp', accept=True,
-    negated=False, move_source_before_after_use=False,
+    negated=False, move_source_before_after_use=False, event_owner=None,
 ):
     other = 'p2' if owner == 'p1' else 'p1'
     source = _rfs_at_018_source(card_snapshot, owner, negated=negated)
@@ -113179,12 +113189,12 @@ def _run_rfs_at_018_combo_scenario(
         seed=(
             f'messer-combo:{owner}:{source_zone}:{event_type}:'
             f'{event_character}:{accept}:{negated}:'
-            f'{move_source_before_after_use}'
+            f'{move_source_before_after_use}:{event_owner}'
         ),
         now=datetime(2026, 8, 20, tzinfo=timezone.utc),
     )
     event_context = {
-        'controller': owner,
+        'controller': event_owner or owner,
         'source_card_instance_id': event_card['instance_id'],
         'source_card': engine._find_card(event_card['instance_id']),
         'opponent_card': engine._find_card(opposing['instance_id']),
@@ -113292,11 +113302,17 @@ def _review_rfs_at_018_definition(definition, card_snapshot, extra_root):
         and combo.get('mode') == 'optional'
         and combo.get('active_zones') == ['lumen']
         and combo.get('trigger') == {'event': 'combo'}
-        and combo.get('condition') == {
-            'op': 'card_matches',
-            'card': {'path': 'context.event_card'},
-            'where': {'character_key': 'pinp'},
-        }
+        and combo.get('condition') == {'op': 'all', 'conditions': [
+            {
+                'op': 'equals', 'left': 'context.event_controller',
+                'right': {'controller': True},
+            },
+            {
+                'op': 'card_matches',
+                'card': {'path': 'context.event_card'},
+                'where': {'character_key': 'pinp'},
+            },
+        ]}
         and combo.get('limit') == {
             'scope': 'turn', 'max': 1,
             'key': 'rfs-at-018-n1:usage',
@@ -113382,6 +113398,10 @@ def _review_rfs_at_018_definition(definition, card_snapshot, extra_root):
         ('scheduled-move-persists-after-source-moves', 'p2', {
             'move_source_before_after_use': True,
         }, {'offered': True, 'schedule': 1, 'damage': 800, 'zone': 'side', 'resolved': True}),
+        ('opponent-pinp-combo-is-not-offered', 'p1', {'event_owner': 'p2'}, {
+            'offered': False, 'schedule': 0, 'damage': 500,
+            'zone': 'battle', 'resolved': False,
+        }),
     ):
         first = _run_rfs_at_018_combo_scenario(
             definition, card_snapshot, owner, **kwargs,

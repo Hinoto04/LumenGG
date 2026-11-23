@@ -1288,3 +1288,50 @@ class SafetyDistanceLumenTriggerTests(SimpleTestCase):
             if e['type'] == 'effect_resolved' and e['payload'].get('ability_id') == 'cb03-at-034-n1'
         ]
         self.assertEqual(len(offers), 1)
+
+
+class ArmLumenOwnComboOnlyTests(SimpleTestCase):
+    """어질리티 핸즈·멧서 슈나이더 ①은 루멘 존에서 자신의 콤보에만 유발한다."""
+
+    TEXTS = {
+        'RFS-AT-015': (
+            '"L ARM"명을 포함하는 기술은 루멘 존에 1장만 배치할 수 있다.\n'
+            '①턴당 1번 콤보 시, 리스트의 <[[character:pinp]]> 기술 '
+            '1장을 콤보에 사용할 수 있다.'
+        ),
+        'RFS-AT-018': (
+            '"R ARM"명을 포함하는 기술은 루멘 존에 1장만 배치할 수 있다.\n'
+            '①턴당 1번 <[[character:pinp]]> 기술의 콤보 시, 해당 기술에 '
+            '이하의 효과를 적용할 수 있다.\n'
+            '-해당 기술 데미지+300\n'
+            '-사용 후, 해당 기술을 사이드 덱으로 보낸다.'
+        ),
+    }
+
+    def test_migration_matches_draft_condition(self):
+        import importlib
+
+        from .game.drafts import build_effect_draft
+
+        migration = importlib.import_module('card.migrations.0038_arm_lumen_own_combo_only')
+        for (code, ability_id), (condition, _old) in migration.CHANGES.items():
+            definition = build_effect_draft(code, self.TEXTS[code])
+            ability = next(a for a in definition['abilities'] if a['id'] == ability_id)
+            self.assertEqual(ability['condition'], condition, code)
+
+    def test_opponent_combo_does_not_offer(self):
+        from .game import review
+
+        for runner, code in (
+            (review._run_rfs_at_015_combo_scenario, 'RFS-AT-015'),
+            (review._run_rfs_at_018_combo_scenario, 'RFS-AT-018'),
+        ):
+            from .game.drafts import build_effect_draft
+
+            definition = build_effect_draft(code, self.TEXTS[code])
+            snapshot = {'code': code, 'name': code, 'type': '특수', 'text': self.TEXTS[code]}
+            own = runner(definition, snapshot, 'p1')
+            opponent = runner(definition, snapshot, 'p1', event_owner='p2')
+            self.assertTrue(own['offered'], code)
+            self.assertFalse(opponent['offered'], code)
+            self.assertFalse(opponent['resolved'], code)

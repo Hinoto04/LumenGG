@@ -23249,7 +23249,7 @@ class AutomaticEngineTests(SimpleTestCase):
             for ability in result.abilities
         ))
         self.assertEqual(
-            sum(len(ability.scenarios) for ability in result.abilities), 12,
+            sum(len(ability.scenarios) for ability in result.abilities), 13,
         )
         by_id = {ability.ability_id: ability for ability in result.abilities}
         limits = {
@@ -23280,6 +23280,7 @@ class AutomaticEngineTests(SimpleTestCase):
             combo['source-outside-lumen-is-not-offered']['offered'],
         )
         self.assertFalse(combo['numbered-negation-is-not-offered']['offered'])
+        self.assertFalse(combo['opponent-combo-is-not-offered']['offered'])
 
         self.assertEqual(definition['abilities'][0]['active_zones'], [])
         combo_effect = definition['abilities'][1]['effects'][0]
@@ -23465,7 +23466,7 @@ class AutomaticEngineTests(SimpleTestCase):
             for ability in result.abilities
         ))
         self.assertEqual(
-            sum(len(ability.scenarios) for ability in result.abilities), 13,
+            sum(len(ability.scenarios) for ability in result.abilities), 14,
         )
         by_id = {ability.ability_id: ability for ability in result.abilities}
         limits = {
@@ -23495,8 +23496,9 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertEqual(moved['event_zone_after_use'], 'side')
 
         self.assertEqual(definition['abilities'][0]['active_zones'], [])
+        self.assertFalse(combo['opponent-pinp-combo-is-not-offered']['offered'])
         effect = definition['abilities'][1]
-        self.assertEqual(effect['condition']['card'], {
+        self.assertEqual(effect['condition']['conditions'][1]['card'], {
             'path': 'context.event_card',
         })
         self.assertEqual(effect['effects'][0]['target_card'], 'event_card')

@@ -11418,6 +11418,11 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'timing': 'combo', 'active_zones': ['lumen'],
                 'draft_compiled': True,
                 'trigger': {'event': 'combo'},
+                # 루멘 존 카드는 양쪽 콤보를 모두 보므로 자신의 콤보로 한정한다.
+                'condition': {
+                    'op': 'equals', 'left': 'context.event_controller',
+                    'right': {'controller': True},
+                },
                 'limit': {
                     'scope': 'turn', 'max': 1,
                     'key': 'rfs-at-015-n1:usage',
@@ -11432,7 +11437,6 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     'duration': 'battle',
                 }],
             })
-            combo.pop('condition', None)
     if normalized_code == 'RFS-AT-016':
         by_id = {ability.get('id'): ability for ability in abilities}
         limit = by_id.get('rfs-at-016-function')
@@ -11536,11 +11540,18 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'kind': 'effect', 'timing': 'combo',
                 'trigger': {'event': 'combo'},
                 'mode': 'optional', 'active_zones': ['lumen'],
-                'condition': {
-                    'op': 'card_matches',
-                    'card': {'path': 'context.event_card'},
-                    'where': {'character_key': 'pinp'},
-                },
+                # 자신의 <핀프> 기술 콤보만. 상대 핀프의 콤보에는 유발하지 않는다.
+                'condition': {'op': 'all', 'conditions': [
+                    {
+                        'op': 'equals', 'left': 'context.event_controller',
+                        'right': {'controller': True},
+                    },
+                    {
+                        'op': 'card_matches',
+                        'card': {'path': 'context.event_card'},
+                        'where': {'character_key': 'pinp'},
+                    },
+                ]},
                 'limit': {
                     'scope': 'turn', 'max': 1,
                     'key': 'rfs-at-018-n1:usage',
