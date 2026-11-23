@@ -87,7 +87,9 @@ function GameScreen({ mode }: { mode: Exclude<AppMode, { kind: "lobby" }> }) {
           <DecisionFrames envelope={envelope} />
           <DragMask />
           {!compact && <CardSidePanel />}
-          {!compact && <SelectionPopover envelope={envelope} onAction={onAction} />}
+          {/* 선택(ref)은 보드에 그린 위치 기준이다. 콤보 1번째 카드를 배틀 존에 놓아 보여 주면 손패
+              순서가 바뀌므로, 같은 보드(board)로 확인해야 선택이 바로 풀리지 않는다. */}
+          {!compact && <SelectionPopover envelope={board ?? envelope} onAction={onAction} />}
           <FxLayer me={perspective(envelope).me} />
           <OpeningReview envelope={envelope} onAction={onAction} />
           <PauseNotice envelope={envelope} onSubmit={onSubmit} />

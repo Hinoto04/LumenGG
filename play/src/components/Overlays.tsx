@@ -3,7 +3,7 @@ import { isStateCounterToken, type BoardCard, type LegalAction, type PlayEnvelop
 import { zoneEntries } from "../counterTokens";
 import { cardDetailText, cardText, useCardView } from "../catalog";
 import { ZONE_LABELS } from "../labels";
-import { refKey, usePlay, type InspectTarget } from "../store";
+import { cardActions, indexActions, usePlay, type InspectTarget } from "../store";
 import { isManual } from "../net/live";
 import { Card } from "./Card";
 import { ManualCardActions } from "./Manual";
@@ -32,10 +32,8 @@ export function CardInspector({
           <InspectorPanel
             envelope={envelope}
             target={inspect}
-            actions={envelope.legal_actions.filter(
-              (action) =>
-                action.ui.kind === "card" && action.ui.cards.some((ref) => refKey(ref) === refKey(inspect.ref)),
-            )}
+            // 화면에 옮겨 보여 준 카드(콤보 1번째 카드 등)가 있으면 위치가 서버와 다르므로 카드 id로 찾는다.
+            actions={cardActions(indexActions(envelope.legal_actions), inspect.ref, inspect.card)}
             onClose={() => setInspect(null)}
             onAction={(action) => {
               setInspect(null);
