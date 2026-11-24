@@ -50,6 +50,13 @@ SOURCE_TECHNIQUE_EVENTS = {
 }
 GLOBAL_REACTION_ZONES = {'passive', 'lumen', 'ultimate'}
 
+# with_other_triggers 능력이 함께 유발되지 않는 내부 기록용 이벤트. 카드 이동·카운터 변화마다
+# 도는 팔괘엔진 정리 같은 처리에 매번 선택 창이 붙지 않게 한다.
+PIGGYBACK_EXCLUDED_EVENTS = {
+    'card_moved', 'counter_changed', 'fp_changed', 'state_gained', 'state_lost',
+    'card_attached', 'speed_fixed', 'ability_completed', 'state_check',
+}
+
 # Compatibility for already-published immutable ruleset snapshots created
 # before ``allow_non_source_trigger`` became part of DSL v1.  These are the
 # catalog's deliberate Hand/List/Side reactions to another Technique's result
@@ -684,252 +691,276 @@ class EffectResolver:
         excluded_controllers = set(event_context.get('excluded_controllers') or [])
         collected = []
         deduplicated_triggers = set()
-        for controller, zone, card, definition in self._active_cards(event_context):
-            if controller in excluded_controllers:
-                continue
-            if event_type == 'combo_end' and controller != event_context.get('combo_owner'):
-                continue
-            if event_type == 'opponent_combo_end' and controller == event_context.get('combo_owner'):
-                continue
-            for ability in definition.get('abilities') or []:
-                if card.get('numbered_effects_negated') and ability.get('kind') == 'effect':
+
+        def piggyback_timing(controller):
+            own = [
+                item['ability'].get('timing') for item in collected
+                if item['controller'] == controller
+            ] or [item['ability'].get('timing') for item in collected]
+            return min(own, key=lambda timing: TIMING_ORDER.get(timing, 999))
+
+        for piggyback_pass in (False, True):
+            if piggyback_pass and (
+                not collected or event_type in PIGGYBACK_EXCLUDED_EVENTS
+            ):
+                break
+            for controller, zone, card, definition in self._active_cards(event_context):
+                if controller in excluded_controllers:
                     continue
-                trigger = ability.get('trigger') or {}
-                trigger_events = trigger.get('events') or [trigger.get('event')]
-                if event_type not in trigger_events:
+                if event_type == 'combo_end' and controller != event_context.get('combo_owner'):
                     continue
-                # Drafts historically serialized an omitted/default zone as
-                # ``[]``. Treat it like no explicit restriction; interpreting
-                # it as an impossible zone silently disables the ability.
-                active_zones = ability.get('active_zones') or None
-                is_source = card.get('instance_id') == event_context.get('source_card_instance_id')
-                # Some domain events are emitted only after the source has
-                # completed their core movement.  Grab negation, for example,
-                # returns the Battle card to Hand before its printed
-                # ``grab_negated`` effect resolves.  When the event records
-                # the source's triggering zone, use that zone for ability
-                # activation instead of silently disabling Battle-only text.
-                event_source_zone = (
-                    event_context.get('source_zone') if is_source else None
-                )
-                activation_zones = {
-                    value for value in (zone, event_source_zone) if value
-                }
-                activation_zone = (
-                    event_source_zone
-                    if event_source_zone in (active_zones or [])
-                    else zone
-                )
-                is_attached_source = card.get('attached_to') == event_context.get('source_card_instance_id')
-                attached_active = is_attached_source and ability.get('active_when_attached') is True
-                explicit_global_reaction = bool(
-                    active_zones is not None
-                    and any(
-                        value in GLOBAL_REACTION_ZONES
-                        and value in active_zones
-                        for value in activation_zones
-                    )
-                )
-                is_persistent_global_reaction = bool(
-                    not is_source
-                    and not attached_active
-                    and any(
-                        value in GLOBAL_REACTION_ZONES
-                        for value in activation_zones
-                    )
-                )
-                global_reaction_slot_owner = event_context.get(
-                    'global_reaction_slot_owner'
-                )
-                if (
-                    global_reaction_slot_owner in PLAYER_SIDES
-                    and is_persistent_global_reaction
-                    and controller != global_reaction_slot_owner
-                ):
+                if event_type == 'opponent_combo_end' and controller == event_context.get('combo_owner'):
                     continue
-                combo_membership_required = bool(
-                    ability.get('requires_combo_use') is True
-                    or ability.get('id')
-                    in KNOWN_COMBO_MEMBERSHIP_REQUIRED_ABILITIES
-                )
-                combo_card_instance_ids = set(
-                    event_context.get('combo_card_instance_ids') or []
-                )
-                if not combo_card_instance_ids:
-                    combo_card_instance_ids.update(
-                        event_context.get('combo_used') or []
-                    )
-                    source_combo_card = event_context.get(
-                        'source_card_instance_id'
-                    )
-                    if source_combo_card:
-                        combo_card_instance_ids.add(source_combo_card)
-                included_in_combo = bool(
-                    event_type == 'combo_end'
-                    and combo_membership_required
-                    and card.get('instance_id') in combo_card_instance_ids
-                )
-                combo_departure_active = bool(
-                    included_in_combo
-                    and ability.get('id') == 'dfr-at-020-n2'
-                )
-                if (
-                    event_type == 'combo_end'
-                    and combo_membership_required
-                    and card.get('instance_id') not in combo_card_instance_ids
-                ):
-                    continue
-                if (
-                    event_type == 'combo_end'
-                    and _is_technique(card)
-                    and card.get('instance_id') not in set(
-                        event_context.get('combo_card_instance_ids')
-                        or [event_context.get('source_card_instance_id')]
-                    )
-                    and not explicit_global_reaction
-                    and not any(
-                        value in GLOBAL_REACTION_ZONES
-                        for value in activation_zones
-                    )
-                    and ability.get('allow_non_source_trigger') is not True
-                ):
-                    continue
-                if event_context.get('source_only_event') and not (
-                    is_source or attached_active or explicit_global_reaction
-                ):
-                    continue
-                if (
-                    (
-                        event_context.get('source_battle_card_only')
-                        or event_context.get('source_technique_event')
-                        or event_type in SOURCE_TECHNIQUE_EVENTS
-                    )
-                    and _is_technique(card)
-                    and not (
-                        is_source or attached_active
-                        or explicit_global_reaction
-                    )
-                    and ability.get('allow_non_source_trigger') is not True
-                    and ability.get('id') not in KNOWN_NON_SOURCE_TRIGGER_ABILITIES
-                ):
-                    continue
-                default_active = (
-                    any(
-                        value in {'passive', 'lumen', 'ultimate'}
-                        for value in activation_zones
-                    )
-                    or is_source or attached_active
-                )
-                if (
-                    active_zones is not None
-                    and not activation_zones.intersection(active_zones)
-                    and not combo_departure_active
-                ):
-                    continue
-                if (
-                    active_zones is None and not default_active
-                    and not included_in_combo
-                ):
-                    continue
-                context = {
-                    **event_context,
-                    'event_controller': event_context.get('controller'),
-                    # Preserve the ability that caused a nested domain event
-                    # before replacing ``ability_id`` with the reacting
-                    # ability below.  Damage reactions use this provenance to
-                    # reject only their own bonus damage without suppressing
-                    # damage produced by a different Technique effect.
-                    'event_ability_id': event_context.get('ability_id'),
-                    'event_type': event_type,
-                    'controller': controller,
-                    'opponent': _opponent(controller),
-                    'controller_hp': state_path(self.state, f'players.{controller}.hp', 0),
-                    'controller_fp': state_path(self.state, f'players.{controller}.fp', 0),
-                    'opponent_hp': state_path(self.state, f'players.{_opponent(controller)}.hp', 0),
-                    'opponent_fp': state_path(self.state, f'players.{_opponent(controller)}.fp', 0),
-                    'controller_hand_limit': self.engine._current_hand_limit(
-                        controller,
-                    ),
-                    'opponent_hand_limit': self.engine._current_hand_limit(
-                        _opponent(controller),
-                    ),
-                    'controller_turn_damage_received': state_path(
-                        self.state, f'engine.turn_damage_received.{controller}', 0,
-                    ),
-                    'opponent_turn_damage_received': state_path(
-                        self.state, f'engine.turn_damage_received.{_opponent(controller)}', 0,
-                    ),
-                    'source_card': copy.deepcopy(card),
-                    'source_card_instance_id': card.get('instance_id'),
-                    'event_card': copy.deepcopy(event_card),
-                    'event_printed_card': copy.deepcopy(event_printed_card),
-                    'event_card_instance_id': event_card_instance_id,
-                    # ``event_context.opponent_card`` is relative to the
-                    # player whose timing slot is being dispatched. Passive
-                    # and other global reactions may have the other
-                    # controller, so derive their current opponent from the
-                    # live battle first.
-                    'opponent_card': copy.deepcopy(
-                        ((((self.state.get('engine') or {}).get('battle') or {})
-                          .get(_opponent(controller)) or {}).get('card'))
-                        or event_context.get('opponent_card')
-                    ),
-                    'source_zone': activation_zone,
-                    'ability_id': ability.get('id'),
-                    'ability_visibility': ability.get('visibility', 'public'),
-                    'depth': depth,
-                }
-                limit = ability.get('limit') or {}
-                if limit:
-                    scope = str(limit.get('scope') or 'game')
-                    key = _ability_limit_key(ability, context)
-                    used = state_path(self.state, f'engine.usage.{scope}.{controller}.{key}', 0) or 0
-                    # 같은 이름 카드 여러 장이 같은 시점에 유발돼도 남은 횟수만큼만 모은다.
-                    # (예: 사이드의 드리프트 컨버전 2장이 순서 선택으로 강제 발동되던 문제)
-                    pending = sum(
-                        1 for item in collected
-                        if item['controller'] == controller
-                        and (item['ability'].get('limit') or {}).get('scope', 'game') == limit.get('scope', 'game')
-                        and _ability_limit_key(item['ability'], item['context']) == key
-                    )
-                    if int(used) + pending >= int(limit.get('max', 1)):
+                for ability in definition.get('abilities') or []:
+                    if card.get('numbered_effects_negated') and ability.get('kind') == 'effect':
                         continue
-                if (
-                    condition_matches(ability.get('condition'), self.state, context)
-                    and self.engine.selector_has_minimum(
-                        ability.get('availability_selector'), context,
-                    )
-                    and self.engine.combo_grant_available(
-                        ability.get('availability_combo_grant'), context,
-                    )
-                ):
-                    dedupe_key = str(ability.get('dedupe_trigger_key') or '').strip()
-                    dedupe_identity = (controller, event_type, dedupe_key)
-                    if dedupe_key and dedupe_identity in deduplicated_triggers:
+                    trigger = ability.get('trigger') or {}
+                    trigger_events = trigger.get('events') or [trigger.get('event')]
+                    if piggyback_pass:
+                        # with_other_triggers: 다른 유발 효과가 유발되는 타이밍에 함께 유발된다
+                        # (음양순환극 무진의 적용 선택).
+                        if (
+                            not trigger.get('with_other_triggers')
+                            or event_type in trigger_events
+                        ):
+                            continue
+                    elif event_type not in trigger_events:
                         continue
-                    if dedupe_key:
-                        deduplicated_triggers.add(dedupe_identity)
-                    snapshot_rules = ability.get('trigger_snapshot') or {}
-                    if snapshot_rules:
-                        # 상태에 따라 활성화되는 문구는 유발 시점에 결정된다
-                        # (Q-AUTO-019). 해결 중 상태가 바뀌어도 이 값을 쓴다.
-                        context['trigger_snapshot'] = {
-                            str(name): condition_matches(rule, self.state, context)
-                            for name, rule in snapshot_rules.items()
-                        }
-                    resolved_ability = copy.deepcopy(ability)
-                    if trigger.get('events'):
-                        resolved_ability['timing'] = EVENT_TIMING.get(
-                            event_type, resolved_ability.get('timing'),
+                    # Drafts historically serialized an omitted/default zone as
+                    # ``[]``. Treat it like no explicit restriction; interpreting
+                    # it as an impossible zone silently disables the ability.
+                    active_zones = ability.get('active_zones') or None
+                    is_source = card.get('instance_id') == event_context.get('source_card_instance_id')
+                    # Some domain events are emitted only after the source has
+                    # completed their core movement.  Grab negation, for example,
+                    # returns the Battle card to Hand before its printed
+                    # ``grab_negated`` effect resolves.  When the event records
+                    # the source's triggering zone, use that zone for ability
+                    # activation instead of silently disabling Battle-only text.
+                    event_source_zone = (
+                        event_context.get('source_zone') if is_source else None
+                    )
+                    activation_zones = {
+                        value for value in (zone, event_source_zone) if value
+                    }
+                    activation_zone = (
+                        event_source_zone
+                        if event_source_zone in (active_zones or [])
+                        else zone
+                    )
+                    is_attached_source = card.get('attached_to') == event_context.get('source_card_instance_id')
+                    attached_active = is_attached_source and ability.get('active_when_attached') is True
+                    explicit_global_reaction = bool(
+                        active_zones is not None
+                        and any(
+                            value in GLOBAL_REACTION_ZONES
+                            and value in active_zones
+                            for value in activation_zones
                         )
-                    collected.append({
+                    )
+                    is_persistent_global_reaction = bool(
+                        not is_source
+                        and not attached_active
+                        and any(
+                            value in GLOBAL_REACTION_ZONES
+                            for value in activation_zones
+                        )
+                    )
+                    global_reaction_slot_owner = event_context.get(
+                        'global_reaction_slot_owner'
+                    )
+                    if (
+                        global_reaction_slot_owner in PLAYER_SIDES
+                        and is_persistent_global_reaction
+                        and controller != global_reaction_slot_owner
+                    ):
+                        continue
+                    combo_membership_required = bool(
+                        ability.get('requires_combo_use') is True
+                        or ability.get('id')
+                        in KNOWN_COMBO_MEMBERSHIP_REQUIRED_ABILITIES
+                    )
+                    combo_card_instance_ids = set(
+                        event_context.get('combo_card_instance_ids') or []
+                    )
+                    if not combo_card_instance_ids:
+                        combo_card_instance_ids.update(
+                            event_context.get('combo_used') or []
+                        )
+                        source_combo_card = event_context.get(
+                            'source_card_instance_id'
+                        )
+                        if source_combo_card:
+                            combo_card_instance_ids.add(source_combo_card)
+                    included_in_combo = bool(
+                        event_type == 'combo_end'
+                        and combo_membership_required
+                        and card.get('instance_id') in combo_card_instance_ids
+                    )
+                    combo_departure_active = bool(
+                        included_in_combo
+                        and ability.get('id') == 'dfr-at-020-n2'
+                    )
+                    if (
+                        event_type == 'combo_end'
+                        and combo_membership_required
+                        and card.get('instance_id') not in combo_card_instance_ids
+                    ):
+                        continue
+                    if (
+                        event_type == 'combo_end'
+                        and _is_technique(card)
+                        and card.get('instance_id') not in set(
+                            event_context.get('combo_card_instance_ids')
+                            or [event_context.get('source_card_instance_id')]
+                        )
+                        and not explicit_global_reaction
+                        and not any(
+                            value in GLOBAL_REACTION_ZONES
+                            for value in activation_zones
+                        )
+                        and ability.get('allow_non_source_trigger') is not True
+                    ):
+                        continue
+                    if event_context.get('source_only_event') and not (
+                        is_source or attached_active or explicit_global_reaction
+                    ):
+                        continue
+                    if (
+                        (
+                            event_context.get('source_battle_card_only')
+                            or event_context.get('source_technique_event')
+                            or event_type in SOURCE_TECHNIQUE_EVENTS
+                        )
+                        and _is_technique(card)
+                        and not (
+                            is_source or attached_active
+                            or explicit_global_reaction
+                        )
+                        and ability.get('allow_non_source_trigger') is not True
+                        and ability.get('id') not in KNOWN_NON_SOURCE_TRIGGER_ABILITIES
+                    ):
+                        continue
+                    default_active = (
+                        any(
+                            value in {'passive', 'lumen', 'ultimate'}
+                            for value in activation_zones
+                        )
+                        or is_source or attached_active
+                    )
+                    if (
+                        active_zones is not None
+                        and not activation_zones.intersection(active_zones)
+                        and not combo_departure_active
+                    ):
+                        continue
+                    if (
+                        active_zones is None and not default_active
+                        and not included_in_combo
+                    ):
+                        continue
+                    context = {
+                        **event_context,
+                        'event_controller': event_context.get('controller'),
+                        # Preserve the ability that caused a nested domain event
+                        # before replacing ``ability_id`` with the reacting
+                        # ability below.  Damage reactions use this provenance to
+                        # reject only their own bonus damage without suppressing
+                        # damage produced by a different Technique effect.
+                        'event_ability_id': event_context.get('ability_id'),
+                        'event_type': event_type,
                         'controller': controller,
-                        'zone': zone,
-                        'card_instance_id': card.get('instance_id'),
-                        'card_code': card.get('code'),
-                        'ability': resolved_ability,
-                        'context': context,
-                    })
+                        'opponent': _opponent(controller),
+                        'controller_hp': state_path(self.state, f'players.{controller}.hp', 0),
+                        'controller_fp': state_path(self.state, f'players.{controller}.fp', 0),
+                        'opponent_hp': state_path(self.state, f'players.{_opponent(controller)}.hp', 0),
+                        'opponent_fp': state_path(self.state, f'players.{_opponent(controller)}.fp', 0),
+                        'controller_hand_limit': self.engine._current_hand_limit(
+                            controller,
+                        ),
+                        'opponent_hand_limit': self.engine._current_hand_limit(
+                            _opponent(controller),
+                        ),
+                        'controller_turn_damage_received': state_path(
+                            self.state, f'engine.turn_damage_received.{controller}', 0,
+                        ),
+                        'opponent_turn_damage_received': state_path(
+                            self.state, f'engine.turn_damage_received.{_opponent(controller)}', 0,
+                        ),
+                        'source_card': copy.deepcopy(card),
+                        'source_card_instance_id': card.get('instance_id'),
+                        'event_card': copy.deepcopy(event_card),
+                        'event_printed_card': copy.deepcopy(event_printed_card),
+                        'event_card_instance_id': event_card_instance_id,
+                        # ``event_context.opponent_card`` is relative to the
+                        # player whose timing slot is being dispatched. Passive
+                        # and other global reactions may have the other
+                        # controller, so derive their current opponent from the
+                        # live battle first.
+                        'opponent_card': copy.deepcopy(
+                            ((((self.state.get('engine') or {}).get('battle') or {})
+                              .get(_opponent(controller)) or {}).get('card'))
+                            or event_context.get('opponent_card')
+                        ),
+                        'source_zone': activation_zone,
+                        'ability_id': ability.get('id'),
+                        'ability_visibility': ability.get('visibility', 'public'),
+                        'depth': depth,
+                    }
+                    limit = ability.get('limit') or {}
+                    if limit:
+                        scope = str(limit.get('scope') or 'game')
+                        key = _ability_limit_key(ability, context)
+                        used = state_path(self.state, f'engine.usage.{scope}.{controller}.{key}', 0) or 0
+                        # 같은 이름 카드 여러 장이 같은 시점에 유발돼도 남은 횟수만큼만 모은다.
+                        # (예: 사이드의 드리프트 컨버전 2장이 순서 선택으로 강제 발동되던 문제)
+                        pending = sum(
+                            1 for item in collected
+                            if item['controller'] == controller
+                            and (item['ability'].get('limit') or {}).get('scope', 'game') == limit.get('scope', 'game')
+                            and _ability_limit_key(item['ability'], item['context']) == key
+                        )
+                        if int(used) + pending >= int(limit.get('max', 1)):
+                            continue
+                    if (
+                        condition_matches(ability.get('condition'), self.state, context)
+                        and self.engine.selector_has_minimum(
+                            ability.get('availability_selector'), context,
+                        )
+                        and self.engine.combo_grant_available(
+                            ability.get('availability_combo_grant'), context,
+                        )
+                    ):
+                        dedupe_key = str(ability.get('dedupe_trigger_key') or '').strip()
+                        dedupe_identity = (controller, event_type, dedupe_key)
+                        if dedupe_key and dedupe_identity in deduplicated_triggers:
+                            continue
+                        if dedupe_key:
+                            deduplicated_triggers.add(dedupe_identity)
+                        snapshot_rules = ability.get('trigger_snapshot') or {}
+                        if snapshot_rules:
+                            # 상태에 따라 활성화되는 문구는 유발 시점에 결정된다
+                            # (Q-AUTO-019). 해결 중 상태가 바뀌어도 이 값을 쓴다.
+                            context['trigger_snapshot'] = {
+                                str(name): condition_matches(rule, self.state, context)
+                                for name, rule in snapshot_rules.items()
+                            }
+                        resolved_ability = copy.deepcopy(ability)
+                        if piggyback_pass:
+                            # 함께 유발된 효과와 같은 타이밍 칸에 넣어 해결 순서를 고를 수 있게 한다.
+                            resolved_ability['timing'] = piggyback_timing(controller)
+                        elif trigger.get('events'):
+                            resolved_ability['timing'] = EVENT_TIMING.get(
+                                event_type, resolved_ability.get('timing'),
+                            )
+                        collected.append({
+                            'controller': controller,
+                            'zone': zone,
+                            'card_instance_id': card.get('instance_id'),
+                            'card_code': card.get('code'),
+                            'ability': resolved_ability,
+                            'context': context,
+                        })
         self._enqueue_ordered(collected)
         return len(collected)
 

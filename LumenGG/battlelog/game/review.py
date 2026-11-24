@@ -155287,85 +155287,93 @@ def _cb01_at_025_bagua_definition():
     }
 
 
-def _run_cb01_at_025_activation_scenario(
-    definition, card_snapshot, owner, *, hp=3000, choice='activate',
-    numbered_negated=False, event_player=None, test_bagua=False,
-    bagua_choice='yang', frame=7,
+def _cb01_at_025_mujin_offered(decision):
+    decision = decision or {}
+    texts = [str(decision.get('prompt') or '')] + [
+        str(option.get('label') or '') for option in decision.get('options') or []
+    ]
+    return any('무진 적용' in text for text in texts)
+
+
+def _run_cb01_at_025_scenario(
+    definition, card_snapshot, owner, *, hp=3000, yin=0, yang=1,
+    active=False, numbered_negated=False, steps=(),
 ):
-    passive = _card(
-        'UNC-PS-001', owner, f'{owner}-cb01-at-025-bagua',
-    )
+    """무진 시나리오를 단계(steps)대로 진행한다.
+
+    단계: ('phase',) 페이즈 시작, ('hp', player) 체력 변화, ('tao', frame) 타오 기술 데미지 후,
+    ('counter', name, amount) 카운터 변화, ('pick', key) 대기 중인 선택에서 고르기
+    (key: 'mujin'·'bagua' 순서 선택, 'accept'·'decline'·'yin'·'yang' 선택지 id).
+    """
+    other = 'p2' if owner == 'p1' else 'p1'
+    passive = _card('UNC-PS-001', owner, f'{owner}-cb01-at-025-bagua')
     passive.update({'type': '특성', 'frame': None, 'damage': None})
-    extras = [
-        ('passive', passive, _cb01_at_025_bagua_definition()),
-    ] if test_bagua else []
-    engine, _source, _opposing = _cb01_final_engine(
-        definition, card_snapshot, owner, source_zone='ultimate', hp=hp,
-        numbered_negated=numbered_negated, extra_cards=extras,
-    )
-    engine.state['phase'] = 'lumen'
-    if event_player is None:
-        engine._fire('phase_start', {'phase': 'lumen'})
-    else:
-        engine._fire('hp_changed', {
-            'controller': event_player, 'player': event_player,
-            'before': hp + 100, 'after': hp, 'amount': -100,
-        })
-    activation_decision = None
-    if engine.engine_state.get('pending_decision'):
-        activation_decision = _cb01_final_submit(engine, owner, choice)
-    bagua_decision = None
-    if test_bagua and choice == 'activate':
-        event_card = _card(
-            'REVIEW-CB01-AT-025-TAO', owner,
-            f'{owner}-cb01-at-025-tao',
-        )
-        event_card.update({'character_key': 'tao', 'frame': frame})
-        engine._fire('damage_after', {
-            'controller': owner,
-            'player': 'p2' if owner == 'p1' else 'p1', 'amount': 100,
-            'source_card_instance_id': event_card['instance_id'],
-            'source_card': event_card, 'event_card': event_card,
-        })
-        if engine.engine_state.get('pending_decision'):
-            bagua_decision = _cb01_final_submit(
-                engine, owner, bagua_choice,
-            )
-    passive_state = engine.state['players'][owner]['passive_state']
-    return {
-        'activation_decision': activation_decision,
-        'bagua_decision': bagua_decision,
-        'active': bool((passive_state.get('mujin_active') or {}).get('value')),
-        'declined': bool((passive_state.get('mujin_declined') or {}).get('value')),
-        'yin': int((passive_state.get('yin') or {}).get('count') or 0),
-        'yang': int((passive_state.get('yang') or {}).get('count') or 0),
-        'resolved': _st2_resolution_count(engine, 'cb01-at-025-n1-activate'),
-        'pending': bool(engine.engine_state.get('pending_decision')),
-    }
-
-
-def _run_cb01_at_025_break_scenario(
-    definition, card_snapshot, owner, *, hp=3000, active=True,
-    counter='yin', before=1, amount=-1, numbered_negated=False,
-):
     engine, source, _opposing = _cb01_final_engine(
         definition, card_snapshot, owner, source_zone='ultimate', hp=hp,
         numbered_negated=numbered_negated,
+        extra_cards=[('passive', passive, _cb01_at_025_bagua_definition())],
     )
+    passive_state = engine.state['players'][owner]['passive_state']
+    passive_state['yin'] = {'count': yin}
+    passive_state['yang'] = {'count': yang}
     if active:
-        engine.state['players'][owner]['passive_state']['mujin_active'] = {
-            'value': True,
-        }
-    engine.state['players'][owner]['passive_state'][counter] = {
-        'count': before,
-    }
-    engine.change_counter(owner, counter, amount)
+        passive_state['mujin_active'] = {'value': True}
+    engine.state['phase'] = 'battle'
+    offers = []
+    picks_failed = 0
+
+    def record():
+        decision = engine.engine_state.get('pending_decision')
+        if decision and _cb01_at_025_mujin_offered(decision):
+            offers.append(decision.get('kind'))
+
+    for step in steps:
+        kind = step[0]
+        if kind == 'phase':
+            engine._fire('phase_start', {'phase': 'battle'})
+        elif kind == 'hp':
+            target = step[1]
+            engine._fire('hp_changed', {
+                'controller': target, 'player': target,
+                'before': hp + 100, 'after': hp, 'amount': -100,
+            })
+        elif kind == 'tao':
+            event_card = _card(
+                'REVIEW-CB01-AT-025-TAO', owner, f'{owner}-cb01-at-025-tao',
+            )
+            event_card.update({'character_key': 'tao', 'frame': step[1]})
+            engine._fire('damage_after', {
+                'controller': owner, 'player': other, 'amount': 100,
+                'source_card_instance_id': event_card['instance_id'],
+                'source_card': event_card, 'event_card': event_card,
+            })
+        elif kind == 'counter':
+            engine.change_counter(owner, step[1], step[2])
+        elif kind == 'pick':
+            decision = engine.engine_state.get('pending_decision') or {}
+            key = step[1]
+            option = next((
+                item for item in decision.get('options') or []
+                if (
+                    key == 'mujin' and '무진 적용' in str(item.get('label') or '')
+                ) or (
+                    key == 'bagua' and '팔괘' in str(item.get('label') or '')
+                ) or str(item.get('id')) == key
+            ), None)
+            if not option:
+                picks_failed += 1
+                continue
+            engine._submit_decision(decision['owner'], decision['id'], [option['id']])
+        engine._continue()
+        record()
     location = engine._find_location(source['instance_id'])
-    entry = engine.state['players'][owner]['passive_state'].get(counter) or {}
     return {
+        'offers': offers,
+        'active': bool((passive_state.get('mujin_active') or {}).get('value')),
+        'yin': int((passive_state.get('yin') or {}).get('count') or 0),
+        'yang': int((passive_state.get('yang') or {}).get('count') or 0),
         'source_zone': location[1] if location else None,
-        'counter_count': int(entry.get('count') or 0),
-        'resolved': _st2_resolution_count(engine, 'cb01-at-025-n1-break'),
+        'picks_failed': picks_failed,
         'pending': bool(engine.engine_state.get('pending_decision')),
     }
 
@@ -155373,30 +155381,32 @@ def _run_cb01_at_025_break_scenario(
 def _review_cb01_at_025_definition(definition, card_snapshot, extra_root):
     if str((card_snapshot or {}).get('code') or '') != 'CB01-AT-025':
         return None
+    from .drafts import (
+        MUJIN_ACTIVATE_CONDITION, MUJIN_ACTIVATE_TRIGGER,
+        MUJIN_BREAK_CONDITION, MUJIN_BREAK_TRIGGER,
+    )
+
     abilities = definition.get('abilities') or []
     by_id = {ability.get('id'): ability for ability in abilities}
     activation = by_id.get('cb01-at-025-n1-activate')
     broken = by_id.get('cb01-at-025-n1-break')
     valid = bool(
         not extra_root
-        and set(by_id) == {
-            'cb01-at-025-n1-activate', 'cb01-at-025-n1-break',
-        }
+        and set(by_id) == {'cb01-at-025-n1-activate', 'cb01-at-025-n1-break'}
         and sorted((definition.get('source_refs') or {}).get('qna_ids') or [])
         == [659, 666, 676]
-        and activation and activation.get('mode') == 'mandatory'
+        and activation and activation.get('mode') == 'optional'
         and activation.get('active_zones') == ['ultimate']
-        and activation.get('trigger') == {
-            'event': 'game_start',
-            'events': ['game_start', 'hp_changed', 'phase_start'],
-        }
-        and any(
-            node.get('op') == 'choose_effect'
-            and [option.get('id') for option in node.get('options') or []]
-            == ['activate', 'decline']
-            for node in _effect_nodes(activation.get('effects') or [])
-        )
-        and broken and broken.get('trigger') == {'event': 'counter_changed'}
+        and activation.get('trigger') == MUJIN_ACTIVATE_TRIGGER
+        and activation.get('condition') == MUJIN_ACTIVATE_CONDITION
+        and activation.get('effects') == [{
+            'op': 'gain_state', 'player': {'controller': True},
+            'state': 'mujin_active', 'label': '무진 적용',
+        }]
+        and broken and broken.get('mode') == 'mandatory'
+        and broken.get('active_zones') == ['ultimate']
+        and broken.get('trigger') == MUJIN_BREAK_TRIGGER
+        and broken.get('condition') == MUJIN_BREAK_CONDITION
         and broken.get('effects') == [{'op': 'break_card'}]
     )
     if not valid:
@@ -155407,54 +155417,68 @@ def _review_cb01_at_025_definition(definition, card_snapshot, extra_root):
             )], 'CB01-AT-025 전용 정의 검증에 실패했습니다.',
             method=AUTOMATIC_SCENARIO_VERSION,
         )
-    activation_scenarios = _cb01_final_scenarios(
-        _run_cb01_at_025_activation_scenario, definition, card_snapshot, (
-            ('owner-p1-activates-at-three-thousand', 'p1', {}, {
-                'active': True, 'declined': False, 'resolved': 1,
-            }),
-            ('owner-p2-can-decline-for-future-events', 'p2', {
-                'choice': 'decline',
-            }, {'active': False, 'declined': True, 'resolved': 1}),
-            ('above-threshold-does-not-offer', 'p1', {'hp': 3001}, {
-                'active': False, 'declined': False, 'resolved': 0,
-            }),
-            ('opponent-hp-change-does-not-offer', 'p1', {
-                'event_player': 'p2',
-            }, {'active': False, 'declined': False, 'resolved': 0}),
-            ('numbered-negation-does-not-offer', 'p2', {
-                'numbered_negated': True,
-            }, {'active': False, 'declined': False, 'resolved': 0}),
-            ('qna676-odd-tao-can-choose-yang', 'p1', {
-                'test_bagua': True, 'frame': 7, 'bagua_choice': 'yang',
-            }, {'active': True, 'yin': 0, 'yang': 1, 'pending': False}),
-            ('even-tao-can-choose-yin', 'p2', {
-                'test_bagua': True, 'frame': 8, 'bagua_choice': 'yin',
-            }, {'active': True, 'yin': 1, 'yang': 0, 'pending': False}),
-        ),
-    )
-    break_scenarios = _cb01_final_scenarios(
-        _run_cb01_at_025_break_scenario, definition, card_snapshot, (
-            ('owner-p1-yin-reaching-zero-breaks-source', 'p1', {}, {
-                'source_zone': 'break', 'counter_count': 0, 'resolved': 1,
-            }),
-            ('owner-p2-yang-reaching-zero-breaks-source', 'p2', {
-                'counter': 'yang',
-            }, {'source_zone': 'break', 'counter_count': 0, 'resolved': 1}),
-            ('gain-from-zero-does-not-count-as-reaching-zero', 'p1', {
-                'before': 0, 'amount': 1,
-            }, {'source_zone': 'ultimate', 'counter_count': 1, 'resolved': 0}),
-            ('inactive-mujin-does-not-break', 'p2', {'active': False}, {
-                'source_zone': 'ultimate', 'counter_count': 0, 'resolved': 0}),
-            ('above-threshold-does-not-apply-break', 'p1', {'hp': 3001}, {
-                'source_zone': 'ultimate', 'counter_count': 0, 'resolved': 0}),
-            ('unrelated-counter-does-not-break', 'p2', {
-                'counter': 'ember',
-            }, {'source_zone': 'ultimate', 'counter_count': 0, 'resolved': 0}),
-            ('numbered-negation-does-not-break', 'p1', {
-                'numbered_negated': True,
-            }, {'source_zone': 'ultimate', 'counter_count': 0, 'resolved': 0}),
-        ),
-    )
+    run = _run_cb01_at_025_scenario
+    activation_scenarios = _cb01_final_scenarios(run, definition, card_snapshot, (
+        ('phase-start-offers-and-accept-activates', 'p1', {
+            'yin': 1, 'steps': (('phase',), ('pick', 'accept')),
+        }, {'offers': ['optional_effect'], 'active': True, 'pending': False,
+            'picks_failed': 0}),
+        ('decline-is-offered-again-at-next-timing', 'p2', {
+            'yin': 1, 'steps': (
+                ('phase',), ('pick', 'decline'), ('phase',), ('pick', 'accept'),
+            ),
+        }, {'offers': ['optional_effect', 'optional_effect'], 'active': True,
+            'picks_failed': 0}),
+        ('accepted-is-not-offered-again', 'p1', {
+            'yin': 1, 'active': True, 'steps': (('phase',), ('hp', 'p1')),
+        }, {'offers': [], 'active': True, 'pending': False}),
+        ('above-threshold-is-not-offered', 'p2', {
+            'hp': 3001, 'steps': (('phase',),),
+        }, {'offers': [], 'active': False, 'pending': False}),
+        ('opponent-hp-change-is-not-offered', 'p1', {
+            'steps': (('hp', 'p2'),),
+        }, {'offers': [], 'active': False, 'pending': False}),
+        ('numbered-negation-is-not-offered', 'p2', {
+            'numbered_negated': True, 'steps': (('phase',),),
+        }, {'offers': [], 'active': False, 'pending': False}),
+        ('example-activate-first-then-bagua-yin-keeps-source', 'p1', {
+            'yin': 0, 'yang': 1, 'steps': (
+                ('tao', 8), ('pick', 'mujin'), ('pick', 'yin'),
+            ),
+        }, {'offers': ['effect_order'], 'active': True, 'yin': 1, 'yang': 1,
+            'source_zone': 'ultimate', 'pending': False, 'picks_failed': 0}),
+    ))
+    break_scenarios = _cb01_final_scenarios(run, definition, card_snapshot, (
+        ('active-yin-reaching-zero-breaks-after-triggers', 'p1', {
+            'yin': 1, 'yang': 1, 'active': True,
+            'steps': (('counter', 'yin', -1),),
+        }, {'source_zone': 'break', 'pending': False}),
+        ('active-yang-reaching-zero-breaks-after-triggers', 'p2', {
+            'yin': 1, 'yang': 1, 'active': True,
+            'steps': (('counter', 'yang', -1),),
+        }, {'source_zone': 'break', 'pending': False}),
+        ('inactive-zero-counter-does-not-break', 'p1', {
+            'yin': 0, 'yang': 0, 'steps': (('counter', 'yin', 0),),
+        }, {'source_zone': 'ultimate'}),
+        ('above-threshold-does-not-break', 'p2', {
+            'hp': 3001, 'yin': 0, 'active': True,
+            'steps': (('counter', 'yang', -1),),
+        }, {'source_zone': 'ultimate'}),
+        ('both-counters-present-keeps-source', 'p1', {
+            'yin': 2, 'yang': 1, 'active': True,
+            'steps': (('counter', 'yin', -1),),
+        }, {'source_zone': 'ultimate', 'pending': False}),
+        ('numbered-negation-does-not-break', 'p2', {
+            'yin': 1, 'active': True, 'numbered_negated': True,
+            'steps': (('counter', 'yin', -1),),
+        }, {'source_zone': 'ultimate'}),
+        ('bagua-first-then-activate-breaks-after-all-triggers', 'p1', {
+            'yin': 0, 'yang': 1, 'steps': (
+                ('tao', 8), ('pick', 'bagua'), ('pick', 'accept'),
+            ),
+        }, {'active': True, 'yin': 0, 'yang': 2, 'source_zone': 'break',
+            'pending': False, 'picks_failed': 0}),
+    ))
     reviews = [
         AbilityReview(
             activation['id'],

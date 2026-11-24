@@ -78,6 +78,7 @@ TRIGGER_DETAILS = {
     'defense_over': '디펜스 오버가 성립할 때 발생한다.',
     'card_guess_resolved': '상대 패의 종류/홀짝 추측과 공개가 정산된 뒤 발생한다.',
     'grab_negated': '그랩 무효가 성공한 뒤 발생한다.',
+    'state_check': '유발 효과 해결 대기열이 모두 끝난 시점에 엔진이 상태 조건을 확인하며 발생한다(무진의 0 카운터 브레이크).',
 }
 
 
@@ -279,7 +280,7 @@ ABILITY_FIELDS = [
     _item('label / draft_text', '사용자 표시 이름과 카드 원문 단위.', '문자열'),
     _item('kind', '번호 없는 기능(function) 또는 번호 있는 효과(effect).', 'function | effect'),
     _item('mode', '강제/선택/지속/대체 처리 방식.', 'mandatory | optional | continuous | replacement'),
-    _item('trigger', '발생 이벤트. events를 쓰면 하나의 능력이 여러 이벤트에 반응한다.', '{event, events?}; continuous는 생략 가능'),
+    _item('trigger', '발생 이벤트. events를 쓰면 하나의 능력이 여러 이벤트에 반응한다. with_other_triggers는 다른 유발 효과가 유발되는 타이밍마다 같은 타이밍 칸으로 함께 유발한다(카드 이동·카운터 변화 같은 기록용 이벤트 제외).', '{event, events?, with_other_triggers?}; continuous는 생략 가능'),
     _item('timing', '같은 이벤트 해결 큐의 정렬 위치.', 'TIMING_ORDER 키'),
     _item('visibility', '유발 및 선택 정보 공개 범위.', 'public(기본) | private'),
     _item('source_refs', '능력 자체의 재정 출처.', '{rulebook_pages,qna_ids,general_qna_ids,card_text,detail_text}'),

@@ -1019,7 +1019,46 @@ class AutomaticGameEngine:
             elif window == 'catch':
                 self.end_catch()
 
+    def _state_check_codes(self):
+        """state_check 유발 능력이 있는 카드 코드 → 활성 존(None이면 모든 존).
+
+        룰셋은 엔진마다 고정이라 한 번만 센다.
+        """
+        cached = getattr(self, '_state_check_code_cache', None)
+        if cached is None:
+            cached = {}
+            for code, entry in (self.ruleset.get('cards') or {}).items():
+                for ability in ((entry or {}).get('effect_definition') or {}).get('abilities') or []:
+                    trigger = (ability or {}).get('trigger') or {}
+                    if 'state_check' not in (trigger.get('events') or [trigger.get('event')]):
+                        continue
+                    zones = ability.get('active_zones') or None
+                    current = cached.get(str(code), set())
+                    cached[str(code)] = None if zones is None or current is None else current | set(zones)
+            self._state_check_code_cache = cached
+        return cached
+
+    def _fire_state_checks(self):
+        """모든 유발 효과 해결이 끝난 시점의 상태 조건(무진의 브레이크 등)을 확인한다."""
+        codes = self._state_check_codes()
+        if not codes or not any(
+            str(card.get('code') or '') in codes
+            and (
+                codes[str(card.get('code') or '')] is None
+                or zone in codes[str(card.get('code') or '')]
+            )
+            for player in self.state['players'].values()
+            for zone, cards in (player.get('zones') or {}).items()
+            for card in cards
+        ):
+            return False
+        if not self.resolver.collect('state_check', {}, depth=0):
+            return False
+        self.resolver.drain()
+        return True
+
     def _continue_steps(self):
+        state_checks = 0
         for _ in range(MAX_RESOLUTION_STEPS):
             if self.engine_state.get('status') != 'running' or self.is_waiting:
                 return
@@ -1044,6 +1083,11 @@ class AutomaticGameEngine:
             if self.engine_state.get('resolution_queue'):
                 if not self.resolver.drain():
                     return
+                continue
+            # 유발 효과가 모두 끝났다: 상태 조건을 확인한다. 조건을 풀지 못하는 효과가
+            # 같은 자리에서 되풀이되지 않게 한 번의 진행에서 횟수를 제한한다.
+            if state_checks < 8 and self._fire_state_checks():
+                state_checks += 1
                 continue
             restarted_phase = self.engine_state.pop('phase_restart_pending_start', None)
             if restarted_phase in PHASES:

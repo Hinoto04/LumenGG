@@ -4314,6 +4314,50 @@ def infer_deck_rules(text):
     return rules or None
 
 
+# 음양순환극 무진(CB01-AT-025)
+# - 적용 선택: 체력 3000 이하인 동안 유발 효과가 생길 수 있는 타이밍마다(다른 유발 효과와
+#   함께, 그리고 게임·페이즈 시작과 자신의 체력 변화 때) 적용 여부를 고른다. 적용을 고르면
+#   그때부터 적용되고 더 이상 유발되지 않는다. 고르지 않으면 다음 타이밍에 다시 유발된다.
+# - 브레이크: 적용 중이고 체력 3000 이하일 때 음·양 카운터 중 하나가 0개면, 모든 유발 효과
+#   해결이 끝난 시점(state_check)에 브레이크한다.
+MUJIN_HP_GATE = {'op': 'lte', 'left': 'context.controller_hp', 'right': 3000}
+MUJIN_ACTIVE = {
+    'op': 'has_state', 'player': {'controller': True}, 'state': 'mujin_active',
+}
+MUJIN_ACTIVATE_TRIGGER = {
+    'event': 'hp_changed',
+    'events': ['game_start', 'phase_start', 'hp_changed'],
+    'with_other_triggers': True,
+}
+MUJIN_ACTIVATE_CONDITION = {
+    'op': 'all', 'conditions': [
+        MUJIN_HP_GATE,
+        {'op': 'not', 'condition': MUJIN_ACTIVE},
+        {'op': 'any', 'conditions': [
+            {'op': 'not_equals', 'left': 'context.event_type', 'right': 'hp_changed'},
+            {'op': 'equals', 'left': 'context.player', 'right': {'controller': True}},
+        ]},
+    ],
+}
+MUJIN_BREAK_TRIGGER = {'event': 'state_check'}
+MUJIN_BREAK_CONDITION = {
+    'op': 'all', 'conditions': [
+        MUJIN_HP_GATE,
+        MUJIN_ACTIVE,
+        {'op': 'any', 'conditions': [
+            {'op': 'not', 'condition': {
+                'op': 'counter_at_least', 'player': {'controller': True},
+                'counter': 'yin', 'value': 1,
+            }},
+            {'op': 'not', 'condition': {
+                'op': 'counter_at_least', 'player': {'controller': True},
+                'counter': 'yang', 'value': 1,
+            }},
+        ]},
+    ],
+}
+
+
 def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
     """Build a deterministic, non-publishable DSL scaffold for one card."""
     qna_ids = sorted({int(value) for value in (qna_ids or []) if int(value) > 0})
@@ -30069,113 +30113,32 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
         source_refs['qna_ids'] = qna_ids
         definition.setdefault('source_refs', {})['qna_ids'] = qna_ids
         definition.pop('play_condition', None)
-        hp_gate = {
-            'op': 'lte', 'left': 'context.controller_hp', 'right': 3000,
-        }
         abilities[:] = [
             {
                 'id': 'cb01-at-025-n1-activate',
-                'label': '체력 3000 이하가 되었을 때 무진 적용 여부 선택',
-                'kind': 'effect', 'mode': 'mandatory', 'timing': 'function',
+                'label': '무진 적용(체력 3000 이하, 적용하면 그때부터 적용)',
+                'kind': 'effect', 'mode': 'optional', 'timing': 'function',
                 'visibility': 'public', 'source_refs': copy.deepcopy(source_refs),
                 'draft': True, 'draft_compiled': True,
                 'active_zones': ['ultimate'],
-                'trigger': {
-                    'event': 'game_start',
-                    'events': ['game_start', 'hp_changed', 'phase_start'],
-                },
+                'trigger': copy.deepcopy(MUJIN_ACTIVATE_TRIGGER),
                 'recheck_condition': True,
-                'condition': {
-                    'op': 'all', 'conditions': [
-                        copy.deepcopy(hp_gate),
-                        {
-                            'op': 'not', 'condition': {
-                                'op': 'has_state',
-                                'player': {'controller': True},
-                                'state': 'mujin_active',
-                            },
-                        },
-                        {
-                            'op': 'not', 'condition': {
-                                'op': 'has_state',
-                                'player': {'controller': True},
-                                'state': 'mujin_declined',
-                            },
-                        },
-                        {
-                            'op': 'any', 'conditions': [
-                                {
-                                    'op': 'not_equals',
-                                    'left': 'context.event_type',
-                                    'right': 'hp_changed',
-                                },
-                                {
-                                    'op': 'equals',
-                                    'left': 'context.player',
-                                    'right': {'controller': True},
-                                },
-                            ],
-                        },
-                    ],
-                },
+                'condition': copy.deepcopy(MUJIN_ACTIVATE_CONDITION),
                 'effects': [{
-                    'op': 'choose_effect', 'player': {'controller': True},
-                    'prompt': '앞으로 무진 효과를 적용하시겠습니까?',
-                    'default': 'decline',
-                    'options': [
-                        {
-                            'id': 'activate', 'label': '적용',
-                            'effects': [{
-                                'op': 'gain_state',
-                                'player': {'controller': True},
-                                'state': 'mujin_active',
-                                'label': '무진 적용',
-                            }],
-                        },
-                        {
-                            'id': 'decline', 'label': '적용하지 않음',
-                            'effects': [{
-                                'op': 'gain_state',
-                                'player': {'controller': True},
-                                'state': 'mujin_declined',
-                                'label': '무진 미적용',
-                            }],
-                        },
-                    ],
+                    'op': 'gain_state', 'player': {'controller': True},
+                    'state': 'mujin_active', 'label': '무진 적용',
                 }],
             },
             {
                 'id': 'cb01-at-025-n1-break',
-                'label': '활성화 후 음 또는 양 카운터가 0이 되면 이 카드 브레이크',
+                'label': '무진 적용 중 음·양 카운터 중 하나가 0개면 이 카드 브레이크',
                 'kind': 'effect', 'mode': 'mandatory', 'timing': 'result',
                 'visibility': 'public', 'source_refs': copy.deepcopy(source_refs),
                 'draft': True, 'draft_compiled': True,
                 'active_zones': ['ultimate'],
-                'trigger': {'event': 'counter_changed'},
-                'condition': {
-                    'op': 'all', 'conditions': [
-                        copy.deepcopy(hp_gate),
-                        {
-                            'op': 'has_state',
-                            'player': {'controller': True},
-                            'state': 'mujin_active',
-                        },
-                        {
-                            'op': 'equals', 'left': 'context.player',
-                            'right': {'controller': True},
-                        },
-                        {
-                            'op': 'in', 'left': 'context.counter',
-                            'right': ['yin', 'yang'],
-                        },
-                        {
-                            'op': 'gt', 'left': 'context.before', 'right': 0,
-                        },
-                        {
-                            'op': 'equals', 'left': 'context.count', 'right': 0,
-                        },
-                    ],
-                },
+                'trigger': copy.deepcopy(MUJIN_BREAK_TRIGGER),
+                'recheck_condition': True,
+                'condition': copy.deepcopy(MUJIN_BREAK_CONDITION),
                 'effects': [{'op': 'break_card'}],
             },
         ]

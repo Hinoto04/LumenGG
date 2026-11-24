@@ -37,6 +37,8 @@ TRIGGERS = {
     'card_discarded', 'state_gained', 'state_lost', 'counter_changed',
     'ability_completed', 'speed_fixed', 'no_response', 'sudden_death_start', 'defense_over',
     'card_guess_resolved', 'grab_negated',
+    # 모든 유발 효과 해결이 끝난 뒤(해결 대기열이 빈 때) 엔진이 확인하는 상태 조건.
+    'state_check',
 }
 
 TIMING_ORDER = {

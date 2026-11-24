@@ -1443,3 +1443,89 @@ class DivertissementOwnSpeedTests(SimpleTestCase):
         definition = build_effect_draft('CRS-AT-037', DIVERTISSEMENT_TEXT)
         legacy = [*definition['combo_rules'], {'ignore_speed': True, 'numbered_effect': True}]
         self.assertEqual(migration.fixed_rules(legacy), definition['combo_rules'])
+
+
+class MujinActivationAndBreakTests(SimpleTestCase):
+    """음양순환극 무진: 3000 이하면 유발 타이밍마다 적용을 고르고, 브레이크는 모든 유발이 끝난 뒤 본다."""
+
+    def build(self, *, yin=0, yang=1, hp=3000):
+        from .game.drafts import build_effect_draft
+        from .game.review import _cb01_at_025_bagua_definition
+
+        mujin = {
+            'instance_id': 'p1-mujin', 'kind': 'card', 'owner': 'p1', 'code': 'CB01-AT-025',
+            'name': '음양순환극 무진', 'type': '특수', 'ultimate': True, 'face_up': True,
+        }
+        bagua = {
+            'instance_id': 'p1-bagua', 'kind': 'card', 'owner': 'p1', 'code': 'UNC-PS-001',
+            'name': '팔괘엔진', 'type': '특성', 'face_up': True,
+        }
+        opposing = attack('opposing', 'p2', code='OPPOSING')
+        state = base_state([], [opposing])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['ultimate'] = [mujin]
+        state['players']['p1']['zones']['passive'] = [bagua]
+        state['players']['p1']['hp'] = hp
+        state['players']['p1']['passive_state']['yin'] = {'count': yin}
+        state['players']['p1']['passive_state']['yang'] = {'count': yang}
+        rules = ruleset(opposing)
+        rules['cards']['CB01-AT-025'] = {**mujin, 'effect_definition': build_effect_draft('CB01-AT-025', '검토용 원문')}
+        rules['cards']['UNC-PS-001'] = {**bagua, 'effect_definition': _cb01_at_025_bagua_definition()}
+        engine = AutomaticGameEngine(state, rules, seed='mujin-activation')
+        engine.state['phase'] = 'battle'
+        return engine
+
+    def tao_hit(self, engine, frame=8):
+        tao = attack('tao', 'p1', code='TAO', frame=frame)
+        tao['character_key'] = 'tao'
+        engine._fire('damage_after', {
+            'controller': 'p1', 'player': 'p2', 'amount': 300,
+            'source_card_instance_id': 'tao', 'source_card': tao, 'event_card': tao,
+        })
+        engine._continue()
+
+    def decide(self, engine, pick):
+        decision = engine.engine_state['pending_decision']
+        option = next(option['id'] for option in decision['options'] if pick(option))
+        engine._submit_decision(decision['owner'], decision['id'], [option])
+        engine._continue()
+        return decision
+
+    def counters(self, engine):
+        state = engine.state['players']['p1']['passive_state']
+        return state['yin']['count'], state['yang']['count']
+
+    def test_activate_first_then_choose_yin_does_not_break(self):
+        engine = self.build()
+        self.tao_hit(engine)
+        order = self.decide(engine, lambda option: 'cb01' in str(option.get('label')) or '무진' in str(option.get('label')))
+        # 순서 선택에서 임의 효과(무진 적용)를 먼저 고르면 그 효과를 발동한 것이다.
+        self.assertEqual(order['kind'], 'effect_order')
+        self.assertTrue(engine.state['players']['p1']['passive_state']['mujin_active']['value'])
+        self.assertIsNotNone(engine._find_card('p1-mujin', owner='p1', zone='ultimate'))  # 적용 직후 브레이크 안 됨
+        self.decide(engine, lambda option: option['id'] == 'yin')
+        self.assertEqual(self.counters(engine), (1, 1))
+        self.assertIsNone(engine.engine_state.get('pending_decision'))
+        self.assertIsNotNone(engine._find_card('p1-mujin', owner='p1', zone='ultimate'))
+
+    def test_declining_offers_again_and_accepting_stops_offers(self):
+        engine = self.build(yin=1, yang=1)
+        engine._fire('phase_start', {'phase': 'battle'})
+        engine._continue()
+        self.decide(engine, lambda option: option['id'] == 'decline')
+        self.assertFalse(engine.state['players']['p1']['passive_state'].get('mujin_active'))
+        engine._fire('phase_start', {'phase': 'battle'})
+        engine._continue()
+        self.decide(engine, lambda option: option['id'] == 'accept')
+        self.assertTrue(engine.state['players']['p1']['passive_state']['mujin_active']['value'])
+        engine._fire('phase_start', {'phase': 'battle'})
+        engine._continue()
+        self.assertIsNone(engine.engine_state.get('pending_decision'))
+
+    def test_active_mujin_breaks_after_triggers_when_counter_is_zero(self):
+        engine = self.build(yin=1, yang=1)
+        engine.state['players']['p1']['passive_state']['mujin_active'] = {'value': True}
+        engine.change_counter('p1', 'yin', -1)
+        engine._continue()
+        self.assertIsNotNone(engine._find_card('p1-mujin', owner='p1', zone='break'))
+
