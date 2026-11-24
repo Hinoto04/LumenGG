@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import type { Side, VisibleCard } from "../protocol";
+import { clearClash } from "./clash";
 
 /** 화면 가운데 큰 알림 */
 export type Banner =
   | { id: number; kind: "phase"; title: string; sub?: string }
-  | { id: number; kind: "judge"; mine: string; theirs: string; tone: Tone; speeds?: [number, number] | null }
   | { id: number; kind: "text"; title: string; tone?: Tone }
   /** 효과로 고른 패를 양쪽이 함께 확인하는 연출(요한 선언 등) */
   | { id: number; kind: "card"; title: string; sub?: string; card: VisibleCard; tone?: Tone };
@@ -27,6 +27,19 @@ export interface Ribbon {
   text: string;
 }
 
+/**
+ * 효과가 발동한 카드를 잠깐 크게 띄우는 연출. 발동한 쪽 편에 카드와 효과문을 보여 준다.
+ * from은 보드 위 그 카드의 가운데·너비(화면 좌표)로, 있으면 그 자리에서 날아오른다.
+ */
+export interface Activation {
+  id: number;
+  side: Side | "system";
+  card: VisibleCard;
+  label: string;
+  text: string;
+  from?: { x: number; y: number; width: number };
+}
+
 /** 연출은 끌 수 없다(카드 이동이 안 보이면 게임을 따라갈 수 없다). */
 export type PlaybackSpeed = 1 | 2;
 
@@ -34,6 +47,7 @@ interface FxStore {
   banner: Banner | null;
   floats: Float[];
   ribbon: Ribbon | null;
+  activation: Activation | null;
   /** side → 마지막으로 맞은 시각 id. 값이 바뀌면 초상이 흔들린다. */
   shake: Partial<Record<Side, number>>;
   /** 재생 중인지(조작을 막고 '진행 중' 표시) */
@@ -59,6 +73,7 @@ export const useFx = create<FxStore>((set) => ({
   banner: null,
   floats: [],
   ribbon: null,
+  activation: null,
   shake: {},
   playing: false,
   behind: false,
@@ -104,6 +119,14 @@ export function showRibbon(ribbon: Omit<Ribbon, "id">, ms: number) {
   });
 }
 
+export function showActivation(activation: Omit<Activation, "id">, ms: number) {
+  const id = fxId();
+  useFx.setState({ activation: { ...activation, id }, ribbon: null });
+  later(ms, () => {
+    if (useFx.getState().activation?.id === id) useFx.setState({ activation: null });
+  });
+}
+
 export function addFloat(float: Omit<Float, "id">, ms = 1400) {
   const id = fxId();
   useFx.setState((state) => ({ floats: [...state.floats, { ...float, id }] }));
@@ -118,5 +141,6 @@ export function shake(side: Side) {
 export function clearFx() {
   timers.forEach(clearTimeout);
   timers.clear();
-  useFx.setState({ banner: null, floats: [], ribbon: null });
+  clearClash();
+  useFx.setState({ banner: null, floats: [], ribbon: null, activation: null });
 }

@@ -1,13 +1,14 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useFx, type Float } from "../anim/fx";
+import { useLayoutEffect, useRef } from "react";
+import { useFx, type Activation, type Float } from "../anim/fx";
 import type { Side } from "../protocol";
 import { Card } from "./Card";
-import { t } from "../i18n";
 
-/** 화면 가운데 배너(페이즈, 판정, 콤보)와 위쪽 효과 띠 */
+/** 화면 가운데 배너(페이즈, 콤보 등)와 위쪽 효과 띠. 배틀 판정은 카드 돌진 연출(anim/clash.ts)로 보여 준다. */
 export function FxLayer({ me }: { me: Side }) {
   const banner = useFx((s) => s.banner);
   const ribbon = useFx((s) => s.ribbon);
+  const activation = useFx((s) => s.activation);
   return (
     <div className="fx-layer" aria-live="polite">
       <AnimatePresence>
@@ -28,14 +29,6 @@ export function FxLayer({ me }: { me: Side }) {
                 </div>
                 {banner.sub && <strong>{banner.sub}</strong>}
               </>
-            ) : banner.kind === "judge" ? (
-              <>
-                <strong>{banner.mine}</strong>
-                <span className="fx-judge-sub">
-                  {t("상대 {result}", { result: banner.theirs })}
-                  {banner.speeds ? ` · ${t("속도 {mine} : {theirs}", { mine: banner.speeds[0], theirs: banner.speeds[1] })}` : ""}
-                </span>
-              </>
             ) : (
               <>
                 {"sub" in banner && banner.sub && <span className="fx-banner-sub">{banner.sub}</span>}
@@ -44,6 +37,9 @@ export function FxLayer({ me }: { me: Side }) {
             )}
           </motion.div>
         )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {activation && <ActivationPopup key={activation.id} activation={activation} me={me} />}
       </AnimatePresence>
       <AnimatePresence>
         {ribbon && (
@@ -60,6 +56,55 @@ export function FxLayer({ me }: { me: Side }) {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+/**
+ * 효과 발동 카드. 보드 위 그 카드 자리에서 커지며 발동한 쪽 편으로 날아와 빛나고,
+ * 효과문을 곁들여 잠깐 머문 뒤 사라진다. 날아오르는 움직임은 안쪽 요소에 Web Animations로 준다
+ * (motion은 바깥 요소의 나타남·사라짐만 맡는다).
+ */
+function ActivationPopup({ activation, me }: { activation: Activation; me: Side }) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const from = activation.from;
+  useLayoutEffect(() => {
+    const element = cardRef.current;
+    if (!element || !from || !element.animate) return;
+    const rect = element.getBoundingClientRect();
+    if (!rect.width) return;
+    const dx = from.x - (rect.left + rect.width / 2);
+    const dy = from.y - (rect.top + rect.height / 2);
+    const scale = Math.min(1, Math.max(0.15, from.width / rect.width));
+    element.animate(
+      [
+        { translate: `${dx}px ${dy}px`, scale: String(scale), opacity: 0.85 },
+        { translate: "0 0", scale: "1.06", opacity: 1, offset: 0.75 },
+        { translate: "0 0", scale: "1", opacity: 1 },
+      ],
+      { duration: 420, easing: "cubic-bezier(0.2, 0.8, 0.3, 1)" },
+    );
+    // 처음 그릴 때 한 번만 날아온다.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const sideClass = activation.side === me ? "is-mine" : activation.side === "system" ? "is-system" : "is-theirs";
+  return (
+    <motion.div
+      className={`fx-activation ${sideClass}`}
+      initial={from ? { opacity: 1 } : { opacity: 0, scale: 0.6 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.88, transition: { duration: 0.2 } }}
+      transition={{ type: "spring", stiffness: 460, damping: 26 }}
+    >
+      <div className="fx-activation-card" ref={cardRef}>
+        <Card card={activation.card} size="large" detached />
+        <span className="fx-activation-shine" aria-hidden />
+      </div>
+      {(activation.label || activation.text) && (
+        <div className="fx-activation-text">
+          {activation.label && <b>{activation.label}</b>}
+          {activation.text && <span>{activation.text}</span>}
+        </div>
+      )}
+    </motion.div>
   );
 }
 

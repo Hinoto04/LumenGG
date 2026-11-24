@@ -1,9 +1,10 @@
-import { requestCards } from "../catalog";
+import { requestCards, useCatalog } from "../catalog";
 import { withPending } from "../net/optimistic";
 import { PHASE_LABELS, ZONE_LABELS } from "../labels";
 import type { BoardCard, GameEvent, PlayEnvelope, Side, VisibleCard, ZoneName } from "../protocol";
 import { perspective, usePlay } from "../store";
-import { addFloat, clearFx, shake, showBanner, showRibbon, useFx, type Tone } from "./fx";
+import { addFloat, clearFx, shake, showActivation, showBanner, showRibbon, useFx } from "./fx";
+import { CLASH_MS, clashPlan, clearClash, playClash, settleClash } from "./clash";
 import { soundForEvent } from "../sound/events";
 import { plainMarkup } from "../markup";
 import { t } from "../i18n";
@@ -30,6 +31,14 @@ let running = false;
 let generation = 0;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** 재생 세대가 바뀌면(초기화) 실행하지 않는 지연 호출 */
+function later(ms: number, run: () => void) {
+  const runGeneration = generation;
+  setTimeout(() => {
+    if (runGeneration === generation) run();
+  }, ms);
+}
 
 function displayed(): PlayEnvelope | null {
   return usePlay.getState().envelope;
@@ -169,8 +178,6 @@ export const JUDGE_LABELS: Record<string, string> = {
   none: "-",
 };
 
-const GOOD = new Set(["hit", "counter", "guard", "dodge", "clash"]);
-const BAD = new Set(["countered", "guarded", "opponent_dodge", "failed_defense", "grabbed"]);
 
 function eventCardIds(event: GameEvent): (number | null | undefined)[] {
   const payload = event.payload as Record<string, unknown>;
@@ -201,6 +208,36 @@ function locate(envelope: PlayEnvelope, instanceId: unknown) {
     }
   }
   return null;
+}
+
+/** 효과를 발동한 카드. 보드에 공개된 카드가 있으면 그것을, 없으면 카드 번호로 카탈로그에서 그린다. */
+function activationCard(envelope: PlayEnvelope, payload: Record<string, unknown>, side: Side | "system"): VisibleCard | null {
+  const found = locate(envelope, payload.card_instance_id);
+  if (found) {
+    const card = envelope.state.players[found.side].zones[found.zone][found.index] as VisibleCard;
+    const { stat_changes: _ignored, ...rest } = card;
+    return { ...rest, face_up: true };
+  }
+  if (payload.card_id == null) return null;
+  requestCards([payload.card_id as number]);
+  return {
+    hidden: false,
+    instance_id: String(payload.card_instance_id ?? `effect-${payload.card_id}`),
+    kind: "card",
+    owner: side === "system" ? "p1" : side,
+    zone: "battle",
+    face_up: true,
+    card_id: Number(payload.card_id),
+    code: (payload.card_code as string | undefined) ?? null,
+  };
+}
+
+/** 보드 위 카드의 화면 위치(가운데·너비). 카드가 보이지 않으면 없음. */
+function boardRect(instanceId: string) {
+  const element = document.querySelector<HTMLElement>(`[data-instance-id="${CSS.escape(instanceId)}"]`);
+  const rect = element?.getBoundingClientRect();
+  if (!rect || !rect.width) return undefined;
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, width: rect.width };
 }
 
 function takeFrom(envelope: PlayEnvelope, side: Side, zone: ZoneName, preferHidden: boolean): BoardCard | null {
@@ -267,6 +304,131 @@ function adaptManual(event: GameEvent, base: PlayEnvelope): GameEvent {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 효과로 바뀐 속도·대미지·판정(stat_changes)
+//
+// 배틀 중 수정자는 대개 그 배틀 동안만 있어(duration: battle) 서버가 보내는 최종 상태에는 남지 않는다.
+// 그래서 재생 중에 modifier_added·speed_fixed·judgment_modified 이벤트로 중간 상태의 카드에 붙여
+// 판정 전에 바뀐 값을 보여 준다. 카드가 다른 존으로 옮겨지면 떼고, 최종 상태가 오면 서버 값으로 맞춘다.
+
+type StatChangeMap = NonNullable<VisibleCard["stat_changes"]>;
+
+/** 카드의 인쇄값. 배틀 공개 때 만든 사본에는 수치가 없으므로 카탈로그로 채운다. */
+function printedValue(card: VisibleCard, field: string): unknown {
+  const own = (card as Record<string, unknown>)[field];
+  if (own !== undefined && own !== null && own !== "") return own;
+  const meta = card.card_id != null ? useCatalog.getState().cards[String(card.card_id)] : undefined;
+  return meta ? (meta as Record<string, unknown>)[field] : undefined;
+}
+
+function updateStatChange(
+  envelope: PlayEnvelope,
+  instanceId: unknown,
+  field: string,
+  next: (change: StatChangeMap[string]) => Partial<Omit<StatChangeMap[string], "base">> | null,
+  baseOverride?: unknown,
+): boolean {
+  const found = locate(envelope, instanceId);
+  if (!found) return false;
+  const cards = envelope.state.players[found.side].zones[found.zone];
+  const card = cards[found.index] as VisibleCard;
+  const changes: StatChangeMap = { ...(card.stat_changes ?? {}) };
+  const previous = changes[field];
+  const base = (previous ? previous.base : baseOverride !== undefined ? baseOverride : printedValue(card, field)) as
+    | string
+    | number
+    | null
+    | undefined;
+  if (base === undefined) return false;
+  const result = next(previous ?? { base, current: base });
+  if (!result) return false;
+  // 고정 여부는 이어 간다. FP 표시·설명은 이번에 돌려준 값만 쓴다.
+  const value: StatChangeMap[string] = { base, current: result.current ?? null };
+  if (result.fixed ?? previous?.fixed) value.fixed = true;
+  if (result.fp_reference != null) value.fp_reference = result.fp_reference;
+  if (result.note) value.note = result.note;
+  if (String(value.current ?? "") === String(base ?? "") && !value.note) delete changes[field];
+  else changes[field] = value;
+  cards[found.index] = { ...card, stat_changes: changes };
+  return true;
+}
+
+/** 수정자가 걸린 카드: where.instance_id가 있으면 그 카드, 없으면 대상 플레이어의 배틀 카드. */
+function modifierTargets(envelope: PlayEnvelope, modifier: Record<string, unknown>): string[] {
+  const where = (modifier.where ?? {}) as Record<string, unknown>;
+  if (where.instance_id) return [String(where.instance_id)];
+  if (Object.keys(where).length) return [];
+  const side = (modifier.player ?? modifier.controller) as Side;
+  const battle = envelope.state.players[side]?.zones.battle ?? [];
+  return battle.filter((card) => !card.hidden).map((card) => String((card as VisibleCard).instance_id));
+}
+
+function applyStatEvent(envelope: PlayEnvelope, type: string, payload: Record<string, unknown>): boolean {
+  if (type === "modifier_added") {
+    const modifier = (payload.modifier ?? {}) as Record<string, unknown>;
+    const stat = String(modifier.stat ?? "");
+    if (stat !== "frame" && stat !== "damage") return false;
+    const fixes = modifier.op === "fix_speed" || !!modifier.fixed;
+    let changed = false;
+    for (const id of modifierTargets(envelope, modifier)) {
+      changed =
+        updateStatChange(envelope, id, stat, (change) => {
+          if (fixes) return modifier.value == null ? null : { current: Number(modifier.value), fixed: true };
+          // 고정된 속도에는 증감이 더해지지 않는다(엔진 card_stat과 같다).
+          if (change.fixed) return null;
+          const value = Number(change.current) + Number(modifier.amount ?? 0);
+          return { current: stat === "frame" ? Math.max(1, value) : value, note: change.note };
+        }) || changed;
+    }
+    return changed;
+  }
+  if (type === "speed_fixed") {
+    if (payload.speed == null) return false;
+    return updateStatChange(envelope, payload.card_instance_id, "frame", () => ({ current: Number(payload.speed), fixed: true }));
+  }
+  if (type === "judgment_modified") {
+    const field = String(payload.field ?? "");
+    if (!field) return false;
+    return updateStatChange(envelope, payload.card_instance_id, field, () => ({ current: (payload.after ?? null) as string | null }), payload.before ?? null);
+  }
+  if (type === "battle_judged") {
+    // 모든 효과를 처리한 뒤의 판정 속도(FP 반영). FP로 달라졌으면 카드에 보여 준다.
+    const cards = (payload.cards ?? {}) as Partial<Record<Side, { card_instance_id?: string }>>;
+    const reference = (payload.reference_speed ?? {}) as Partial<Record<Side, number>>;
+    const final = (payload.speed ?? {}) as Partial<Record<Side, number>>;
+    let changed = false;
+    for (const side of ["p1", "p2"] as const) {
+      const id = cards[side]?.card_instance_id;
+      const after = final[side];
+      const before = reference[side];
+      if (!id || after == null || before == null || Number(after) === Number(before)) continue;
+      changed =
+        updateStatChange(envelope, id, "frame", () => ({ current: Number(after), fp_reference: Number(before), note: "FP" })) ||
+        changed;
+    }
+    return changed;
+  }
+  if (type === "combo_started") {
+    // 콤보 타임: FP로 줄인 속도는 판정에만 쓰였으므로 FP 전 속도로 되돌린다.
+    let changed = false;
+    for (const side of ["p1", "p2"] as const) {
+      for (const card of envelope.state.players[side]?.zones.battle ?? []) {
+        if (card.hidden) continue;
+        const reference = card.stat_changes?.frame?.fp_reference;
+        if (reference == null) continue;
+        changed = updateStatChange(envelope, card.instance_id, "frame", () => ({ current: reference })) || changed;
+      }
+    }
+    return changed;
+  }
+  if (type === "combo_card_used") {
+    // 콤보로 잇는 기술의 대미지(콤보 보정·효과 포함). 엔진이 계산한 값을 그대로 쓴다.
+    if (payload.damage == null) return false;
+    return updateStatChange(envelope, payload.card_instance_id, "damage", () => ({ current: Number(payload.damage) }));
+  }
+  return false;
+}
+
 function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { envelope: PlayEnvelope; ms: number } {
   const event = base.mode === "manual" ? adaptManual(rawEvent, base) : rawEvent;
   const envelope = clone(base, event.seq);
@@ -280,6 +442,8 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
 
   switch (event.type) {
     case "phase_started": {
+      // 판정 연출의 흑백 등은 그 배틀까지만 남긴다.
+      clearClash();
       const phase = String(payload.phase ?? "");
       const turnChanged = Number(payload.turn) !== Number(envelope.state.turn);
       envelope.state.phase = phase;
@@ -335,6 +499,11 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
             : placeVisible(visibleStub(to, toZone, payload), to, toZone, me, envelope.role);
       }
       if (moved.hidden === false && toZone === "battle" && payload.reason === "ready") moved = { ...moved, face_up: false };
+      // 존을 옮기면 걸려 있던 효과(배틀 동안 등)는 끝난다. 남아 있으면 최종 상태가 다시 붙인다.
+      if (moved.hidden === false && fromZone !== toZone && moved.stat_changes) {
+        const { stat_changes: _dropped, ...rest } = moved;
+        moved = rest as VisibleCard;
+      }
       // 거미·단검처럼 개수로만 보여 주는 토큰(Q-AUTO-012)은 카드를 날리지 않고 체력 아래 개수만 바꾼다.
       const counterKey = typeof payload.counter_token === "string" ? payload.counter_token : "";
       if (counterKey) {
@@ -374,22 +543,19 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
     }
 
     case "battle_judged": {
-      const result = (payload.result ?? {}) as Record<Side, string>;
-      const speeds = (payload.speed ?? null) as Record<Side, number> | null;
-      const opp: Side = me === "p1" ? "p2" : "p1";
-      const mine = result[me] ?? "";
-      const tone: Tone = GOOD.has(mine) ? "good" : BAD.has(mine) ? "bad" : "neutral";
-      showBanner(
-        {
-          kind: "judge",
-          mine: JUDGE_LABELS[mine] ?? mine,
-          theirs: JUDGE_LABELS[result[opp]] ?? result[opp] ?? "",
-          tone: envelope.role === "viewer" ? "neutral" : tone,
-          speeds: speeds ? [Number(speeds[me]), Number(speeds[opp])] : null,
-        },
-        dur(1400),
-      );
-      return { envelope, ms: 1300 };
+      // 1) 판정 속도(FP 반영)를 카드에 보여 주고, 2) 잠시 뒤 두 카드가 돌진하는 연출을 한다.
+      const showedSpeed = applyStatEvent(envelope, event.type, payload);
+      const plan = clashPlan((payload.result ?? {}) as Partial<Record<Side, string>>);
+      const pause = showedSpeed ? 700 : 150;
+      if (plan) {
+        const cards = (payload.cards ?? {}) as Partial<Record<Side, { card_instance_id?: string }>>;
+        const ids = { p1: cards.p1?.card_instance_id, p2: cards.p2?.card_instance_id };
+        // 4배속으로 밀린 이벤트를 따라잡을 때는 소리를 내지 않는다.
+        const quiet = speed >= 4;
+        later(dur(pause), () => playClash(plan, ids, speed, quiet));
+        later(dur(pause + CLASH_MS), settleClash);
+      }
+      return { envelope, ms: pause + (plan ? CLASH_MS + 250 : 400) };
     }
 
     case "hp_changed": {
@@ -409,10 +575,24 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
       return { envelope, ms: 380 };
     }
 
+    case "modifier_added":
+    case "speed_fixed":
+    case "judgment_modified":
+      // 카드 위 표시가 튀어나오는 것을 볼 수 있게 잠시 머문다.
+      return { envelope, ms: applyStatEvent(envelope, event.type, payload) ? 900 : 0 };
+
     case "effect_resolved": {
       const text = plainMarkup(payload.effect_label);
+      const side = actor === "p1" || actor === "p2" ? actor : "system";
+      const label = String(payload.card_label ?? "");
+      // 발동한 카드를 잠깐 크게 띄운다. 따라잡는 중(4배속)이거나 카드를 알 수 없으면 효과문 띠만 보여 준다.
+      const card = speed < 4 ? activationCard(envelope, payload, side) : null;
+      if (card) {
+        showActivation({ side, card, label, text, from: boardRect(card.instance_id) }, dur(1700));
+        return { envelope, ms: 1250 };
+      }
       if (!text) return { envelope, ms: 0 };
-      showRibbon({ side: actor === "p1" || actor === "p2" ? actor : "system", card: String(payload.card_label ?? ""), text }, dur(1500));
+      showRibbon({ side, card: label, text }, dur(1500));
       return { envelope, ms: 900 };
     }
 
@@ -426,8 +606,12 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
       return { envelope, ms: 300 };
 
     case "combo_started":
+      applyStatEvent(envelope, event.type, payload);
       showBanner({ kind: "text", title: t("콤보!"), tone: actor === me ? "good" : "bad" }, dur(800));
       return { envelope, ms: 700 };
+
+    case "combo_card_used":
+      return { envelope, ms: applyStatEvent(envelope, event.type, payload) ? 900 : 0 };
 
     case "catch_started":
       showBanner({ kind: "text", title: t("캐치!"), tone: actor === me ? "good" : "bad" }, dur(800));

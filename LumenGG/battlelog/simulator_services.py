@@ -2514,8 +2514,9 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
 
         ruleset = _ruleset(session)
         observation = automatic_observation(
-            session, role, include_state=False,
+            session, role, include_state=False, include_card_changes=True,
         )
+        card_changes = observation.pop('card_changes', None)
         if (
             role in PLAYER_SIDES
             and (
@@ -2532,6 +2533,9 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
             ruleset=ruleset,
             copy_state=False,
         )
+        from .play_card_changes import attach_card_changes
+
+        attach_card_changes(payload['state'], card_changes)
         payload.update({key: value for key, value in observation.items() if key != 'state'})
         from .play_protocol import PLAY_PROTOCOL_VERSION
 

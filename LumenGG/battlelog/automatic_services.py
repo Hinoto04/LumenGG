@@ -1064,13 +1064,19 @@ def perform_settled_automatic_command(
     return advance(session) if advance_on_success else session
 
 
-def automatic_observation(session, role, *, include_state=True, include_memory=False):
+def automatic_observation(session, role, *, include_state=True, include_memory=False, include_card_changes=False):
     if session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
         return None
     if (session.document or {}).get('preparation', {}).get('status') == 'editing':
         return {'legal_actions': [], 'engine_status': 'preparing', 'version': session.version}
     engine = _session_engine(session)
-    return engine.observe(role, include_state=include_state, include_memory=include_memory)
+    observation = engine.observe(role, include_state=include_state, include_memory=include_memory)
+    if include_card_changes:
+        # 효과로 바뀐 속도·대미지·판정(대전 클라이언트가 카드 위에 표시). 상태에 붙이는 것은 호출한 쪽.
+        from .play_card_changes import collect_card_changes
+
+        observation['card_changes'] = collect_card_changes(engine)
+    return observation
 
 
 def _ai_decision_job(session, role, weights, profile):

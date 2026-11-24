@@ -431,5 +431,17 @@ export const EN: Record<string, string> = {
   "효과로 배틀이 끝나 캐치 생략": "Catch skipped: an effect ended the battle",
   "효과를 선택하세요": "Choose an effect",
   "효과음": "Sound effects",
-  "히트": "Hit"
+  "히트": "Hit",
+  "속도": "Speed",
+  "대미지": "Damage",
+  "특수": "Special",
+  "히트 시": "On hit",
+  "가드 시": "On guard",
+  "카운터 시": "On counter",
+  "위치": "Position",
+  "효과로 바뀐 값": "Values changed by effects",
+  "{label} {before} → {after} (효과로 변경됨)": "{label} {before} → {after} (changed by an effect)",
+  "상단": "High",
+  "중단": "Mid",
+  "하단": "Low"
 };

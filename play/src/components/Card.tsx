@@ -5,6 +5,7 @@ import { showCardInfo } from "../store";
 import { cardImage, useCardView, type CardView, type ImageSize } from "../catalog";
 import { cardTypeClass } from "../labels";
 import { t } from "../i18n";
+import { StatChangeOverlay, type StatChanges } from "./StatChanges";
 
 export type CardSize = "hand" | "board" | "mini" | "large";
 
@@ -128,6 +129,9 @@ export function Card({
   const secretToOthers = !!view && !card.face_up && !knownCard && card.zone !== "hand" && size !== "large";
   // 효과(요한 예지 등)로 공개된 손패: 상대에게 보이는 카드임을 손패 주인도 알 수 있게 표시한다.
   const revealedInHand = !!view && !!card.face_up && card.zone === "hand" && size !== "large";
+  // 효과로 바뀐 속도·대미지·판정(서버가 인쇄값과 비교해 붙인다). 기록의 작은 사본에는 표시하지 않는다.
+  const statChanges = view && size !== "mini" ? ((card as VisibleCard).stat_changes as StatChanges | undefined) : undefined;
+  const hasStatChanges = !!statChanges && Object.keys(statChanges).length > 0;
   const classes = [
     "card",
     `card-${size}`,
@@ -138,6 +142,7 @@ export function Card({
     staged ? "is-staged" : "",
     dragHandlers ? "is-draggable" : "",
     onClick ? "is-clickable" : "",
+    hasStatChanges ? "has-stat-changes" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -149,6 +154,8 @@ export function Card({
       className={classes}
       style={dragHandlers ? { ...style, x: dragX, y: dragY } : style}
       data-select-key={selectKey}
+      // 배틀 판정 돌진 연출(anim/clash.ts)이 보드의 카드를 찾는 표식. 사본(선택 창 등)에는 달지 않는다.
+      data-instance-id={view && !detached && size !== "large" ? (card as VisibleCard).instance_id : undefined}
       onClick={() => {
         if (dragged.current) {
           dragged.current = false;
@@ -195,6 +202,13 @@ export function Card({
         <img className="card-image" src={image!} alt="" draggable={false} onError={() => setFailed(image)} />
       )}
       {view && !showImage && <DrawnFace view={view} />}
+      {hasStatChanges && view && <StatChangeOverlay
+          changes={statChanges!}
+          frame={view.frame}
+          pos={view.pos}
+          defense={cardTypeClass(view.type) === "type-defense"}
+          special={view.special}
+        />}
       {view && (card as VisibleCard).attached_to && (
         <span className="card-set" title={t("다른 기술에 세트된 카드")}>
           {t("세트")}

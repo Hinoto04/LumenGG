@@ -1,16 +1,6 @@
 import type { GameEvent, PlayEnvelope, Side } from "../protocol";
 import { usePlay } from "../store";
-import { playSound, type SoundName } from "./sfx";
-
-/** 판정 결과 → 소리. 양쪽 결과 중 더 강한 것 하나만 낸다. */
-const JUDGE_SOUNDS: [SoundName, string[]][] = [
-  ["counter", ["counter", "countered"]],
-  ["grab", ["grabbed"]],
-  ["hit", ["hit", "failed_defense"]],
-  ["guard", ["guard", "guarded"]],
-  ["clash", ["clash"]],
-  ["dodge", ["dodge", "opponent_dodge"]],
-];
+import { playSound } from "./sfx";
 
 /**
  * 재생기(anim/playback.ts)가 이벤트 하나를 화면에 올릴 때 부른다.
@@ -35,12 +25,7 @@ export function soundForEvent(event: GameEvent, base: PlayEnvelope, me: Side) {
     case "battle_revealed":
       playSound("card_reveal");
       return;
-    case "battle_judged": {
-      const results = Object.values((payload.result ?? {}) as Record<string, string>);
-      const found = JUDGE_SOUNDS.find(([, keys]) => results.some((result) => keys.includes(result)));
-      if (found) playSound(found[0]);
-      return;
-    }
+    // battle_judged: 판정 소리는 돌진 연출(anim/clash.ts)이 부딪히는 순간에 낸다.
     case "hp_changed": {
       const amount = Number(payload.amount ?? 0);
       if (amount) playSound(amount < 0 ? "damage" : "heal");

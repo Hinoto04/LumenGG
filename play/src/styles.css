@@ -1457,8 +1457,7 @@ button {
   color: var(--accent);
 }
 
-.fx-banner-sub,
-.fx-judge-sub {
+.fx-banner-sub {
   font-size: 0.85em;
   color: var(--muted);
 }
@@ -3612,4 +3611,405 @@ body.play-lobby-page #root.play-embedded {
   flex-direction: column;
   align-items: center;
   gap: 0.2em;
+}
+
+/* 효과로 바뀐 속도·대미지·판정: 카드 이미지의 인쇄된 자리 위에 덧씌운다(StatChanges.tsx).
+   글꼴: 속도는 SB 어그로 Bold(700), 대미지는 Medium(500), 판정 문구는 빛의계승자체 Bold. 쓰일 때만 내려받는다. */
+@font-face {
+  font-family: "SBAggro";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2108@1.1/SBAggroB.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 대미지는 작은 자리에 써서 Bold는 획이 뭉친다. 한 단계 얇은 Medium을 쓴다. */
+@font-face {
+  font-family: "SBAggro";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2108@1.1/SBAggroM.woff") format("woff");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "HeirofLight";
+  src: url("https://cdn.jsdelivr.net/npm/@noonnu/heiroflightbold@0.0.1/HeirofLightBold.woff") format("woff");
+  /* 이 웹폰트는 한자(上·中·防 등) 글리프가 비어 있다. 한자는 빼서 다음 글꼴로 넘긴다(일본어 화면). */
+  unicode-range: U+0000-33FF, U+4DC0-4DFF, U+A000-F8FF, U+FB00-FFFF;
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+.card.has-stat-changes {
+  animation: stat-change-flash 0.9s ease-out 1;
+}
+
+@keyframes stat-change-flash {
+  0% { box-shadow: 0 0 0 0.25em rgba(255, 214, 102, 0.95), 0 0 1.6em rgba(255, 214, 102, 0.9); }
+  100% { box-shadow: 0 0.3em 0.8em rgba(0, 0, 0, 0.45); }
+}
+
+.card.has-stat-changes.is-playable {
+  animation: glow 1.4s ease-in-out infinite;
+}
+
+.stat-changes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  /* 카드 너비 기준 길이(카드 글자 크기는 너비의 12%) */
+  --u: calc(1em / 12);
+}
+
+.stat-changes .is-better { color: #6ff0c8; }
+.stat-changes .is-worse { color: #ff8a8a; }
+.stat-changes .is-stronger { color: #ffb347; }
+.stat-changes .is-weaker { color: #8fb8ff; }
+
+/* 왼쪽 위 위치 판정 마름모(인쇄된 마름모 중심: 너비 15.3%, 높이 11.7%) */
+.stat-diamond {
+  position: absolute;
+  left: 15.3%;
+  top: 11.7%;
+  width: calc(var(--u) * 19.5);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+}
+
+.stat-diamond-frame {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  translate: -50% -50%;
+  filter: drop-shadow(0 0 0.25em rgba(255, 214, 102, 0.85));
+}
+
+/* 그림마다 강조된 꼭짓점만큼 크기가 달라 마름모 중심을 맞춘다(119×127, 122×118, 120×125) */
+.stat-diamond-frame.pos-attack_top { width: 97.5%; translate: -50% -53.5%; }
+.stat-diamond-frame.pos-attack_bot { width: 98.4%; translate: -50% -47.2%; }
+
+.stat-diamond-plain {
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #1d2a2f 55%, #0b1014);
+  border: 2px solid #c9a24a;
+  box-shadow: 0 0 0.3em rgba(255, 214, 102, 0.85);
+}
+
+.stat-diamond-speed {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding-top: 4%;
+  font-family: "SBAggro", sans-serif;
+  font-weight: 700;
+  font-size: calc(var(--u) * 9.5);
+  line-height: 1;
+  color: #fff;
+  -webkit-text-stroke: calc(var(--u) * 0.35) #111;
+  paint-order: stroke fill;
+  text-shadow: 0 0 0.25em currentColor;
+}
+
+.stat-diamond-speed:not([class*="is-"]) {
+  text-shadow: none;
+}
+
+.stat-diamond-tag {
+  position: absolute;
+  left: 50%;
+  top: 92%;
+  translate: -50% 0;
+  display: flex;
+  gap: 0.25em;
+  white-space: nowrap;
+  font-size: calc(var(--u) * 5);
+  line-height: 1.1;
+}
+
+.stat-diamond-tag > span {
+  padding: 0.05em 0.35em;
+  border-radius: 999px;
+  background: rgba(10, 12, 18, 0.88);
+  border: 1px solid currentColor;
+  font-family: "SBAggro", sans-serif;
+  font-weight: 700;
+}
+
+.stat-diamond-tag > span.is-judgment {
+  font-family: "HeirofLight", serif;
+  color: #ffe08a;
+}
+
+.stat-diamond-tag s {
+  opacity: 0.7;
+  margin-right: 0.1em;
+}
+
+/* 아래 가운데 인쇄된 대미지(중심: 너비 49%, 높이 92%)를 가리고 지금 대미지를 쓴다 */
+.stat-damage {
+  position: absolute;
+  left: 49%;
+  top: 92%;
+  translate: -50% -50%;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--u) * 1);
+  padding: calc(var(--u) * 0.6) calc(var(--u) * 2.4);
+  border-radius: calc(var(--u) * 2);
+  background: radial-gradient(ellipse at center, rgba(8, 8, 12, 0.96) 55%, rgba(8, 8, 12, 0.75));
+  box-shadow: 0 0 calc(var(--u) * 2) currentColor;
+  white-space: nowrap;
+}
+
+.stat-damage-value {
+  font-family: "SBAggro", sans-serif;
+  font-weight: 500;
+  font-size: calc(var(--u) * 9.5);
+  line-height: 1;
+  color: #fff;
+  /* 흰 외곽선은 획을 두껍게 만들어 숫자 속이 막힌다. 어두운 외곽선을 글자 뒤에만 그린다. */
+  -webkit-text-stroke: calc(var(--u) * 0.4) #0b0b10;
+  paint-order: stroke fill;
+  text-shadow: 0 0 0.25em rgba(255, 255, 255, 0.35);
+}
+
+.stat-damage-base {
+  font-family: "SBAggro", sans-serif;
+  font-weight: 500;
+  font-size: calc(var(--u) * 3.6);
+  color: #c9c9c9;
+  opacity: 0.8;
+}
+
+.stat-damage i {
+  font-style: normal;
+  font-size: calc(var(--u) * 3.4);
+}
+
+/*
+ * 판정 변경: 인쇄된 자리(StatChanges.tsx의 좌표)를 가리고 지금 값을 쓴다.
+ * 히트·가드·카운터 수치는 SB 어그로, 낱말(콤보·회피·방어 등)은 빛의계승자체.
+ */
+.stat-judgment {
+  position: absolute;
+  translate: -50% -50%;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.stat-judgment-value {
+  display: inline-block;
+  min-width: calc(var(--u) * 9);
+  padding: calc(var(--u) * 0.9) calc(var(--u) * 1.4);
+  border-radius: calc(var(--u) * 3);
+  background: radial-gradient(ellipse at center, rgba(8, 8, 12, 0.97) 60%, rgba(8, 8, 12, 0.82));
+  box-shadow: 0 0 calc(var(--u) * 1.6) rgba(255, 200, 90, 0.85);
+  color: #ffe08a;
+  text-align: center;
+  paint-order: stroke fill;
+}
+
+.stat-judgment.is-number .stat-judgment-value {
+  font-family: "SBAggro", sans-serif;
+  font-weight: 500;
+  font-size: calc(var(--u) * 7);
+  -webkit-text-stroke: calc(var(--u) * 0.3) #0b0b10;
+}
+
+.stat-judgment.is-word .stat-judgment-value {
+  font-family: "HeirofLight", serif;
+  font-weight: 700;
+  font-size: calc(var(--u) * 5.6);
+}
+
+.stat-judgment.is-line .stat-judgment-value {
+  padding-inline: calc(var(--u) * 3);
+  font-size: calc(var(--u) * 6);
+}
+
+/* 바뀌기 전 값: 판 위에 작게 */
+.stat-judgment-base {
+  position: absolute;
+  bottom: calc(100% - var(--u) * 0.6);
+  padding: calc(var(--u) * 0.3) calc(var(--u) * 1);
+  border-radius: calc(var(--u) * 1.5);
+  background: rgba(10, 12, 18, 0.88);
+  color: #c9c9c9;
+  font-family: "HeirofLight", serif;
+  font-weight: 700;
+  font-size: calc(var(--u) * 3.2);
+}
+
+.stat-judgment.is-number .stat-judgment-base {
+  font-family: "SBAggro", sans-serif;
+  font-weight: 500;
+}
+
+.stat-note {
+  margin-left: 0.25em;
+  font-style: normal;
+  font-family: "HeirofLight", serif;
+  font-size: 0.8em;
+  color: #ffe08a;
+}
+
+/* 효과 발동 카드: 발동한 쪽 편에 크게 띄운다(내 효과는 왼쪽, 상대 효과는 오른쪽). */
+.fx-activation {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  gap: 0.9em;
+  --glow: 255, 200, 90;
+}
+
+/* 효과문은 카드 옆(화면 가운데 쪽)에 둔다. */
+.fx-activation.is-mine {
+  justify-self: start;
+  margin-left: max(16px, 7vw);
+}
+
+.fx-activation.is-theirs {
+  justify-self: end;
+  flex-direction: row-reverse;
+  margin-right: max(16px, 7vw);
+  --glow: 255, 110, 120;
+}
+
+.fx-activation.is-system {
+  --glow: 160, 200, 255;
+}
+
+.fx-activation-card {
+  /* 큰 카드(.card-large)는 스스로 --lw로 너비를 정하므로, 감싸는 칸과 같은 값을 넘겨 크기를 맞춘다. */
+  --act-w: min(calc(var(--cw) * 2.2), 36vw, 44dvh);
+  position: relative;
+  width: var(--act-w);
+}
+
+.fx-activation-card > .card-large {
+  --lw: var(--act-w);
+  display: block;
+  animation: fx-activation-glow 1.1s ease-in-out infinite alternate;
+}
+
+/* 뒤의 빛 무리 */
+.fx-activation-card::before {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(var(--glow), 0.55), rgba(var(--glow), 0.18) 55%, transparent 75%);
+  animation: fx-activation-halo 1.1s ease-in-out infinite alternate;
+}
+
+/* 카드 위를 한 번 훑고 지나가는 빛 */
+.fx-activation-shine {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* .card의 모서리와 같게 */
+  border-radius: calc(var(--cw) * 0.08);
+  pointer-events: none;
+}
+
+.fx-activation-shine::after {
+  content: "";
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  width: 45%;
+  left: -60%;
+  rotate: 18deg;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  animation: fx-activation-shine 0.75s 0.3s ease-out both;
+}
+
+.fx-activation-text {
+  display: grid;
+  gap: 0.15em;
+  max-width: min(15em, calc(100vw - 32px));
+  padding: 0.55em 0.9em;
+  border-radius: 0.6em;
+  background: rgba(20, 20, 20, 0.92);
+  border: 1px solid rgba(var(--glow), 0.55);
+  font-size: 0.85em;
+  line-height: 1.45;
+  box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.5);
+}
+
+.fx-activation-text b {
+  color: rgb(var(--glow));
+}
+
+.fx-activation-text span {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@keyframes fx-activation-glow {
+  from {
+    box-shadow: 0 0 0.6em 0.1em rgba(var(--glow), 0.55), 0 0.8em 2em rgba(0, 0, 0, 0.6);
+  }
+  to {
+    box-shadow: 0 0 1.4em 0.35em rgba(var(--glow), 0.85), 0 0.8em 2em rgba(0, 0, 0, 0.6);
+  }
+}
+
+@keyframes fx-activation-halo {
+  from {
+    opacity: 0.6;
+    scale: 0.92;
+  }
+  to {
+    opacity: 1;
+    scale: 1.05;
+  }
+}
+
+@keyframes fx-activation-shine {
+  from {
+    left: -60%;
+  }
+  to {
+    left: 120%;
+  }
+}
+
+/* 세로 화면·좁은 화면은 가운데에 띄운다. */
+@media (orientation: portrait), (max-width: 760px) {
+  .fx-activation.is-mine,
+  .fx-activation.is-theirs {
+    justify-self: center;
+    flex-direction: column;
+    margin: 0;
+  }
+
+  .fx-activation-text {
+    text-align: center;
+  }
+
+  .fx-activation-card {
+    --act-w: min(calc(var(--cw) * 2.2), 44vw, 40dvh);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-activation-card > .card-large,
+  .fx-activation-card::before,
+  .fx-activation-shine::after {
+    animation: none;
+  }
 }

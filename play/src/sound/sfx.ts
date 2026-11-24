@@ -13,6 +13,7 @@ export const SOUND_NAMES = [
   "card_move", // 카드가 존을 옮김(드로우·버림 등)
   "card_ready", // 배틀존에 카드를 뒷면으로 냄(레디)
   "card_reveal", // 배틀 공개
+  "rush", // 판정: 카드가 상대에게 돌진
   "hit", // 판정: 히트
   "counter", // 판정: 카운터
   "guard", // 판정: 가드
@@ -422,6 +423,10 @@ const RECIPES: Record<SoundName, (s: Synth) => void> = {
     s.snap({ at: 0.11, level: 0.4 });
     s.bell(1047, { at: 0.11, level: 0.14 });
     s.bell(1568, { at: 0.11, level: 0.1 });
+  },
+  rush: (s) => {
+    s.swoosh(700, 6500, { attack: 0.12, decay: 0.08, level: 0.5 });
+    s.noise("bandpass", 900, 2600, { attack: 0.1, decay: 0.06, level: 0.25, q: 1.2 });
   },
   hit: (s) => {
     s.snap({ level: 0.8 });

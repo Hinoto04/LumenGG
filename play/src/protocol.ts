@@ -71,7 +71,24 @@ export interface VisibleCard {
    * 루멘 존 카드 대신 플레이어 상태의 개수로 보여 준다(Q-AUTO-012).
    */
   state_counter_token?: string;
+  /** 효과로 바뀐 값. 필드(frame·damage·pos·special·hit·guard·counter·g_top/g_mid/g_bot) → 인쇄값과 지금 값 */
+  stat_changes?: Record<string, StatChangeValue>;
   [extra: string]: unknown;
+}
+
+/**
+ * 효과로 바뀐 값 하나. base는 인쇄값, current는 지금 값.
+ * fixed·fp_reference·note는 재생기(anim/playback.ts)가 중간 상태에서만 쓰는 표시용 값이다.
+ */
+export interface StatChangeValue {
+  base: string | number | null;
+  current: string | number | null;
+  /** 속도가 고정되어 증감이 더해지지 않는다 */
+  fixed?: boolean;
+  /** 배틀 판정 때 FP로 줄어든 속도를 보여 주는 중. 콤보 타임이 열리면 이 값(FP 전 판정 속도)으로 되돌린다 */
+  fp_reference?: number;
+  /** 꼬리표에 덧붙이는 짧은 설명(FP 등) */
+  note?: string;
 }
 
 /** 무한히 쌓여 플레이어 상태의 개수로만 보여 주는 토큰인가 */

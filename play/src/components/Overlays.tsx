@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { isStateCounterToken, type BoardCard, type LegalAction, type PlayEnvelope, type ZoneName } from "../protocol";
+import { isStateCounterToken, type BoardCard, type LegalAction, type PlayEnvelope, type VisibleCard, type ZoneName } from "../protocol";
 import { zoneEntries } from "../counterTokens";
 import { cardDetailText, cardText, useCardView } from "../catalog";
 import { ZONE_LABELS } from "../labels";
@@ -97,11 +97,17 @@ export function CardDetails({ card, zone }: { card: BoardCard; zone: ZoneName })
   if (!view) return <p className="muted">{t("비공개 카드입니다.")}</p>;
   const text = cardText(view);
   const detail = cardDetailText(view);
+  // 효과로 바뀐 값은 "인쇄값→지금 값"으로 적는다(카드 이미지 위 표시와 같은 stat_changes).
+  const changes = (card as VisibleCard).stat_changes ?? {};
+  const changed = (field: string, fallback: unknown, format: (value: unknown) => string = String) => {
+    const change = changes[field];
+    return change ? `${format(change.base ?? "—")}→${format(change.current ?? "—")}` : fallback;
+  };
   const meta = [
     view.type_label || view.type,
-    view.frame != null ? t("속도 {speed}", { speed: view.frame }) : null,
-    view.damage != null ? t("데미지 {damage}", { damage: view.damage }) : null,
-    view.pos_label || view.pos,
+    view.frame != null ? t("속도 {speed}", { speed: String(changed("frame", view.frame)) }) : null,
+    view.damage != null ? t("데미지 {damage}", { damage: String(changed("damage", view.damage)) }) : null,
+    changed("pos", view.pos_label || view.pos, (value) => t(String(value))),
     ZONE_LABELS[zone],
   ].filter(Boolean);
   return (
