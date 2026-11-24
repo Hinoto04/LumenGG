@@ -2375,6 +2375,10 @@ def _filtered_event(event, state, viewer_side, language=DEFAULT_LANGUAGE):
         if declaration in YOHAN_DECLARATION_LABELS:
             payload['declaration_label'] = ui_text(YOHAN_DECLARATION_LABELS[declaration], language)
     filtered['payload'] = _localize_event_markup(payload, language)
+    if language != DEFAULT_LANGUAGE:
+        from .play_i18n import localize_event_payload
+
+        localize_event_payload(event_type, filtered['payload'], language)
     return filtered
 
 
@@ -2534,7 +2538,9 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
         payload['protocol_version'] = PLAY_PROTOCOL_VERSION
     if language == DEFAULT_LANGUAGE:
         payload['state'] = _render_card_markup_labels(payload['state'], language)
-    return _render_payload_markup(payload, language)
+    from .play_i18n import localize_engine_text_fields
+
+    return localize_engine_text_fields(_render_payload_markup(payload, language), language)
 
 
 RAW_TEXT_FIELDS = {'text', 'detail_text'}

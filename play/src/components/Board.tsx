@@ -22,6 +22,7 @@ import {
 import { Floats } from "./FxLayer";
 import { ZoneDock } from "./ZoneDock";
 import { passiveItems } from "../passives";
+import { t, cardCount } from "../i18n";
 
 interface BoardProps {
   envelope: PlayEnvelope;
@@ -133,7 +134,7 @@ export function useCardHandlers(side: Side, zone: ZoneName, actions: ActionIndex
 function OpponentHand({ player, side }: { player: PlayerState; side: Side }) {
   const cards = player.zones.hand;
   return (
-    <div className="opp-hand" data-drop-owner={side} data-drop-zone="hand" aria-label={`상대 손패 ${cards.length}장`}>
+    <div className="opp-hand" data-drop-owner={side} data-drop-zone="hand" aria-label={t("상대 손패 {n}장", { n: cards.length })}>
       {cards.map((card, index) => (
         <Card
           key={card.hidden ? `${side}-hand-${index}` : String(card.instance_id)}
@@ -162,7 +163,7 @@ function PassiveBadges({ player, manual }: { player: PlayerState; manual: boolea
           className={`is-${item.kind} ${item.kind === "state" && !item.value ? "is-off" : ""} ${
             item.kind === "counter" && !item.value ? "is-zero" : ""
           } ${item.active ? "is-active" : ""}`}
-          title={item.active ? `${item.label} (활성)` : item.label}
+          title={item.active ? t("{label} (활성)", { label: item.label }) : item.label}
         >
           {item.label}
           {item.kind === "counter" && <b>{item.max ? `${item.value}/${item.max}` : String(item.value)}</b>}
@@ -201,7 +202,7 @@ function Portrait({
       style={{ "--char-color": color } as CSSProperties}
       role={onOpen ? "button" : undefined}
       tabIndex={onOpen ? 0 : undefined}
-      aria-label={onOpen ? "HP·FP·패시브 조정" : undefined}
+      aria-label={onOpen ? t("HP·FP·패시브 조정") : undefined}
       onClick={onOpen}
       onKeyDown={onOpen ? (event) => (event.key === "Enter" || event.key === " ") && onOpen() : undefined}
     >
@@ -252,14 +253,14 @@ function Field({ side, player, actions, envelope, onAction, mine }: FieldProps) 
   const listHandlers = useCardHandlers(side, "list", actions, onAction);
   const priority = envelope.state.priority_player === side;
   return (
-    <section className={`field ${mine ? "field-me" : "field-opp"}`} aria-label={mine ? "내 필드" : "상대 필드"}>
+    <section className={`field ${mine ? "field-me" : "field-opp"}`} aria-label={mine ? t("내 필드") : t("상대 필드")}>
       <Portrait
         player={player}
         side={side}
         active={priority}
         onOpen={isManual(envelope) ? () => usePlay.getState().setPlayerSheet(side) : undefined}
       />
-      <div className="battle-zone" data-drop-owner={side} data-drop-zone="battle" aria-label="배틀존">
+      <div className="battle-zone" data-drop-owner={side} data-drop-zone="battle" aria-label={t("배틀존")}>
         <AnimatePresence>
           {player.zones.battle.map((card, index) => (
             <Card
@@ -270,11 +271,11 @@ function Field({ side, player, actions, envelope, onAction, mine }: FieldProps) 
             />
           ))}
         </AnimatePresence>
-        {!player.zones.battle.length && <span className="zone-hint">배틀존</span>}
+        {!player.zones.battle.length && <span className="zone-hint">{t("배틀존")}</span>}
       </div>
       <div className="field-side">
-        <div className="list-zone" data-drop-owner={side} data-drop-zone="list" aria-label="리스트">
-          <span className="zone-title">리스트</span>
+        <div className="list-zone" data-drop-owner={side} data-drop-zone="list" aria-label={t("리스트")}>
+          <span className="zone-title">{t("리스트")}</span>
           <div className="list-cards" style={listGrid(player.zones.list.length)}>
             {player.zones.list.map((card, index) => (
               <Card
@@ -351,7 +352,7 @@ function Piles({
             data-drop-owner={side}
             data-drop-zone={zone}
             onClick={() => setOpenZone({ owner: side, zone })}
-            aria-label={`${ZONE_LABELS[zone]} ${shown.length}장`}
+            aria-label={`${ZONE_LABELS[zone]} ${cardCount(shown.length)}`}
           >
             <span className={`pile-thumb ${top && !top.hidden ? "is-face" : ""}`}>
               {zone === "ultimate" ? (cards.length ? cards.length : "—") : shown.length}
@@ -369,7 +370,7 @@ function MidLine({ envelope, me, actions }: { envelope: PlayEnvelope; me: Side; 
   const playing = useFx((s) => s.playing);
   return (
     <div className="midline">
-      <span className="turn">턴 {envelope.state.turn}</span>
+      <span className="turn">{t("턴 {turn}", { turn: envelope.state.turn })}</span>
       <ol className="phases">
         {PHASE_ORDER.map((item) => (
           <li key={item} className={item === phase ? "is-current" : ""}>
@@ -378,7 +379,7 @@ function MidLine({ envelope, me, actions }: { envelope: PlayEnvelope; me: Side; 
         ))}
       </ol>
       <span className="status-line">
-        {playing ? "진행 중…" : isManual(envelope) ? manualStatusText(envelope) : statusText(envelope, me, actions)}
+        {playing ? t("진행 중…") : isManual(envelope) ? manualStatusText(envelope) : statusText(envelope, me, actions)}
       </span>
       <ClockBadge envelope={envelope} />
     </div>
@@ -388,23 +389,23 @@ function MidLine({ envelope, me, actions }: { envelope: PlayEnvelope; me: Side; 
 function statusText(envelope: PlayEnvelope, me: Side, actions: ActionIndex): string {
   const status = envelope.engine_status;
   if (status.status === "finished") {
-    if (!status.winner) return "무승부";
-    return envelope.role === "viewer" ? `${status.winner.toUpperCase()} 승리` : status.winner === me ? "승리!" : "패배";
+    if (!status.winner) return t("무승부");
+    return envelope.role === "viewer" ? t("{who} 승리", { who: status.winner.toUpperCase() }) : status.winner === me ? t("승리!") : t("패배");
   }
-  if (envelope.role === "viewer") return "관전 중";
-  if (envelope.pending_decision && envelope.pending_decision.owner !== me) return "상대가 선택 중입니다";
-  if (actions.decision) return "효과를 선택하세요";
+  if (envelope.role === "viewer") return t("관전 중");
+  if (envelope.pending_decision && envelope.pending_decision.owner !== me) return t("상대가 선택 중입니다");
+  if (actions.decision) return t("효과를 선택하세요");
   if (actions.byCard.size) {
     const step = status.step;
-    if (step === "ready_actions") return "레디할 카드를 고르세요";
+    if (step === "ready_actions") return t("레디할 카드를 고르세요");
     if (step === "get_actions")
-      return actions.primary.length ? "획득할 카드를 고르세요" : "겟: 카드 1장을 가져와야 합니다(손패가 상한 미만)";
-    if (step === "combo") return "콤보를 이어가세요";
-    if (step === "catch") return "캐치할 카드를 고르세요";
-    return "사용할 카드를 고르세요";
+      return actions.primary.length ? t("획득할 카드를 고르세요") : t("겟: 카드 1장을 가져와야 합니다(손패가 상한 미만)");
+    if (step === "combo") return t("콤보를 이어가세요");
+    if (step === "catch") return t("캐치할 카드를 고르세요");
+    return t("사용할 카드를 고르세요");
   }
-  if (actions.primary.length) return "준비가 끝나면 진행하세요";
-  return "상대를 기다리는 중";
+  if (actions.primary.length) return t("준비가 끝나면 진행하세요");
+  return t("상대를 기다리는 중");
 }
 
 function MyHand({
@@ -422,7 +423,7 @@ function MyHand({
   const cards = player.zones.hand;
   const limit = player.character?.hand_limit;
   return (
-    <div className="my-hand" data-drop-owner={side} data-drop-zone="hand" aria-label="내 손패">
+    <div className="my-hand" data-drop-owner={side} data-drop-zone="hand" aria-label={t("내 손패")}>
       <div className="hand-cards" style={{ "--n": cards.length } as CSSProperties}>
         <AnimatePresence>
           {cards.map((card, index) => {
@@ -440,7 +441,7 @@ function MyHand({
         </AnimatePresence>
       </div>
       <span className="hand-count">
-        손패 {cards.length}
+        {t("손패 {n}", { n: cards.length })}
         {limit != null ? ` / ${limit}` : ""}
       </span>
     </div>
@@ -487,11 +488,11 @@ function ActionDock({
         >
           {boardMoves
             ? boardReady
-              ? `${decisionPicksCount}장 옮김 · 확정`
-              : "목록으로 보기"
+              ? t("{n}장 옮김 · 확정", { n: decisionPicksCount })
+              : t("목록으로 보기")
             : decisionPicksCount
-              ? `${decisionPicksCount}개 고름 · 확정하기`
-              : "선택하기"}
+              ? t("{n}개 고름 · 확정하기", { n: decisionPicksCount })
+              : t("선택하기")}
         </button>
       )}
       {primary && (
@@ -504,7 +505,7 @@ function ActionDock({
         </button>
       )}
       {waiting && envelope.engine_status.status === "running" && (
-        <span className="btn-primary is-waiting">{playing ? "진행 중…" : "상대 차례"}</span>
+        <span className="btn-primary is-waiting">{playing ? t("진행 중…") : t("상대 차례")}</span>
       )}
     </div>
   );

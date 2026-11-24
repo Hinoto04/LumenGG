@@ -18,6 +18,7 @@ import type { AppMode } from "./mode";
 import { connectLive, isPreparing, submitAction, useLive } from "./net/live";
 import { PreparationScreen } from "./prep/PreparationScreen";
 import { indexActions, perspective, usePlay } from "./store";
+import { t } from "./i18n";
 
 export function App({ mode }: { mode: AppMode }) {
   if (mode.kind === "lobby") return <Lobby />;
@@ -60,7 +61,7 @@ function GameScreen({ mode }: { mode: Exclude<AppMode, { kind: "lobby" }> }) {
         return;
       }
       console.info("[play] action", action.type, action.action_id, action.payload, selections);
-      flash(`픽스처 모드: "${action.label}" 행동은 보내지 않습니다`);
+      flash(t("픽스처 모드: \"{label}\" 행동은 보내지 않습니다", { label: action.label }));
     },
     [flash, live],
   );
@@ -99,7 +100,7 @@ function GameScreen({ mode }: { mode: Exclude<AppMode, { kind: "lobby" }> }) {
           <PlayerSheet envelope={envelope} />
         </LayoutGroup>
       ) : (
-        <p className="loading">불러오는 중…</p>
+        <p className="loading">{t("불러오는 중…")}</p>
       )}
       {live && <GameOver envelope={envelope} />}
       <Notice />

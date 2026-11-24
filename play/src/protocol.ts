@@ -53,9 +53,12 @@ export interface VisibleCard {
   code?: string | null;
   name?: string;
   type?: string | null;
+  /** 화면 언어로 옮긴 분류·판정(서버가 ko 외 언어에서 채운다). type/pos 원문은 규칙 판별에 쓴다. */
+  type_label?: string | null;
   frame?: number | null;
   damage?: number | null;
   pos?: string | null;
+  pos_label?: string | null;
   special?: string | null;
   text?: string | null;
   img?: string | null;
@@ -335,11 +338,13 @@ export interface PrepCatalogCard {
   name: string;
   code: string;
   type?: string | null;
+  type_label?: string | null;
   ultimate?: boolean;
   character_id?: number | null;
   frame?: number | null;
   damage?: number | null;
   pos?: string | null;
+  pos_label?: string | null;
   text?: string | null;
   img?: string | null;
   img_mid?: string | null;

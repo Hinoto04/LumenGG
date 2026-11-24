@@ -11,6 +11,7 @@ import { ZONE_LABELS } from "./labels";
 import { isManual, sendManual, submitAction } from "./net/live";
 import type { BoardCard, CardRef, LegalAction, PlayEnvelope, Side, VisibleCard, ZoneName } from "./protocol";
 import { cardActions, indexActions, perspective, usePlay } from "./store";
+import { t } from "./i18n";
 
 /**
  * 끌어 놓기: 카드 한 장이 옮겨 갈 수 있는 영역(B)과, 같은 B로 옮길 수 있는 카드가 있는 영역(A).
@@ -55,21 +56,21 @@ function actionTarget(action: LegalAction, me: Side): ZoneRef | null {
 
 /** 마스크에 적는 도착 영역 이름 */
 const DROP_LABELS: Partial<Record<ZoneName, string>> = {
-  battle: "배틀 존",
-  hand: "손패",
-  list: "리스트",
-  side: "사이드 덱",
-  lumen: "루멘 존",
-  break: "브레이크 존",
-  ultimate: "얼티밋 존",
+  battle: t("배틀 존"),
+  hand: t("손패"),
+  list: t("리스트"),
+  side: t("사이드 덱"),
+  lumen: t("루멘 존"),
+  break: t("브레이크 존"),
+  ultimate: t("얼티밋 존"),
 };
 
 function shortLabel(target: ZoneRef, me: Side): string {
-  return `${target.owner === me ? "" : "상대 "}${ZONE_LABELS[target.zone]}`;
+  return target.owner === me ? ZONE_LABELS[target.zone] : t("상대 {zone}", { zone: ZONE_LABELS[target.zone] });
 }
 
 function targetLabel(target: ZoneRef, me: Side): string {
-  return `${target.owner === me ? "" : "상대 "}${DROP_LABELS[target.zone] ?? ZONE_LABELS[target.zone]}`;
+  return target.owner === me ? DROP_LABELS[target.zone] ?? ZONE_LABELS[target.zone] : t("상대 {zone}", { zone: DROP_LABELS[target.zone] ?? ZONE_LABELS[target.zone] });
 }
 
 const MANUAL_ZONES: ZoneName[] = ["battle", "hand", "list", "side", "lumen", "break", "ultimate"];
@@ -89,7 +90,7 @@ function targetsFor(
   const cancelCombo = !card.hidden && (card as VisibleCard).instance_id === comboFirstId(envelope) ? comboCancelAction(envelope) : null;
   if (cancelCombo) {
     const home = { owner: me, zone: "hand" as ZoneName };
-    return [{ ...home, label: `되돌리기 · ${targetLabel(home, me)}`, shortLabel: shortLabel(home, me), run: () => onAction(cancelCombo) }];
+    return [{ ...home, label: t("되돌리기 · {target}", { target: targetLabel(home, me) }), shortLabel: shortLabel(home, me), run: () => onAction(cancelCombo) }];
   }
 
   // 효과 선택의 후보 카드
@@ -106,7 +107,7 @@ function targetsFor(
       return [
         {
           ...home,
-          label: `되돌리기 · ${targetLabel(home, me)}`,
+          label: t("되돌리기 · {target}", { target: targetLabel(home, me) }),
           shortLabel: shortLabel(home, me),
           run: () => toggleDecisionPick(option.id, candidates.maximum),
         },

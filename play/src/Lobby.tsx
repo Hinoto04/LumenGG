@@ -3,6 +3,7 @@ import { liveUrl } from "./mode";
 import { getJson, postJson } from "./net/http";
 import { lastGame } from "./net/live";
 import { QuickPanel, RoomPanel, rememberedRoom } from "./RoomLobby";
+import { seconds as formatSeconds, t } from "./i18n";
 
 export interface DeckRow {
   id: number;
@@ -62,7 +63,7 @@ export function TimerSelect({ label, value, onChange }: { label: string; value: 
       <select value={value} onChange={(event) => onChange(Number(event.target.value))}>
         {TIMER_CHOICES.map((seconds) => (
           <option key={seconds} value={seconds}>
-            {seconds ? `${seconds}초` : "제한 없음"}
+            {seconds ? formatSeconds(seconds) : t("제한 없음")}
           </option>
         ))}
       </select>
@@ -83,13 +84,13 @@ function AIDeckPicker({ value, onChange }: { value: AIDeckRow | null; onChange: 
 
   return (
     <div className="deck-picker">
-      <span className="deck-picker-label">AI 상대</span>
+      <span className="deck-picker-label">{t("AI 상대")}</span>
       {failed ? (
-        <p className="muted">AI 목록을 불러오지 못했습니다.</p>
+        <p className="muted">{t("AI 목록을 불러오지 못했습니다.")}</p>
       ) : rows === null ? (
-        <p className="muted">불러오는 중…</p>
+        <p className="muted">{t("불러오는 중…")}</p>
       ) : rows.length === 0 ? (
-        <p className="muted">등록된 AI 덱이 없습니다.</p>
+        <p className="muted">{t("등록된 AI 덱이 없습니다.")}</p>
       ) : (
         <ul className="ai-deck-list">
           {rows.map((row) => (
@@ -177,7 +178,7 @@ export function DeckPicker({
         <span className="deck-picker-label">{label}</span>
         {value && !open && (
           <button type="button" className="deck-chosen" onClick={() => setOpen(true)}>
-            <b>{value.character}</b> {value.name} <small>바꾸기</small>
+            <b>{value.character}</b> {value.name} <small>{t("바꾸기")}</small>
           </button>
         )}
       </div>
@@ -186,37 +187,37 @@ export function DeckPicker({
           <input
             type="search"
             value={query}
-            placeholder="덱 이름·작성자·캐릭터 또는 덱 번호"
+            placeholder={t("덱 이름·작성자·캐릭터 또는 덱 번호")}
             onChange={(event) => setQuery(event.target.value)}
-            aria-label={`${label} 검색`}
+            aria-label={t("{label} 검색", { label })}
           />
           {results ? (
-            <ul className="deck-list">{results.length ? list(results) : <li className="muted">찾은 덱이 없습니다.</li>}</ul>
+            <ul className="deck-list">{results.length ? list(results) : <li className="muted">{t("찾은 덱이 없습니다.")}</li>}</ul>
           ) : (
             <>
               {mine.length > 0 && (
                 <>
-                  <p className="deck-group">내 덱</p>
+                  <p className="deck-group">{t("내 덱")}</p>
                   <ul className="deck-list">{list(mine)}</ul>
                 </>
               )}
               {recent.length > 0 && (
                 <>
-                  <p className="deck-group">최근 사용</p>
+                  <p className="deck-group">{t("최근 사용")}</p>
                   <ul className="deck-list">{list(recent)}</ul>
                 </>
               )}
               {loginRequired && (
                 <p className="muted">
-                  <a href={`/login/?next=${encodeURIComponent(location.pathname)}`}>로그인</a>하면 비공개 덱을 포함한 내 덱을 고를 수
-                  있습니다.
+                  <a href={`/login/?next=${encodeURIComponent(location.pathname)}`}>{t("로그인")}</a>
+                  {t("하면 비공개 덱을 포함한 내 덱을 고를 수 있습니다.")}
                 </p>
               )}
             </>
           )}
           {value && (
             <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>
-              취소
+              {t("취소")}
             </button>
           )}
         </div>
@@ -228,9 +229,9 @@ export function DeckPicker({
 type LobbyTab = "ai" | "room" | "quick";
 
 const TABS: [LobbyTab, string][] = [
-  ["ai", "AI와 대전"],
-  ["room", "방"],
-  ["quick", "퀵 매치"],
+  ["ai", t("AI와 대전")],
+  ["room", t("방")],
+  ["quick", t("퀵 매치")],
 ];
 
 function initialTab(): LobbyTab {
@@ -267,7 +268,7 @@ export function Lobby() {
         setMine(data.decks);
         setLoginRequired(!!data.login_required);
       })
-      .catch(() => setError("서버에 연결하지 못했습니다."));
+      .catch(() => setError(t("서버에 연결하지 못했습니다.")));
   }, []);
 
   const start = async () => {
@@ -305,17 +306,17 @@ export function Lobby() {
     <main className="lobby">
       <header className="lobby-head">
         <span className="lobby-kicker">LUMEN CONDENSOR SIMULATOR</span>
-        <h1>루멘콘덴서 대전</h1>
+        <h1>{t("루멘콘덴서 대전")}</h1>
       </header>
       {resume && !rivalUrl && (
         <section className="lobby-card lobby-resume">
-          <p>진행 중이던 대전이 있습니다.</p>
+          <p>{t("진행 중이던 대전이 있습니다.")}</p>
           <a className="btn-primary" href={liveUrl(resume)}>
-            이어하기
+            {t("이어하기")}
           </a>
         </section>
       )}
-      <div className="lobby-row segmented lobby-tabs" role="tablist" aria-label="대전 종류">
+      <div className="lobby-row segmented lobby-tabs" role="tablist" aria-label={t("대전 종류")}>
         {TABS.map(([value, label]) => (
           <button
             key={value}
@@ -333,14 +334,14 @@ export function Lobby() {
       {tab === "quick" && <QuickPanel mine={mine} loginRequired={loginRequired} />}
       {tab === "ai" && (
         <section className="lobby-card">
-          <DeckPicker label="내 덱" value={p1} onChange={setP1} mine={mine} loginRequired={loginRequired} />
+          <DeckPicker label={t("내 덱")} value={p1} onChange={setP1} mine={mine} loginRequired={loginRequired} />
           <AIDeckPicker value={p2} onChange={setP2} />
           <div className="lobby-row lobby-timers">
-            <TimerSelect label="레디 제한" value={readyTimer} onChange={setReadyTimer} />
-            <TimerSelect label="효과 선택 제한" value={effectTimer} onChange={setEffectTimer} />
+            <TimerSelect label={t("레디 제한")} value={readyTimer} onChange={setReadyTimer} />
+            <TimerSelect label={t("효과 선택 제한")} value={effectTimer} onChange={setEffectTimer} />
           </div>
           <button type="button" className="btn-primary lobby-start" disabled={creating || !p1 || !p2} onClick={start}>
-            {creating ? "만드는 중…" : "대전 시작"}
+            {creating ? t("만드는 중…") : t("대전 시작")}
           </button>
         </section>
       )}

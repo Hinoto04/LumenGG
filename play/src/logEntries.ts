@@ -1,5 +1,6 @@
 import { JUDGE_LABELS } from "./anim/playback";
-import { eventText } from "./eventText";
+import { eventText, ME_LABEL, OPPONENT_LABEL } from "./eventText";
+import { t } from "./i18n";
 import { PHASE_LABELS, ZONE_LABELS } from "./labels";
 import { labelFor } from "./passives";
 import type { GameEvent, PlayEnvelope, Side, VisibleCard, ZoneName } from "./protocol";
@@ -50,27 +51,27 @@ const HIDDEN = new Set([
 
 /** 요한 등 손패 추측의 선언 */
 const GUESS_LABELS: Record<string, string> = {
-  odd: "홀수",
-  even: "짝수",
-  attack: "공격 기술",
-  odd_attack: "홀수 속도 공격 기술",
-  even_attack: "짝수 속도 공격 기술",
-  defense: "수비 기술",
+  odd: t("홀수"),
+  even: t("짝수"),
+  attack: t("공격 기술"),
+  odd_attack: t("홀수 속도 공격 기술"),
+  even_attack: t("짝수 속도 공격 기술"),
+  defense: t("수비 기술"),
 };
 
 const REASON_LABELS: Record<string, string> = {
-  ready: "레디",
-  combo: "콤보",
-  combo_presented: "콤보",
-  catch: "캐치",
-  get: "겟",
-  draw: "드로우",
-  discard: "버리기",
-  effect: "효과",
-  play_cost: "비용",
-  battle_cleanup: "배틀 정리",
-  break_replenish: "사이드 보충",
-  hand_limit: "손패 제한",
+  ready: t("레디"),
+  combo: t("콤보"),
+  combo_presented: t("콤보"),
+  catch: t("캐치"),
+  get: t("겟"),
+  draw: t("드로우"),
+  discard: t("버리기"),
+  effect: t("효과"),
+  play_cost: t("비용"),
+  battle_cleanup: t("배틀 정리"),
+  break_replenish: t("사이드 보충"),
+  hand_limit: t("손패 제한"),
 };
 
 type Payload = Record<string, unknown>;
@@ -118,7 +119,7 @@ export function logEntry(event: GameEvent, envelope: PlayEnvelope, me: Side): Lo
         ...base,
         side: "system",
         divider: true,
-        title: `턴 ${String(p.turn ?? "")} · ${PHASE_LABELS[String(p.phase)] ?? String(p.phase)}`,
+        title: t("턴 {turn} · {phase}", { turn: String(p.turn ?? ""), phase: PHASE_LABELS[String(p.phase)] ?? String(p.phase) }),
       };
     case "card_moved": {
       // 레디는 card_readied 항목으로 이미 보여 준다.
@@ -127,14 +128,14 @@ export function logEntry(event: GameEvent, envelope: PlayEnvelope, me: Side): Lo
       return {
         ...base,
         side: sideOf(p.to_player ?? event.actor, me),
-        title: String(p.card_label ?? "카드"),
+        title: String(p.card_label ?? t("카드")),
         detail: `${zone(p.from_zone)} → ${zone(p.to_zone)}${reason ? ` · ${reason}` : ""}`,
         cards: one(cardFrom(p, p.to_player as Side)),
       };
     }
     case "card_readied": {
       const card = cardFrom(p, event.actor as Side);
-      return { ...base, title: card ? `레디 · ${card.name}` : "레디", cards: one(card) };
+      return { ...base, title: card ? t("레디 · {card}", { card: card.name ?? "" }) : t("레디"), cards: one(card) };
     }
     case "battle_judged": {
       const result = (p.result ?? {}) as Record<string, string>;
@@ -145,8 +146,12 @@ export function logEntry(event: GameEvent, envelope: PlayEnvelope, me: Side): Lo
       return {
         ...base,
         side: "system",
-        title: `배틀 판정 · ${JUDGE_LABELS[mine] ?? mine ?? "-"}`,
-        detail: `나 ${speed[me] ?? "-"}속도 vs 상대 ${speed[opp] ?? "-"}속도 (${JUDGE_LABELS[result[opp]] ?? result[opp] ?? "-"})`,
+        title: t("배틀 판정 · {result}", { result: JUDGE_LABELS[mine] ?? mine ?? "-" }),
+        detail: t("나 {mine}속도 vs 상대 {theirs}속도 ({result})", {
+          mine: speed[me] ?? "-",
+          theirs: speed[opp] ?? "-",
+          result: JUDGE_LABELS[result[opp]] ?? result[opp] ?? "-",
+        }),
         cards: [...one(cardFrom(cards[me], me)), ...one(cardFrom(cards[opp], opp))],
       };
     }
@@ -165,7 +170,7 @@ export function logEntry(event: GameEvent, envelope: PlayEnvelope, me: Side): Lo
     case "effect_resolved":
       return {
         ...base,
-        title: String(p.card_label ?? "효과"),
+        title: String(p.card_label ?? t("효과")),
         detail: String(p.effect_label ?? ""),
         cards: one(cardFrom(p, event.actor as Side) ?? cardByInstance(envelope, p.card_instance_id)),
       };
@@ -174,7 +179,7 @@ export function logEntry(event: GameEvent, envelope: PlayEnvelope, me: Side): Lo
       const labels = selected.map((option) => String(option.label ?? option.id ?? "")).filter(Boolean);
       return {
         ...base,
-        title: `선택 · ${labels.join(", ") || "없음"}${p.timed_out ? " (시간 초과)" : ""}`,
+        title: t("선택 · {labels}", { labels: labels.join(", ") || t("없음") }) + (p.timed_out ? ` ${t("(시간 초과)")}` : ""),
         detail: String(p.prompt ?? ""),
         cards: selected
           .map((option) => cardFrom(option) ?? cardByInstance(envelope, option.card_instance_id))
@@ -184,16 +189,16 @@ export function logEntry(event: GameEvent, envelope: PlayEnvelope, me: Side): Lo
     }
     case "combo_card_used": {
       const card = cardByInstance(envelope, p.card_instance_id);
-      return { ...base, title: `콤보 · ${card?.name ?? "카드"}`, detail: p.damage != null ? `데미지 ${String(p.damage)}` : undefined, cards: one(card) };
+      return { ...base, title: t("콤보 · {card}", { card: card?.name ?? t("카드") }), detail: p.damage != null ? t("데미지 {damage}", { damage: String(p.damage) }) : undefined, cards: one(card) };
     }
     case "card_broken":
     case "card_discarded": {
       const card = cardFrom(p) ?? cardByInstance(envelope, p.card_instance_id);
-      return { ...base, title: `${event.type === "card_broken" ? "브레이크" : "버리기"} · ${card?.name ?? "카드"}`, cards: one(card) };
+      return { ...base, title: `${event.type === "card_broken" ? t("브레이크") : t("버리기")} · ${card?.name ?? t("카드")}`, cards: one(card) };
     }
     case "state_gained":
     case "state_lost":
-      return { ...base, title: `${event.type === "state_gained" ? "상태 획득" : "상태 해제"} · ${String(p.label ?? p.state ?? "")}` };
+      return { ...base, title: `${event.type === "state_gained" ? t("상태 획득") : t("상태 해제")} · ${String(p.label ?? p.state ?? "")}` };
     case "card_guess_resolved": {
       // 손패 추측(요한): 무엇을 선언했고 맞았는지, 확인한 카드. 이어서 적용된 효과는 바로 뒤 항목들로 남는다.
       const guess = GUESS_LABELS[String(p.guess)] ?? String(p.guess ?? "");
@@ -201,18 +206,18 @@ export function logEntry(event: GameEvent, envelope: PlayEnvelope, me: Side): Lo
       const card = p.card as Payload | undefined;
       return {
         ...base,
-        title: `추측 · ${guess} → ${p.correct ? "적중" : "빗나감"}`,
-        detail: [source?.name ? String(source.name) : "", card?.name ? `확인한 카드: ${String(card.name)}` : ""].filter(Boolean).join(" · ") || undefined,
+        title: t("추측 · {guess} → {result}", { guess, result: p.correct ? t("적중") : t("빗나감") }),
+        detail: [source?.name ? String(source.name) : "", card?.name ? t("확인한 카드: {card}", { card: String(card.name) }) : ""].filter(Boolean).join(" · ") || undefined,
         cards: one(cardFrom(card ? { ...card, card_code: card.code } : undefined, (card?.owner as Side | undefined))),
       };
     }
     case "card_guess_skipped":
-      return { ...base, title: "추측할 손패가 없어 넘어감" };
+      return { ...base, title: t("추측할 손패가 없어 넘어감") };
     case "card_visibility_changed": {
       const card = (p.card as Payload | undefined) ?? p;
       return {
         ...base,
-        title: `${p.face_up ? "공개" : "비공개"} · ${String(p.card_label ?? card.name ?? "카드")}`,
+        title: `${p.face_up ? t("공개") : t("비공개")} · ${String(p.card_label ?? card.name ?? t("카드"))}`,
         cards: p.face_up ? one(cardFrom({ ...card, card_code: card.code ?? p.card_code, card_id: card.card_id ?? p.card_id }, event.actor as Side)) : [],
       };
     }
@@ -221,24 +226,24 @@ export function logEntry(event: GameEvent, envelope: PlayEnvelope, me: Side): Lo
       const label = player ? labelFor(player, String(p.counter)) : String(p.counter ?? "");
       const amount = Number(p.amount ?? 0);
       if (!amount) return null;
-      return { ...base, title: `${label} 카운터 ${String(p.before)} → ${String(p.count)}`, deltas: [{ label, amount }] };
+      return { ...base, title: t("{label} 카운터 {before} → {after}", { label, before: String(p.before), after: String(p.count) }), deltas: [{ label, amount }] };
     }
     case "effect_log":
       return { ...base, title: String(p.text ?? "") };
     case "ready_first_forced":
-      return { ...base, title: "레디 페이즈에 먼저 레디해야 함" };
+      return { ...base, title: t("레디 페이즈에 먼저 레디해야 함") };
     case "speed_fixed":
-      return { ...base, title: `속도 고정 · ${String(p.speed ?? "")}`, cards: one(cardByInstance(envelope, p.card_instance_id)) };
+      return { ...base, title: t("속도 고정 · {speed}", { speed: String(p.speed ?? "") }), cards: one(cardByInstance(envelope, p.card_instance_id)) };
     case "judgment_modified":
       return {
         ...base,
-        title: `판정 변경 · ${String(p.before ?? "-")} → ${String(p.after ?? "-")}`,
+        title: t("판정 변경 · {before} → {after}", { before: String(p.before ?? "-"), after: String(p.after ?? "-") }),
         cards: one(cardByInstance(envelope, p.card_instance_id)),
       };
     case "shield_gained":
-      return { ...base, title: `실드 ${String(p.amount ?? p.value ?? "")}` };
+      return { ...base, title: t("실드 {amount}", { amount: String(p.amount ?? p.value ?? "") }) };
     case "state_expired":
-      return { ...base, title: `상태 종료 · ${String(p.label ?? p.state ?? "")}` };
+      return { ...base, title: t("상태 종료 · {label}", { label: String(p.label ?? p.state ?? "") }) };
     case "hp":
     case "fp": {
       const amount = Number(p.amount ?? 0);
@@ -254,14 +259,14 @@ export function logEntry(event: GameEvent, envelope: PlayEnvelope, me: Side): Lo
       return {
         ...base,
         side: sideOf(p.to_player ?? event.actor, me),
-        title: String(p.card_label ?? "카드"),
+        title: String(p.card_label ?? t("카드")),
         detail: `${zone(p.from_zone)} → ${zone(p.to_zone)}`,
         cards: one(cardFrom(p) ?? cardByInstance(envelope, p.card_instance_id)),
       };
     default: {
       const text = eventText(event, me);
       if (!text) return null;
-      return { ...base, title: text.replace(/^(나|상대): /, "") };
+      return { ...base, title: [ME_LABEL, OPPONENT_LABEL].reduce((value, prefix) => (value.startsWith(`${prefix}: `) ? value.slice(prefix.length + 2) : value), text) };
     }
   }
 }

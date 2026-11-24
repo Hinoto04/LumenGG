@@ -6,6 +6,7 @@ import { cardActions, indexActions, refKey, usePlay } from "../store";
 import { Card } from "./Card";
 import { ManualCardActions } from "./Manual";
 import { actionVerb, CardDetails } from "./Overlays";
+import { t } from "../i18n";
 
 /**
  * PC의 카드 선택(마스터 듀얼과 비슷하게):
@@ -125,7 +126,7 @@ export function CardSidePanel() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -24 }}
           transition={{ duration: 0.15 }}
-          aria-label="카드 정보"
+          aria-label={t("카드 정보")}
         >
           <Card card={selected.card} size="large" detached />
           <div className="inspector-body">
@@ -135,7 +136,7 @@ export function CardSidePanel() {
               className="btn-ghost"
               onClick={() => (peek ? usePlay.getState().setPeek(null) : usePlay.getState().setSelected(null))}
             >
-              닫기
+              {t("닫기")}
             </button>
           </div>
         </motion.aside>

@@ -18,13 +18,14 @@ import {
   type PrepZone,
   type ValidationReport,
 } from "./model";
+import { cardCount, t } from "../i18n";
 
 const ZONE_LABELS: Record<PrepZone, string> = {
-  list: "리스트",
-  hand: "손패",
-  side: "사이드",
-  ultimate: "얼티밋",
-  reserve: "교체 덱",
+  list: t("리스트"),
+  hand: t("손패"),
+  side: t("사이드"),
+  ultimate: t("얼티밋"),
+  reserve: t("교체 덱"),
 };
 
 /** 화면 좌표 아래의 영역 */
@@ -85,7 +86,7 @@ function cardText(card: PrepCatalogCard): string {
 function Thumb({ card, onPreview }: { card: PrepCatalogCard; onPreview: (card: PrepCatalogCard) => void }) {
   const image = card.img_sm || card.img_mid || card.img;
   return (
-    <button type="button" className="prep-thumb" onClick={() => onPreview(card)} aria-label={`${card.name} 크게 보기`}>
+    <button type="button" className="prep-thumb" onClick={() => onPreview(card)} aria-label={t("{card} 크게 보기", { card: card.name ?? "" })}>
       {image ? <img src={image} alt="" draggable={false} loading="lazy" /> : <span>{card.name.slice(0, 2)}</span>}
     </button>
   );
@@ -102,13 +103,13 @@ function Preview({ card, onClose }: { card: PrepCatalogCard | null; onClose: () 
               <h2>{card.name}</h2>
               <span className="inspector-code">{card.code}</span>
               <p className="inspector-meta">
-                {[card.type, card.frame != null ? `속도 ${card.frame}` : null, card.damage != null ? `데미지 ${card.damage}` : null, card.pos]
+                {[card.type_label || card.type, card.frame != null ? t("속도 {speed}", { speed: card.frame }) : null, card.damage != null ? t("데미지 {damage}", { damage: card.damage }) : null, card.pos_label || card.pos]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
               {card.text && <p className="inspector-text">{cardText(card)}</p>}
               <button type="button" className="btn-ghost" onClick={onClose}>
-                닫기
+                {t("닫기")}
               </button>
             </div>
           </motion.div>
@@ -185,9 +186,9 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
     return (
       <main className="prep">
         <header className="prep-head">
-          <h1>게임 {preparation.game_number} 준비</h1>
+          <h1>{t("게임 {n} 준비", { n: preparation.game_number })}</h1>
           <p className="muted">
-            P1 {preparation.players.p1.ready ? "준비 완료" : "준비 중"} · P2 {preparation.players.p2.ready ? "준비 완료" : "준비 중"}
+            P1 {preparation.players.p1.ready ? t("준비 완료") : t("준비 중")} · P2 {preparation.players.p2.ready ? t("준비 완료") : t("준비 중")}
           </p>
         </header>
       </main>
@@ -323,11 +324,11 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
     <section className={`prep-zone prep-zone-${id} ${zoneClass(id)} ${extra}`} data-prep-zone={id}>
       <header className="prep-zone-head">
         <h2>{ZONE_LABELS[id]}</h2>
-        <span>{ids.length}장</span>
+        <span>{cardCount(ids.length)}</span>
       </header>
       <div className={`prep-zone-cards is-${id}`}>
         {copies(id, ids)}
-        {!ids.length && <p className="prep-zone-empty">{ready ? "없음" : "여기로 끌어 놓기"}</p>}
+        {!ids.length && <p className="prep-zone-empty">{ready ? t("없음") : t("여기로 끌어 놓기")}</p>}
       </div>
     </section>
   );
@@ -336,38 +337,38 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
     <main className="prep">
       <header className="prep-head">
         <div>
-          <h1>게임 {preparation.game_number} 준비</h1>
+          <h1>{t("게임 {n} 준비", { n: preparation.game_number })}</h1>
           <p className="muted">
             {registered.character?.name} · {registered.name}
           </p>
         </div>
         <div className="prep-status">
-          <span className={`btn-chip is-static ${ready ? "is-online" : ""}`}>나 {ready ? "준비 완료" : "준비 중"}</span>
+          <span className={`btn-chip is-static ${ready ? "is-online" : ""}`}>{ready ? t("나 준비 완료") : t("나 준비 중")}</span>
           <span className={`btn-chip is-static ${rival.ready ? "is-online" : ""}`}>
-            상대 {envelope.controllers?.[opp] === "ai" ? "AI" : rival.ready ? "준비 완료" : "준비 중"}
+            {envelope.controllers?.[opp] === "ai" ? t("상대 AI") : rival.ready ? t("상대 준비 완료") : t("상대 준비 중")}
           </span>
         </div>
       </header>
 
       <section className="prep-summary">
         <span className={over(derived.swaps.technique, rules?.technique_swap_limit) ? "is-over" : ""}>
-          기술 교체 {limitText(derived.swaps.technique, rules?.technique_swap_limit)}
+          {t("기술 교체")} {limitText(derived.swaps.technique, rules?.technique_swap_limit)}
         </span>
         <span className={over(derived.swaps.trait, rules?.trait_swap_limit) ? "is-over" : ""}>
-          특성 교체 {limitText(derived.swaps.trait, rules?.trait_swap_limit)}
+          {t("특성 교체")} {limitText(derived.swaps.trait, rules?.trait_swap_limit)}
         </span>
         <span className={over(derived.swaps.ultimate, rules?.ultimate_swap_limit) ? "is-over" : ""}>
-          얼티밋 교체 {limitText(derived.swaps.ultimate, rules?.ultimate_swap_limit)}
+          {t("얼티밋 교체")} {limitText(derived.swaps.ultimate, rules?.ultimate_swap_limit)}
         </span>
         <span>
-          덱 {derived.sum.deck}장 · 손패 {derived.sum.hand} · 사이드 {derived.sum.side}
+          {t("덱 {deck}장 · 손패 {hand} · 사이드 {side}", { deck: derived.sum.deck, hand: derived.sum.hand, side: derived.sum.side })}
         </span>
-        {!rules && <span className="muted">레귤레이션 없음</span>}
+        {!rules && <span className="muted">{t("레귤레이션 없음")}</span>}
       </section>
 
       {derived.traits.length > 1 && (
         <section className="prep-section">
-          <h2>특성</h2>
+          <h2>{t("특성")}</h2>
           <div className="prep-grid">
             {derived.traits.map((id) => (
               <div key={id} className={`prep-tile ${draft.trait_card_id === id ? "is-chosen" : ""}`}>
@@ -378,7 +379,7 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
                   disabled={ready}
                   onClick={() => edit({ ...draft, trait_card_id: id })}
                 >
-                  {draft.trait_card_id === id ? "사용 중" : "이 특성 사용"}
+                  {draft.trait_card_id === id ? t("사용 중") : t("이 특성 사용")}
                 </button>
               </div>
             ))}
@@ -387,7 +388,9 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
       )}
 
       <p className="prep-help muted">
-        카드를 끌어서 리스트·손패·사이드로 옮기세요{hasReserve ? ". 교체 덱과도 주고받을 수 있습니다" : ""}. 누르면 크게 봅니다.
+        {hasReserve
+            ? t("카드를 끌어서 리스트·손패·사이드로 옮기세요. 교체 덱과도 주고받을 수 있습니다. 누르면 크게 봅니다.")
+            : t("카드를 끌어서 리스트·손패·사이드로 옮기세요. 누르면 크게 봅니다.")}
       </p>
       <div className={`prep-board ${hasReserve ? "has-reserve" : ""} ${ultimateIds.length || spare.some(([id]) => isUltimate(catalog[id])) ? "has-ultimate" : ""}`}>
         {zone("list", listIds)}
@@ -402,23 +405,23 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
           {errors.map((issue, index) => (
             <li key={`${issue.code}-${index}`}>{issue.message}</li>
           ))}
-          {!errors.length && report && !ready && <li className="is-ok">시작할 수 있는 구성입니다.</li>}
+          {!errors.length && report && !ready && <li className="is-ok">{t("시작할 수 있는 구성입니다.")}</li>}
         </ul>
         <div className="prep-actions">
           {ready ? (
             <>
-              <span className="muted">{rival.ready ? "곧 시작합니다" : "상대의 준비를 기다리는 중"}</span>
+              <span className="muted">{rival.ready ? t("곧 시작합니다") : t("상대의 준비를 기다리는 중")}</span>
               <button type="button" className="btn-ghost" disabled={sending} onClick={() => send("cancel")}>
-                준비 철회
+                {t("준비 철회")}
               </button>
             </>
           ) : (
             <>
               <button type="button" className="btn-ghost" disabled={sending} onClick={() => setDraft(mine.active ?? null)}>
-                되돌리기
+                {t("되돌리기")}
               </button>
               <button type="button" className="btn-primary" disabled={sending || errors.length > 0} onClick={() => send("ready")}>
-                {sending ? "보내는 중…" : "준비 완료"}
+                {sending ? t("보내는 중…") : t("준비 완료")}
               </button>
             </>
           )}

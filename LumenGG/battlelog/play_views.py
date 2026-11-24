@@ -12,7 +12,13 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
-from common.language import get_language, translated_character_field
+from common.language import (
+    LANGUAGE_SESSION_KEY,
+    SUPPORTED_LANGUAGE_CODES,
+    get_language,
+    translated_character_field,
+    ui_text,
+)
 from deck.models import Deck
 
 from .models import LumenSimulatorSession
@@ -46,7 +52,15 @@ def _bundle_version():
 @ensure_csrf_cookie
 @require_GET
 def play(req):
-    """Single page: lobby without a query, a game with ?game=&seat=&token=."""
+    """Single page: lobby without a query, a game with ?game=&seat=&token=.
+
+    ``?lang=ko|en|ja`` (the app WebView passes its own language) is kept in the
+    session only, so the page and its API calls answer in that language. It does
+    not change a signed-in user's saved site language.
+    """
+    language = str(req.GET.get('lang') or '').strip().lower()[:2]
+    if language in SUPPORTED_LANGUAGE_CODES:
+        req.session[LANGUAGE_SESSION_KEY] = language
     context = {'bundle_version': _bundle_version()}
     if not req.GET.get('game') and 'fixtures' not in req.GET:
         # 대전 전 화면(로비)은 다른 DB 화면처럼 사이트 머리글(navbar) 아래에 둔다.
@@ -90,7 +104,7 @@ def ai_deck_rows(language):
             'name': ai_deck.name,
             'description': ai_deck.description,
             'style': style,
-            'style_label': styles.get(style, style),
+            'style_label': ui_text(styles.get(style, style), language),
             'character': translated_character_field(character, language, 'name'),
             'character_id': character.id,
             'character_img': character.icon_img or character.img or '',

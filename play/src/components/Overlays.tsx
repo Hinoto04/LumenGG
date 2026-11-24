@@ -8,6 +8,7 @@ import { isManual } from "../net/live";
 import { Card } from "./Card";
 import { ManualCardActions } from "./Manual";
 import { decisionCandidates, optionForCard, stagedIds, toggleDecisionPick } from "./Decision";
+import { t, cardCount } from "../i18n";
 
 /** 카드 확대 보기. 그 카드에 묶인 행동이 여러 개면 여기서 고른다. */
 export function CardInspector({
@@ -83,7 +84,7 @@ function InspectorPanel({
           <ManualCardActions envelope={envelope} card={target.card} zone={target.ref.zone} onDone={onClose} />
         )}
         <button type="button" className="btn-ghost" onClick={onClose}>
-          닫기
+          {t("닫기")}
         </button>
       </div>
     </motion.div>
@@ -93,14 +94,14 @@ function InspectorPanel({
 /** 카드 이름·코드·수치·효과문(확대 보기와 PC 사이드 패널이 함께 쓴다) */
 export function CardDetails({ card, zone }: { card: BoardCard; zone: ZoneName }) {
   const view = useCardView(card);
-  if (!view) return <p className="muted">비공개 카드입니다.</p>;
+  if (!view) return <p className="muted">{t("비공개 카드입니다.")}</p>;
   const text = cardText(view);
   const detail = cardDetailText(view);
   const meta = [
-    view.type,
-    view.frame != null ? `속도 ${view.frame}` : null,
-    view.damage != null ? `데미지 ${view.damage}` : null,
-    view.pos,
+    view.type_label || view.type,
+    view.frame != null ? t("속도 {speed}", { speed: view.frame }) : null,
+    view.damage != null ? t("데미지 {damage}", { damage: view.damage }) : null,
+    view.pos_label || view.pos,
     ZONE_LABELS[zone],
   ].filter(Boolean);
   return (
@@ -116,12 +117,12 @@ export function CardDetails({ card, zone }: { card: BoardCard; zone: ZoneName })
 
 export function actionVerb(action: LegalAction): string {
   const verbs: Record<string, string> = {
-    ready_card: "레디",
-    select_get_card: "획득",
-    select_ultimate: "얼티밋 획득",
-    play_catch_card: "캐치",
-    select_combo_first: "콤보 시작",
-    select_combo_followup: "콤보 연결",
+    ready_card: t("레디"),
+    select_get_card: t("획득"),
+    select_ultimate: t("얼티밋 획득"),
+    play_catch_card: t("캐치"),
+    select_combo_first: t("콤보 시작"),
+    select_combo_followup: t("콤보 연결"),
   };
   const verb = verbs[action.type];
   return verb ? `${verb} · ${action.label}` : action.label;
@@ -161,14 +162,15 @@ export function ZoneSheet({ envelope }: { envelope: PlayEnvelope }) {
           >
             <header>
               <h2>
-                {mine ? "내" : "상대"} {ZONE_LABELS[openZone.zone]} <span className="muted">{shown}장</span>
+                {mine ? t("내 {zone}", { zone: ZONE_LABELS[openZone.zone] }) : t("상대 {zone}", { zone: ZONE_LABELS[openZone.zone] })}{" "}
+                <span className="muted">{cardCount(shown)}</span>
               </h2>
               <button type="button" className="btn-ghost" onClick={() => setOpenZone(null)}>
-                닫기
+                {t("닫기")}
               </button>
             </header>
             <div className="zone-sheet-cards">
-              {cards.length === 0 && <p className="muted">카드가 없습니다.</p>}
+              {cards.length === 0 && <p className="muted">{t("카드가 없습니다.")}</p>}
               {entries.map(({ card, index, stacked }) => {
                 const ref = { owner: openZone.owner, zone: openZone.zone, index };
                 const optionId = optionForCard(candidates, ref, card)?.id;

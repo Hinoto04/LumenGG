@@ -4,12 +4,13 @@ import { clockDeadline, clockSeen, useLive } from "../net/live";
 import type { PlayEnvelope } from "../protocol";
 import { perspective } from "../store";
 import { playSound } from "../sound/sfx";
+import { t, seconds } from "../i18n";
 
 const CLOCK_LABELS: Record<string, string> = {
-  ready: "레디",
-  decision: "선택",
-  rewind: "되감기 응답",
-  action: "행동",
+  ready: t("레디"),
+  decision: t("선택"),
+  rewind: t("되감기 응답"),
+  action: t("행동"),
 };
 
 function useNow(active: boolean) {
@@ -55,9 +56,9 @@ export function ClockBadge({ envelope }: { envelope: PlayEnvelope }) {
       : envelope.role === "viewer"
         ? `${String(clock.owner ?? "").toUpperCase()} `
         : clock.owner === me
-          ? "내 "
-          : "상대 ";
-  const label = CLOCK_LABELS[String(clock.kind)] ?? "제한";
+          ? t("내 ")
+          : t("상대 ");
+  const label = CLOCK_LABELS[String(clock.kind)] ?? t("제한");
   const total = Number(clock.duration_seconds) || 0;
   const remaining = clock.paused
     ? Number(clock.remaining_seconds ?? 0)
@@ -70,12 +71,12 @@ export function ClockBadge({ envelope }: { envelope: PlayEnvelope }) {
     <span
       className={`clock-badge ${mine ? "is-mine" : ""} ${urgent ? "is-urgent" : ""} ${clock.paused ? "is-paused" : ""} ${stopped ? "is-stopped" : ""}`}
       role="timer"
-      aria-label={`${owner}${label} 남은 시간 ${remaining}초`}
+      aria-label={t("{owner}{label} 남은 시간 {seconds}초", { owner, label, seconds: remaining })}
     >
       <i style={{ width: `${ratio * 100}%` }} />
       <span>
         {owner}
-        {label} {clock.paused ? "일시정지" : `${remaining}초`}
+        {label} {clock.paused ? t("일시정지") : seconds(remaining)}
       </span>
     </span>
   );

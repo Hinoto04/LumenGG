@@ -6,6 +6,7 @@ import { perspective, usePlay } from "../store";
 import { addFloat, clearFx, shake, showBanner, showRibbon, useFx, type Tone } from "./fx";
 import { soundForEvent } from "../sound/events";
 import { plainMarkup } from "../markup";
+import { t } from "../i18n";
 
 /**
  * 이벤트 재생기.
@@ -146,25 +147,25 @@ async function run(runGeneration: number) {
 // 이벤트 → 중간 상태 + 연출
 
 const GUESS_LABELS: Record<string, string> = {
-  odd: "홀수",
-  even: "짝수",
-  attack: "공격 기술",
-  defense: "수비 기술",
-  odd_attack: "홀수 공격",
-  even_attack: "짝수 공격",
+  odd: t("홀수"),
+  even: t("짝수"),
+  attack: t("공격 기술"),
+  defense: t("수비 기술"),
+  odd_attack: t("홀수 공격"),
+  even_attack: t("짝수 공격"),
 };
 
 export const JUDGE_LABELS: Record<string, string> = {
-  hit: "히트",
-  counter: "카운터",
-  countered: "카운터 당함",
-  guard: "가드",
-  guarded: "가드당함",
-  dodge: "회피",
-  opponent_dodge: "회피당함",
-  clash: "상쇄",
-  grabbed: "잡기",
-  failed_defense: "방어 실패",
+  hit: t("히트"),
+  counter: t("카운터"),
+  countered: t("카운터 당함"),
+  guard: t("가드"),
+  guarded: t("가드당함"),
+  dodge: t("회피"),
+  opponent_dodge: t("회피당함"),
+  clash: t("상쇄"),
+  grabbed: t("잡기"),
+  failed_defense: t("방어 실패"),
   none: "-",
 };
 
@@ -286,8 +287,8 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
       showBanner(
         {
           kind: "phase",
-          title: `${PHASE_LABELS[phase] ?? phase} 페이즈`,
-          sub: turnChanged ? `턴 ${String(payload.turn)}` : undefined,
+          title: t("{phase} 페이즈", { phase: PHASE_LABELS[phase] ?? phase }),
+          sub: turnChanged ? t("턴 {turn}", { turn: String(payload.turn) }) : undefined,
         },
         // 페이즈·턴 전환 연출은 1초 안에 끝낸다(AI는 그사이·그 뒤에 생각해도 된다).
         dur(turnChanged ? 950 : 750),
@@ -313,7 +314,7 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
         showBanner(
           {
             kind: "card",
-            title: `상대가 ${ZONE_LABELS[fromZone] ?? "비공개 영역"}에서 패로 가져간 카드`,
+            title: t("상대가 {zone}에서 패로 가져간 카드", { zone: ZONE_LABELS[fromZone] ?? t("비공개 영역") }),
             card: { ...visibleStub(to, toZone, payload), face_up: true, hidden: false },
             tone: "neutral",
           },
@@ -339,7 +340,7 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
       if (counterKey) {
         const bump = (side: Side, delta: number) => {
           const state = (players[side].passive_state ??= {});
-          const entry = state[counterKey] ?? { label: String(payload.card_label ?? "토큰").replace(/[「」]/g, "") + " 토큰", derived: true };
+          const entry = state[counterKey] ?? { label: t("{card} 토큰", { card: String(payload.card_label ?? t("토큰")).replace(/[「」]/g, "") }), derived: true };
           state[counterKey] = { ...entry, count: Math.max(0, Number(entry.count ?? 0) + delta) };
         };
         if (fromZone === "lumen") bump(from, -1);
@@ -421,19 +422,19 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
       return { envelope, ms: 600 };
 
     case "log_note":
-      showRibbon({ side: actor === "p1" || actor === "p2" ? actor : "system", card: actor === me ? "나" : "상대", text: String(payload.text ?? "") }, dur(1800));
+      showRibbon({ side: actor === "p1" || actor === "p2" ? actor : "system", card: actor === me ? t("나") : t("상대"), text: String(payload.text ?? "") }, dur(1800));
       return { envelope, ms: 300 };
 
     case "combo_started":
-      showBanner({ kind: "text", title: "콤보!", tone: actor === me ? "good" : "bad" }, dur(800));
+      showBanner({ kind: "text", title: t("콤보!"), tone: actor === me ? "good" : "bad" }, dur(800));
       return { envelope, ms: 700 };
 
     case "catch_started":
-      showBanner({ kind: "text", title: "캐치!", tone: actor === me ? "good" : "bad" }, dur(800));
+      showBanner({ kind: "text", title: t("캐치!"), tone: actor === me ? "good" : "bad" }, dur(800));
       return { envelope, ms: 700 };
 
     case "card_broken":
-      if (players[actor]) addFloat({ side: actor, text: "브레이크", tone: "info" });
+      if (players[actor]) addFloat({ side: actor, text: t("브레이크"), tone: "info" });
       return { envelope, ms: 350 };
 
     // 요한 선언(디제스터 원·판도라 박스 등): 고른 상대 패를 양쪽이 잠시 함께 확인한다.
@@ -446,8 +447,8 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
       showBanner(
         {
           kind: "card",
-          title: `${mine ? "내" : "상대"} 선언: ${guess}`,
-          sub: correct ? "적중!" : "빗나감",
+          title: mine ? t("내 선언: {guess}", { guess }) : t("상대 선언: {guess}", { guess }),
+          sub: correct ? t("적중!") : t("빗나감"),
           card: { ...card, face_up: true, hidden: false },
           tone: envelope.role === "viewer" ? "neutral" : correct === mine ? "good" : "bad",
         },

@@ -7,6 +7,7 @@ import { zoneEntries } from "../counterTokens";
 import { Card } from "./Card";
 import { useCardHandlers } from "./Board";
 import { decisionCandidates, movesOnBoard, optionForCard } from "./Decision";
+import { t, cardCount } from "../i18n";
 
 /** 장 수만 보이는 더미 */
 const DOCK_ZONES = new Set<ZoneName>(["lumen", "break", "ultimate", "side"]);
@@ -76,7 +77,8 @@ export function ZoneDock({
     return [...found.values()];
   }, [decision, drag, envelope.legal_actions, me]);
 
-  const title = (zone: DockZone) => `${zone.owner === me ? "내" : "상대"} ${ZONE_LABELS[zone.zone]}`;
+  const title = (zone: DockZone) =>
+    zone.owner === me ? t("내 {zone}", { zone: ZONE_LABELS[zone.zone] }) : t("상대 {zone}", { zone: ZONE_LABELS[zone.zone] });
 
   return (
     <AnimatePresence>
@@ -90,7 +92,7 @@ export function ZoneDock({
           exit={{ opacity: 0 }}
           onClick={() => setHidden(false)}
         >
-          펼치기 · {zones.map(title).join(", ")}
+          {t("펼치기")} · {zones.map(title).join(", ")}
         </motion.button>
       )}
       {zones.length > 0 && !hidden && (
@@ -99,16 +101,16 @@ export function ZoneDock({
           className={`zone-dock ${drag?.active ? "is-dragging" : ""}`}
           // 더미마다 따로 같은 크기의 패널(겹치지 않게)
           style={{ "--docks": zones.length } as CSSProperties}
-          aria-label="펼친 더미"
+          aria-label={t("펼친 더미")}
           initial={{ opacity: 0, x: -24 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -24 }}
           transition={{ type: "spring", stiffness: 420, damping: 36 }}
         >
           <header className="zone-dock-head">
-            <span>더미 펼쳐 보기</span>
+            <span>{t("더미 펼쳐 보기")}</span>
             <button type="button" className="btn-ghost" onClick={() => setHidden(true)}>
-              가리기
+              {t("가리기")}
             </button>
           </header>
           {zones.map((zone) => (
@@ -151,7 +153,7 @@ function DockSection({
   return (
     <section className={`zone-dock-section is-${zone.role}`} data-drop-owner={zone.owner} data-drop-zone={zone.zone}>
       <h3>
-        {title} <span className="muted">{shown}장</span>
+        {title} <span className="muted">{cardCount(shown)}</span>
       </h3>
       <div className="zone-dock-cards">
         {entries.map(({ card, index, stacked }) => {
@@ -171,7 +173,7 @@ function DockSection({
             view
           );
         })}
-        {!cards.length && <span className="zone-dock-empty">{zone.role === "to" ? "여기에 놓으세요" : "비어 있음"}</span>}
+        {!cards.length && <span className="zone-dock-empty">{zone.role === "to" ? t("여기에 놓으세요") : t("비어 있음")}</span>}
       </div>
     </section>
   );

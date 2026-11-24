@@ -6,6 +6,7 @@ import type { BoardCard, PlayEnvelope, PlayerState, Side, VisibleCard, ZoneName 
 import { useCardView } from "../catalog";
 import { perspective, usePlay } from "../store";
 import { CharacterPassive, characterPanel } from "./CharacterPassive";
+import { seconds as formatSeconds, t } from "../i18n";
 
 /**
  * 수동 모드(샌드박스) 조작. 규칙 판정 없이 서버가 행동을 그대로 적용한다.
@@ -18,11 +19,11 @@ const MOVE_ZONES: ZoneName[] = ["battle", "hand", "list", "side", "lumen", "brea
 /** 상대에게 보낼 수 있는 존(CROSS_PLAYER_ZONES) */
 const CROSS_ZONES: ZoneName[] = ["battle", "lumen"];
 const SIGNALS = [
-  ["effect", "효과 발동"],
-  ["combo", "콤보 타임"],
-  ["catch", "캐치 타임"],
+  ["effect", t("효과 발동")],
+  ["combo", t("콤보 타임")],
+  ["catch", t("캐치 타임")],
 ] as const;
-const QUICK_LOGS = ["히트", "카운터", "방어", "회피", "상쇄", "대응 없음"];
+const QUICK_LOGS = [t("히트"), t("카운터"), t("방어"), t("회피"), t("상쇄"), t("대응 없음")];
 
 const other = (side: Side): Side => (side === "p1" ? "p2" : "p1");
 
@@ -56,7 +57,7 @@ export function ManualCardActions({
   return (
     <div className="manual-card-actions">
       <SpecialCardActions envelope={envelope} card={visible} zone={zone} onDone={onDone} />
-      <span className="muted">이동</span>
+      <span className="muted">{t("이동")}</span>
       <div className="menu-buttons">
         {MOVE_ZONES.filter((target) => target !== zone).map((target) => (
           <button key={target} type="button" className="btn-secondary" onClick={() => move(target)}>
@@ -65,7 +66,7 @@ export function ManualCardActions({
         ))}
         {CROSS_ZONES.map((target) => (
           <button key={`opp-${target}`} type="button" className="btn-secondary" onClick={() => move(target, other(owner))}>
-            상대 {ZONE_LABELS[target]}
+            {t("상대 {zone}", { zone: ZONE_LABELS[target] })}
           </button>
         ))}
       </div>
@@ -78,7 +79,7 @@ export function ManualCardActions({
             onDone();
           }}
         >
-          {visible.face_up ? "비공개로" : "공개하기"}
+          {visible.face_up ? t("비공개로") : t("공개하기")}
         </button>
       )}
     </div>
@@ -105,7 +106,8 @@ function SpecialCardActions({
   const view = useCardView(card);
   const { me } = perspective(envelope);
   const name = String(view?.name ?? card.name ?? "");
-  const blackout = card.face_up && name.includes("블랙아웃");
+  // 카드 이름은 화면 언어로 옮겨져 올 수 있다.
+  const blackout = card.face_up && /블랙아웃|blackout|ブラックアウト/i.test(name);
   const isCmyk = String(envelope.state.players[me].character?.name ?? "") === "CMYK";
   const hosts =
     isCmyk && envelope.state.phase === "ready" && zone === "battle" && !card.attached_to
@@ -125,7 +127,7 @@ function SpecialCardActions({
             onDone();
           }}
         >
-          암전 · 상대 리스트 무작위 1장
+          {t("암전 · 상대 리스트 무작위 1장")}
         </button>
       )}
       {hosts.map((host) => (
@@ -146,7 +148,7 @@ function HostButton({ host, onPress }: { host: VisibleCard; onPress: () => void 
   const view = useCardView(host);
   return (
     <button type="button" className="btn-primary" onClick={onPress}>
-      세트 → {String(view?.name ?? host.name ?? "기술")}
+      {t("세트")} → {String(view?.name ?? host.name ?? t("기술"))}
     </button>
   );
 }
@@ -171,11 +173,11 @@ function useTimerSeconds(timer: Record<string, unknown> | undefined): number | n
 export function manualStatusText(envelope: PlayEnvelope): string {
   const status = (envelope.state.status ?? {}) as Record<Side, { requested?: boolean; done?: boolean }>;
   const { me, opp } = perspective(envelope);
-  if (envelope.role === "viewer") return "관전 중 · 수동 대전";
-  if (status[me]?.requested) return "내 차례입니다";
-  if (status[opp]?.requested) return "상대 차례입니다";
-  if (status[me]?.done && status[opp]?.done) return "양쪽 모두 완료";
-  return "수동 대전";
+  if (envelope.role === "viewer") return t("관전 중 · 수동 대전");
+  if (status[me]?.requested) return t("내 차례입니다");
+  if (status[opp]?.requested) return t("상대 차례입니다");
+  if (status[me]?.done && status[opp]?.done) return t("양쪽 모두 완료");
+  return t("수동 대전");
 }
 
 export function ManualDock({ envelope }: { envelope: PlayEnvelope }) {
@@ -190,17 +192,17 @@ export function ManualDock({ envelope }: { envelope: PlayEnvelope }) {
     <>
       <div className="action-dock manual-dock">
         <button type="button" className={`btn-secondary manual-timer ${seconds != null ? "is-running" : ""}`} onClick={() => sendManual("timer")}>
-          {seconds != null ? `${seconds}초` : "10초"}
+          {formatSeconds(seconds ?? 10)}
         </button>
         <button type="button" className="btn-secondary" onClick={() => setToolsOpen(true)}>
-          도구
+          {t("도구")}
         </button>
         <button
           type="button"
           className={`btn-primary ${done ? "is-quiet" : ""}`}
           onClick={() => sendManual("set_done", { target: me, done: !done })}
         >
-          {done ? "완료 취소" : "완료"}
+          {done ? t("완료 취소") : t("완료")}
         </button>
       </div>
       <ManualTools envelope={envelope} open={toolsOpen} onClose={() => setToolsOpen(false)} />
@@ -231,14 +233,14 @@ function ManualTools({ envelope, open, onClose }: { envelope: PlayEnvelope; open
             onClick={(event) => event.stopPropagation()}
           >
             <header>
-              <h2>수동 대전 도구</h2>
+              <h2>{t("수동 대전 도구")}</h2>
               <button type="button" className="btn-ghost" onClick={onClose}>
-                닫기
+                {t("닫기")}
               </button>
             </header>
             <section>
               <div className="menu-row">
-                <span>페이즈 · 턴 {envelope.state.turn}</span>
+                <span>{t("페이즈 · 턴 {turn}", { turn: envelope.state.turn })}</span>
                 <div className="menu-buttons">
                   {PHASE_ORDER.map((phase) => (
                     <button
@@ -251,45 +253,45 @@ function ManualTools({ envelope, open, onClose }: { envelope: PlayEnvelope; open
                     </button>
                   ))}
                   <button type="button" className="btn-secondary" onClick={() => run("phase_advance")}>
-                    다음 페이즈
+                    {t("다음 페이즈")}
                   </button>
                   <button type="button" className="btn-secondary" onClick={() => run("next_turn")}>
-                    다음 턴
+                    {t("다음 턴")}
                   </button>
                 </div>
               </div>
               <div className="menu-row">
-                <span>차례</span>
+                <span>{t("차례")}</span>
                 <div className="menu-buttons">
                   <button type="button" className="btn-secondary" onClick={() => run("request_action", { target: opp })}>
-                    상대에게 차례 넘기기
+                    {t("상대에게 차례 넘기기")}
                   </button>
                   <button type="button" className="btn-secondary" onClick={() => run("request_action", { target: me })}>
-                    내 차례로
+                    {t("내 차례로")}
                   </button>
                 </div>
               </div>
             </section>
             <section>
               <div className="menu-row">
-                <span>배틀존 · 손패</span>
+                <span>{t("배틀존 · 손패")}</span>
                 <div className="menu-buttons">
                   <button type="button" className="btn-secondary" onClick={() => run("bulk_move", { player: me, from_zone: "battle", to_zone: "list" })}>
-                    배틀존 → 리스트
+                    {t("배틀존 → 리스트")}
                   </button>
                   <button type="button" className="btn-secondary" onClick={() => run("bulk_move", { player: me, from_zone: "battle", to_zone: "hand" })}>
-                    배틀존 → 손패
+                    {t("배틀존 → 손패")}
                   </button>
                   <button type="button" className="btn-secondary" onClick={() => run("shuffle_hand", { player: me })}>
-                    손패 섞기
+                    {t("손패 섞기")}
                   </button>
                   <button type="button" className="btn-secondary" onClick={() => run("set_hand_visibility", { target: me, face_up: !handOpen })}>
-                    손패 {handOpen ? "비공개" : "공개"}
+                    {handOpen ? t("손패 비공개") : t("손패 공개")}
                   </button>
                 </div>
               </div>
               <div className="menu-row">
-                <span>신호</span>
+                <span>{t("신호")}</span>
                 <div className="menu-buttons">
                   {SIGNALS.map(([signal, label]) => (
                     <button key={signal} type="button" className="btn-secondary" onClick={() => run("signal", { signal })}>
@@ -301,7 +303,7 @@ function ManualTools({ envelope, open, onClose }: { envelope: PlayEnvelope; open
             </section>
             <section>
               <div className="menu-row">
-                <span>기록</span>
+                <span>{t("기록")}</span>
                 <div className="menu-buttons">
                   {QUICK_LOGS.map((text) => (
                     <button key={text} type="button" className="btn-secondary" onClick={() => run("log_note", { text })}>
@@ -318,14 +320,14 @@ function ManualTools({ envelope, open, onClose }: { envelope: PlayEnvelope; open
                     setNote("");
                   }}
                 >
-                  <input value={note} maxLength={300} placeholder="기록할 내용" onChange={(event) => setNote(event.target.value)} />
+                  <input value={note} maxLength={300} placeholder={t("기록할 내용")} onChange={(event) => setNote(event.target.value)} />
                   <button type="submit" className="btn-secondary" disabled={!note.trim()}>
-                    기록
+                    {t("기록")}
                   </button>
                 </form>
               </div>
               <div className="menu-row">
-                <span>카드 생성(루멘 존)</span>
+                <span>{t("카드 생성(루멘 존)")}</span>
                 <form
                   className="menu-inline-form"
                   onSubmit={(event) => {
@@ -335,16 +337,16 @@ function ManualTools({ envelope, open, onClose }: { envelope: PlayEnvelope; open
                     setCardName("");
                   }}
                 >
-                  <input value={cardName} maxLength={100} placeholder="카드 이름" onChange={(event) => setCardName(event.target.value)} />
+                  <input value={cardName} maxLength={100} placeholder={t("카드 이름")} onChange={(event) => setCardName(event.target.value)} />
                   <button type="submit" className="btn-secondary" disabled={!cardName.trim()}>
-                    생성
+                    {t("생성")}
                   </button>
                 </form>
               </div>
             </section>
             <section>
               <button type="button" className="btn-danger" onClick={() => run("undo")}>
-                마지막 행동 되돌리기
+                {t("마지막 행동 되돌리기")}
               </button>
             </section>
           </motion.div>
@@ -392,8 +394,8 @@ function PassiveControls({ side, player, enabled, mine }: { side: Side; player: 
       const legacy = target?.seat ? `/battlelog/simulator/${target.view}/${target.seat}/${target.token}/?legacy=1` : null;
       return (
         <p className="muted">
-          이 캐릭터의 전용 패시브는 예전 화면에서 조작합니다.{" "}
-          {legacy && <a href={legacy}>예전 화면 열기</a>}
+          {t("이 캐릭터의 전용 패시브는 예전 화면에서 조작합니다.")}{" "}
+          {legacy && <a href={legacy}>{t("예전 화면 열기")}</a>}
         </p>
       );
     }
@@ -409,7 +411,7 @@ function PassiveControls({ side, player, enabled, mine }: { side: Side; player: 
             <div key={control.key} className="passive-row">
               <span>{control.label ?? control.key}</span>
               <button type="button" className={`btn-secondary ${isOn(value) ? "is-current" : ""}`} disabled={!enabled} onClick={() => set(control, !isOn(value))}>
-                {isOn(value) ? "켜짐" : "꺼짐"}
+                {isOn(value) ? t("켜짐") : t("꺼짐")}
               </button>
             </div>
           );
@@ -464,7 +466,7 @@ function PassiveControls({ side, player, enabled, mine }: { side: Side; player: 
         return (
           <div key={control.key} className="passive-row">
             <span>{control.label ?? control.key}</span>
-            <b className="passive-value">{typeof value === "boolean" ? (value ? "켜짐" : "꺼짐") : String(value ?? "-")}</b>
+            <b className="passive-value">{typeof value === "boolean" ? (value ? t("켜짐") : t("꺼짐")) : String(value ?? "-")}</b>
           </div>
         );
       })}
@@ -495,10 +497,10 @@ export function PlayerSheet({ envelope }: { envelope: PlayEnvelope }) {
           >
             <header>
               <h2>
-                {side === me ? "나" : "상대"} · {String(player.character?.name ?? player.name)}
+                {side === me ? t("나") : t("상대")} · {String(player.character?.name ?? player.name)}
               </h2>
               <button type="button" className="btn-ghost" onClick={close}>
-                닫기
+                {t("닫기")}
               </button>
             </header>
             <section>
@@ -521,9 +523,9 @@ export function PlayerSheet({ envelope }: { envelope: PlayEnvelope }) {
                     setCustom("");
                   }}
                 >
-                  <input inputMode="numeric" value={custom} placeholder="예: -300, 200" onChange={(event) => setCustom(event.target.value)} disabled={!enabled} />
+                  <input inputMode="numeric" value={custom} placeholder={t("예: -300, 200")} onChange={(event) => setCustom(event.target.value)} disabled={!enabled} />
                   <button type="submit" className="btn-secondary" disabled={!enabled || !Math.trunc(Number(custom))}>
-                    적용
+                    {t("적용")}
                   </button>
                 </form>
               </div>
@@ -537,7 +539,7 @@ export function PlayerSheet({ envelope }: { envelope: PlayEnvelope }) {
                     +1
                   </button>
                   <button type="button" className="btn-secondary" disabled={!enabled || !player.fp} onClick={() => sendManual("fp_reset", { target: side })}>
-                    초기화
+                    {t("초기화")}
                   </button>
                 </div>
               </div>

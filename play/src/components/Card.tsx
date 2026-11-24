@@ -4,6 +4,7 @@ import type { BoardCard, CardRef, Side, VisibleCard, ZoneName } from "../protoco
 import { showCardInfo } from "../store";
 import { cardImage, useCardView, type CardView, type ImageSize } from "../catalog";
 import { cardTypeClass } from "../labels";
+import { t } from "../i18n";
 
 export type CardSize = "hand" | "board" | "mini" | "large";
 
@@ -70,9 +71,9 @@ function DrawnFace({ view }: { view: CardView }) {
         <span className="card-guard">
           {(
             [
-              ["상", view.g_top],
-              ["중", view.g_mid],
-              ["하", view.g_bot],
+              [t("상"), view.g_top],
+              [t("중"), view.g_mid],
+              [t("하"), view.g_bot],
             ] as const
           ).map(([label, value]) => (
             <i key={label} className={value ? "is-on" : ""}>
@@ -82,7 +83,7 @@ function DrawnFace({ view }: { view: CardView }) {
         </span>
       )}
       <span className="card-name">{view.name}</span>
-      <span className="card-type">{view.type}</span>
+      <span className="card-type">{String(view.type_label || view.type || "")}</span>
     </>
   );
 }
@@ -182,7 +183,7 @@ export function Card({
         showCardInfo({ card, ref: infoRef(card, selectKey) });
       }}
       disabled={!onClick}
-      aria-label={view ? String(view.name ?? "카드") : "비공개 카드"}
+      aria-label={view ? String(view.name ?? t("카드")) : t("비공개 카드")}
       initial={enter === "flip" && view ? { opacity: 1, rotateY: 90, scale: 1.08 } : { opacity: 0, scale: 0.85 }}
       animate={{ opacity: 1, scale: 1, rotateY: 0 }}
       exit={{ opacity: 0, scale: 0.85, transition: { duration: 0.15 } }}
@@ -195,23 +196,23 @@ export function Card({
       )}
       {view && !showImage && <DrawnFace view={view} />}
       {view && (card as VisibleCard).attached_to && (
-        <span className="card-set" title="다른 기술에 세트된 카드">
-          세트
+        <span className="card-set" title={t("다른 기술에 세트된 카드")}>
+          {t("세트")}
         </span>
       )}
       {secretToOthers && (
-        <span className="card-secret" title="상대에게는 뒷면으로 보입니다">
-          비공개
+        <span className="card-secret" title={t("상대에게는 뒷면으로 보입니다")}>
+          {t("비공개")}
         </span>
       )}
       {knownCard && (
-        <span className="card-secret card-revealed" title="손패에서 공개되었던 카드입니다(뒷면으로 놓였지만 무슨 카드인지 알려져 있습니다)">
-          공개됨
+        <span className="card-secret card-revealed" title={t("손패에서 공개되었던 카드입니다(뒷면으로 놓였지만 무슨 카드인지 알려져 있습니다)")}>
+          {t("공개됨")}
         </span>
       )}
       {revealedInHand && (
-        <span className="card-secret card-revealed" title="상대에게 공개된 카드입니다">
-          공개됨
+        <span className="card-secret card-revealed" title={t("상대에게 공개된 카드입니다")}>
+          {t("공개됨")}
         </span>
       )}
     </motion.button>

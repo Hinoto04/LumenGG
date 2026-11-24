@@ -6,6 +6,7 @@ import { useLive } from "../net/live";
 import { showCardInfo } from "../store";
 import { Card } from "./Card";
 import { useCompact } from "./Selection";
+import { t } from "../i18n";
 
 /**
  * 기록. PC는 오른쪽 사이드 패널, 좁은 화면은 아래에서 올라오는 모달.
@@ -19,16 +20,16 @@ export function LogPanel({ envelope, open, onClose }: { envelope: PlayEnvelope; 
   const body = (
     <>
       <header className="log-head">
-        <h2>기록</h2>
+        <h2>{t("기록")}</h2>
         <span className="log-legend">
-          <i className="is-me" /> 나 <i className="is-opp" /> 상대
+          <i className="is-me" /> {t("나")} <i className="is-opp" /> {t("상대")}
         </span>
         <button type="button" className="btn-ghost" onClick={onClose}>
-          닫기
+          {t("닫기")}
         </button>
       </header>
       <ol className="log-list">
-        {entries.length === 0 && <li className="muted log-empty">아직 기록이 없습니다.</li>}
+        {entries.length === 0 && <li className="muted log-empty">{t("아직 기록이 없습니다.")}</li>}
         {entries.map((entry) => (
           <LogRow key={entry.seq} entry={entry} />
         ))}
@@ -41,7 +42,7 @@ export function LogPanel({ envelope, open, onClose }: { envelope: PlayEnvelope; 
         <motion.aside
           key="log-side"
           className="log-panel"
-          aria-label="기록"
+          aria-label={t("기록")}
           initial={{ opacity: 0, x: 32 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 32 }}

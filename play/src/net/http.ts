@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 /**
  * Django JSON 요청. POST는 CSRF 토큰이 필요하다.
  * /battlelog/play/는 csrftoken 쿠키를 심어 주므로, 쿠키가 없으면(개발 서버 등) 한 번 들러서 받는다.
@@ -34,7 +35,7 @@ async function parse<T>(response: Response): Promise<T> {
     /* 본문 없는 오류 */
   }
   if (!response.ok || (data && typeof data === "object" && (data as { ok?: boolean }).ok === false)) {
-    const message = (data as { error?: string } | null)?.error || `요청을 처리하지 못했습니다. (HTTP ${response.status})`;
+    const message = (data as { error?: string } | null)?.error || t("요청을 처리하지 못했습니다. (HTTP {status})", { status: response.status });
     throw new RequestError(message, response.status);
   }
   return data as T;

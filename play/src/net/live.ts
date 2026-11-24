@@ -6,6 +6,7 @@ import { acknowledge, predict, predictCommand, predictManual, reject, resetPredi
 import type { LiveTarget } from "../mode";
 import type { ClientMessage, GameEvent, LegalAction, PlayEnvelope, Role, ServerMessage } from "../protocol";
 import { usePlay } from "../store";
+import { LANGUAGE, t } from "../i18n";
 
 export type LiveStatus = "connecting" | "open" | "reconnecting" | "closed";
 
@@ -69,7 +70,7 @@ function uid(): string {
 
 function socketUrl(target: LiveTarget): string {
   const scheme = location.protocol === "https:" ? "wss" : "ws";
-  const query = new URLSearchParams({ seat: target.seat, seat_token: target.token, language: "ko" });
+  const query = new URLSearchParams({ seat: target.seat, seat_token: target.token, language: LANGUAGE });
   return `${scheme}://${location.host}/ws/battlelog/simulator/${encodeURIComponent(target.view)}/?${query}`;
 }
 
@@ -194,7 +195,7 @@ export function connectLive(target: LiveTarget): () => void {
       send({ type: "log_subscribe", since_seq: lastSeq });
       resetPlayback(envelope);
     } else if (envelope.mode === "manual" && envelope.automation_failure) {
-      useLive.setState({ fatal: "엔진 오류로 이 대전은 수동 모드로 바뀌었습니다. 새 대전을 시작해 주세요." });
+      useLive.setState({ fatal: t("엔진 오류로 이 대전은 수동 모드로 바뀌었습니다. 새 대전을 시작해 주세요.") });
       resetPlayback(envelope);
     } else {
       // 앞선 이벤트를 재생한 뒤에 화면에 반영된다.
@@ -254,9 +255,9 @@ export function connectLive(target: LiveTarget): () => void {
         if (message.request_id && pendingRequest && message.request_id !== pendingRequest) return;
         clearBusy();
         if (message.code === "automatic_fallback") {
-          useLive.setState({ fatal: message.error || "엔진 오류로 대전이 중단되었습니다." });
+          useLive.setState({ fatal: message.error || t("엔진 오류로 대전이 중단되었습니다.") });
         } else {
-          usePlay.getState().flash(message.error || "요청이 거부되었습니다.");
+          usePlay.getState().flash(message.error || t("요청이 거부되었습니다."));
         }
         if (message.state) applyEnvelope(message.state);
         else send({ type: "state" });
@@ -292,7 +293,7 @@ export function connectLive(target: LiveTarget): () => void {
       clearBusy();
       if (stopped) return;
       if (event.code === 4404) {
-        useLive.setState({ status: "closed", fatal: "대전을 찾을 수 없습니다. 만료되었거나 주소가 잘못되었습니다." });
+        useLive.setState({ status: "closed", fatal: t("대전을 찾을 수 없습니다. 만료되었거나 주소가 잘못되었습니다.") });
         return;
       }
       useLive.setState({ status: "reconnecting" });
@@ -326,7 +327,7 @@ export function connectLive(target: LiveTarget): () => void {
     target,
     manual(action, payload) {
       if (socket?.readyState !== WebSocket.OPEN) {
-        usePlay.getState().flash("연결이 끊겨 있습니다. 다시 연결되면 시도해 주세요.");
+        usePlay.getState().flash(t("연결이 끊겨 있습니다. 다시 연결되면 시도해 주세요."));
         return;
       }
       const requestId = uid();
@@ -343,11 +344,11 @@ export function connectLive(target: LiveTarget): () => void {
       let envelope = usePlay.getState().envelope;
       if (!envelope) return;
       if (socket?.readyState !== WebSocket.OPEN) {
-        usePlay.getState().flash("연결이 끊겨 있습니다. 다시 연결되면 시도해 주세요.");
+        usePlay.getState().flash(t("연결이 끊겨 있습니다. 다시 연결되면 시도해 주세요."));
         return;
       }
       if (useLive.getState().busy) {
-        usePlay.getState().flash("앞선 행동을 처리하는 중입니다.");
+        usePlay.getState().flash(t("앞선 행동을 처리하는 중입니다."));
         return;
       }
       if (envelope.version !== latestVersion && latestEnvelope) {
@@ -358,7 +359,7 @@ export function connectLive(target: LiveTarget): () => void {
         const match = latest.legal_actions.find((item) => key(item) === key(action));
         resetPlayback(latest);
         if (!match) {
-          usePlay.getState().flash("상황이 바뀌었습니다. 최신 화면에서 다시 선택해 주세요.");
+          usePlay.getState().flash(t("상황이 바뀌었습니다. 최신 화면에서 다시 선택해 주세요."));
           return;
         }
         action = match;
@@ -373,7 +374,7 @@ export function connectLive(target: LiveTarget): () => void {
       commandTimer = setTimeout(() => {
         reject(requestId);
         clearBusy();
-        usePlay.getState().flash("응답이 늦습니다. 상태를 다시 불러옵니다.");
+        usePlay.getState().flash(t("응답이 늦습니다. 상태를 다시 불러옵니다."));
         send({ type: "state" });
       }, COMMAND_TIMEOUT_MS);
       send({

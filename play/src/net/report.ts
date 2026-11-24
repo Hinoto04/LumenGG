@@ -1,5 +1,6 @@
 import { postJson } from "./http";
 import { currentTarget } from "./live";
+import { t } from "../i18n";
 
 /**
  * 자동 판정 문제 제보(battlelog:simulatorReportIssue). 관리자 검수 화면에서 확인한다.
@@ -22,7 +23,7 @@ function reportUrl(): { url: string; seat: string; seat_token: string } | null {
 
 export async function reportIssue(details: string): Promise<string> {
   const route = reportUrl();
-  if (!route) throw new Error("좌석으로 접속한 플레이어만 제보할 수 있습니다.");
+  if (!route) throw new Error(t("좌석으로 접속한 플레이어만 제보할 수 있습니다."));
   const { url, ...seat } = route;
   const data = await postJson<{ report_id: string }>(url, {
     ...seat,
@@ -42,7 +43,7 @@ function reportClientError(value: unknown, context: string) {
   const error = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
   const diagnostic = {
     error_type: String(error.name ?? "ClientError").slice(0, 120),
-    message: String(error.message ?? value ?? "브라우저 오류").slice(0, 500),
+    message: String(error.message ?? value ?? t("브라우저 오류")).slice(0, 500),
     source: String(error.filename ?? "").slice(0, 1000),
     line: Number(error.lineno ?? 0),
     column: Number(error.colno ?? 0),

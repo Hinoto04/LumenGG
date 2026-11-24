@@ -1,4 +1,5 @@
 import type { PlayerState } from "./protocol";
+import { t } from "./i18n";
 
 /**
  * 초상에 보여 줄 패시브 목록. 아직 한 번도 바뀌지 않아 passive_state에 없는 값도
@@ -28,24 +29,24 @@ interface Control {
 /** 전용 패널(CharacterPassive.tsx)이 다루는 키와 기본값 */
 const PANEL_KEYS: Record<string, Control[]> = {
   "data-yohan-panel": [
-    { type: "counter", key: "foresight_counter", label: "예지", default: 2, max: 10 },
-    { type: "toggle", key: "disaster_one", label: "디제스터 원" },
+    { type: "counter", key: "foresight_counter", label: t("예지"), default: 2, max: 10 },
+    { type: "toggle", key: "disaster_one", label: t("디제스터 원") },
   ],
   "data-tao-panel": [
-    { type: "counter", key: "yang_counter", label: "양", max: 4 },
-    { type: "counter", key: "yin_counter", label: "음", max: 4 },
-    { type: "toggle", key: "harmony", label: "조화" },
+    { type: "counter", key: "yang_counter", label: t("양"), max: 4 },
+    { type: "counter", key: "yin_counter", label: t("음"), max: 4 },
+    { type: "toggle", key: "harmony", label: t("조화") },
     {
       type: "choice",
       key: "harmony_effect",
-      label: "조화 효과",
+      label: t("조화 효과"),
       choices: [
         { value: "damage_100", label: "DMG+100" },
         { value: "fp_1", label: "FP+1" },
       ],
     },
   ],
-  "data-cmyk-panel": [{ type: "toggle", key: "new_single_created", label: "뉴 싱글" }],
+  "data-cmyk-panel": [{ type: "toggle", key: "new_single_created", label: t("뉴 싱글") }],
 };
 
 const ON = new Set<unknown>([true, "true", "on", "ON"]);
@@ -60,11 +61,11 @@ function stored(player: PlayerState, key: string): unknown {
 
 /** 엔진 상태 키가 그대로 노출되는 항목의 한글 이름 */
 const STATE_LABELS: Record<string, string> = {
-  yin: "음",
-  yang: "양",
-  harmony: "조화",
-  harmony_damage: "조화: DMG+100",
-  harmony_fp: "조화: FP+1",
+  yin: t("음"),
+  yang: t("양"),
+  harmony: t("조화"),
+  harmony_damage: t("조화: DMG+100"),
+  harmony_fp: t("조화: FP+1"),
 };
 
 export function labelFor(player: PlayerState, key: string, fallback?: string): string {

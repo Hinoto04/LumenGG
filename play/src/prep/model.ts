@@ -1,6 +1,7 @@
 import { getJson, postJson, RequestError, uid } from "../net/http";
 import { applyEnvelope, currentTarget } from "../net/live";
 import type { PlayEnvelope, PrepActive, PrepCatalogCard, PrepCardRow, PrepRegistered } from "../protocol";
+import { t } from "../i18n";
 
 /**
  * 덱 준비 편집 모델. 서버(deck/validation.py validate)가 최종 판정하고,
@@ -182,7 +183,7 @@ export interface ValidationReport {
 
 function seatBody() {
   const target = currentTarget();
-  if (!target?.seat) throw new Error("좌석 정보가 없습니다.");
+  if (!target?.seat) throw new Error(t("좌석 정보가 없습니다."));
   return { target, seat: target.seat, seat_token: target.token };
 }
 

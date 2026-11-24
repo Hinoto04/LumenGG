@@ -6,6 +6,7 @@ import { ZONE_LABELS } from "../labels";
 import { perspective, refKey, usePlay } from "../store";
 import { Card } from "./Card";
 import { ClockBadge } from "./Clock";
+import { t } from "../i18n";
 
 export type SubmitAction = (action: LegalAction, selections?: { selected?: string[]; reason?: string }) => void;
 
@@ -150,7 +151,9 @@ function groupOptions(options: DecisionOption[], me: string): [string, DecisionO
   const groups = new Map<string, DecisionOption[]>();
   for (const option of options) {
     const ref = option.ui?.card;
-    const key = ref ? `${ref.owner === me ? "내" : "상대"} ${ZONE_LABELS[ref.zone] ?? ref.zone}` : "";
+    const key = ref ? ref.owner === me
+        ? t("내 {zone}", { zone: ZONE_LABELS[ref.zone] ?? ref.zone })
+        : t("상대 {zone}", { zone: ZONE_LABELS[ref.zone] ?? ref.zone }) : "";
     groups.set(key, [...(groups.get(key) ?? []), option]);
   }
   const entries = [...groups.entries()];
@@ -239,14 +242,14 @@ export function DecisionPanel({
   const destination = options.find((option) => option.ui?.to_zone)?.ui.to_zone;
   const fromPile = options.some((option) => option.ui?.card && !["hand", "list", "battle"].includes(option.ui.card.zone));
   const hintText = onBoard
-    ? "빨간 테두리(From)에서 파란 테두리(To)로 카드를 끌어 옮기세요" +
-      (fromPile ? " · 더미의 카드는 펼친 패널에서 끌어 옵니다" : "") +
-      (selected.length ? " · 노란 테두리 카드는 다시 끌거나 눌러 되돌립니다" : "")
+    ? t("빨간 테두리(From)에서 파란 테두리(To)로 카드를 끌어 옮기세요") +
+      (fromPile ? t(" · 더미의 카드는 펼친 패널에서 끌어 옵니다") : "") +
+      (selected.length ? t(" · 노란 테두리 카드는 다시 끌거나 눌러 되돌립니다") : "")
     : options.some((option) => option.ui?.to_zone)
-      ? `${ZONE_LABELS[destination!]}(으)로 끌어 놓거나 눌러서 고르세요`
-      : "빛나는 카드를 눌러서 고르세요";
+      ? t("{zone}(으)로 끌어 놓거나 눌러서 고르세요", { zone: ZONE_LABELS[destination!] })
+      : t("빛나는 카드를 눌러서 고르세요");
   const countHint =
-    maximum <= 1 ? (minimum === 0 ? "고르지 않아도 됩니다" : "하나를 고르세요") : minimum === maximum ? `${minimum}개를 고르세요` : `${minimum}~${maximum}개를 고르세요`;
+    maximum <= 1 ? (minimum === 0 ? t("고르지 않아도 됩니다") : t("하나를 고르세요")) : minimum === maximum ? t("{n}개를 고르세요", { n: minimum }) : t("{min}~{max}개를 고르세요", { min: minimum, max: maximum });
 
   return (
     <AnimatePresence>
@@ -283,11 +286,11 @@ export function DecisionPanel({
                 ))}
             {onBoard && selected.length > 0 && (
               <button type="button" className="btn-ghost" onClick={() => setSelected([])}>
-                모두 되돌리기
+                {t("모두 되돌리기")}
               </button>
             )}
             <button type="button" className="btn-ghost" onClick={() => setCollapsed(false)}>
-              목록으로 보기
+              {t("목록으로 보기")}
             </button>
             {onBoard && (
               <button
@@ -296,7 +299,7 @@ export function DecisionPanel({
                 disabled={!ready || busy}
                 onClick={() => onSubmit(action, { selected })}
               >
-                {busy ? "보내는 중…" : "확정"}
+                {busy ? t("보내는 중…") : t("확정")}
               </button>
             )}
           </span>
@@ -312,7 +315,7 @@ export function DecisionPanel({
           <motion.section
             className="decision"
             role="dialog"
-            aria-label="효과 선택"
+            aria-label={t("효과 선택")}
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
@@ -322,7 +325,7 @@ export function DecisionPanel({
               <h2>{decision?.prompt || action.label}</h2>
               <span className="muted">
                 {countHint}
-                {maximum > 1 ? ` · ${selected.length}개 선택` : ""}
+                {maximum > 1 ? ` · ${t("{n}개 선택", { n: selected.length })}` : ""}
               </span>
               <ClockBadge envelope={envelope} />
             </header>
@@ -350,7 +353,7 @@ export function DecisionPanel({
                     </button>
                     {card && ref && (
                       <button type="button" className="decision-info" onClick={() => setInspect({ card, ref })}>
-                        카드 보기
+                        {t("카드 보기")}
                       </button>
                     )}
                   </div>
@@ -361,7 +364,7 @@ export function DecisionPanel({
             ))}
             {!!decision?.unavailable_options?.length && (
               <div className="decision-group decision-unavailable">
-                <h3 className="decision-group-title">고를 수 없음</h3>
+                <h3 className="decision-group-title">{t("고를 수 없음")}</h3>
                 <div className="decision-options">
                   {decision.unavailable_options.map((option) => (
                     <div key={option.id} className="decision-option is-disabled">
@@ -376,7 +379,7 @@ export function DecisionPanel({
             )}
             <footer>
               <button type="button" className="btn-ghost" onClick={() => setCollapsed(true)}>
-                {options.some((option) => option.ui?.card) ? "보드에서 고르기" : "보드 보기"}
+                {options.some((option) => option.ui?.card) ? t("보드에서 고르기") : t("보드 보기")}
               </button>
               <button
                 type="button"
@@ -384,7 +387,7 @@ export function DecisionPanel({
                 disabled={!ready || busy}
                 onClick={() => onSubmit(action, { selected })}
               >
-                {busy ? "보내는 중…" : "확정"}
+                {busy ? t("보내는 중…") : t("확정")}
               </button>
             </footer>
           </motion.section>

@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { SITE_ORIGIN } from "../src/battle";
 import { classifyNavigation } from "../src/battle-nav";
+import { useApp } from "../src/provider";
 import { colors, styles } from "../src/ui";
 
 /**
@@ -17,7 +18,10 @@ export default function Play() {
   const canGoBack = useRef(false);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const target = typeof url === "string" && classifyNavigation(url, SITE_ORIGIN) === "allow" ? url : null;
+  const { language } = useApp();
+  const allowed = typeof url === "string" && classifyNavigation(url, SITE_ORIGIN) === "allow" ? url : null;
+  // 대전 화면은 앱 언어로 연다. 웹은 ?lang=을 세션에 담아 이어지는 요청도 같은 언어로 답한다.
+  const target = allowed ? withLanguage(allowed, language) : null;
 
   // 안드로이드 뒤로 가기: WebView 안에서 먼저 돌아가고, 더 갈 곳이 없으면 화면을 닫는다.
   useEffect(() => {
@@ -104,4 +108,14 @@ export default function Play() {
       )}
     </SafeAreaView>
   );
+}
+
+function withLanguage(url: string, language: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set("lang", language);
+    return parsed.toString();
+  } catch {
+    return url;
+  }
 }

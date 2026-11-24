@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useFx, type Float } from "../anim/fx";
 import type { Side } from "../protocol";
 import { Card } from "./Card";
+import { t } from "../i18n";
 
 /** 화면 가운데 배너(페이즈, 판정, 콤보)와 위쪽 효과 띠 */
 export function FxLayer({ me }: { me: Side }) {
@@ -31,8 +32,8 @@ export function FxLayer({ me }: { me: Side }) {
               <>
                 <strong>{banner.mine}</strong>
                 <span className="fx-judge-sub">
-                  상대 {banner.theirs}
-                  {banner.speeds ? ` · 속도 ${banner.speeds[0]} : ${banner.speeds[1]}` : ""}
+                  {t("상대 {result}", { result: banner.theirs })}
+                  {banner.speeds ? ` · ${t("속도 {mine} : {theirs}", { mine: banner.speeds[0], theirs: banner.speeds[1] })}` : ""}
                 </span>
               </>
             ) : (

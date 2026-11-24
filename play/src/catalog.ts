@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import type { BoardCard, CardMeta, PlayEnvelope, VisibleCard } from "./protocol";
+import { LANGUAGE } from "./i18n";
 import { plainMarkup } from "./markup";
+
+const LOCALIZED_FIELDS = ["name", "text", "text_label", "detail_text", "detail_text_label", "type_label", "pos_label"];
 
 /**
  * card_id → 카드 메타데이터(이미지, 효과문). 상태 응답에는 이미지가 없으므로
@@ -28,6 +31,14 @@ export function useCardView(card: BoardCard): CardView | null {
   const view: CardView = { ...(meta ?? {}) };
   for (const [key, value] of Object.entries(card)) {
     if (value !== null && value !== undefined && value !== "") (view as Record<string, unknown>)[key] = value;
+  }
+  // 상태의 이름·효과문은 한국어 원문이다. 게임 중 바뀌지 않으므로 다른 언어에서는
+  // 그 언어로 받은 카탈로그(card-metadata) 값을 쓴다.
+  if (meta && LANGUAGE !== "ko") {
+    for (const key of LOCALIZED_FIELDS) {
+      const value = (meta as Record<string, unknown>)[key];
+      if (value !== null && value !== undefined && value !== "") (view as Record<string, unknown>)[key] = value;
+    }
   }
   return view;
 }

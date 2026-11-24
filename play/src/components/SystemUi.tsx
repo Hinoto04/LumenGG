@@ -5,13 +5,14 @@ import type { Selections } from "../net/live";
 import { reportIssue } from "../net/report";
 import type { LegalAction, PlayEnvelope } from "../protocol";
 import { perspective, usePlay } from "../store";
+import { seconds, t } from "../i18n";
 
 export type SystemSubmit = (
   action: LegalAction,
   selections?: Selections,
 ) => void;
 
-const PAUSE_REASONS = ["룰 확인", "자리 비움", "연결 문제"];
+const PAUSE_REASONS = [t("룰 확인"), t("자리 비움"), t("연결 문제")];
 
 function systemActions(envelope: PlayEnvelope, type: string) {
   return envelope.legal_actions.filter((action) => action.type === type);
@@ -45,7 +46,7 @@ function LegacyLink() {
       : `/battlelog/simulator/${view}/?legacy=1`;
   return (
     <a className="btn-secondary menu-legacy" href={path}>
-      예전 화면으로 보기
+      {t("예전 화면으로 보기")}
     </a>
   );
 }
@@ -65,7 +66,7 @@ function IssueReport() {
     try {
       const id = await reportIssue(text.trim());
       setText("");
-      setStatus(`제보했습니다 · ${id}`);
+      setStatus(t("제보했습니다 · {id}", { id }));
     } catch (error) {
       setStatus((error as Error).message);
     } finally {
@@ -74,13 +75,13 @@ function IssueReport() {
   };
   return (
     <div className="menu-row">
-      <span>판정 문제 제보</span>
+      <span>{t("판정 문제 제보")}</span>
       <textarea
         className="menu-textarea"
         rows={3}
         maxLength={4000}
         value={text}
-        placeholder="어떤 상황에서 무엇이 기대와 달랐는지 적어 주세요."
+        placeholder={t("어떤 상황에서 무엇이 기대와 달랐는지 적어 주세요.")}
         onChange={(event) => setText(event.target.value)}
       />
       <div className="menu-buttons">
@@ -90,7 +91,7 @@ function IssueReport() {
           disabled={sending || !text.trim()}
           onClick={send}
         >
-          {sending ? "보내는 중…" : "제보 보내기"}
+          {sending ? t("보내는 중…") : t("제보 보내기")}
         </button>
         {status && <span className="muted">{status}</span>}
       </div>
@@ -103,9 +104,9 @@ function CopyRow({ label, url }: { label: string; url: string }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(url);
-      flash(`${label} 주소를 복사했습니다`);
+      flash(t("{label} 주소를 복사했습니다", { label }));
     } catch {
-      flash("복사하지 못했습니다. 주소를 직접 선택해 주세요");
+      flash(t("복사하지 못했습니다. 주소를 직접 선택해 주세요"));
     }
   };
   return (
@@ -113,7 +114,7 @@ function CopyRow({ label, url }: { label: string; url: string }) {
       <span>{label}</span>
       <code>{url}</code>
       <button type="button" className="btn-secondary" onClick={copy}>
-        복사
+        {t("복사")}
       </button>
     </div>
   );
@@ -153,9 +154,9 @@ export function GameMenu({
             onClick={(event) => event.stopPropagation()}
           >
             <header>
-              <h2>메뉴</h2>
+              <h2>{t("메뉴")}</h2>
               <button type="button" className="btn-ghost" onClick={onClose}>
-                닫기
+                {t("닫기")}
               </button>
             </header>
             {screen}
@@ -200,15 +201,15 @@ function GameMenuSections({
     <>
       <QuickConfirmRow />
       <section>
-        {opponentLink && <CopyRow label="상대 좌석" url={opponentLink} />}
-        <CopyRow label="관전" url={spectate} />
+        {opponentLink && <CopyRow label={t("상대 좌석")} url={opponentLink} />}
+        <CopyRow label={t("관전")} url={spectate} />
         {envelope.mode === "manual" && <LegacyLink />}
       </section>
       {(pause || resume || rewind) && (
         <section>
           {pause && (
             <div className="menu-row">
-              <span>상대 타이머 일시정지</span>
+              <span>{t("상대 타이머 일시정지")}</span>
               <div className="menu-buttons">
                 {PAUSE_REASONS.map((reason) => (
                   <button
@@ -229,7 +230,7 @@ function GameMenuSections({
               className="btn-secondary"
               onClick={() => run(resume)}
             >
-              타이머 재개
+              {t("타이머 재개")}
             </button>
           )}
           {rewind && (
@@ -238,7 +239,7 @@ function GameMenuSections({
               className="btn-secondary"
               onClick={() => run(rewind)}
             >
-              직전 행동 되감기 요청
+              {t("직전 행동 되감기 요청")}
             </button>
           )}
         </section>
@@ -252,21 +253,21 @@ function GameMenuSections({
         <section>
           {confirmConcede ? (
             <div className="menu-row is-danger">
-              <span>정말 기권할까요? 되돌릴 수 없습니다.</span>
+              <span>{t("정말 기권할까요? 되돌릴 수 없습니다.")}</span>
               <div className="menu-buttons">
                 <button
                   type="button"
                   className="btn-ghost"
                   onClick={() => setConfirmConcede(false)}
                 >
-                  취소
+                  {t("취소")}
                 </button>
                 <button
                   type="button"
                   className="btn-danger"
                   onClick={() => run(concede)}
                 >
-                  기권
+                  {t("기권")}
                 </button>
               </div>
             </div>
@@ -276,7 +277,7 @@ function GameMenuSections({
               className="btn-danger"
               onClick={() => setConfirmConcede(true)}
             >
-              기권하기
+              {t("기권하기")}
             </button>
           )}
         </section>
@@ -302,14 +303,15 @@ export function PauseNotice({
     envelope.role === "viewer"
       ? String(clock.paused_by ?? "").toUpperCase()
       : clock.paused_by === me
-        ? "내가"
-        : "상대가";
+        ? t("내가")
+        : t("상대가");
   return (
     <div className="pause-notice" role="status">
-      <strong>타이머 일시정지</strong>
+      <strong>{t("타이머 일시정지")}</strong>
       <span>
-        {who} 멈춤{clock.pause_reason ? ` · ${clock.pause_reason}` : ""} · 남은{" "}
-        {Number(clock.remaining_seconds ?? 0)}초
+        {t("{who} 멈춤", { who })}
+        {clock.pause_reason ? ` · ${clock.pause_reason}` : ""} ·{" "}
+        {t("남은 {seconds}", { seconds: seconds(Number(clock.remaining_seconds ?? 0)) })}
       </span>
       {resume && (
         <button
@@ -317,7 +319,7 @@ export function PauseNotice({
           className="btn-primary"
           onClick={() => onSubmit(resume)}
         >
-          재개
+          {t("재개")}
         </button>
       )}
     </div>
@@ -341,10 +343,10 @@ export function RewindPrompt({
       <section
         className="decision rewind-prompt"
         role="dialog"
-        aria-label="되감기 요청"
+        aria-label={t("되감기 요청")}
       >
         <header>
-          <h2>상대가 직전 행동 되감기를 요청했습니다</h2>
+          <h2>{t("상대가 직전 행동 되감기를 요청했습니다")}</h2>
         </header>
         <footer>
           {decline && (
@@ -353,7 +355,7 @@ export function RewindPrompt({
               className="btn-ghost"
               onClick={() => onSubmit(decline)}
             >
-              거절
+              {t("거절")}
             </button>
           )}
           {accept && (
@@ -362,7 +364,7 @@ export function RewindPrompt({
               className="btn-primary"
               onClick={() => onSubmit(accept)}
             >
-              수락
+              {t("수락")}
             </button>
           )}
         </footer>
@@ -379,10 +381,9 @@ function QuickConfirmRow() {
     <section>
       <label className="menu-row menu-toggle">
         <span>
-          빠른 확정
+          {t("빠른 확정")}
           <small className="muted">
-            카드를 옮기는 선택에서 옮겨야 할 장 수를 다 옮기면 확정 버튼 없이
-            바로 보냅니다.
+            {t("카드를 옮기는 선택에서 옮겨야 할 장 수를 다 옮기면 확정 버튼 없이 바로 보냅니다.")}
           </small>
         </span>
         <input

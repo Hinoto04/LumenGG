@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DeckPicker, TimerSelect, type DeckRow } from "./Lobby";
 import { postJson } from "./net/http";
+import { seconds as formatSeconds, t } from "./i18n";
 
 /**
  * 사람끼리 대전: 방(코드로 참가)과 퀵 매치. 각 플레이어는 자기 덱만 고른다.
@@ -141,14 +142,14 @@ function SeatCard({ seat, label }: { seat: SeatView; label: string }) {
       <span className="room-seat-label">{label}</span>
       {seat.present ? (
         <>
-          <b>{seat.name || "플레이어"}</b>
+          <b>{seat.name || t("플레이어")}</b>
           <span className="muted">
-            {seat.deck ? (seat.me ? `${seat.deck.character} · ${seat.deck.name ?? ""}` : `${seat.deck.character} 덱`) : "덱을 고르는 중"}
+            {seat.deck ? (seat.me ? `${seat.deck.character} · ${seat.deck.name ?? ""}` : t("{character} 덱", { character: seat.deck.character })) : t("덱을 고르는 중")}
           </span>
-          <span className={`room-ready ${seat.ready ? "is-on" : ""}`}>{seat.ready ? "준비 완료" : "준비 전"}</span>
+          <span className={`room-ready ${seat.ready ? "is-on" : ""}`}>{seat.ready ? t("준비 완료") : t("준비 전")}</span>
         </>
       ) : (
-        <span className="muted">상대를 기다리는 중…</span>
+        <span className="muted">{t("상대를 기다리는 중…")}</span>
       )}
     </div>
   );
@@ -218,29 +219,30 @@ export function RoomPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequi
     return (
       <section className="lobby-card room-card">
         <div className="room-head">
-          <span className="muted">방 코드</span>
+          <span className="muted">{t("방 코드")}</span>
           <strong className="room-code">{room.code}</strong>
           <button type="button" className="btn-secondary" onClick={copy}>
-            {copied ? "복사됨" : "초대 링크 복사"}
+            {copied ? t("복사됨") : t("초대 링크 복사")}
           </button>
         </div>
         <p className="muted">
-          {room.options.mode === "manual" ? "수동(샌드박스)" : "자동 판정"}
+          {room.options.mode === "manual" ? t("수동(샌드박스)") : t("자동 판정")}
           {room.options.mode !== "manual" &&
-            ` · 레디 ${room.options.ready_timeout_seconds ? `${room.options.ready_timeout_seconds}초` : "제한 없음"} · 효과 선택 ${
-              room.options.effect_timeout_seconds ? `${room.options.effect_timeout_seconds}초` : "제한 없음"
-            }`}
+            ` · ${t("레디 {ready} · 효과 선택 {effect}", {
+              ready: room.options.ready_timeout_seconds ? formatSeconds(room.options.ready_timeout_seconds) : t("제한 없음"),
+              effect: room.options.effect_timeout_seconds ? formatSeconds(room.options.effect_timeout_seconds) : t("제한 없음"),
+            })}`}
         </p>
         <div className="room-seats">
-          <SeatCard seat={room.seats.host} label="방장 (P1)" />
-          <SeatCard seat={room.seats.guest} label="참가자 (P2)" />
+          <SeatCard seat={room.seats.host} label={t("방장 (P1)")} />
+          <SeatCard seat={room.seats.guest} label={t("참가자 (P2)")} />
         </div>
         {room.status === "started" ? (
-          <p>대전을 시작합니다…</p>
+          <p>{t("대전을 시작합니다…")}</p>
         ) : (
           <>
             <DeckPicker
-              label="내 덱"
+              label={t("내 덱")}
               value={deck ?? (me.deck?.id ? ({ id: me.deck.id, name: me.deck.name ?? "", character: me.deck.character } as DeckRow) : null)}
               onChange={(chosen) => {
                 setDeck(chosen);
@@ -251,7 +253,7 @@ export function RoomPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequi
             />
             <div className="lobby-row">
               <button type="button" className="btn-ghost" onClick={leave}>
-                {room.seat === "host" ? "방 닫기" : "나가기"}
+                {room.seat === "host" ? t("방 닫기") : t("나가기")}
               </button>
               <button
                 type="button"
@@ -259,10 +261,10 @@ export function RoomPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequi
                 disabled={!me.deck}
                 onClick={() => call("ready", { ready: !me.ready })}
               >
-                {me.ready ? "준비 취소" : "준비 완료"}
+                {me.ready ? t("준비 취소") : t("준비 완료")}
               </button>
             </div>
-            <p className="muted">두 플레이어가 모두 덱을 고르고 준비하면 대전이 시작됩니다.</p>
+            <p className="muted">{t("두 플레이어가 모두 덱을 고르고 준비하면 대전이 시작됩니다.")}</p>
           </>
         )}
         {(room.error || error) && <p className="lobby-error">{room.error || error}</p>}
@@ -272,16 +274,16 @@ export function RoomPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequi
 
   return (
     <section className="lobby-card">
-      {joined && room?.status === "closed" && <p className="lobby-error">방이 닫혔습니다.</p>}
-      <DeckPicker label="내 덱" value={deck} onChange={setDeck} mine={mine} loginRequired={loginRequired} />
+      {joined && room?.status === "closed" && <p className="lobby-error">{t("방이 닫혔습니다.")}</p>}
+      <DeckPicker label={t("내 덱")} value={deck} onChange={setDeck} mine={mine} loginRequired={loginRequired} />
       <div className="room-split">
         <div className="room-box">
-          <h2>방 만들기</h2>
-          <div className="lobby-row segmented" role="radiogroup" aria-label="대전 방식">
+          <h2>{t("방 만들기")}</h2>
+          <div className="lobby-row segmented" role="radiogroup" aria-label={t("대전 방식")}>
             {(
               [
-                ["automatic", "자동 판정"],
-                ["manual", "수동(샌드박스)"],
+                ["automatic", t("자동 판정")],
+                ["manual", t("수동(샌드박스)")],
               ] as const
             ).map(([value, label]) => (
               <button
@@ -298,32 +300,32 @@ export function RoomPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequi
           </div>
           {mode === "automatic" && (
             <div className="lobby-row lobby-timers">
-              <TimerSelect label="레디 제한" value={readyTimer} onChange={setReadyTimer} />
-              <TimerSelect label="효과 선택 제한" value={effectTimer} onChange={setEffectTimer} />
+              <TimerSelect label={t("레디 제한")} value={readyTimer} onChange={setReadyTimer} />
+              <TimerSelect label={t("효과 선택 제한")} value={effectTimer} onChange={setEffectTimer} />
             </div>
           )}
           <button type="button" className="btn-primary" disabled={busy} onClick={create}>
-            방 만들기
+            {t("방 만들기")}
           </button>
         </div>
         <div className="room-box">
-          <h2>코드로 참가</h2>
+          <h2>{t("코드로 참가")}</h2>
           <div className="room-join">
             <input
               className="room-code-input"
               value={code}
               maxLength={8}
-              placeholder="방 코드"
+              placeholder={t("방 코드")}
               onChange={(event) => setCode(event.target.value.toUpperCase())}
-              aria-label="방 코드"
+              aria-label={t("방 코드")}
             />
             <button type="button" className="btn-primary" disabled={busy || code.trim().length < 4} onClick={join}>
-              참가
+              {t("참가")}
             </button>
           </div>
         </div>
       </div>
-      <p className="muted">덱은 방에 들어간 뒤에 골라도 됩니다. 상대에게는 내 덱의 캐릭터만 보입니다.</p>
+      <p className="muted">{t("덱은 방에 들어간 뒤에 골라도 됩니다. 상대에게는 내 덱의 캐릭터만 보입니다.")}</p>
       {error && <p className="lobby-error">{error}</p>}
     </section>
   );
@@ -364,13 +366,13 @@ export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequ
       <section className="lobby-card quick-card">
         <div className="quick-spinner" aria-hidden />
         <p>
-          상대를 찾는 중… <span className="muted">{seconds}초</span>
+          {t("상대를 찾는 중…")} <span className="muted">{formatSeconds(seconds)}</span>
         </p>
         <p className="muted">
-          {room?.seats.host.deck?.character} 덱 · 자동 판정 · 레디 10초 · 효과 선택 30초
+          {t("{character} 덱", { character: room?.seats.host.deck?.character ?? "" })} · {t("자동 판정 · 레디 10초 · 효과 선택 30초")}
         </p>
         <button type="button" className="btn-ghost" onClick={leave}>
-          매칭 취소
+          {t("매칭 취소")}
         </button>
         {error && <p className="lobby-error">{error}</p>}
       </section>
@@ -379,12 +381,12 @@ export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequ
 
   return (
     <section className="lobby-card">
-      <DeckPicker label="내 덱" value={deck} onChange={setDeck} mine={mine} loginRequired={loginRequired} />
-      <p className="muted">덱만 정하면 지금 퀵 매치를 기다리는 다른 플레이어와 자동 판정으로 대전합니다(레디 10초 · 효과 선택 30초).</p>
+      <DeckPicker label={t("내 덱")} value={deck} onChange={setDeck} mine={mine} loginRequired={loginRequired} />
+      <p className="muted">{t("덱만 정하면 지금 퀵 매치를 기다리는 다른 플레이어와 자동 판정으로 대전합니다(레디 10초 · 효과 선택 30초).")}</p>
       <button type="button" className="btn-primary lobby-start" disabled={busy || !deck} onClick={start}>
-        {busy ? "찾는 중…" : "퀵 매치 시작"}
+        {busy ? t("찾는 중…") : t("퀵 매치 시작")}
       </button>
-      {room?.status === "started" && <p>대전을 시작합니다…</p>}
+      {room?.status === "started" && <p>{t("대전을 시작합니다…")}</p>}
       {error && <p className="lobby-error">{error}</p>}
     </section>
   );

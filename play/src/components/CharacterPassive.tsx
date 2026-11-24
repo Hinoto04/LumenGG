@@ -1,5 +1,6 @@
 import { sendManual } from "../net/live";
 import type { PlayerState, Side } from "../protocol";
+import { t } from "../i18n";
 
 /**
  * 캐릭터 전용 패시브(수동 모드). 예전 시뮬레이터의 static/battlelog/passive_ui/*_simulator.js를 옮겼다.
@@ -57,9 +58,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 function Nia({ enabled, mine }: PanelProps) {
   return (
-    <Row label="루멘 정리">
+    <Row label={t("루멘 정리")}>
       <button type="button" className="btn-secondary" disabled={!enabled || !mine} onClick={() => sendManual("nia_lumen_cards_to_list")}>
-        공격/수비 → 리스트
+        {t("공격/수비 → 리스트")}
       </button>
     </Row>
   );
@@ -68,14 +69,14 @@ function Nia({ enabled, mine }: PanelProps) {
 function Cmyk({ player, enabled, mine }: PanelProps) {
   const created = isOn(read(player, "new_single_created", false));
   return (
-    <Row label="뉴 싱글">
+    <Row label={t("뉴 싱글")}>
       <button
         type="button"
         className={`btn-secondary ${created ? "is-current" : ""}`}
         disabled={!enabled || !mine || created}
         onClick={() => sendManual("cmyk_new_single")}
       >
-        {created ? "생성됨" : "10장 생성"}
+        {created ? t("생성됨") : t("10장 생성")}
       </button>
     </Row>
   );
@@ -83,43 +84,43 @@ function Cmyk({ player, enabled, mine }: PanelProps) {
 
 const FORESIGHT_MAX = 10;
 const DECLARATIONS = [
-  ["odd", "홀"],
-  ["even", "짝"],
-  ["attack", "공"],
-  ["defense", "수"],
+  ["odd", t("홀")],
+  ["even", t("짝")],
+  ["attack", t("공")],
+  ["defense", t("수")],
 ] as const;
 
 function Yohan({ side, player, enabled, mine }: PanelProps) {
   const foresight = Math.max(0, Math.min(FORESIGHT_MAX, num(read(player, "foresight_counter", 2))));
   const disaster = isOn(read(player, "disaster_one", false));
   const setForesight = (value: number) =>
-    setPassive(side, "foresight_counter", Math.max(0, Math.min(FORESIGHT_MAX, value)), "예지 카운터");
+    setPassive(side, "foresight_counter", Math.max(0, Math.min(FORESIGHT_MAX, value)), t("예지 카운터"));
   return (
     <>
-      <Row label="예지">
+      <Row label={t("예지")}>
         <button type="button" className="btn-secondary" disabled={!enabled || foresight <= 0} onClick={() => setForesight(foresight - 1)}>
           −
         </button>
-        <button type="button" className="btn-ghost passive-value" disabled={!enabled || foresight <= 0} title="0으로" onClick={() => setForesight(0)}>
+        <button type="button" className="btn-ghost passive-value" disabled={!enabled || foresight <= 0} title={t("0으로")} onClick={() => setForesight(0)}>
           {foresight}/{FORESIGHT_MAX}
         </button>
         <button type="button" className="btn-secondary" disabled={!enabled || foresight >= FORESIGHT_MAX} onClick={() => setForesight(foresight + 1)}>
           +
         </button>
       </Row>
-      <Row label="디제스터 원">
+      <Row label={t("디제스터 원")}>
         <button
           type="button"
           className={`btn-secondary ${disaster ? "is-current" : ""}`}
           disabled={!enabled}
-          onClick={() => setPassive(side, "disaster_one", !disaster, "디제스터 원")}
+          onClick={() => setPassive(side, "disaster_one", !disaster, t("디제스터 원"))}
         >
-          {disaster ? "켜짐" : "꺼짐"}
+          {disaster ? t("켜짐") : t("꺼짐")}
         </button>
       </Row>
-      <Row label="선언">
+      <Row label={t("선언")}>
         <button type="button" className="btn-secondary" disabled={!enabled || !mine} onClick={() => sendManual("yohan_foresight_reveal")}>
-          예지
+          {t("예지")}
         </button>
         {DECLARATIONS.map(([declaration, label]) => (
           <button
@@ -157,25 +158,25 @@ function Tao({ side, player, enabled }: PanelProps) {
     const next = Math.max(0, Math.min(TAO_MAX, value));
     const nextYang = counter === "yang" ? next : yang;
     const nextYin = counter === "yin" ? next : yin;
-    setPassive(side, `${counter}_counter`, next, counter === "yang" ? "양" : "음");
+    setPassive(side, `${counter}_counter`, next, counter === "yang" ? t("양") : t("음"));
     if (nextYang === TAO_MAX && nextYin === TAO_MAX && !harmonyStored) {
-      setPassive(side, "harmony", true, "조화");
+      setPassive(side, "harmony", true, t("조화"));
     } else if (harmonyStored && !(nextYang >= 3 && nextYin >= 3)) {
-      setPassive(side, "harmony_effect", "", "조화 효과");
-      setPassive(side, "harmony", false, "조화");
+      setPassive(side, "harmony_effect", "", t("조화 효과"));
+      setPassive(side, "harmony", false, t("조화"));
     }
   };
   const chooseEffect = (value: string) => {
-    if (!harmonyStored) setPassive(side, "harmony", true, "조화");
-    setPassive(side, "harmony_effect", value, "조화 효과");
+    if (!harmonyStored) setPassive(side, "harmony", true, t("조화"));
+    setPassive(side, "harmony_effect", value, t("조화 효과"));
   };
 
   return (
     <>
       {(
         [
-          ["yang", "양", yang],
-          ["yin", "음", yin],
+          ["yang", t("양"), yang],
+          ["yin", t("음"), yin],
         ] as const
       ).map(([counter, label, value]) => (
         <Row key={counter} label={label}>
@@ -194,7 +195,7 @@ function Tao({ side, player, enabled }: PanelProps) {
         </Row>
       ))}
       {harmony && (
-        <Row label="조화">
+        <Row label={t("조화")}>
           {HARMONY_EFFECTS.map(([value, label]) => (
             <button
               key={value}

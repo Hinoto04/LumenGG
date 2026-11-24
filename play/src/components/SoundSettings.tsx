@@ -1,4 +1,5 @@
 import { hasAudioSession, playSound, useSound, type SoundName } from "../sound/sfx";
+import { t } from "../i18n";
 
 /** 들어보기: 대전에서 자주 나는 소리를 차례로 들려준다. */
 const DEMO: SoundName[] = ["card_ready", "card_reveal", "hit", "counter", "guard", "dodge", "clash", "effect", "combo", "catch", "break", "turn"];
@@ -13,7 +14,7 @@ export function SoundSettings() {
   return (
     <div className="menu-sound">
       <label className="menu-row menu-toggle">
-        <span>효과음</span>
+        <span>{t("효과음")}</span>
         <input type="checkbox" checked={!muted} onChange={(event) => setMuted(!event.target.checked)} />
       </label>
       <div className="sound-row">
@@ -23,21 +24,21 @@ export function SoundSettings() {
           max={100}
           step={5}
           value={Math.round(volume * 100)}
-          aria-label="음량"
+          aria-label={t("음량")}
           disabled={muted}
           onChange={(event) => setVolume(Number(event.target.value) / 100)}
           onPointerUp={() => playSound("card_ready")}
         />
-        <span className="sound-value">{muted ? "꺼짐" : `${Math.round(volume * 100)}%`}</span>
+        <span className="sound-value">{muted ? t("꺼짐") : `${Math.round(volume * 100)}%`}</span>
         <button type="button" className="btn-secondary" disabled={muted} onClick={playDemo}>
-          들어보기
+          {t("들어보기")}
         </button>
       </div>
       {hasAudioSession() && (
         <label className="menu-row menu-toggle">
           <span>
-            무음 모드에서도 재생
-            <small className="muted">아이폰 무음 스위치를 켜도 효과음을 냅니다. 듣던 음악이 멈출 수 있습니다.</small>
+            {t("무음 모드에서도 재생")}
+            <small className="muted">{t("아이폰 무음 스위치를 켜도 효과음을 냅니다. 듣던 음악이 멈출 수 있습니다.")}</small>
           </span>
           <input
             type="checkbox"
