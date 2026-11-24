@@ -443,5 +443,21 @@ export const EN: Record<string, string> = {
   "{label} {before} → {after} (효과로 변경됨)": "{label} {before} → {after} (changed by an effect)",
   "상단": "High",
   "중단": "Mid",
-  "하단": "Low"
+  "하단": "Low",
+  // 튜토리얼(components/TutorialCoach.tsx, Lobby.tsx)
+  "튜토리얼": "Tutorial",
+  "{n} / {total} 단계": "Step {n} / {total}",
+  "정말 그만둘까요?": "Really quit?",
+  "그만두기": "Quit",
+  "로비로": "Back to lobby",
+  "빛나는 카드를 눌러 보세요": "Tap the glowing card",
+  "마치기": "Finish",
+  "다음": "Next",
+  "튜토리얼 완료!": "Tutorial complete!",
+  "AI와 대전하기": "Play against the AI",
+  "룰북 읽기": "Read the rulebook",
+  "이 단원을 마쳤습니다. 언제든 다시 해 볼 수 있어요.": "You've finished this lesson. You can play it again any time.",
+  "처음이신가요? 5분 동안 직접 해 보며 기본 규칙을 배워 보세요.": "New here? Learn the basic rules by playing for 5 minutes.",
+  "다시 하기": "Play again",
+  "튜토리얼 시작": "Start tutorial",
 };

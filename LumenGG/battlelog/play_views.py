@@ -83,6 +83,69 @@ def play_decks(req):
     return JsonResponse({'decks': deck_search_rows(req, req.GET.get('q', ''))})
 
 
+TUTORIAL_CREATE_LIMIT = 20          # 같은 주소에서
+TUTORIAL_CREATE_WINDOW = 10 * 60    # 이 시간(초) 동안 만들 수 있는 튜토리얼 수
+
+
+def _client_address(req):
+    forwarded = str(req.META.get('HTTP_X_FORWARDED_FOR') or '').split(',')[0].strip()
+    return forwarded or str(req.META.get('REMOTE_ADDR') or '')
+
+
+def _tutorial_rate_limited(req):
+    from django.core.cache import cache
+
+    key = f'battlelog:tutorial-new:{_client_address(req)}'
+    if cache.add(key, 1, TUTORIAL_CREATE_WINDOW):
+        return False
+    try:
+        return cache.incr(key) > TUTORIAL_CREATE_LIMIT
+    except ValueError:  # 그 사이 만료됨
+        cache.add(key, 1, TUTORIAL_CREATE_WINDOW)
+        return False
+
+
+@require_GET
+def play_tutorials(req):
+    """튜토리얼 단원 목록과 지금 시작할 수 있는지(docs/TUTORIAL.md)."""
+    from .automatic_services import automatic_mode_release
+    from .tutorial import LESSONS, lesson_available
+
+    language = get_language(req)
+    release = automatic_mode_release()
+    rows = []
+    for lesson in LESSONS.values():
+        available, _reason = lesson_available(lesson, release)
+        title = lesson.get('title') or {}
+        rows.append({
+            'id': lesson['id'],
+            'title': title.get(language) or title.get('ko') or lesson['id'],
+            'steps': len(lesson.get('steps') or []),
+            'available': available,
+        })
+    return JsonResponse({'tutorials': rows})
+
+
+def create_tutorial_play_session(lesson_id):
+    """(payload, status). 로그인 없이도 만들 수 있다(덱을 쓰지 않는다)."""
+    from .tutorial import TutorialUnavailable, create_tutorial_session
+
+    try:
+        session = create_tutorial_session(lesson_id)
+    except TutorialUnavailable as exc:
+        return {'ok': False, 'error': str(exc)}, 503
+    return {'ok': True, 'mode': session.mode, 'lesson': lesson_id, **session_links(session)}, 201
+
+
+@require_POST
+def play_tutorial_new(req):
+    if _tutorial_rate_limited(req):
+        return JsonResponse({'ok': False, 'error': '잠시 후 다시 시도해주세요.'}, status=429)
+    body = _json_body(req)
+    payload, status = create_tutorial_play_session(str(body.get('lesson') or 'basic-1'))
+    return JsonResponse(payload, status=status)
+
+
 @require_GET
 def play_ai_decks(req):
     """Registered AI opponents for the lobby (operators curate them in admin)."""

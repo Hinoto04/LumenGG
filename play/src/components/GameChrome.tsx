@@ -8,6 +8,7 @@ import { currentTarget, useLive } from "../net/live";
 import type { PlayEnvelope } from "../protocol";
 import { perspective } from "../store";
 import { GameMenu, type SystemSubmit } from "./SystemUi";
+import { TutorialFinished, tutorialOf, useTutorial } from "./TutorialCoach";
 import { sendPreparation } from "../prep/model";
 import { t } from "../i18n";
 
@@ -175,7 +176,13 @@ export function GameOver({ envelope }: { envelope: PlayEnvelope | null }) {
   const [nextError, setNextError] = useState<string | null>(null);
   const status = envelope?.engine_status;
   const finished = status?.status === "finished";
+  const tutorial = tutorialOf(envelope);
+  const tutorialFinishSeen = useTutorial((s) => s.finishSeen);
   if (!fatal && !finished) return null;
+  if (!fatal && tutorial?.status === "completed") {
+    // 튜토리얼은 완료 메시지(코치)를 다 본 뒤에 완료 화면을 띄운다.
+    return tutorialFinishSeen ? <TutorialFinished view={tutorial} /> : null;
+  }
   let title = t("대전 중단");
   if (!fatal && envelope && status) {
     const { me } = perspective(envelope);

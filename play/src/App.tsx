@@ -6,6 +6,7 @@ import { DecisionFrames } from "./components/DecisionFrames";
 import { DragMask } from "./components/DragMask";
 import { OpeningReview } from "./components/OpeningReview";
 import { FxLayer } from "./components/FxLayer";
+import { TutorialCoach } from "./components/TutorialCoach";
 import { PlayerSheet } from "./components/Manual";
 import { CardSidePanel, SelectionPopover, useCompact } from "./components/Selection";
 import { GameOver, LiveBar } from "./components/GameChrome";
@@ -93,6 +94,7 @@ function GameScreen({ mode }: { mode: Exclude<AppMode, { kind: "lobby" }> }) {
           {!compact && <SelectionPopover envelope={board ?? envelope} onAction={onAction} />}
           <FxLayer me={perspective(envelope).me} />
           <OpeningReview envelope={envelope} onAction={onAction} />
+          <TutorialCoach envelope={envelope} onAction={onAction} />
           <PauseNotice envelope={envelope} onSubmit={onSubmit} />
           <RewindPrompt envelope={envelope} onSubmit={onSubmit} />
           <CardInspector envelope={envelope} onAction={onAction} />

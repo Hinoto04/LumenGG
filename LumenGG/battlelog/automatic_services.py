@@ -37,6 +37,7 @@ from .game.deck_rules import (
 from .game.effects import card_matches
 from .game.spec import EFFECT_SCHEMA_VERSION, PHASES, RULEBOOK_SHA256
 from .game.engine import AutomaticGameEngine, EngineError, IllegalAction, StaleState
+from . import tutorial
 from .models import (
     AutomaticIssueComment,
     AutomaticIssueReport,
@@ -334,6 +335,7 @@ def initialize_automatic_document(base_state, release, *, seed='', settings=None
 
 def initialize_automatic_scenario_document(
     base_state, release, *, seed='', phase='lumen', priority_player='p1',
+    settings=None,
 ):
     """Start the automatic engine from an intentionally arranged board.
 
@@ -341,6 +343,9 @@ def initialize_automatic_scenario_document(
     board already contains the desired results of those timings. The selected
     phase-start window is still executed so the remainder follows the same
     engine path as an ordinary automatic match.
+
+    ``settings`` overrides the scenario defaults (the tutorial turns empty
+    phases back to auto-advance and rewinding off).
     """
     if phase not in PHASES:
         raise ValueError('자동 테스트 시작 페이즈가 올바르지 않습니다.')
@@ -374,16 +379,17 @@ def initialize_automatic_scenario_document(
     state = _pin_release_card_data(
         state, ruleset, preserve_runtime_state=True,
     )
-    settings = automatic_session_settings(
+    scenario_settings = automatic_session_settings(
         ready_timeout_seconds=None, effect_timeout_seconds=None,
     )
-    settings.update({
+    scenario_settings.update({
         'auto_advance_empty_phases': False,
         'rewind_enabled': True,
         'scenario_mode': True,
     })
+    scenario_settings.update(settings or {})
     engine = AutomaticGameEngine.initialize(
-        state, ruleset, now=timezone.now(), seed=seed, settings=settings,
+        state, ruleset, now=timezone.now(), seed=seed, settings=scenario_settings,
         run_startup=False,
     )
     engine.state['priority_player'] = priority_player
@@ -833,7 +839,7 @@ def perform_automatic_command(session, body, *, allow_ai=False):
                 raise StaleState(
                     f'상태 버전이 오래되었습니다. 현재 버전: {locked.version}',
                 )
-            if not action:
+            if not action or not tutorial.is_allowed(document, role, action):
                 raise IllegalAction('현재 합법 행동이 아니거나 만료된 action_id입니다.')
             action_type = action.get('type')
             if action_type == 'request_rewind' and (
@@ -888,6 +894,8 @@ def perform_automatic_command(session, body, *, allow_ai=False):
             if rewind_enabled and action_type == 'request_rewind':
                 request['target_command_id'] = history[-1].get('command_id')
 
+            if not rewound:
+                tutorial.after_command(document, role, action, events_after[len(events_before):])
             results.append({'command_id': command_id, 'fingerprint': fingerprint, 'version': locked.version + 1})
             document['command_results'] = results[-AUTOMATIC_COMMAND_RESULT_LIMIT:]
             document['state'] = state_after
@@ -1071,6 +1079,9 @@ def automatic_observation(session, role, *, include_state=True, include_memory=F
         return {'legal_actions': [], 'engine_status': 'preparing', 'version': session.version}
     engine = _session_engine(session)
     observation = engine.observe(role, include_state=include_state, include_memory=include_memory)
+    observation['legal_actions'] = tutorial.filter_actions(
+        session.document, role, observation['legal_actions'],
+    )
     if include_card_changes:
         # 효과로 바뀐 속도·대미지·판정(대전 클라이언트가 카드 위에 표시). 상태에 붙이는 것은 호출한 쪽.
         from .play_card_changes import collect_card_changes
@@ -1164,22 +1175,29 @@ def advance_ai_session(session, *, max_commands=100, on_command=None, think=Fals
             ).get(pk=session.pk)
             if session.mode != LumenSimulatorSession.MODE_AUTOMATIC:
                 return session
-            if not session.ai_policy_id:
-                raise RuntimeError('AI 좌석에 검증된 정책이 고정되어 있지 않습니다.')
             state = (session.document or {}).get('state') or {}
             if (state.get('engine') or {}).get('status') != 'running':
                 return session
-            policy_payload = copy.deepcopy((session.document or {}).get('ai_policy') or {})
-            weights = policy_payload.get('weights') or session.ai_policy.weights
-            profile = (session.document or {}).get('ai_deck') or None
-            from .ai_compute import choose_ai_decision
-
             decisions = []
-            for role in _ai_roles(session):
-                # 무거운 계산(엔진 평가)은 작업 프로세스에서 한다(ai_compute).
-                decision = choose_ai_decision(_ai_decision_job(session, role, weights, profile))
-                if decision:
-                    decisions.append((role, decision))
+            if tutorial.is_tutorial(session):
+                # 튜토리얼 상대는 AI 정책 대신 각본 행동을 한다.
+                for role in _ai_roles(session):
+                    decision = tutorial.opponent_decision(session, role)
+                    if decision:
+                        decisions.append((role, decision))
+            else:
+                if not session.ai_policy_id:
+                    raise RuntimeError('AI 좌석에 검증된 정책이 고정되어 있지 않습니다.')
+                policy_payload = copy.deepcopy((session.document or {}).get('ai_policy') or {})
+                weights = policy_payload.get('weights') or session.ai_policy.weights
+                profile = (session.document or {}).get('ai_deck') or None
+                from .ai_compute import choose_ai_decision
+
+                for role in _ai_roles(session):
+                    # 무거운 계산(엔진 평가)은 작업 프로세스에서 한다(ai_compute).
+                    decision = choose_ai_decision(_ai_decision_job(session, role, weights, profile))
+                    if decision:
+                        decisions.append((role, decision))
             if not decisions:
                 return session
             priority = state.get('priority_player')

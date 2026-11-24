@@ -4013,3 +4013,183 @@ body.play-lobby-page #root.play-embedded {
     animation: none;
   }
 }
+
+/* ------------------------------------------------------------------ tutorial (docs/TUTORIAL.md) */
+
+.tutorial-coach {
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  /* 설명 메시지 동안에는 보드를 누를 수 없다. */
+  pointer-events: auto;
+}
+
+/* 행동 메시지: 어두운 부분만 막고, 비춘 구멍은 아래 보드로 눌림이 통과한다. */
+.tutorial-coach.is-pass-through {
+  pointer-events: none;
+}
+
+/* 카드를 고른 동안: 선택 팝오버(35)·카드 정보(34)가 덮개 위에 오도록 내려간다. */
+.tutorial-coach.is-yield {
+  z-index: 30;
+}
+
+.tutorial-dim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tutorial-dim path {
+  fill: rgba(6, 6, 6, 0.62);
+  pointer-events: visiblePainted;
+}
+
+.tutorial-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  animation: tutorial-ring 1.6s ease-in-out infinite;
+}
+
+@keyframes tutorial-ring {
+  50% {
+    stroke-opacity: 0.35;
+  }
+}
+
+.tutorial-bubble {
+  position: fixed;
+  display: grid;
+  gap: 0.8em;
+  padding: 1em 1.15em 0.9em;
+  border-radius: 14px;
+  background: var(--bg-2);
+  border: 1px solid rgba(224, 180, 91, 0.55);
+  box-shadow: 0 1em 2.4em rgba(0, 0, 0, 0.55);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.55;
+  pointer-events: auto;
+}
+
+.tutorial-bubble p {
+  margin: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.tutorial-bubble.is-failed {
+  border-color: var(--danger);
+}
+
+.tutorial-bubble-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.8em;
+}
+
+.tutorial-bubble-foot .btn-primary {
+  padding: 0.55em 1.4em;
+  text-decoration: none;
+}
+
+.tutorial-count {
+  margin-right: auto;
+  color: var(--faint);
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+}
+
+.tutorial-hint {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 0.92em;
+}
+
+.tutorial-progress {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 49;
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  max-width: calc(100vw - 32px);
+  padding: 0.35em 0.5em 0.35em 0.9em;
+  border-radius: 999px;
+  background: var(--panel-bg);
+  border: 1px solid var(--line-solid);
+  font-size: 13px;
+  pointer-events: auto;
+}
+
+.tutorial-title {
+  color: var(--accent);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tutorial-progress ol {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tutorial-progress li {
+  width: 16px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line-solid);
+}
+
+.tutorial-progress li.is-done {
+  background: var(--accent-2);
+}
+
+.tutorial-progress li.is-current {
+  background: var(--accent);
+}
+
+.tutorial-quit {
+  padding: 0.3em 0.7em;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.95em;
+}
+
+.tutorial-quit:hover {
+  color: var(--text);
+}
+
+.lobby-tutorial {
+  border-color: rgba(224, 180, 91, 0.55);
+}
+
+.tutorial-finished .btn-secondary {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.lobby-tutorial p {
+  margin: 0;
+  color: var(--muted);
+}
+
+@media (orientation: portrait), (max-width: 760px) {
+  .tutorial-progress .tutorial-title {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-ring {
+    animation: none;
+  }
+}

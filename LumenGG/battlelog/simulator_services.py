@@ -2540,6 +2540,11 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
         from .play_protocol import PLAY_PROTOCOL_VERSION
 
         payload['protocol_version'] = PLAY_PROTOCOL_VERSION
+        if document.get('tutorial'):
+            from .tutorial import tutorial_view
+
+            # 튜토리얼 안내(docs/TUTORIAL.md). 필드 추가만이고 p1에게만 내용이 있다.
+            payload['tutorial'] = tutorial_view(document, role, language)
     if language == DEFAULT_LANGUAGE:
         payload['state'] = _render_card_markup_labels(payload['state'], language)
     from .play_i18n import localize_engine_text_fields

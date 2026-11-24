@@ -496,6 +496,33 @@ cd play; npm run dev                  # 클라이언트 127.0.0.1:5175 (/battlel
 연출 속도(×1, ×2)는 메뉴에서 바꾸고 브라우저에 저장된다. 카드 이동이 보이지 않으면 게임을 따라갈 수 없어서 연출은 끌 수 없다(예전에 저장한 "끔"은 ×1로 읽는다). 같은 이유로 재생 중 건너뛰기도 두지 않는다.
 픽스처 보기에서도 바로 다음 단계로 넘어갈 때 그 사이 이벤트를 같은 방식으로 재생한다.
 
+## 튜토리얼
+
+설계·각본은 `docs/TUTORIAL.md`. 튜토리얼 세션(p1 사람, p2 각본 상대)의 envelope에는 `tutorial`이 붙는다(p1에게만 내용, 그 외 역할은 `null`).
+튜토리얼이 아닌 세션에는 이 키가 없다.
+
+```json
+"tutorial": {
+  "lesson": "basic-1", "title": "한 턴의 흐름",
+  "status": "running",            // running | completed | failed | ended(기권)
+  "step": 1, "steps": 5, "step_id": "t1-get",
+  "messages": [
+    {"text": "…", "focus": {"kind": "hud", "hud": "p2.hp"}},
+    {"text": "…", "focus": {"kind": "action"}}
+  ]
+}
+```
+
+- `legal_actions`는 이미 그 단계가 허용한 행동만 담는다(그만두기·일시 정지는 언제나). 다른 `action_id`는 서버가 거절한다.
+- `messages`는 차례로 보여 주고 "다음"은 클라이언트에서만 넘긴다. 새로고침하면 그 단계의 첫 메시지부터 다시 보여 준다.
+- `focus.kind`: `action`(허용 행동의 카드·버튼), `card`(`card`는 `CardRef`), `zone`(`zone`: `p1.hand` 등), `hud`(`hud`: `p1.hp`, `p2.hp`, `phase` 등), 없으면 `null`.
+- `failed`이면 각본과 다른 판정이 나온 것이다. 수동 모드로 넘어가지 않으며 그만두기만 할 수 있다.
+
+| 주소 | 설명 |
+|---|---|
+| `GET /battlelog/play/api/tutorials/` | `{tutorials: [{id, title, steps, available}]}` |
+| `POST /battlelog/play/api/tutorial/` 본문 `{lesson}` | 로그인 불필요. `{ok, view_token, seats: {p1}, urls: {p1, viewer}}`(201). 준비 안 됨 503, 주소당 10분 20회 초과 429 |
+
 ## 픽스처
 
 서버 없이 화면을 만들 수 있도록, 계약 테스트가 진행한 대전의 각 단계를 역할별 envelope로 저장한다.

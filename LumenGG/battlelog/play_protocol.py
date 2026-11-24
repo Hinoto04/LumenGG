@@ -209,4 +209,39 @@ def validate_play_envelope(envelope):
         errors.append('engine_status.status must be a string')
     if 'events' in envelope:
         _check_events(errors, envelope['events'])
+    if envelope.get('tutorial') is not None:
+        _check_tutorial(errors, envelope['tutorial'], state if isinstance(state, dict) else {})
     return errors
+
+
+TUTORIAL_STATUSES = {'running', 'completed', 'failed', 'ended'}
+TUTORIAL_FOCUS_KINDS = {'action', 'card', 'zone', 'hud'}
+
+
+def _check_tutorial(errors, tutorial, state):
+    if not isinstance(tutorial, dict):
+        errors.append('tutorial must be an object')
+        return
+    if tutorial.get('status') not in TUTORIAL_STATUSES:
+        errors.append(f'tutorial.status is invalid: {tutorial.get("status")}')
+    for key in ('step', 'steps'):
+        if not _is_int(tutorial.get(key)):
+            errors.append(f'tutorial.{key} must be an integer')
+    messages = tutorial.get('messages')
+    if not isinstance(messages, list):
+        errors.append('tutorial.messages must be a list')
+        return
+    for index, message in enumerate(messages):
+        where = f'tutorial.messages[{index}]'
+        if not isinstance(message, dict) or not isinstance(message.get('text'), str) or not message['text']:
+            errors.append(f'{where}.text must be a non-empty string')
+            continue
+        if '{' in message['text']:
+            errors.append(f'{where}.text has an unfilled placeholder')
+        focus = message.get('focus')
+        if focus is None:
+            continue
+        if not isinstance(focus, dict) or focus.get('kind') not in TUTORIAL_FOCUS_KINDS:
+            errors.append(f'{where}.focus.kind is invalid')
+        elif focus['kind'] == 'card':
+            _check_card_ref(errors, f'{where}.focus.card', state, focus.get('card'))

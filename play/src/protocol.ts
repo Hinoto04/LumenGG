@@ -433,7 +433,33 @@ export interface PlayEnvelope {
   auto_select?: string[];
   /** 자동 엔진 오류로 수동 모드가 된 대전 */
   automation_failure?: { report_id?: string; message?: string } | null;
+  /** 튜토리얼 세션의 안내(p1에게만 내용). docs/TUTORIAL.md */
+  tutorial?: TutorialView | null;
   [extra: string]: unknown;
+}
+
+/** 튜토리얼 안내가 가리키는 곳 */
+export type TutorialFocus =
+  | { kind: "action" }
+  | { kind: "card"; card: CardRef }
+  | { kind: "zone"; zone: string }
+  | { kind: "hud"; hud: string };
+
+export interface TutorialMessage {
+  text: string;
+  focus: TutorialFocus | null;
+}
+
+export interface TutorialView {
+  lesson: string;
+  title: string;
+  /** ended = 기권 */
+  status: "running" | "completed" | "failed" | "ended";
+  /** 0부터. 완료하면 steps와 같다. */
+  step: number;
+  steps: number;
+  step_id: string;
+  messages: TutorialMessage[];
 }
 
 /** 클라이언트 → 서버 명령 본문. WebSocket에서는 seat/seat_token을 생략하면 연결 값이 쓰인다. */

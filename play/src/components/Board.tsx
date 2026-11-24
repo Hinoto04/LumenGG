@@ -199,6 +199,7 @@ function Portrait({
     <div
       ref={scope}
       className={`portrait side-${side} ${active ? "is-active" : ""} ${onOpen ? "is-clickable" : ""}`}
+      data-tutorial={`${side}.hp`}
       style={{ "--char-color": color } as CSSProperties}
       role={onOpen ? "button" : undefined}
       tabIndex={onOpen ? 0 : undefined}
@@ -371,7 +372,7 @@ function MidLine({ envelope, me, actions }: { envelope: PlayEnvelope; me: Side; 
   return (
     <div className="midline">
       <span className="turn">{t("턴 {turn}", { turn: envelope.state.turn })}</span>
-      <ol className="phases">
+      <ol className="phases" data-tutorial="phase">
         {PHASE_ORDER.map((item) => (
           <li key={item} className={item === phase ? "is-current" : ""}>
             {PHASE_LABELS[item]}

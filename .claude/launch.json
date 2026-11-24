@@ -13,6 +13,19 @@
       "port": 8874
     },
     {
+      "name": "play-dev-tutorial",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-u",
+        "scripts/serve_play_dev.py",
+        "--port",
+        "8874",
+        "--tutorial-setup",
+        ".temp/play-dev/tutorial-setup.json"
+      ],
+      "port": 8874
+    },
+    {
       "name": "pyodide-lab",
       "runtimeExecutable": "node",
       "runtimeArgs": [

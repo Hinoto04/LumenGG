@@ -22,6 +22,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--bundle', default=str(directory / 'bundle.json'))
 parser.add_argument('--port', type=int, default=8874)
 parser.add_argument('--reset', action='store_true', help='SQLite 파일을 지우고 묶음을 다시 읽는다')
+parser.add_argument('--tutorial-setup', help='튜토리얼 카드 배정 JSON {lesson_id: {characters, cards}} (docs/TUTORIAL.md)')
 args = parser.parse_args()
 
 bundle_path = Path(args.bundle)
@@ -72,6 +73,8 @@ settings.CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:5175', 'http://localhost:5175
 # 운영처럼 AI는 사람 명령을 먼저 보낸 뒤 백그라운드에서 생각하고, 레디 전에 잠시 기다린다.
 # (테스트 설정은 결과를 바로 확인하려고 동기로 돌린다.)
 settings.LUMEN_AI_BACKGROUND = True
+if args.tutorial_setup:
+    settings.LUMEN_TUTORIAL_SETUP = json.loads(Path(args.tutorial_setup).read_text(encoding='utf-8'))
 
 from django.contrib.auth.models import User  # noqa: E402
 from django.contrib.auth import login  # noqa: E402

@@ -1,0 +1,279 @@
+# 시뮬레이터 튜토리얼 — 1단원 「한 턴의 흐름」 설계
+
+상태: 서버·대전 클라이언트 구현됨. 실제 카드 배정(운영)과 앱 진입 버튼은 아직.
+대상: 자동 판정 대전 클라이언트(`play/`, `/battlelog/play/`)와 앱 WebView
+
+## 0. 구현 현황 (서버)
+
+| 항목 | 위치 |
+|---|---|
+| 단원 각본·문구(ko/en/ja) | `battlelog/tutorial/lessons.py` (`BASIC_1`) |
+| 세션 생성·행동 필터·단계 진행·각본 상대·화면 안내 | `battlelog/tutorial/runtime.py` |
+| 행동 필터 연결 | `automatic_services.automatic_observation`, `perform_automatic_command` |
+| 각본 상대 연결 | `automatic_services.advance_ai_session` (튜토리얼이면 AI 정책 대신 각본) |
+| 시나리오 문서 설정 덮어쓰기 | `initialize_automatic_scenario_document(..., settings=)` |
+| envelope `tutorial` 필드 | `simulator_services.serialize_simulator_session`, 검사 `play_protocol._check_tutorial` |
+| API | `GET /battlelog/play/api/tutorials/`, `POST /battlelog/play/api/tutorial/` |
+| 읽기 전용 점검 | `manage.py check_tutorials [--release V] [--setup candidate.json]` |
+| 한국어 조사 | 문구의 `{A}를`처럼 자리 표시자 바로 뒤 조사는 받침에 맞게 고른다(`runtime._josa`) |
+| 코치 레이어·완료 화면 | `play/src/components/TutorialCoach.tsx` (`App.tsx`, `GameChrome.GameOver`에서 사용) |
+| 화면 표식 | 초상 `data-tutorial="p1.hp"`, 페이즈 `data-tutorial="phase"`, 카드 `data-select-key`, 존 `data-drop-owner/zone` |
+| 로비 진입 카드 | `play/src/Lobby.tsx`의 `TutorialPanel`(준비된 단원이 있을 때만) |
+| 개발 서버 | `serve_play_dev.py --tutorial-setup .temp/play-dev/tutorial-setup.json`(`.claude/launch.json`의 `play-dev-tutorial`) |
+
+클라이언트 동작 메모
+
+- 연출(배틀 공개·판정) 재생이 끝난 뒤 말풍선을 띄우고, 끌기 중에는 숨긴다.
+- 설명 메시지 동안에는 보드를 누를 수 없다. 행동 메시지에서는 비춘 곳만 눌린다. 카드를 골라 사용 버튼(선택 팝오버)이나 확대 보기가 뜨면 코치가 그 아래로 내려가고 말풍선을 잠시 숨긴다.
+- 넓은 화면은 대상 옆, 좁은 화면(세로·760px 이하)은 대상과 겹치지 않는 위/아래 시트로 띄운다.
+- 완료하면 완료 메시지를 다 본 뒤 일반 종료 화면 대신 튜토리얼 완료 화면을 띄우고, 기기에 완료 기록(`localStorage` `lumen-play-tutorial`)을 남긴다. 로비는 완료한 단원에 "다시 하기"를 보여 준다.
+
+**검증한 배정 후보**(2026.11.16-CB04, 격리 개발 DB에서 `check_tutorials`와 브라우저로 끝까지 진행): 루트(3) 대 니아(2),
+A `ST2-001` 하이 잽, B `ST2-002` 패니 슬라이드, D `ST2-010` 차징 배리어, P1_EXTRA `ST2-005`,
+X `ST1-006` 버스트 레이, Y `ST1-002` 캐츠 머핀즈, Z `ST1-010` 니야아앙, P2_EXTRA_1 `ST1-007`, P2_EXTRA_2 `ST1-008`.
+판정은 카운터 → 방어 → 히트. 운영 적용은 운영진 확인 후.
+
+**카드 배정**: `BASIC_1['setup']`이 비어 있으면 단원을 열지 않는다(목록 `available: false`, 생성 503).
+운영진이 카드를 고르면 `lessons.py`의 `setup`에 넣거나, 코드 수정 없이 설정 `LUMEN_TUTORIAL_SETUP = {'basic-1': {'characters': {'p1': id, 'p2': id}, 'cards': {'A': '코드', ...}}}`로 준다(설정이 우선).
+후보는 저장 없이 `check_tutorials --setup candidate.json`으로 먼저 확인한다. 역할은 `A, B, D, P1_EXTRA, X, Y, Z, P2_EXTRA_1, P2_EXTRA_2` 9개다.
+
+설계와 달라진 점
+
+- 각본 실패는 이슈 보고(`AutomaticIssueReport`) 대신 서버 로그 경고와 `document.tutorial.reason`으로 남긴다. 사용자 제보 흐름과 섞지 않기 위해서다.
+- 겟 페이즈의 상대 겟은 리스트 보충 카드 `P2_EXTRA_1`, `P2_EXTRA_2`를 가져가도록 각본에 넣었다(상대가 겟을 건너뛰지 못하는 규칙 때문).
+- 상대 체력 = A와 B 데미지의 합(릴리스 수치 기준). 상대의 최대 체력 표시는 캐릭터 체력 그대로다.
+
+## 1. 목표
+
+처음 온 사람이 **5분 안에, 규칙서를 읽지 않고도** 자동 판정 대전 한 판을 끝까지 해 볼 수 있게 한다.
+
+1단원을 마치면 다음을 할 수 있어야 한다.
+
+- 한 턴이 루멘 → 레디 → 배틀 → 겟 → 리커버리로 돌아간다는 것을 안다.
+- 손패에서 카드 1장을 골라 **레디**할 수 있다.
+- 배틀 결과 중 **카운터 · 방어 · 히트** 세 가지를 화면에서 읽을 수 있다.
+- 겟 페이즈에 리스트에서 카드를 가져올 수 있다.
+- 상대 체력을 0으로 만들면 이긴다는 것을 안다.
+
+다루지 않는 것(이후 단원): FP와 속도 보정, 콤보, 캐치, 효과 선택 창, 패시브, 얼티밋, 우선권 세부 규칙, 게임 준비(초기 패·리스트 고르기).
+
+### 설계 원칙
+
+1. **진짜 엔진으로 진행한다.** 화면을 흉내 내는 가짜 데모가 아니라 `AutomaticGameEngine`이 판정한다. 엔진이 바뀌어도 튜토리얼이 같은 결과를 보여 주는지는 테스트로 지킨다.
+2. **서버가 각본을 쥔다.** 허용할 행동과 상대(AI) 행동은 서버에서 정한다. 클라이언트는 안내만 그린다. 그래서 사이트와 앱이 똑같이 동작하고, 클라이언트를 조작해 각본을 벗어날 수도 없다.
+3. **기존 경로를 최대한 재사용한다.** 세션 생성은 시나리오 세션(`initialize_automatic_scenario_document`), 상대 진행은 `advance_ai_session`, 화면은 기존 보드·이벤트 재생을 그대로 쓴다.
+4. **룰을 단정하지 않는다.** 안내 문구는 처음 플레이 가이드(`content/rulebook/lumen-beginner-guide.md`)의 표현을 따르고, 해당 절로 링크한다. 1단원에는 해석이 갈리는 장면을 넣지 않는다.
+
+## 2. 플레이 흐름 (각본)
+
+3턴, 약 12번의 안내. 플레이어는 p1, 상대는 p2(각본 AI).
+
+시작 상태는 게임 준비가 끝난 보드다(시나리오 세션이라 준비 화면과 시작 패 확인을 건너뛴다).
+빨리 끝나도록 **상대 체력을 낮게** 두고, 각 턴에 쓸 카드가 손패·리스트에 미리 놓여 있다.
+
+| # | 시점(서버 단계) | 화면 안내 | 플레이어 행동 | 상대(각본) |
+|---|---|---|---|---|
+| 0 | 시작 | 환영. "공격과 수비를 주고받아 상대 체력을 0으로 만들면 이깁니다." 체력 표시를 비춘다. | 다음 | — |
+| 1 | T1 루멘 | 페이즈 표시를 비추고 5단계 흐름을 한 줄로 소개. 루멘 페이즈는 이번엔 할 일이 없다. | 다음 (자동 진행) | — |
+| 2 | T1 레디 | 손패를 비춘다. "카드 1장을 골라 레디하세요. 레디하면 바꿀 수 없습니다." 공격 카드 **A**만 빛난다. | A를 레디 | 느린 공격 **X**를 레디 |
+| 3 | T1 배틀 공개 | 양쪽 카드가 공개되면 두 카드의 속도를 비춘다. | 다음 | — |
+| 4 | T1 판정 | "공격끼리는 속도가 빠른 쪽이 이깁니다 — **카운터**." 상대 체력 변화를 비춘다. | 다음 | — |
+| 5 | T1 겟 | 리스트를 비춘다. "리스트에서 1장을 가져옵니다." 수비 카드 **D**만 고를 수 있다. | D를 가져오기 | 정해진 카드 |
+| 6 | T1 리커버리 → T2 | "턴이 끝나고 다시 루멘 페이즈부터." | (자동 진행) | — |
+| 7 | T2 레디 | 상대 리스트·손패의 공개 정보를 비추며 "상대는 **상단** 공격을 노립니다." D만 빛난다. | D를 레디 | 상단 공격 **Y** |
+| 8 | T2 판정 | "수비 위치가 공격 위치와 맞으면 **방어** — 데미지를 받지 않습니다." | 다음 | — |
+| 9 | T2 겟 | 짧게: "이번에도 1장 가져오세요." 고를 수 있는 카드는 1장. | 가져오기 | 정해진 카드 |
+| 10 | T3 레디 | 안내 최소화(스스로 해 보기). 공격 카드 **B**만 빛나되 손가락 표시는 없다. | B를 레디 | 위치가 맞지 않는 수비 **Z** |
+| 11 | T3 판정 | "수비 위치가 맞지 않으면 공격이 **히트**합니다." 상대 체력 0. | — | — |
+| 12 | 게임 종료 | 완료 화면: 배운 것 3줄, "AI와 대전하기"·"2단원(준비 중)"·"룰북 5~6장 읽기". | — | — |
+
+메모
+
+- 카운터 → 방어 → 히트 순서는 "속도", "위치" 두 개념을 하나씩 소개하려는 것이다. 회피·상쇄·동시히트는 2단원.
+- 10번은 일부러 안내를 줄인다. 따라 하기만 하지 않고 직접 고르는 경험을 한 번은 준다.
+- 판정 설명 문구는 실제 이벤트(`battle_judged`)의 결과 값을 보고 고른다. 각본이 예상한 결과와 다르면 아래 7절의 실패 처리로 간다.
+
+### 사용할 카드의 조건
+
+카드는 **현재 공개된 규칙 릴리스**에 있는 실제 카드를 쓴다(이미지·이름이 실제 게임과 같아야 배운 것이 이어진다).
+
+- 효과가 없거나, 있어도 1단원 장면의 판정에 영향을 주지 않는 기술 카드
+- A가 X보다 확실히 빠르다(FP 보정이 끼지 않도록 FP는 양쪽 0으로 시작)
+- D의 방어 위치 = Y의 공격 위치, Z의 수비 위치 ≠ B의 공격 위치
+- 캐릭터 패시브가 판정에 끼지 않는 캐릭터 2명 (기본안: 픽스처 기본값인 루트 대 니아 — 패시브 영향 확인 필요)
+
+카드 선정은 운영진이 정한다(9절 질문 1).
+
+## 3. 구성 요소 개요
+
+```
+[로비 "튜토리얼" 버튼]
+      │ POST /battlelog/play/api/tutorial/  {lesson: "basic-1"}
+      ▼
+battlelog/tutorial/  ── 단원 정의(보드·단계·문구) ──► 시나리오 세션 생성
+      │                                              document['tutorial'] = {lesson, step, ...}
+      ▼
+perform_automatic_command / automatic_observation
+      ├─ legal_actions를 단계가 허용한 것으로 좁힘 (관찰·검증 양쪽 같은 함수)
+      ├─ 명령 처리 뒤 새 이벤트를 보고 단계 진행
+      └─ envelope에 `tutorial` 필드 추가
+advance_ai_session
+      └─ tutorial 세션이면 AI 정책 대신 단계에 적힌 상대 행동을 고른다
+      ▼
+play/ TutorialCoach 레이어 — 어둡게 덮기 + 스포트라이트 + 말풍선 + 진행 표시
+```
+
+## 4. 서버 설계
+
+### 4.1 단원 정의
+
+`LumenGG/battlelog/tutorial/` 패키지를 새로 만든다.
+
+- `lessons/basic_1.py` — 단원 데이터(파이썬 dict). 문구는 ko/en/ja를 함께 둔다.
+- `runtime.py` — 세션 생성, 행동 필터, 단계 진행, 각본 상대 결정.
+
+단원 데이터 모양(초안):
+
+```python
+LESSON = {
+    'id': 'basic-1',
+    'version': 1,                       # 문구·각본이 바뀌면 올린다(진행 중 세션은 고정본 사용)
+    'characters': {'p1': <캐릭터 ID>, 'p2': <캐릭터 ID>},
+    'board': {                          # 카드는 code로 지정, instance_id는 생성 시 부여
+        'p1': {'hp': 기본, 'hand': ['A', 'B', ...], 'list': ['D', ...]},
+        'p2': {'hp': 낮게, 'hand': ['X', 'Y', 'Z', ...], 'list': [...]},
+    },
+    'steps': [
+        {
+            'id': 't1-ready',
+            'until': {'event': 'card_readied', 'actor': 'p1'},   # 이 이벤트가 나오면 다음 단계
+            'allow': [{'type': 'ready_card', 'card': 'A'}],     # p1에게 허용할 행동
+            'opponent': [{'type': 'ready_card', 'card': 'X'}],  # p2가 이 단계에서 할 행동
+            'focus': {'action': 0},                             # 허용 행동의 ui.cards를 비춘다
+            'messages': ['tutorial.basic1.ready.1', 'tutorial.basic1.ready.2'],
+        },
+        ...
+    ],
+}
+```
+
+- `until`은 이벤트 조건이다. 엔진이 자동 진행하는 페이즈(빈 루멘 페이즈 등)도 이벤트로 잡히므로 단계가 어긋나지 않는다.
+- 서버 단계는 **p1의 행동이 필요한 지점**마다 하나다. 배틀 공개·판정처럼 엔진이 혼자 진행하는 장면의 설명(2절 3·4번)은 그다음 행동 단계(겟)의 `messages` 앞쪽에 둔다. 클라이언트는 이벤트 재생이 끝난 뒤 메시지를 차례로 보여 주므로, 화면에서는 판정 설명 → 겟 안내 순서가 된다(4.4).
+- `system` 행동 중 `concede`(그만두기)와 `pause_clock`은 언제나 허용한다. `request_rewind`는 끈다.
+
+### 4.2 세션 생성
+
+`POST /battlelog/play/api/tutorial/` 본문 `{lesson}` → `{ok, play_url}`.
+
+1. 단원 정의의 보드로 `_initial_state`와 같은 모양의 상태를 만든다(카드 메타는 `_card_payload` 재사용).
+2. `initialize_automatic_scenario_document(state, release, seed=..., phase='lumen', priority_player='p1')`로 문서를 만든다. 이 함수는 지금 `settings`를 받지 않으므로 인자를 추가한다. 튜토리얼은 **타이머 없음**(`ready_timeout_seconds=None`, `effect_timeout_seconds=None`), `rewind_enabled=False`, `opening_review=False`.
+3. `document['tutorial'] = {'lesson': 'basic-1', 'version': 1, 'step': 0, 'status': 'running', 'lesson_data': <고정본>}` — 진행 중에 단원 파일을 고쳐도 기존 세션은 깨지지 않도록 생성 시점 정의를 문서에 고정한다.
+4. 세션은 `player2_controller=CONTROLLER_AI`, `ai_policy`는 두지 않는다(4.3에서 튜토리얼 분기가 정책보다 먼저 온다).
+5. 로그인하지 않아도 시작할 수 있다(덱 권한 확인이 필요 없다). 대신 IP·세션당 생성 빈도를 제한한다.
+
+`LumenSimulatorSession`에 필드를 늘리지 않고 `document['tutorial']`로 구분한다. 마이그레이션이 필요 없다.
+통계·전적에서 빼야 하는 곳이 있으면 `document.tutorial` 여부로 거른다(9절 질문 3).
+
+### 4.3 각본 상대
+
+`advance_ai_session`의 반복 안에서 `ai_policy_id` 확인보다 먼저:
+
+```python
+if tutorial.is_tutorial(session):
+    decision = tutorial.opponent_decision(session, role)   # 현재 단계의 'opponent'에서 찾은 legal action
+```
+
+- 현재 단계의 `opponent` 목록에서 아직 하지 않은 것 중, p2의 `legal_actions`에 있는 것을 고른다(카드는 code로 대조).
+- 사람처럼 보이도록 레디 전 짧은 대기(`think=True` 경로)를 그대로 둔다. 다만 튜토리얼은 1~1.5초로 짧게.
+- 필요한 행동이 legal action에 없으면 실패 처리(7절).
+
+### 4.4 행동 필터와 단계 진행
+
+- `tutorial.filter_actions(document, role, actions)` — `automatic_observation`(화면에 보내는 목록)과 `perform_automatic_command`(제출 검증) 두 곳에서 **같은 함수**를 부른다. 허용되지 않은 `action_id`는 기존과 똑같이 `IllegalAction`.
+- `tutorial.advance(document, new_events)` — 명령이 반영된 뒤 같은 트랜잭션 안에서 새 이벤트를 훑어 `until`을 만족하면 `step`을 올린다. 한 명령에서 여러 단계가 지나갈 수 있다(예: 판정 → 겟 진입).
+- 설명 메시지 넘기기("다음")는 **클라이언트에서만** 처리한다. 서버 상태가 단순해지고, 새로고침하면 그 단계의 첫 메시지부터 다시 보여 주면 된다.
+  - 검토했지만 택하지 않은 안: 설명마다 서버 단계를 두고 `POST .../tutorial/ack/ {token, step_id}`로 넘긴다. 메시지 단위 이탈 지점을 서버에서 집계할 수 있지만, 왕복이 늘고 단계 수가 커진다. 이탈 분석이 필요해지면 그때 추가한다.
+
+### 4.5 envelope 추가 필드
+
+```json
+"tutorial": {
+  "lesson": "basic-1",
+  "step": 3,
+  "steps": 12,
+  "step_id": "t1-judge",
+  "messages": [{"text": "...", "focus": {"kind": "card", "card": {"owner":"p2","zone":"battle","index":0}}}],
+  "status": "running",            // running | completed | failed
+  "next": {"lesson": null, "label": "AI와 대전하기"}
+}
+```
+
+- 문구는 서버가 요청 언어(`play_i18n`)로 골라 보낸다.
+- `focus.kind`: `action`(허용 행동의 `ui.cards`/진행 버튼), `card`(CardRef), `zone`(`p1.hand`, `p1.list`, `p2.battle` …), `hud`(`hp`, `fp`, `phase`).
+- 필드 추가만이므로 기존 클라이언트·앱에 영향이 없다. `play_protocol.validate_play_envelope`에 `tutorial` 검사(있으면 모양 확인)를 더한다.
+
+## 5. 클라이언트 설계 (`play/`)
+
+### 5.1 `TutorialCoach` 레이어
+
+`App.tsx`의 `GameScreen`에서 `OpeningReview` 근처에 둔다. `envelope.tutorial`이 있을 때만 그린다.
+
+- **어둡게 덮기 + 스포트라이트**: 화면 전체를 반투명으로 덮고 `focus` 대상만 구멍을 낸다(SVG mask 하나). 덮개는 포인터를 막고, 구멍 부분만 아래 보드로 통과시킨다 → 허용된 카드만 누를 수 있다는 것이 눈에 보인다. (서버에서도 막으므로 이것은 안내용이다.)
+- **말풍선**: 대상 옆에 붙는다. 대상 위치는 `dragMoves.ts`의 `zoneRect`/`areaRect`와 같은 방법으로 DOM에서 구한다. 보드 요소에 `data-tutorial="p1.hand"`, `data-tutorial="hud.hp"` 같은 표식을 단다.
+- **메시지 넘기기**: 말풍선의 "다음". 마지막 메시지에서 행동이 필요한 단계면 "다음" 대신 "카드를 누르세요" 같은 지시를 보여 주고, 덮개는 대상 클릭을 통과시킨다.
+- **이벤트 재생과 순서 맞추기**: 배틀 공개·판정 연출(`anim/playback.ts`)이 끝난 뒤에 말풍선을 띄운다. 재생 큐가 비었는지 store에서 구독한다.
+- **진행 표시**: 위쪽에 `3 / 12` 점 막대와 "튜토리얼 그만두기"(→ `concede` 후 로비).
+- **좁은 화면**: 말풍선을 화면 아래 시트로 바꾼다(`useCompact`). 앱 WebView 기준으로 검증한다.
+- 기존 손가락 드래그(레디를 배틀 존으로 끌기)와 탭 둘 다 허용한다. 첫 레디 단계 말풍선에만 "끌어 놓거나 눌러서 고르세요"를 넣는다.
+
+### 5.2 완료 화면
+
+`GameOver`에 `tutorial.status === 'completed'`일 때의 변형을 둔다: 배운 것 3줄, 다음 할 일 버튼 3개(2절 12번).
+완료 기록은 우선 `localStorage`(`lumen-play-tutorial`)에 `{ 'basic-1': 완료시각 }`로 남긴다. 계정 저장은 2단원 이후 필요해지면 추가한다.
+
+### 5.3 진입점
+
+- 로비(`Lobby.tsx`): 탭 위에 "처음이신가요? 튜토리얼 (5분)" 카드. 완료했으면 작게 "다시 하기".
+- 앱(`mobile/app/battle.tsx`): 같은 버튼 → `mobile_api`에 같은 동작을 추가(필드 추가)하고 `play_url`을 WebView로 연다.
+- 일반 대전 화면에는 아무것도 추가하지 않는다(상황별 힌트는 별도 작업).
+
+## 6. 다국어
+
+- 단원 문구: 단원 파일에 ko/en/ja를 함께 둔다. 서버가 골라 보낸다.
+- 클라이언트 고정 문구("다음", "그만두기", 진행 표시): `play/src/i18n/{en,ja}.ts`에 추가.
+- 카드 이름·판정명은 기존 번역(`play_i18n`, 카드 카탈로그)을 그대로 쓴다. 문구 안에서는 `{card:A}`처럼 자리 표시자로 넣어 언어별 카드명이 들어가게 한다.
+
+## 7. 실패 처리
+
+규칙 릴리스가 바뀌어 카드 수치·효과가 달라지면 각본이 깨질 수 있다.
+
+- 각본 상대가 할 행동이 legal action에 없거나, `until`이 기대한 판정과 다른 판정이 나오면 `tutorial.status = 'failed'`.
+- 화면: "튜토리얼을 이어 갈 수 없습니다. 운영진에게 알렸습니다." + 로비로 버튼. 수동 모드로 넘기지 않는다(`_fallback_to_manual`을 타지 않도록 분기).
+- 서버는 기존 이슈 보고(`add_issue_report`)에 `tutorial` 표시를 붙여 남긴다.
+- 예방: 규칙 릴리스 발행 전에 확인하는 관리 명령 `check_tutorials`(읽기 전용, 운영 DB에 쓰지 않음)를 둔다. 현재 공개 릴리스로 모든 단원을 끝까지 돌려 본다.
+
+## 8. 테스트
+
+- `battlelog/test_tutorial.py`
+  - 합성 규칙 릴리스(효과 없는 카드)로 1단원을 처음부터 끝까지 진행: 각 단계에서 허용 행동이 정확히 하나인지, 각본 상대가 기대한 카드를 내는지, 판정이 카운터 → 방어 → 히트이고 마지막에 p1이 이기는지.
+  - 허용되지 않은 `action_id` 제출 → `IllegalAction`, 관찰 목록에도 없음.
+  - 같은 명령 재전송(멱등)과 새로고침(관찰 재요청) 시 단계가 바뀌지 않음.
+  - 각본과 다른 판정이 나오도록 카드 수치를 바꾼 릴리스 → `failed`, 수동 모드로 넘어가지 않음.
+  - envelope가 `validate_play_envelope`를 통과.
+- `play/`: `TutorialCoach` 단위 테스트(메시지 넘기기, 행동 단계에서 "다음" 숨김), 픽스처에 `tutorial` 필드를 넣은 단계 몇 개 추가.
+- 시각 검증: `scripts/`의 웹·Android 검증 스크립트로 넓은 화면·세로 폰 두 크기 스크린샷.
+
+## 9. 정할 것 (운영진 확인 필요)
+
+1. **카드와 캐릭터 선정** — 2절 조건에 맞는 실제 카드 A·B·D·X·Y·Z와 캐릭터 두 명.
+2. **로그인 없이 시작 허용 여부** — 기본안은 허용(첫 방문자가 대상). 생성 빈도 제한 값.
+3. **통계 제외 범위** — 튜토리얼 세션이 집계에 들어가는 곳이 있는지(대전 수, AI 승률 등).
+4. **완료 기록 위치** — 기본안은 기기(localStorage)만. 계정 동기화가 필요한지.
+5. **문구 감수** — 판정 설명이 처음 플레이 가이드 6장 표현과 일치하는지.
+
+## 10. 작업 순서
+
+1. 서버: `tutorial` 패키지, 시나리오 문서 `settings` 인자, 행동 필터·단계 진행·각본 상대, `api/tutorial/` — 합성 릴리스 테스트까지.
+2. 클라이언트: `data-tutorial` 표식, `TutorialCoach`, 완료 화면, 로비 버튼 → `npm run build:django`.
+3. 실제 카드 선정 후 `check_tutorials`로 현재 릴리스 검증, 문구 3개 언어.
+4. 앱 진입 버튼과 `mobile_api` 필드 추가.
