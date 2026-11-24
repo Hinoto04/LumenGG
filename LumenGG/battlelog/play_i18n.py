@@ -6,15 +6,21 @@ through :func:`localize_engine_text_fields` just before it is sent:
 
 * fixed engine words use the exact table below (no substring guessing —
   ``ui_text``'s term fallback turns ``발동하지 않음`` into nonsense);
+* effect labels and prompts written in the card DSL use the reviewed
+  translation table ``play_effect_text.json`` (Korean -> English/Japanese);
 * card names are swapped for the card's translated name;
 * ``(5속도)`` speed suffixes are rewritten;
-* what is left goes through the shared translation catalog part by part.
+* what is left goes through the shared translation catalog part by part, but
+  only when that leaves no Korean behind: word-by-word substitution of a
+  sentence (``Lumen 존에 1 cards만``) reads worse than the original.
 
 Only display fields are touched. ``legal_actions[].payload`` and option ids are
 echoed back to the engine and stay as they are.
 """
+import json
 import re
 import time
+from pathlib import Path
 
 from card.models import Card, Character
 from common.language import (
@@ -23,7 +29,7 @@ from common.language import (
     translated_card_field,
     translated_character_field,
 )
-from common.localization import translate_text_by_parts
+from common.localization import render_visible_markup, translate_text_by_parts
 
 # 카드 이름 번역은 거의 바뀌지 않는다. 이벤트마다 DB를 묻지 않도록 잠시 담아 둔다.
 NAME_CACHE_SECONDS = 600
@@ -73,7 +79,102 @@ ENGINE_TEXT = {
     '예': ('Yes', 'はい'),
     '아니오': ('No', 'いいえ'),
     '하나를 고르세요': ('Choose one', '1つ選んでください'),
+    # 엔진(engine.py·effects.py)이 직접 쓰는 결정 문구와 선택지
+    '먼저 해결할 효과를 선택하세요.': ('Choose the effect to resolve first.', '先に解決する効果を選んでください。'),
+    '무응답 기술에 대한 판정을 선택하세요.': (
+        'Choose the judgment for the unanswered Technique.', '無応答の技に対する判定を選んでください。',
+    ),
+    '사이드 덱에서 리스트로 보충할 카드를 선택할 수 있습니다.': (
+        'You may choose a card from your Side Deck to refill your List.', 'サイドデッキからリストに補充するカードを選べます。',
+    ),
+    '상대 손패에서 강제 레디할 카드를 선택하세요.': (
+        "Choose a card in your opponent's hand to force Ready.", '相手の手札から強制レディするカードを選んでください。',
+    ),
+    '상대가 획득할 리스트의 기술을 선택하세요.': (
+        'Choose a Technique in the List for your opponent to take.', '相手が獲得するリストの技を選んでください。',
+    ),
+    '선택한 카드의 종류를 선언하세요.': ('Declare the type of the chosen card.', '選んだカードの種類を宣言してください。'),
+    '종류를 추측할 상대 패 1장을 선택하세요.': (
+        "Choose 1 card in your opponent's hand to guess its type.", '種類を推測する相手の手札を1枚選んでください。',
+    ),
+    '추측 효과를 다시 사용하시겠습니까?': ('Use the guessing effect again?', '推測効果をもう一度使用しますか?'),
+    '카드 사용 비용을 지불할 대상을 선택하세요.': (
+        "Choose what to pay the card's cost with.", 'カードの使用コストを支払う対象を選んでください。',
+    ),
+    '콤보 속도 예외 비용으로 버릴 카드를 선택하세요.': (
+        'Choose a card to discard for the combo speed exception cost.', 'コンボ速度の例外コストとして捨てるカードを選んでください。',
+    ),
+    '패의 그랩을 브레이크해 상대 그랩을 무효로 할 수 있습니다.': (
+        "You may break a Grab in your hand to negate your opponent's Grab.", '手札のグラブをブレイクして相手のグラブを無効にできます。',
+    ),
+    '공개된 기술의 사용 조건으로 버릴 카드를 선택하세요.': (
+        "Choose a card to discard for the revealed Technique's use condition.", '公開された技の使用条件として捨てるカードを選んでください。',
+    ),
+    '효과 대상 선택': ('Choose a target', '効果の対象を選択'),
+    '효과 선택': ('Choose an effect', '効果を選択'),
+    '효과 발동 여부를 선택': ('Choose whether to activate the effect', '効果を発動するか選択'),
+    '수치를 선택하세요.': ('Choose a value.', '数値を選んでください。'),
+    '적용할 효과를 선택하세요.': ('Choose an effect to apply.', '適用する効果を選んでください。'),
+    '상대가 선택 중입니다.': ('Your opponent is choosing.', '相手が選択中です。'),
+    '다시 사용': ('Use again', 'もう一度使用'),
+    '종료': ('End', '終了'),
+    '조건에 맞는 카드가 없습니다.': ('No card meets the condition.', '条件に合うカードがありません。'),
 }
+
+# 카드 DSL의 능력 라벨·결정 문구·선택지(카드 효과문 조각) 번역표. 키는 정의에 적힌 한국어 원문이고
+# 값에는 [[kind:slug]] 표기가 그대로 남아 있어 언어별로 렌더링해 쓴다.
+# 새 카드의 문구가 빠졌는지는 `manage.py audit_play_effect_text`로 확인한다.
+EFFECT_TEXT_PATH = Path(__file__).with_name('play_effect_text.json')
+_EFFECT_TEXT = {'source': None, 'at': 0.0, 'tables': {}}
+
+
+def _effect_key(text):
+    return ' '.join(str(text).split())
+
+
+def effect_text_source():
+    """Normalized Korean -> [English, Japanese] from ``play_effect_text.json``."""
+    if _EFFECT_TEXT['source'] is None:
+        try:
+            rows = json.loads(EFFECT_TEXT_PATH.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            rows = {}
+        _EFFECT_TEXT['source'] = {
+            _effect_key(ko): values for ko, values in rows.items()
+            if isinstance(values, (list, tuple)) and len(values) == 2
+        }
+    return _EFFECT_TEXT['source']
+
+
+def _effect_table(language):
+    """Raw and rendered Korean keys -> the translation rendered in ``language``.
+
+    Session payloads render ``[[kind:slug]]`` in the viewer's language before
+    they reach this module, so each key is stored both raw and rendered.
+    """
+    now = time.monotonic()
+    if now - _EFFECT_TEXT['at'] > NAME_CACHE_SECONDS:
+        _EFFECT_TEXT.update(at=now, tables={})
+    table = _EFFECT_TEXT['tables'].get(language)
+    if table is None:
+        index = 0 if language == 'en' else 1
+        table = {}
+        for ko, values in effect_text_source().items():
+            translated = values[index]
+            if not translated:
+                continue
+            value = render_visible_markup(translated, language) if '[[' in translated else translated
+            table[ko] = value
+            if '[[' in ko:
+                table.setdefault(_effect_key(render_visible_markup(ko, language)), value)
+        _EFFECT_TEXT['tables'][language] = table
+    return table
+
+
+def _effect_text(text, language):
+    if not isinstance(text, str) or not text.strip():
+        return None
+    return _effect_table(language).get(_effect_key(text))
 
 
 def _exact(text, language):
@@ -128,6 +229,8 @@ def localize_engine_text(text, language, card_names=None):
     if not isinstance(text, str) or not HANGUL.search(text):
         return text
     exact = _exact(text, language)
+    if exact is None:
+        exact = _effect_text(text, language)
     if exact is not None:
         return exact
     result = text
@@ -137,10 +240,50 @@ def localize_engine_text(text, language, card_names=None):
     result = SPEED_SUFFIX.sub(lambda match: f' ({speed.format(n=match.group(1))})' if language == 'en'
                               else f'({speed.format(n=match.group(1))})', result)
     parts = PART_SEPARATORS.split(result)
-    result = ''.join(_exact(part, language) or part for part in parts)
+    result = ''.join(_exact(part, language) or _effect_text(part, language) or part for part in parts)
     if HANGUL.search(result):
-        result = translate_text_by_parts(result, language)
+        # 용어 단위 치환은 짧은 용어(상단 회피 등)에만 맞는다. 문장에 쓰면 한국어와 영어가 뒤섞인
+        # 문장이 되므로, 남김없이 옮겨질 때만 쓴다.
+        by_terms = translate_text_by_parts(result, language)
+        if not HANGUL.search(by_terms):
+            result = by_terms
     return result
+
+
+UNAVAILABLE_VERBS = {
+    # 한국어 동사 -> (English past participle, 日本語「〜ません」, 日本語「〜ないカードしかありません」)
+    '브레이크할': ('broken', 'ブレイクできません', 'ブレイクできないカードしかありません'),
+    '옮길': ('moved', '移動できません', '移動できないカードしかありません'),
+    '버릴': ('discarded', '捨てられません', '捨てられないカードしかありません'),
+}
+SHORTAGE_REASON = re.compile(r'^조건에 맞는 카드가 부족합니다\((\d+)/(\d+)\)\.$')
+ONLY_BLOCKED_REASON = re.compile(r'^효과로 (\S+) 수 없는 카드뿐입니다\.$')
+BLOCKED_BY_REASON = re.compile(r'^(.+) 효과로 (\S+) 수 없습니다\.$')
+QUOTED_NAME = re.compile(r'「([^」]+)」')
+
+
+def localize_unavailable_reason(reason, language, card_names=None):
+    """Why an option cannot be chosen (engine ``selector_unavailable_reason``)."""
+    if not isinstance(reason, str) or not HANGUL.search(reason):
+        return reason
+    en = language == 'en'
+    match = SHORTAGE_REASON.match(reason)
+    if match:
+        count = f'{match.group(1)}/{match.group(2)}'
+        return (f'Not enough cards meet the condition ({count}).' if en
+                else f'条件に合うカードが足りません({count})。')
+    match = ONLY_BLOCKED_REASON.match(reason)
+    if match and match.group(1) in UNAVAILABLE_VERBS:
+        verb = UNAVAILABLE_VERBS[match.group(1)]
+        return f'Every candidate is protected from being {verb[0]} by an effect.' if en else f'効果で{verb[2]}。'
+    match = BLOCKED_BY_REASON.match(reason)
+    if match and match.group(2) in UNAVAILABLE_VERBS:
+        verb = UNAVAILABLE_VERBS[match.group(2)]
+        names = QUOTED_NAME.sub(
+            lambda found: f'「{(card_names or {}).get(found.group(1), found.group(1))}」', match.group(1),
+        )
+        return f"Can't be {verb[0]} because of {names}." if en else f'{names}の効果で{verb[1]}。'
+    return localize_engine_text(reason, language, card_names)
 
 
 GENERIC_PROMPTS = {
@@ -329,4 +472,11 @@ def localize_engine_text_fields(payload, language):
                 decision['prompt'], language, names, kind=decision.get('kind'), source=decision.get('source'),
             )
         options(decision.get('options'))
+        for option in decision.get('unavailable_options') or []:
+            if not isinstance(option, dict):
+                continue
+            if 'label' in option:
+                option['label'] = localize_engine_text(option['label'], language, names)
+            if 'reason' in option:
+                option['reason'] = localize_unavailable_reason(option['reason'], language, names)
     return payload
