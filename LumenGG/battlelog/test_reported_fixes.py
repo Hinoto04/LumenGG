@@ -1576,3 +1576,62 @@ class NegatedNumberedRootComboRuleTests(SimpleTestCase):
     def test_restriction_applies_without_negation(self):
         engine = self.build(negated=False)
         self.assertFalse(self.pair_offered(engine))
+
+
+PROVIDENCE_TEXT = (
+    '루멘 존의 이 기술은 다른 기술의 효과를 받지 않는다.\n'
+    '이 기술을 덱에 편성할 경우, 특수 기술은 [[character:chimera]]의 기술만 편성할 수 있다. \n'
+    '게임 시작 시, 사이드 덱에서 루멘 존에 배치한다. \n'
+    '①이 기술이 루멘 존에 있는 동안 이하의 효과를 적용한다. \n'
+    '- 자신의 기술이 브레이크 될 때마다 리스트에서 1장을 획득할 수 있다. '
+    '이 효과는 콤보 타임 중에는 적용하지 않는다. \n'
+    '-패  매수 상한이 1장 늘어난다.'
+)
+
+
+class ProvidenceOneComboAfterUseBreakTests(SimpleTestCase):
+    """콤보 판정이 난 1콤보 기술의 사용 후 브레이크는 콤보 타임 중이라 섭리의 궤가 유발되지 않는다(8.1.1)."""
+
+    def run_battle(self, hit):
+        from .game.drafts import build_effect_draft
+
+        mine = attack('mine', 'p1', code='MINE', frame=5, damage=300, hit=hit)
+        mine['break_after_use'] = True
+        listed = attack('listed', 'p1', code='LISTED', frame=9)
+        guard = defense('guard', 'p2', top=None, mid=None, bottom=None)
+        providence = {
+            'instance_id': 'p1-providence', 'kind': 'card', 'owner': 'p1',
+            'code': 'CB02-AT-002', 'name': '섭리의 궤', 'type': '특수', 'face_up': True,
+        }
+        state = base_state([mine], [guard])
+        state['players']['p1']['zones']['list'] = [listed]
+        state['players']['p1']['zones']['lumen'] = [providence]
+        rules = ruleset(mine, listed, guard)
+        rules['cards']['CB02-AT-002'] = {
+            **providence, 'effect_definition': build_effect_draft('CB02-AT-002', PROVIDENCE_TEXT),
+        }
+        engine = AutomaticGameEngine.initialize(state, rules, seed='providence-one-combo', run_startup=False)
+        for role, kind, pick in (('p1', 'pass_phase', None), ('p2', 'pass_phase', None),
+                                 ('p1', 'ready_card', 'mine'), ('p2', 'ready_card', None)):
+            engine.submit_action(role, next(
+                a for a in engine.legal_actions(role)
+                if a['type'] == kind and (pick is None or a['payload'].get('card_instance_id') == pick)
+            )['action_id'])
+        self.assertIsNotNone(engine._find_card('mine', owner='p1', zone='break'))
+        return engine
+
+    def providence_offered(self, engine):
+        return any(
+            event.get('type') == 'decision_requested'
+            and (event.get('payload') or {}).get('kind') == 'optional_effect'
+            for event in engine.events
+        )
+
+    def test_one_combo_after_use_break_does_not_offer(self):
+        engine = self.run_battle('콤보')
+        self.assertFalse(self.providence_offered(engine))
+        self.assertFalse(engine.engine_state.get('combo_time'))
+
+    def test_normal_hit_after_use_break_still_offers(self):
+        engine = self.run_battle('2')
+        self.assertTrue(self.providence_offered(engine))

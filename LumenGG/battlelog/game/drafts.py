@@ -5201,6 +5201,12 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                             'op': 'equals', 'left': {'path': 'engine.combo'},
                             'right': None,
                         },
+                        # 콤보 판정이 난 1콤보 기술의 남은 처리(사용 후 브레이크 등)도
+                        # 콤보 타임 중이다(룰 8.1.1).
+                        {
+                            'op': 'not_equals', 'left': {'path': 'engine.combo_time'},
+                            'right': True,
+                        },
                     ],
                 },
                 'availability_selector': copy.deepcopy(list_selector),

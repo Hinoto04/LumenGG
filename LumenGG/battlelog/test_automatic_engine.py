@@ -40165,7 +40165,7 @@ class AutomaticEngineTests(SimpleTestCase):
         )
 
         self.assertTrue(result.passed, result.as_dict())
-        self.assertEqual(result.as_dict()['scenario_count'], 21)
+        self.assertEqual(result.as_dict()['scenario_count'], 22)
         by_id = {ability.ability_id: ability for ability in result.abilities}
         protected = {
             item['name']: item

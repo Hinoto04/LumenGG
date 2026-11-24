@@ -127948,7 +127948,7 @@ def _run_cb02_at_002_acquire_scenario(
     definition, card_snapshot, owner, *, list_count=2, select_index=0,
     accept_effect=True, event_owner='self', event_technique=True,
     combo_active=False, source_zone='lumen', event_type='card_broken',
-    numbered_negated=False,
+    numbered_negated=False, combo_time=False,
 ):
     other = 'p2' if owner == 'p1' else 'p1'
     engine, source, opposing = _st2_battle_engine(
@@ -127985,6 +127985,9 @@ def _run_cb02_at_002_acquire_scenario(
         engine.engine_state['combo'] = {
             'owner': owner, 'source': 'review-combo', 'used': [],
         }
+    if combo_time:
+        # 콤보 판정이 났지만 1콤보 기술의 사용 후 처리 중이라 콤보가 아직 열리지 않았다.
+        engine.engine_state['combo_time'] = True
     engine._fire(event_type, {
         'controller': event_side,
         'source_card_instance_id': event_card['instance_id'],
@@ -128052,6 +128055,10 @@ def _review_cb02_at_002_definition(definition, card_snapshot, extra_root):
             {
                 'op': 'equals', 'left': {'path': 'engine.combo'},
                 'right': None,
+            },
+            {
+                'op': 'not_equals', 'left': {'path': 'engine.combo_time'},
+                'right': True,
             },
         ],
     }
@@ -128189,6 +128196,9 @@ def _review_cb02_at_002_definition(definition, card_snapshot, extra_root):
             }, {'outer_kind': None, 'resolved': 0}),
             ('combo-time-break-does-not-trigger', 'p1', {
                 'combo_active': True,
+            }, {'outer_kind': None, 'resolved': 0}),
+            ('one-combo-after-use-break-does-not-trigger', 'p2', {
+                'combo_time': True,
             }, {'outer_kind': None, 'resolved': 0}),
             ('source-outside-lumen-is-inactive', 'p2', {
                 'source_zone': 'side',

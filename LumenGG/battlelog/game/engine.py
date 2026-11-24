@@ -1287,6 +1287,7 @@ class AutomaticGameEngine:
         # 그 정리(양쪽 FP 0: 룰 8.4.2·Q&A 171, 빌린 카드 반환, 콤보 한정 효과 만료)는 먼저 한다.
         ending = engine.get('pipeline') or {}
         if ending.get('kind') in {'combo_end', 'mutual_combo_end'}:
+            self.engine_state.pop('combo_time', None)
             for side in PLAYER_SIDES:
                 self.set_fp(side, 0, source='combo_cleanup')
             for ended in (
@@ -1920,6 +1921,16 @@ class AutomaticGameEngine:
             result[chooser] = forced.get('result') if forced.get('result') in {'hit', 'counter'} else 'hit'
             result[missing] = 'failed_defense'
         battle['result'] = result
+        # 8.1.1: 콤보 판정 공격이 히트·카운터하면 그 공격이 1콤보가 되어 콤보 타임이 시작된다.
+        # 1콤보 기술의 남은 처리(판정 후·사용 후)도 콤보 타임 중이므로 여기서 표시한다.
+        if any(
+            result.get(side) in {'hit', 'counter', 'clash'}
+            and str((battle[side].get('card') or {}).get(
+                'hit' if result.get(side) == 'clash' else result.get(side),
+            ) or '') == '콤보'
+            for side in PLAYER_SIDES
+        ):
+            self.engine_state['combo_time'] = True
         for side in PLAYER_SIDES:
             self.engine_state.setdefault('battle_result_history', []).append({
                 'turn': int(self.state.get('turn') or 1),
@@ -2489,6 +2500,8 @@ class AutomaticGameEngine:
                 )
                 self.end_combo()
                 return True
+            # 효과로 콤보 타임이 끝났다(열리지 않는다).
+            self.engine_state.pop('combo_time', None)
             return False
         missed_catches = list(self.engine_state.get('granted_catches') or [])
         self.engine_state['granted_catches'] = []
@@ -2832,6 +2845,7 @@ class AutomaticGameEngine:
         # cleared before the next Combo grant or Catch window is opened.
         for side in PLAYER_SIDES:
             self.set_fp(side, 0, source='combo_cleanup')
+        self.engine_state.pop('combo_time', None)
         self._return_borrowed_combo_cards(combo)
         self._expire_modifiers('combo')
         self.engine_state['pipeline'] = None
@@ -2893,6 +2907,7 @@ class AutomaticGameEngine:
             return not self.is_waiting
         for side in PLAYER_SIDES:
             self.set_fp(side, 0, source='mutual_combo_cleanup')
+        self.engine_state.pop('combo_time', None)
         self._expire_modifiers('combo')
         self.engine_state['pipeline'] = None
         self._cleanup_battle()
@@ -5661,6 +5676,9 @@ class AutomaticGameEngine:
             pipeline['stage'] = 'hit'
             return not self.is_waiting
         if stage == 'hit':
+            if str(card.get('hit') or '') == '콤보':
+                # 8.7.2: 캐치 공격의 히트 판정이 콤보면 콤보 타임에 진입한다.
+                self.engine_state['combo_time'] = True
             self._fire('hit', context)
             pipeline['stage'] = 'damage'
             return not self.is_waiting
@@ -6050,6 +6068,7 @@ class AutomaticGameEngine:
             self.engine_state['ready_cards'] = {}
             self.engine_state['granted_catches'] = []
             self.engine_state['combo'] = None
+            self.engine_state.pop('combo_time', None)
             self.engine_state.pop('combo_source_ids', None)
             self.engine_state.pop('catch_source_ids', None)
             self._reset_usage('battle')
