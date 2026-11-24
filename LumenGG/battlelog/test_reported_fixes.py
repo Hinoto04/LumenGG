@@ -1529,3 +1529,50 @@ class MujinActivationAndBreakTests(SimpleTestCase):
         engine._continue()
         self.assertIsNotNone(engine._find_card('p1-mujin', owner='p1', zone='break'))
 
+
+class NegatedNumberedRootComboRuleTests(SimpleTestCase):
+    """번호 효과만 쓰는 루트 combo_rules(라이! 레피! 로켓! ②)는 키메라가 가져와 번호 효과가 무효면 적용하지 않는다."""
+
+    def build(self, negated):
+        opener = attack('opener', 'p1', frame=8, hit='콤보')
+        first = attack('first', 'p1', code='FIRST', frame=12, damage=600)
+        rocket = attack('rocket', 'p1', code='ROCKET', frame=13, damage=1200)
+        if negated:
+            rocket['numbered_effects_negated'] = True
+        guard = defense('guard', 'p2', top=None, mid=None, bottom=None)
+        rules = ruleset(opener, first, rocket, guard)
+        rules['cards']['ROCKET']['effect_definition'] = {
+            'abilities': [{
+                'id': 'rocket-n2', 'kind': 'effect', 'mode': 'mandatory', 'timing': 'combo',
+                'visibility': 'public', 'trigger': {'event': 'combo'},
+                'effects': [{'op': 'static_rule', 'rules': ['combo_rules']}],
+            }],
+            'combo_rules': [{'min_combo': 4, 'damage_bonus': -400}],
+        }
+        engine = AutomaticGameEngine.initialize(
+            base_state([opener, first, rocket], [guard]), rules,
+            seed='negated-root-combo-rule', run_startup=False,
+        )
+        for role, kind, pick in (('p1', 'pass_phase', None), ('p2', 'pass_phase', None),
+                                 ('p1', 'ready_card', 'opener'), ('p2', 'ready_card', None)):
+            engine.submit_action(role, next(
+                a for a in engine.legal_actions(role)
+                if a['type'] == kind and (pick is None or a['payload'].get('card_instance_id') == pick)
+            )['action_id'])
+        return engine
+
+    def pair_offered(self, engine):
+        combo = engine.engine_state.get('combo') or {}
+        return any(
+            (action.get('payload') or {}).get('card_instance_ids') == ['first', 'rocket']
+            for action in engine._combo_actions('p1', combo)
+        )
+
+    def test_negated_numbered_restriction_is_ignored(self):
+        engine = self.build(negated=True)
+        self.assertEqual(engine.engine_state.get('step'), 'combo')
+        self.assertTrue(self.pair_offered(engine))
+
+    def test_restriction_applies_without_negation(self):
+        engine = self.build(negated=False)
+        self.assertFalse(self.pair_offered(engine))

@@ -9483,11 +9483,47 @@ class AutomaticGameEngine:
                     continue
                 ability.setdefault('active_zones', ['battle'])
                 ability.setdefault('requires_combo_use', True)
+        if card.get('numbered_effects_negated'):
+            definition = self._numbered_root_rules_marked(
+                str(card.get('code') or ''), definition,
+            )
         if card.get('instance_id'):
             if zone is None:
                 _side, zone, _index, _live = self._find_location(card.get('instance_id'))
             if zone == 'passive' and self._traits_negated():
                 return {}
+        return definition
+
+    def _numbered_root_rules_marked(self, code, definition):
+        """번호 효과(①②…)만 static_rule로 쓰는 루트 규칙 목록에 numbered_effect를 채운다.
+
+        예: 라이! 레피! 로켓! ②의 "3콤보 후 사용할 수 있으며 데미지-400"은 루트 combo_rules에
+        있지만 표시가 없어, 키메라가 번호 효과를 무효로 한 카드에도 적용됐다. 번호 없는 기능도
+        같은 규칙을 쓰면 기능으로 보고 그대로 둔다. 명시된 numbered_effect 값은 바꾸지 않는다.
+        """
+        cache = getattr(self, '_numbered_root_rule_cache', None)
+        if cache is None:
+            cache = self._numbered_root_rule_cache = {}
+        if code in cache:
+            return cache[code]
+        kinds_by_rule = {}
+        for ability in definition.get('abilities') or []:
+            for effect in ability.get('effects') or []:
+                if (effect or {}).get('op') != 'static_rule':
+                    continue
+                for name in effect.get('rules') or []:
+                    kinds_by_rule.setdefault(str(name), set()).add(ability.get('kind'))
+        numbered = [
+            name for name, kinds in kinds_by_rule.items()
+            if kinds == {'effect'} and isinstance(definition.get(name), list)
+        ]
+        if numbered:
+            definition = copy.deepcopy(definition)
+            for name in numbered:
+                for rule in definition.get(name) or []:
+                    if isinstance(rule, dict):
+                        rule.setdefault('numbered_effect', True)
+        cache[code] = definition
         return definition
 
     def _traits_negated(self):
