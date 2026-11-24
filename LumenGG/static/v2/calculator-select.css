@@ -1,0 +1,233 @@
+/* 대전 계산기 시작: 격투게임식 캐릭터 선택(왼쪽 1P · 가운데 로스터 · 오른쪽 2P) */
+.fs { padding: 14px; overflow: hidden; }
+.fs-stage {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(0, 1.7fr) minmax(180px, 1fr);
+    gap: 14px;
+    align-items: stretch;
+}
+.fs-fighter:last-child { order: 3; }
+
+/* 플레이어 칸 */
+.fs-fighter {
+    --fs-color: transparent;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px;
+    border-radius: 16px;
+    border: 1px solid var(--v2-line);
+    background:
+        radial-gradient(120% 70% at 50% 100%, color-mix(in srgb, var(--fs-color) 22%, transparent), transparent 70%),
+        var(--v2-soft-bg);
+    transition: border-color .2s, box-shadow .2s;
+}
+.fs-fighter.is-active { border-color: var(--fs-side); box-shadow: 0 0 0 1px var(--fs-side), 0 0 26px -10px var(--fs-side); }
+.fs-fighter-head { display: flex; align-items: center; gap: 8px; }
+.fs-tag {
+    flex: none;
+    padding: 3px 9px;
+    border-radius: 8px;
+    background: var(--fs-side);
+    color: #111;
+    font-size: 14px;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: .02em;
+}
+.fs .fs-name {
+    flex: 1;
+    min-width: 0;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 9px;
+    border: 1px solid var(--v2-line);
+    background: var(--v2-surface);
+    color: var(--v2-text);
+    font-weight: 700;
+}
+.fs .fs-name:focus { outline: none; border-color: var(--fs-side); }
+
+.fs-portrait {
+    position: relative;
+    flex: 1;
+    min-height: 240px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(180deg, transparent 55%, rgba(0, 0, 0, .55));
+    color: var(--v2-text);
+    cursor: pointer;
+}
+.fs-portrait img {
+    position: absolute;
+    inset: 6px 0 0;
+    width: 100%;
+    height: calc(100% - 6px);
+    object-fit: contain;
+    object-position: center bottom;
+    filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .5));
+    animation: fs-enter .28s ease-out;
+}
+.fs-fighter:last-child .fs-portrait img { transform: scaleX(-1); }
+@keyframes fs-enter { from { opacity: 0; translate: -14px 0; } to { opacity: 1; translate: 0 0; } }
+.fs-fighter:last-child .fs-portrait img { animation-name: fs-enter-right; }
+@keyframes fs-enter-right { from { opacity: 0; translate: 14px 0; } to { opacity: 1; translate: 0 0; } }
+.fs-portrait-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: 72px; font-weight: 900; color: var(--v2-line); }
+.fs-character {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    padding: 18px 8px 8px;
+    background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .7));
+    color: #fff;
+    font-size: 22px;
+    font-weight: 900;
+    text-align: center;
+    text-shadow: 0 2px 6px #000;
+}
+.fs-picking {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 1;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--fs-side);
+    color: #111;
+    font-size: 11px;
+    font-weight: 900;
+    opacity: 0;
+    transition: opacity .2s;
+}
+.fs-fighter.is-active .fs-picking { opacity: 1; animation: fs-blink 1.4s ease-in-out infinite; }
+@keyframes fs-blink { 50% { opacity: .45; } }
+
+/* 패시브(특성) 카드 */
+.fs-traits { display: flex; gap: 8px; min-height: 0; }
+.fs-traits:empty { display: none; }
+.fs-trait {
+    flex: 1 1 0;
+    max-width: 92px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid var(--v2-line);
+    background: var(--v2-surface);
+    color: var(--v2-muted);
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: border-color .15s, transform .1s;
+}
+/* 카드 가운데 일러스트(가로 20~80%, 위 12% 부근)를 정사각형으로 잘라 아이콘처럼 쓴다. */
+.fs-trait-art {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 7px;
+    background-color: var(--v2-surface-2);
+    background-size: 166.7% auto;
+    background-position: 50% 21%;
+    background-repeat: no-repeat;
+    opacity: .6;
+    transition: opacity .15s;
+}
+.fs-trait-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+.fs-trait:hover .fs-trait-art { opacity: .9; }
+.fs-trait.is-selected { border-color: var(--v2-accent); color: var(--v2-text); box-shadow: 0 0 0 1px var(--v2-accent), 0 0 16px -6px var(--v2-accent); }
+.fs-trait.is-selected .fs-trait-art { opacity: 1; }
+.fs-trait:active { transform: scale(.97); }
+
+/* 로스터 */
+.fs-roster {
+    order: 2;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    gap: 8px;
+    align-content: start;
+    min-width: 0;
+}
+.fs-cell {
+    --fs-color: #888;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 10px;
+    border: 2px solid var(--v2-line);
+    background: var(--v2-surface-2);
+    color: var(--v2-text);
+    cursor: pointer;
+    transition: transform .1s, border-color .15s;
+}
+.fs-face { position: relative; display: block; width: 100%; aspect-ratio: 1; overflow: hidden; background: color-mix(in srgb, var(--fs-color) 25%, var(--v2-surface-2)); }
+.fs-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* 기울어진 아이콘: 시계방향 45도로 돌리고, 돌린 정사각형이 칸을 빈틈없이 덮도록 √2배로 키운다. */
+.fs-face.is-tilted img { inset: auto; left: 50%; top: 50%; width: 141.5%; height: 141.5%; transform: translate(-50%, -50%) rotate(45deg); }
+.fs-cell > span:not(.fs-face) { padding: 3px 2px 4px; font-size: 12px; font-weight: 800; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-cell:hover, .fs-cell:focus-visible { outline: none; transform: translateY(-2px); border-color: var(--v2-accent); }
+.fs[data-picking="player1"] .fs-cell:hover { border-color: var(--v2-teal); }
+.fs[data-picking="player2"] .fs-cell:hover { border-color: var(--v2-purple); }
+.fs-cell.is-p1 { border-color: var(--v2-teal); }
+.fs-cell.is-p2 { border-color: var(--v2-purple); }
+.fs-cell.is-p1.is-p2 { border-image: linear-gradient(90deg, var(--v2-teal) 50%, var(--v2-purple) 50%) 1; }
+.fs-badge {
+    position: absolute;
+    top: 3px;
+    display: none;
+    padding: 1px 5px;
+    border-radius: 6px;
+    color: #111;
+    font-size: 10px;
+    font-weight: 900;
+    font-style: italic;
+}
+.fs-badge.is-p1 { left: 3px; background: var(--v2-teal); }
+.fs-badge.is-p2 { right: 3px; background: var(--v2-purple); }
+.fs-cell.is-p1 .fs-badge.is-p1, .fs-cell.is-p2 .fs-badge.is-p2 { display: block; }
+
+.fs-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 14px; }
+.fs-hint { flex: 1; margin: 0; color: var(--v2-muted); font-size: 13px; }
+.fs-start { min-width: 180px; min-height: 46px; font-size: 16px; font-weight: 900; }
+
+/* 좁은 화면(휴대폰): 폼이 한 화면(100dvh)을 채운다. 1P·2P를 위에 나란히, 로스터는 아래.
+   로스터 칸 크기(--fs-cell)와 열 수(--fs-cols)는 화면 높이에 맞춰 스크립트가 정하고, 남는 높이는 초상화가 쓴다. */
+@media (max-width: 760px) {
+    .fs { display: flex; flex-direction: column; height: 100dvh; min-height: 520px; padding: 8px; box-sizing: border-box; }
+    .fs-stage { flex: 1; min-height: 0; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 8px; }
+    .fs-roster {
+        order: 3;
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(var(--fs-cols, 5), var(--fs-cell, 60px));
+        justify-content: center;
+        gap: 6px;
+    }
+    .fs-cell > span:not(.fs-face) { padding: 1px 2px 2px; font-size: 10.5px; }
+    .fs-fighter:last-child { order: 2; }
+    .fs-fighter { min-height: 0; padding: 6px; gap: 6px; }
+    .fs-portrait { flex: 1 1 0; min-height: 70px; }
+    .fs-portrait-empty { font-size: 44px; }
+    .fs-character { padding: 12px 6px 5px; font-size: 16px; }
+    .fs-fighter-head { gap: 6px; }
+    .fs-tag { padding: 2px 7px; font-size: 12px; }
+    .fs .fs-name { height: 28px; padding: 0 8px; font-size: 13px; }
+    .fs-traits { flex: none; gap: 6px; }
+    .fs-trait { flex: 0 0 auto; width: 54px; padding: 3px; gap: 2px; font-size: 10px; }
+    .fs-actions { flex: none; flex-direction: column-reverse; align-items: stretch; gap: 4px; margin-top: 8px; }
+    .fs-hint:empty { display: none; }
+    .fs-start { width: 100%; min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .fs * { animation: none !important; transition: none !important; }
+}

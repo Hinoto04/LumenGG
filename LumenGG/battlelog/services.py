@@ -45,7 +45,7 @@ from .event_buffer import (
 from .models import BattleEvent, BattleSession, BattleSet
 from .calculator_preparation import resolved_character
 from .presence import battle_presence_counts
-from .shields import SHIELD_KEY, MAX_SHIELD_DELTA, supports_shield, shield_amount, with_shield
+from .shields import SHIELD_KEY, MAX_SHIELD_DELTA, shield_enabled, supports_shield, shield_amount, with_shield
 
 
 STANDALONE_SESSION_LIFETIME = timedelta(hours=1)
@@ -1097,7 +1097,7 @@ def apply_hp_delta(session, target, amount, user=None):
         field = 'player1_hp' if target == BattleEvent.TARGET_PLAYER1 else 'player2_hp'
         prefix = 'player1' if target == BattleEvent.TARGET_PLAYER1 else 'player2'
         state_field = prefix + '_passive_state'
-        shield_before = shield_amount(getattr(locked, state_field)) if supports_shield(resolved_character(locked, target)) else 0
+        shield_before = shield_amount(getattr(locked, state_field)) if shield_enabled(resolved_character(locked, target)) else 0
         absorbed = min(shield_before, -amount) if amount < 0 else 0
         before = getattr(locked, field)
         after = before + amount + absorbed
@@ -1129,8 +1129,8 @@ def apply_shield_delta(session, target, amount=0, reset=False, user=None):
     with transaction.atomic():
         locked = BattleSession.objects.select_for_update().get(id=session.id)
         prefix = 'player1' if target == BattleEvent.TARGET_PLAYER1 else 'player2'
-        if not supports_shield(resolved_character(locked, target)):
-            raise ValueError('보호막은 핀프만 사용할 수 있습니다.')
+        if not shield_enabled(resolved_character(locked, target)):
+            raise ValueError('캐릭터를 먼저 선택해주세요.')
         field = prefix + '_passive_state'
         before = shield_amount(getattr(locked, field))
         after = 0 if reset else max(0, before + amount)
@@ -1226,7 +1226,7 @@ def undo_last_hp_event(session, user=None):
         changed = [field, 'updated_at']
         prefix = 'player1' if target == BattleEvent.TARGET_PLAYER1 else 'player2'
         restored = shield_payload.get('shield_absorbed', 0)
-        if restored and supports_shield(resolved_character(locked, target)):
+        if restored and shield_enabled(resolved_character(locked, target)):
             state_field = prefix + '_passive_state'
             setattr(locked, state_field, with_shield(getattr(locked, state_field), shield_amount(getattr(locked, state_field)) + restored))
             changed.append(state_field)

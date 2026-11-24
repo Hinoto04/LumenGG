@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { deckIssues, characterWithTrait, isTrait } from "../src/deck-rules";
 import { newCalculator } from "../src/core";
-import { supportsShield } from "../src/calculator-shield";
+import { prefersShieldRow, supportsShield } from "../src/calculator-shield";
 import type { Catalog, Deck } from "../src/types";
 
 const cases = JSON.parse(
@@ -102,6 +102,8 @@ test("selected trait preserves theme while owning its counters and shield suppor
     state = newCalculator(selected, selected, "ko");
   assert.equal(state.players.p1.initial_hp, 4000);
   assert.deepEqual(state.players.p1.passive_state, { fresh: { count: 2 } });
-  assert.equal(supportsShield(state.players.p1), false);
+  // 보호막 조작은 누구나 쓸 수 있고, 특성 설정은 보호막 줄을 우선할지만 정한다.
+  assert.equal(supportsShield(state.players.p1), true);
+  assert.equal(prefersShieldRow(state.players.p1), false);
   assert.equal(state.players.p1.character.trait_card_id, 10);
 });

@@ -73,7 +73,10 @@ class FinfShieldTests(TestCase):
         other.player1_passive_state = {SHIELD_KEY: {'value': 300}}
         other.save(update_fields=['player1_passive_state'])
         other = perform_session_action(other, {'action': 'hp', 'target': 'p1', 'amount': -500}, control_token=other.control_token)
-        self.assertEqual(other.player1_hp, 4500)
+        # 보호막은 핀프가 아닌 캐릭터도 쓸 수 있다(카드 효과로 누구나 얻는다).
+        self.assertEqual(other.player1_hp, 4800)
+        other = perform_session_action(other, {'action': 'shield', 'target': 'p2', 'amount': 200}, control_token=other.control_token)
+        self.assertEqual(shield_amount(other.player2_passive_state), 200)
 
     def test_reset_and_sudden_death_clear_shield(self):
         self.act('shield', 300); self.act('reset_session')
@@ -83,7 +86,7 @@ class FinfShieldTests(TestCase):
         self.assertEqual(self.session.player1_hp, 1000)
 
     def test_invalid_and_unauthorized_actions(self):
-        for body in [{'action': 'shield', 'amount': 0}, {'action': 'shield', 'amount': 0.5}, {'action': 'shield', 'amount': True}, {'action': 'shield', 'amount': 50001}, {'action': 'shield', 'amount': 100, 'target': 'p2'}, {'action': 'shield_reset', 'target': 'bad'}, {'action': 'passive', 'key': SHIELD_KEY, 'value': -100}]:
+        for body in [{'action': 'shield', 'amount': 0}, {'action': 'shield', 'amount': 0.5}, {'action': 'shield', 'amount': True}, {'action': 'shield', 'amount': 50001}, {'action': 'shield_reset', 'target': 'bad'}, {'action': 'passive', 'key': SHIELD_KEY, 'value': -100}]:
             with self.subTest(body=body), self.assertRaises(ValueError):
                 self.act(**body)
         with self.assertRaises(PermissionDenied):

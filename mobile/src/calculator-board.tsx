@@ -75,7 +75,8 @@ export function CalculatorBoard({
   pendingHp: PendingHp;
   pendingFp: PendingHp;
   pendingShield: PendingHp;
-  onHp: (target: HpTarget, amount: number) => void;
+  /** immediate: 8버튼(4×2)처럼 모으지 않고 바로 보낸다. */
+  onHp: (target: HpTarget, amount: number, immediate?: boolean) => void;
   onFp: (target: HpTarget, amount: number) => void;
   onShield: (target: HpTarget, amount: number) => void;
   onPartyReturn?: () => void;

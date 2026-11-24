@@ -3,7 +3,12 @@ import { calculatorTheme } from "./calculator-ui";
 
 export const SHIELD_KEY = "finf_shield";
 export const MAX_SHIELD_DELTA = 50000;
+/** 보호막은 캐릭터가 정해진 모든 플레이어가 쓸 수 있다(카드 효과로 누구나 얻을 수 있다). */
 export function supportsShield(player: Pick<Player, "character">): boolean {
+  return !!player.character;
+}
+/** 패시브로 보호막을 자주 쓰는 특성(핀프 등). 8버튼 설정이어도 4버튼 + 보호막 줄을 보여 준다. */
+export function prefersShieldRow(player: Pick<Player, "character">): boolean {
   if (player.character?.trait_card_id)
     return !!player.character.trait_config?.supports_shield;
   return (

@@ -48,6 +48,8 @@ export type TrayItem = {
   symbol?: string;
   /** 공간이 넉넉할 때 버튼에 크게 보여 줄 패시브 그림(calculator-clean-icons의 키). */
   art?: string;
+  /** 이 카운터의 토큰 카드 그림. 있으면 특성 카드 크롭 대신 쓴다. */
+  token?: string;
 };
 
 const TEXT: Record<string, Record<string, string>> = {
@@ -215,7 +217,7 @@ export function passiveTray(
     const label = controlLabel(control, language);
     const current = value(player, control);
     const gate = !control.enableWhen || conditionMet(control.enableWhen, player);
-    const base = { key: control.key, label, symbol: symbolFor(player, control.key), art: artFor(player, control.key) };
+    const base = { key: control.key, label, symbol: symbolFor(player, control.key), art: artFor(player, control.key), ...(control.token?.img ? { token: control.token.img } : {}) };
     switch (control.type) {
       case "counter": {
         const locked = tao && ["yang_counter", "yin_counter"].includes(control.key) && taoLocked(player);

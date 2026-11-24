@@ -58,6 +58,23 @@ export function CalculatorAppearanceRows() {
     setCalculatorAppearance({ brightness: value.brightness + delta });
   return (
     <>
+      <SettingRow
+        title="HP 버튼"
+        description="4버튼은 두 번째 줄에 보호막 버튼이 들어갑니다. 보호막 특성(핀프 등)은 8버튼이어도 4버튼 + 보호막 줄입니다."
+      >
+        <View style={{ width: 260 }}>
+          <Segmented
+            value={value.hpButtons || "4"}
+            onChange={(mode) =>
+              setCalculatorAppearance({ hpButtons: mode === "8" ? "8" : "4" })
+            }
+            values={[
+              { key: "4", label: "4버튼", icon: "grid-outline" },
+              { key: "8", label: "8버튼", icon: "apps-outline" },
+            ]}
+          />
+        </View>
+      </SettingRow>
       <SettingRow title="화면 스타일">
         <View style={{ width: 260 }}>
           <Segmented

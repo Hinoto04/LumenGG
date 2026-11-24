@@ -2,6 +2,7 @@
 {% load static %}
 {% load language_tags %}
 {% block title %}{% tr "대전 계산기" %} - LumenDB{% endblock title %}
+{% block style %}<link rel="stylesheet" href="{% static 'v2/calculator-select.css' %}?v=20261125b">{% endblock %}
 {% block content %}
 <section class="v2-page-head">
     <div>
@@ -11,36 +12,49 @@
     </div>
 </section>
 
-<form class="v2-panel v2-battle-start" action="{% url "battlelog:sim" %}" method="post">
+{# 격투게임식 캐릭터 선택: 왼쪽 1P, 가운데 로스터, 오른쪽 2P. 로스터를 누르면 지금 고르는 쪽에 들어간다. #}
+<form class="v2-panel v2-battle-start fs" action="{% url "battlelog:sim" %}" method="post" data-fighter-select
+      data-label-trait="{% tr "패시브 선택" %}" data-label-pick="{% tr "캐릭터를 고르세요" %}" data-label-picking="{% tr "선택 중" %}"
+      data-label-error="{% tr "특성 정보를 불러오지 못했습니다. 새로고침해주세요." %}" data-label-need="{% tr "두 플레이어의 캐릭터와 패시브를 골라주세요." %}">
     {% csrf_token %}
-    <div class="v2-battle-start-grid">
-        <div class="v2-admin-field">
-            <label for="player1_name">{% tr "플레이어1 이름" %}</label>
-            <input id="player1_name" name="player1_name" type="text" value="{% tr "플레이어1" %}" maxlength="60">
-        </div>
-        <div class="v2-admin-field">
-            <label for="player1_character">{% tr "플레이어1 캐릭터" %}</label>
-            <select id="player1_character" name="player1_character" required>
-                {% for character in characters %}
-                <option value="{{ character.id }}">{{ character|character_name:current_language }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="v2-admin-field">
-            <label for="player2_name">{% tr "플레이어2 이름" %}</label>
-            <input id="player2_name" name="player2_name" type="text" value="{% tr "플레이어2" %}" maxlength="60">
-        </div>
-        <div class="v2-admin-field">
-            <label for="player2_character">{% tr "플레이어2 캐릭터" %}</label>
-            <select id="player2_character" name="player2_character" required>
-                {% for character in characters %}
-                <option value="{{ character.id }}">{{ character|character_name:current_language }}</option>
-                {% endfor %}
-            </select>
-        </div>
+    <input type="hidden" name="schema_version" value="2">
+    <div class="fs-stage">
+        {% for side in "12" %}
+        <section class="fs-fighter{% if forloop.first %} is-active{% endif %}" data-fighter="player{{ side }}" style="--fs-side: var({% if forloop.first %}--v2-teal{% else %}--v2-purple{% endif %})">
+            <header class="fs-fighter-head">
+                <span class="fs-tag">{{ side }}P</span>
+                <input class="fs-name" name="player{{ side }}_name" type="text" maxlength="60"
+                       value="{% if forloop.first %}{% tr "플레이어1" %}{% else %}{% tr "플레이어2" %}{% endif %}"
+                       aria-label="{% if forloop.first %}{% tr "플레이어1 이름" %}{% else %}{% tr "플레이어2 이름" %}{% endif %}">
+            </header>
+            <button class="fs-portrait" type="button" data-fighter-focus aria-label="{% if forloop.first %}{% tr "플레이어1 캐릭터" %}{% else %}{% tr "플레이어2 캐릭터" %}{% endif %}">
+                <img alt="" data-fighter-portrait hidden>
+                <span class="fs-portrait-empty" data-fighter-empty>?</span>
+                <strong class="fs-character" data-fighter-name></strong>
+                <span class="fs-picking" data-fighter-picking>{% tr "선택 중" %}</span>
+            </button>
+            <div class="fs-traits" role="radiogroup" aria-label="{% tr "패시브 선택" %}" data-fighter-traits></div>
+            <input type="hidden" name="player{{ side }}_character" data-fighter-character required>
+            <input type="hidden" name="player{{ side }}_trait_card_id" data-fighter-trait>
+        </section>
+        {% if forloop.first %}
+        <section class="fs-roster" aria-label="{% tr "캐릭터 선택" %}">
+            {% for character in characters %}
+            <button class="fs-cell" type="button" data-character="{{ character.id }}" data-name="{{ character|character_name:current_language }}"
+                    data-portrait="{{ character.body_img|default:character.sd_img|default:character.img }}" style="--fs-color: {{ character.color|default:'#888' }}">
+                {# 캐릭터 아이콘은 시계방향 45도로 기울여 쓰도록 그려져 있다(캐릭터 탭과 같다). 칸 안에서만 돌린다. #}
+                <span class="fs-face{% if character.icon_img %} is-tilted{% endif %}"><img src="{{ character.icon_img|default:character.sd_img|default:character.img }}" alt="" loading="lazy"></span>
+                <span>{{ character|character_name:current_language }}</span>
+                <i class="fs-badge is-p1">1P</i><i class="fs-badge is-p2">2P</i>
+            </button>
+            {% endfor %}
+        </section>
+        {% endif %}
+        {% endfor %}
     </div>
-    <div class="v2-battle-start-actions">
-        <button class="v2-button v2-button-primary" type="submit">{% tr "계산기 시작" %}</button>
+    <div class="fs-actions">
+        <p class="fs-hint" data-fighter-hint></p>
+        <button class="v2-button v2-button-primary fs-start" type="submit" disabled>{% tr "계산기 시작" %}</button>
     </div>
 </form>
 
@@ -53,5 +67,5 @@
 </section>
 
 <script src="{% static "v2/session-history.js" %}"></script>
-<script src="{% static 'v2/calculator-trait-choice.js' %}" defer></script>
+<script src="{% static 'v2/calculator-select.js' %}?v=20261125b" defer></script>
 {% endblock content %}

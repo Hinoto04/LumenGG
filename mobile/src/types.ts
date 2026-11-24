@@ -241,6 +241,8 @@ export interface PassiveControl {
   requires?: Condition;
   activeText?: string;
   inactiveText?: string;
+  /** 카운터와 이름이 맞는 토큰 카드(서버가 붙인다) */
+  token?: { id?: number; code?: string; img?: string };
 }
 export interface PassiveDefinition {
   controls?: PassiveControl[];

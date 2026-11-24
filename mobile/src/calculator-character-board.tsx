@@ -3,6 +3,7 @@ import {
   AccessibilityInfo,
   Animated,
   AppState,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -14,13 +15,13 @@ import { calculatorTheme } from "./calculator-ui";
 import { localized } from "./core";
 import { PassiveTray } from "./calculator-passive-tray-view";
 import { hpAppearance } from "./calculator-display";
-import { shieldAmount } from "./calculator-shield";
-import { ShieldPassiveRow } from "./calculator-shield-controls";
+import { prefersShieldRow, shieldAmount, supportsShield } from "./calculator-shield";
+import { hpBar, hpButtonRows, HP_STEPS_4, HP_STEPS_8 } from "./calculator-layout";
 import { useApp } from "./provider";
 import { CachedImage } from "./ui";
 import { CharacterIconImage } from "./character-picker";
 import type { Action, Player } from "./types";
-import { useCalculatorAppearance } from "./calculator-appearance-settings";
+import { setCalculatorAppearance, useCalculatorAppearance } from "./calculator-appearance-settings";
 import type { CalculatorAppearance } from "./calculator-appearance";
 
 export default function CharacterCalculatorBoard(props: CalculatorBoardProps) {
@@ -64,6 +65,8 @@ export default function CharacterCalculatorBoard(props: CalculatorBoardProps) {
     return props.onAction(value);
   };
   return (
+    <>
+    <HpButtonChooser visible={!!props.state && !props.disabled && display.hpButtons === null} />
     <CalculatorBoard
       {...props}
       onAction={action}
@@ -88,6 +91,9 @@ export default function CharacterCalculatorBoard(props: CalculatorBoardProps) {
                 passive: localized(entry, language, "passive"),
                 hand_table: entry.hand_table,
                 img_sm: entry.img_sm,
+                trait_img:
+                  entry.traits?.find((trait) => trait.id === stored.character?.trait_card_id)?.img ||
+                  entry.traits?.[0]?.img,
               },
             }
           : stored;
@@ -102,9 +108,9 @@ export default function CharacterCalculatorBoard(props: CalculatorBoardProps) {
             pendingFp={props.pendingFp[target]}
             pendingShield={props.pendingShield[target]}
             onShield={amount => props.onShield(target, amount)}
-            onHp={(amount) => {
+            onHp={(amount, immediate) => {
               intentUntil.current = Date.now() + 5000;
-              props.onHp(target, amount);
+              props.onHp(target, amount, immediate);
             }}
             onFp={(amount) => {
               intentUntil.current = Date.now() + 5000;
@@ -123,6 +129,61 @@ export default function CharacterCalculatorBoard(props: CalculatorBoardProps) {
         );
       }}
     />
+    </>
+  );
+}
+
+/** 처음 접속한 조작자에게 HP 버튼 방식을 한 번 묻는다. 고른 값은 기기에 저장되어 다시 묻지 않는다. */
+function HpButtonChooser({ visible }: { visible: boolean }) {
+  const { t } = useApp();
+  const preview = (rows: number[][]) => (
+    <View style={{ gap: 4 }}>
+      {rows.map((row, i) => (
+        <View key={i} style={{ flexDirection: "row", gap: 3 }}>
+          {row.map((value) => (
+            <Text
+              key={value}
+              style={[s.chooseCell, value < 0 ? { color: C.damage, backgroundColor: "rgba(255,111,111,0.14)" } : { color: C.heal, backgroundColor: "rgba(69,208,160,0.12)" }]}
+            >
+              {value > 0 ? "+" : "−"}
+              {Math.abs(value)}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+  return (
+    <Modal visible={visible} transparent animationType="fade" supportedOrientations={["portrait", "landscape", "landscape-left", "landscape-right"]}>
+      <View style={s.chooseBackdrop}>
+        <View style={s.chooseSheet}>
+          <Text accessibilityRole="header" style={s.chooseTitle}>
+            {t("HP 버튼 방식")}
+          </Text>
+          <Text style={s.chooseNote}>{t("처음 한 번만 묻습니다. 나중에 계산기 설정에서 바꿀 수 있습니다.")}</Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {(
+              [
+                ["4", t("4버튼"), [HP_STEPS_4]],
+                ["8", t("8버튼"), [HP_STEPS_8.slice(0, 4), HP_STEPS_8.slice(4)]],
+              ] as const
+            ).map(([mode, label, rows]) => (
+              <Pressable
+                key={mode}
+                accessibilityRole="button"
+                accessibilityLabel={label}
+                onPress={() => setCalculatorAppearance({ hpButtons: mode })}
+                style={({ pressed }) => [s.chooseOption, pressed && { borderColor: C.gold }]}
+              >
+                <Text style={s.chooseLabel}>{label}</Text>
+                {preview(rows as unknown as number[][])}
+              </Pressable>
+            ))}
+          </View>
+          <Text style={s.chooseNote}>{t("4버튼은 두 번째 줄에 보호막 버튼이 들어갑니다. 보호막 특성(핀프 등)은 8버튼이어도 4버튼 + 보호막 줄입니다.")}</Text>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -135,7 +196,7 @@ type PlayerProps = {
   pendingFp: number;
   pendingShield: number;
   onShield: (amount: number) => void;
-  onHp: (amount: number) => void;
+  onHp: (amount: number, immediate?: boolean) => void;
   onFp: (amount: number) => void;
   onDamage: () => void;
   onAction: (action: Action) => Promise<void>;
@@ -201,10 +262,22 @@ function CharacterPlayer({
     pulse.setValue(0.6);
     Animated.timing(pulse, { toValue: 0, duration: 420, useNativeDriver: true }).start();
   }, [snapshot]);
-  const low = health.ratio <= 0.3;
-  const steps = mirrored ? [500, 100, -100, -500] : [-500, -100, 100, 500];
+  const bar = hpBar(player.hp, player.initial_hp, shield);
+  const low = bar.ratio <= 0.3;
+  // HP 조작부는 항상 두 줄(4×2 기준) 높이. 4버튼이면 두 번째 줄이 보호막(모든 캐릭터 공통)이고,
+  // 보호막 특성(핀프 등)은 8버튼 설정이어도 4버튼 + 보호막 줄이다.
+  const rows = hpButtonRows(display.hpButtons, prefersShieldRow(player), mirrored);
+  const hasShield = rows.length === 1 && supportsShield(player);
+  // 패시브 칸은 패널 높이의 28%(96~150)까지만, 나머지 높이는 HP·FP 조작부가 쓴다.
+  const [panelHeight, setPanelHeight] = useState(0);
+  // 태블릿처럼 큰 화면은 HP·FP 조작부가 충분히 크므로 패시브 칸을 2배 넘게(최대 340) 키운다.
+  const large = !compact && width >= 768 && height >= 600;
+  const passiveMax = large
+    ? Math.round(Math.max(200, Math.min(340, panelHeight * 0.44)))
+    : Math.round(Math.max(96, Math.min(150, panelHeight * 0.28)));
   return (
     <View
+      onLayout={(e) => setPanelHeight(e.nativeEvent.layout.height)}
       style={[
         s.player,
         { borderColor: low ? C.damage + "88" : theme.accent + "55", padding: compact ? 7 : 12, gap: compact ? 6 : 10 },
@@ -231,96 +304,114 @@ function CharacterPlayer({
         )}
         {illustrated && <View style={[StyleSheet.absoluteFill, { backgroundColor: "#0b0e14", opacity: 0.45 }]} />}
       </View>
-      <View style={[s.head, mirrored && { flexDirection: "row-reverse" }]}>
-        {!!avatar && (
-          <View style={[s.avatar, compact && { width: 26, height: 26 }, { borderColor: theme.accent }]}>
-            <CharacterIconImage url={avatar} width={compact ? 26 : 30} height={compact ? 26 : 30} circle />
-          </View>
-        )}
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[s.name, mirrored && { textAlign: "right" }]}>
-            {player.name}
-          </Text>
-          {!!characterName && characterName !== player.name && (
-            <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[s.character, { color: theme.secondary }, mirrored && { textAlign: "right" }]}>
-              {characterName}
-            </Text>
-          )}
-        </View>
-        <Text maxFontSizeMultiplier={1.2} style={s.hand}>
-          {t("손패")} {hand}
-        </Text>
-      </View>
       <View style={[s.controls, mirrored && { flexDirection: "row-reverse" }]}>
         <View style={s.main}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${label} HP ${player.hp}, ${t("대미지 적용")}`}
-            disabled={disabled}
-            onPress={onDamage}
-            style={[s.hp, { minHeight: compact ? 66 : 104 }]}
-          >
-            <Text style={[s.caption, { position: "absolute", top: 5, left: 10 }]}>HP</Text>
-            <Text
-              adjustsFontSizeToFit
-              numberOfLines={1}
-              maxFontSizeMultiplier={1}
-              style={[s.hpValue, { color: player.hp <= 0 ? "#687183" : health.strong, fontSize: compact ? 44 : 72 }]}
-            >
-              {player.hp}
-              {!!shield && <Text style={{ color: "#9fd0ff", fontSize: compact ? 16 : 22 }}> +{shield}</Text>}
-            </Text>
-            <View style={s.barTrack} pointerEvents="none">
-              <View style={[s.bar, { width: `${health.ratio * 100}%`, backgroundColor: health.strong }]} />
-            </View>
-            {!!pendingHp && (
-              <Text
-                accessibilityLabel={`${label} ${t("누적 HP 변화")} ${pendingHp}`}
-                style={[
-                  s.pending,
-                  pendingHp < 0
-                    ? { color: C.damage, backgroundColor: "rgba(255,111,111,0.14)", borderColor: C.damage }
-                    : { color: C.heal, backgroundColor: "rgba(69,208,160,0.14)", borderColor: C.heal },
-                ]}
-              >
-                {pendingHp > 0 ? "+" : "−"}
-                {Math.abs(pendingHp)}
-              </Text>
+          <View style={[s.head, mirrored && { flexDirection: "row-reverse" }]}>
+            {!!avatar && (
+              <View style={[s.avatar, compact && { width: 26, height: 26 }, { borderColor: theme.accent }]}>
+                <CharacterIconImage url={avatar} width={compact ? 26 : 30} height={compact ? 26 : 30} circle />
+              </View>
             )}
-          </Pressable>
-          <View style={s.hpButtons}>
-            {steps.map((amount) => (
-              <Pressable
-                key={amount}
-                accessibilityRole="button"
-                accessibilityLabel={`${label} HP ${amount > 0 ? "+" : ""}${amount}`}
-                accessibilityState={{ disabled }}
-                disabled={disabled}
-                onPress={() => onHp(amount)}
-                style={({ pressed }) => [
-                  s.hpButton,
-                  { minHeight: compact ? 40 : 56 },
-                  amount < 0
-                    ? { borderColor: "rgba(255,111,111,0.32)", backgroundColor: Math.abs(amount) === 500 ? "#3a1c22" : "#2a181d" }
-                    : { borderColor: "rgba(69,208,160,0.3)", backgroundColor: Math.abs(amount) === 500 ? "#123229" : "#11241f" },
-                  disabled && { opacity: 0.4 },
-                  pressed && { transform: [{ scale: 0.96 }] },
-                ]}
-              >
-                <Text
-                  adjustsFontSizeToFit
-                  numberOfLines={1}
-                  maxFontSizeMultiplier={1.2}
-                  style={[s.hpStep, { color: amount < 0 ? C.damage : C.heal, fontSize: compact ? 15 : 20 }]}
-                >
-                  {amount > 0 ? "+" : "−"}
-                  {Math.abs(amount)}
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[s.name, mirrored && { textAlign: "right" }]}>
+                {player.name}
+              </Text>
+              {!!characterName && characterName !== player.name && (
+                <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[s.character, { color: theme.secondary }, mirrored && { textAlign: "right" }]}>
+                  {characterName}
                 </Text>
-              </Pressable>
-            ))}
+              )}
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${label} HP ${player.hp}${shield ? `, ${t("보호막")} ${shield}` : ""}, ${t("대미지 적용")}`}
+              disabled={disabled}
+              onPress={onDamage}
+              style={[s.hp, mirrored && { flexDirection: "row-reverse" }]}
+            >
+              <Text maxFontSizeMultiplier={1} style={[s.hpValue, { color: player.hp <= 0 ? "#687183" : health.strong, fontSize: compact ? 26 : 40 }]}>
+                {player.hp}
+              </Text>
+              {!!shield && <Text style={[s.shieldValue, { fontSize: compact ? 13 : 17 }]}>+{shield}</Text>}
+              {!!pendingHp && (
+                <Text
+                  accessibilityLabel={`${label} ${t("누적 HP 변화")} ${pendingHp}`}
+                  style={[
+                    s.pending,
+                    mirrored ? { left: 0 } : { right: 0 },
+                    pendingHp < 0
+                      ? { color: C.damage, backgroundColor: "rgba(40,14,14,0.92)", borderColor: C.damage }
+                      : { color: C.heal, backgroundColor: "rgba(10,32,26,0.92)", borderColor: C.heal },
+                  ]}
+                >
+                  {pendingHp > 0 ? "+" : "−"}
+                  {Math.abs(pendingHp)}
+                </Text>
+              )}
+            </Pressable>
+            <Text maxFontSizeMultiplier={1.2} style={s.hand}>
+              {t("손패")} {hand}
+            </Text>
           </View>
+          <View style={[s.barTrack, mirrored && { flexDirection: "row-reverse" }]} pointerEvents="none">
+            <View style={{ width: `${bar.hp * 100}%`, backgroundColor: health.strong }} />
+            <View style={{ width: `${bar.shield * 100}%`, backgroundColor: "#5aa8f0" }} />
+          </View>
+          {rows.map((row, i) => (
+            <View key={i} style={s.hpButtons}>
+              {row.map((amount) => (
+                <Pressable
+                  key={amount}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${label} HP ${amount > 0 ? "+" : ""}${amount}`}
+                  accessibilityState={{ disabled }}
+                  disabled={disabled}
+                  onPress={() => onHp(amount, rows.length > 1)}
+                  style={({ pressed }) => [
+                    s.hpButton,
+                    amount < 0
+                      ? { borderColor: "rgba(255,111,111,0.32)", backgroundColor: Math.abs(amount) >= 500 ? "#3a1c22" : "#2a181d" }
+                      : { borderColor: "rgba(69,208,160,0.3)", backgroundColor: Math.abs(amount) >= 500 ? "#123229" : "#11241f" },
+                    disabled && { opacity: 0.4 },
+                    pressed && { transform: [{ scale: 0.96 }] },
+                  ]}
+                >
+                  <Text
+                    adjustsFontSizeToFit
+                    numberOfLines={1}
+                    maxFontSizeMultiplier={1.2}
+                    style={[s.hpStep, { color: amount < 0 ? C.damage : C.heal, fontSize: compact ? 15 : 20 }]}
+                  >
+                    {amount > 0 ? "+" : "−"}
+                    {Math.abs(amount)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ))}
+          {hasShield && (
+            <View style={s.shieldRow}>
+              {[-100, 0, 100].map((step) => (
+                <Pressable
+                  key={step}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${label} ${t("보호막")} ${step ? (step > 0 ? "+100" : "-100") : t("초기화")}`}
+                  accessibilityState={{ disabled }}
+                  disabled={disabled}
+                  onPress={() => (step ? onShield(step) : void onAction({ action: "shield_reset", target }))}
+                  style={({ pressed }) => [s.shieldButton, disabled && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.96 }] }]}
+                >
+                  {/* 보호막 줄은 파란 버튼 셋으로 −100 · RESET · +100만 적는다. */}
+                  <Text adjustsFontSizeToFit numberOfLines={2} maxFontSizeMultiplier={1.2} style={[s.shieldText, { fontSize: compact ? 15 : 20 }]}>
+                    {step ? (step > 0 ? "+100" : "−100") : "RESET"}
+                    {!!step && pendingShield * step > 0 ? `\n${pendingShield > 0 ? "+" : "−"}${Math.abs(pendingShield)}` : ""}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
         </View>
-        <View style={[s.fp, { width: compact ? 50 : 72 }]}>
+        <View style={[s.fp, { width: compact ? 54 : 76 }]}>
           <Step label={`${label} FP +1`} text={pendingFp > 0 ? `+${pendingFp}` : "+"} disabled={disabled} compact={compact} onPress={() => onFp(1)} />
           <Pressable
             accessibilityRole="button"
@@ -342,19 +433,16 @@ function CharacterPlayer({
           <Step label={`${label} FP -1`} text={pendingFp < 0 ? `−${Math.abs(pendingFp)}` : "−"} disabled={disabled} compact={compact} onPress={() => onFp(-1)} />
         </View>
       </View>
-      <View style={s.passives}>
-        <ShieldPassiveRow player={player} target={target} disabled={disabled} pending={pendingShield} onShield={onShield} onAction={onAction}>
-          <PassiveTray
-            player={player}
-            target={target}
-            definition={player.character?.passive || {}}
-            disabled={disabled}
-            accent={theme.accent}
-            secondary={theme.secondary}
-            onAction={(value) => void onAction(value)}
-          />
-        </ShieldPassiveRow>
-      </View>
+      <PassiveTray
+        player={player}
+        target={target}
+        definition={player.character?.passive || {}}
+        disabled={disabled}
+        accent={theme.accent}
+        maxHeight={passiveMax}
+        large={large}
+        onAction={(value) => void onAction(value)}
+      />
       <Animated.View
         pointerEvents="none"
         style={[StyleSheet.absoluteFill, { borderWidth: 2, borderRadius: 18, borderColor: theme.accent, opacity: pulse }]}
@@ -370,9 +458,9 @@ function Step({ label, text, disabled, compact, onPress }: { label: string; text
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [s.step, { minHeight: compact ? 36 : 54 }, disabled && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.96 }] }]}
+      style={({ pressed }) => [s.step, { flex: 1, minHeight: compact ? 34 : 44 }, disabled && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.96 }] }]}
     >
-      <Text adjustsFontSizeToFit numberOfLines={1} maxFontSizeMultiplier={1.2} style={[s.stepText, { fontSize: compact ? 18 : 24 }]}>
+      <Text adjustsFontSizeToFit numberOfLines={1} maxFontSizeMultiplier={1.2} style={[s.stepText, { fontSize: compact ? 22 : 30 }]}>
         {text}
       </Text>
     </Pressable>
@@ -404,39 +492,31 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(232,189,98,0.1)",
     overflow: "hidden",
   },
-  controls: { flexDirection: "row", gap: 8 },
-  main: { flex: 1, minWidth: 0, gap: 6 },
+  controls: { flex: 1, minHeight: 0, flexDirection: "row", gap: 8 },
+  main: { flex: 1, minWidth: 0, minHeight: 0, gap: 6 },
   caption: { color: C.muted, fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
-  hp: {
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingBottom: 8,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: "rgba(5,7,11,0.62)",
-  },
+  hp: { flexDirection: "row", alignItems: "baseline", gap: 3 },
   hpValue: { fontWeight: "900", letterSpacing: -1, fontVariant: ["tabular-nums"] },
-  barTrack: { position: "absolute", left: 10, right: 10, bottom: 6, height: 4, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" },
-  bar: { height: 4, borderRadius: 4 },
+  shieldValue: { color: "#8cc8ff", fontWeight: "800" },
+  barTrack: { height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden", flexDirection: "row" },
   pending: {
     position: "absolute",
-    top: 5,
-    right: 8,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 8,
+    top: "100%",
+    marginTop: 4,
+    zIndex: 2,
+    paddingVertical: 1,
+    paddingHorizontal: 7,
+    borderRadius: 7,
     borderWidth: 1,
     borderStyle: "dashed",
     fontWeight: "900",
-    fontSize: 15,
+    fontSize: 13,
     overflow: "hidden",
   },
-  fp: { gap: 4 },
+  fp: { gap: 6 },
   fpValue: {
-    flex: 1,
-    minHeight: 30,
+    minHeight: 44,
+    paddingVertical: 4,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 12,
@@ -454,8 +534,27 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   stepText: { color: C.fp, fontWeight: "800" },
-  hpButtons: { flexDirection: "row", gap: 6 },
+  hpButtons: { flex: 1, minHeight: 34, flexDirection: "row", gap: 6 },
   hpButton: { flex: 1, minWidth: 0, borderWidth: 1, borderRadius: 12, alignItems: "center", justifyContent: "center", paddingHorizontal: 2 },
   hpStep: { fontWeight: "900", fontVariant: ["tabular-nums"] },
-  passives: { flex: 1, minHeight: 0 },
+  shieldRow: { flex: 1, minHeight: 34, flexDirection: "row", gap: 6 },
+  shieldButton: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(120,190,255,0.32)",
+    backgroundColor: "rgba(40,90,140,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  shieldText: { color: "#a9d6ff", fontSize: 15, fontWeight: "900", textAlign: "center" },
+  chooseBackdrop: { flex: 1, backgroundColor: "rgba(2,4,8,0.65)", alignItems: "center", justifyContent: "center", padding: 16 },
+  chooseSheet: { width: 420, maxWidth: "100%", gap: 10, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", backgroundColor: "#121722" },
+  chooseTitle: { color: C.text, fontSize: 18, fontWeight: "800" },
+  chooseNote: { color: C.muted, fontSize: 12 },
+  chooseOption: { flex: 1, gap: 8, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", backgroundColor: "rgba(9,12,18,0.6)" },
+  chooseLabel: { color: C.text, fontSize: 15, fontWeight: "800" },
+  chooseCell: { flex: 1, textAlign: "center", fontSize: 10.5, fontWeight: "800", paddingVertical: 4, borderRadius: 6, overflow: "hidden" },
 });

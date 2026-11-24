@@ -16,6 +16,7 @@ test("old or malformed display preferences use a dark readable default", () => {
   assert.deepEqual(calculatorAppearance({ style: "clean", brightness: 0 }), {
     style: "clean",
     brightness: 0,
+    hpButtons: null,
   });
   assert.equal(calculatorAppearance({ brightness: 120 }).brightness, 100);
   assert.equal(calculatorAppearance({ brightness: -2 }).brightness, 0);

@@ -44,7 +44,7 @@ import {
   Segmented,
   colors,
 } from "../src/ui";
-import { CharacterGrid, PlayerSlot, Versus } from "../src/character-picker";
+import { FighterSelect } from "../src/calculator-fighter-select";
 import { CalculatorAppearanceRows } from "../src/calculator-appearance-settings";
 import { SettingColumn, SettingRow, SettingSection } from "../src/setting-rows";
 import { characterWithTrait } from "../src/deck-rules";
@@ -78,8 +78,6 @@ export default function Calculator() {
     [p2, setP2] = useState(""),
     [now, setNow] = useState(Date.now()),
     [settings, setSettings] = useState(false),
-    [picking, setPicking] = useState<"p1" | "p2" | null>(null),
-    [gridWidth, setGridWidth] = useState(0),
     [ready, setReady] = useState(false);
   const [p1Trait, setP1Trait] = useState(""),
     [p2Trait, setP2Trait] = useState("");
@@ -416,7 +414,6 @@ export default function Calculator() {
         state?.players.p2.character?.id || characters[0]?.id || "",
       ),
     );
-    setPicking(null);
     setSettings(true);
   }
   const defaultId = String(
@@ -528,101 +525,26 @@ export default function Calculator() {
             });
           }
         }}
-        onHp={(target, amount) => {
+        onHp={(target, amount, immediate) => {
           if (availableRef.current) {
             void passiveQueue.current?.flush().then(() => {
               hpQueue.current?.setAvailable(availableRef.current);
               hpQueue.current?.add(target, amount);
+              // 8버튼은 누를 때마다 바로 반영한다(4버튼은 연타를 모아 보낸다).
+              if (immediate) return hpQueue.current?.flush();
             });
           }
         }}
         setup={
           <SettingColumn>
             <SettingSection first>
-              {picking ? (
-                <View style={{ marginBottom: 16 }}>
-                  <View style={setupStyles.pickHeader}>
-                    <IconButton
-                      icon="chevron-back"
-                      label="뒤로"
-                      onPress={() => setPicking(null)}
-                    />
-                    <Text style={setupStyles.pickTitle}>
-                      {t(picking === "p1" ? "플레이어1" : "플레이어2") +
-                        " · " +
-                        t("캐릭터 선택")}
-                    </Text>
-                  </View>
-                  <View
-                    onLayout={(event) =>
-                      setGridWidth(event.nativeEvent.layout.width)
-                    }
-                  >
-                    {gridWidth > 0 && (
-                      <CharacterGrid
-                        characters={characters}
-                        value={picking === "p1" ? p1Id : p2Id}
-                        width={gridWidth}
-                        size={56}
-                        onChange={(id) => {
-                          if (picking === "p1") {
-                            setP1(id);
-                            setP1Trait("");
-                          } else {
-                            setP2(id);
-                            setP2Trait("");
-                          }
-                          setPicking(null);
-                        }}
-                      />
-                    )}
-                  </View>
-                </View>
-              ) : (
-                <View style={setupStyles.versusRow}>
-                  {(["p1", "p2"] as const).map((side) => {
-                    const character = side === "p1" ? p1Character : p2Character;
-                    const trait = side === "p1" ? p1Trait : p2Trait;
-                    const setTrait = side === "p1" ? setP1Trait : setP2Trait;
-                    const slot = (
-                      <PlayerSlot
-                        key={side}
-                        label={side === "p1" ? "플레이어1" : "플레이어2"}
-                        character={character}
-                        accent={side === "p1" ? "#5fc8c0" : colors.accent}
-                        onPress={() => setPicking(side)}
-                      >
-                        {!!character?.traits?.length && (
-                          <View style={setupStyles.traits}>
-                            {character.traits.map((item) => (
-                              <Chip
-                                key={item.id}
-                                label={localized(item, language) || item.name}
-                                selected={trait === String(item.id)}
-                                onPress={() =>
-                                  setTrait(
-                                    trait === String(item.id)
-                                      ? ""
-                                      : String(item.id),
-                                  )
-                                }
-                              />
-                            ))}
-                          </View>
-                        )}
-                      </PlayerSlot>
-                    );
-                    return side === "p1" ? (
-                      slot
-                    ) : (
-                      <React.Fragment key="p2">
-                        <Versus />
-                        {slot}
-                      </React.Fragment>
-                    );
-                  })}
-                </View>
-              )}
+              <FighterSelect
+                characters={characters}
+                value={{ p1: p1Id, p2: p2Id }}
+                traits={{ p1: p1Trait, p2: p2Trait }}
+                onCharacter={(side, id) => (side === "p1" ? setP1 : setP2)(id)}
+                onTrait={(side, id) => (side === "p1" ? setP1Trait : setP2Trait)(id)}
+              />
               <Button
                 label={state ? "새 계산기 시작" : "시작"}
                 icon="play"
@@ -770,25 +692,6 @@ export default function Calculator() {
 }
 
 const setupStyles = StyleSheet.create({
-  versusRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 12,
-    marginBottom: 16,
-  },
-  traits: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 6,
-  },
-  pickHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 8,
-  },
-  pickTitle: { color: colors.text, fontSize: 17, fontWeight: "700" },
   linkRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   buttons: { flexDirection: "row", gap: 8 },
 });

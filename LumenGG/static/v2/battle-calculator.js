@@ -402,12 +402,15 @@
         renderShieldControls(target, holder);
     }
 
-    function renderShieldControls(target, holder) {
+    function renderShieldControls(target, passiveHolder) {
+        // 보호막 줄은 HP 버튼 아래 자리(data-shield-slot)에 둔다. 자리가 없으면 패시브 칸에 붙인다.
+        const holder = document.querySelector(`[data-shield-slot="${target}"]`) || passiveHolder;
         holder.querySelectorAll(':scope > .v2-shield-controls').forEach(column => column.remove());
         if (!shields.supportsShield(state.players[target])) return;
         const column = document.createElement('div');
         column.className = 'v2-shield-controls';
-        for (const [kind, step, text] of [['shield', 100, t('보호막') + '+'], ['reset', 0, t('초기화')], ['shield', -100, t('보호막') + '−']]) {
+        // 보호막 줄은 파란 버튼 셋으로 −100 · RESET · +100만 적는다(화면 배치는 CSS order).
+        for (const [kind, step, text] of [['shield', 100, '+100'], ['reset', 0, 'RESET'], ['shield', -100, '−100']]) {
             const button = document.createElement('button');
             button.type = 'button'; button.className = 'v2-shield-button';
             button.textContent = text; button.dataset.queueLabel = text;
@@ -1173,6 +1176,13 @@
             if (!player || !player.character) return;
             const target = button.dataset.hpTarget;
             const step = Number(button.dataset.hpStep || 0);
+            // 8버튼(4×2)은 원하는 값을 바로 누르는 방식이라 모으지 않고 즉시 보낸다. 4버튼은 연타를 모아 보낸다.
+            if (button.closest('.is-eight')) {
+                flushResourceDelta(pendingShield, 'shield', target, optimisticShield);
+                flushResourceDelta(pendingHp, 'hp', target, optimisticHp);
+                postAction({ action: "hp", target, amount: step }, optimisticHp(target, step), cloneState());
+                return;
+            }
             queueDelta(pendingHp, "hp", target, step, 900, "hp", optimisticHp);
         });
     });

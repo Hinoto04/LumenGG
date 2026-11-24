@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { reduceCalculator } from "../src/core";
-import { shieldAmount, setShield } from "../src/calculator-shield";
+import { prefersShieldRow, shieldAmount, setShield, supportsShield } from "../src/calculator-shield";
 import type { CalcState, Action } from "../src/types";
 
 function state(): CalcState {
@@ -76,15 +76,21 @@ test("manual shield reset, nonnegative subtraction, FP reset, full reset and leg
   const restored = JSON.parse(JSON.stringify(apply(old, "shield", 300)));
   assert.equal(shieldAmount(apply(restored, "hp", -400).players.p1), 0);
 });
-test("other characters cannot gain or consume a shield, and malformed deltas are ignored", () => {
+test("every character can gain and consume a shield; only shield traits prefer the shield row", () => {
   const s = state();
-  setShield(s.players.p2, 300);
-  const hit = reduceCalculator(s, { action: "hp", target: "p2", amount: -500 });
-  assert.equal(hit.players.p2.hp, 4500);
-  assert.equal(
-    reduceCalculator(s, { action: "shield", target: "p2", amount: 100 }),
-    s,
-  );
+  assert.equal(supportsShield(s.players.p2), true);
+  assert.equal(prefersShieldRow(s.players.p1), true);
+  assert.equal(prefersShieldRow(s.players.p2), false);
+  const shielded = reduceCalculator(s, { action: "shield", target: "p2", amount: 300 });
+  assert.equal(shieldAmount(shielded.players.p2), 300);
+  const hit = reduceCalculator(shielded, { action: "hp", target: "p2", amount: -500 });
+  assert.equal(hit.players.p2.hp, 4800);
+  assert.equal(shieldAmount(hit.players.p2), 0);
+});
+test("players without a character cannot hold a shield, and malformed deltas are ignored", () => {
+  const s = state();
+  const empty = { ...s, players: { ...s.players, p2: { ...s.players.p2, character: null as any } } };
+  assert.equal(reduceCalculator(empty, { action: "shield", target: "p2", amount: 100 }), empty);
   for (const amount of [0, 0.5, NaN, 50001])
     assert.equal(apply(s, "shield", amount), s);
 });

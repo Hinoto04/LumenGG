@@ -3,7 +3,7 @@
 {% load language_tags %}
 {% block title %}{{ session.player1_name }} vs {{ session.player2_name }} - {% tr "대전 계산기" %}{% endblock title %}
 {% block body_class %}v2-battle-mode lc-mode{% endblock body_class %}
-{% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}"><link rel="stylesheet" href="{% static 'v2/calculator.css' %}?v=20261116-shield">{% endblock %}
+{% block style %}<link rel="stylesheet" href="{% static 'v2/lumen-party.css' %}"><link rel="stylesheet" href="{% static 'v2/calculator.css' %}?v=20261125d">{% endblock %}
 {% block content %}
 {% include "battlelog/_preparation.html" %}
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -52,28 +52,41 @@
         {% for target, player_name in players %}
         <article class="lc-player" data-player-panel="{{ target }}">
             <div class="lc-scene" aria-hidden="true"><i class="lc-scene-art"></i></div>
-            <header class="lc-player-head">
-                <span class="lc-avatar" data-player-avatar="{{ target }}" aria-hidden="true"></span>
-                <div class="lc-ident">
-                    <h2 data-player-name="{{ target }}">{{ player_name }}</h2>
-                    <span data-player-character="{{ target }}"></span>
-                </div>
-                <strong class="lc-hand" data-player-hand="{{ target }}">{% tr "손패 -" %}</strong>
-            </header>
-            {# P1은 [HP | FP], P2는 [FP | HP]로 가운데를 기준으로 대칭이다. FP는 HP 옆 세로 열(+ / 값 / −). #}
+            {# P1은 [HP | FP], P2는 [FP | HP]로 대칭이다. FP 열은 이름 줄부터 버튼 끝까지 이어진다. #}
             <div class="lc-controls">
                 <div class="lc-main">
-                    <div class="lc-hp" data-hp-box>
-                        <span class="lc-caption">HP</span>
-                        <strong class="lc-hp-value" data-player-hp="{{ target }}">0</strong>
-                        <span class="lc-hp-bar" aria-hidden="true"><i></i></span>
-                    </div>
-                    <div class="lc-hp-steps">
+                    <header class="lc-player-head">
+                        <span class="lc-avatar" data-player-avatar="{{ target }}" aria-hidden="true"></span>
+                        <div class="lc-ident">
+                            <h2 data-player-name="{{ target }}">{{ player_name }}</h2>
+                            <span data-player-character="{{ target }}"></span>
+                        </div>
+                        <div class="lc-hp" data-hp-box>
+                            <strong class="lc-hp-value" data-player-hp="{{ target }}">0</strong>
+                        </div>
+                        <strong class="lc-hand" data-player-hand="{{ target }}">{% tr "손패 -" %}</strong>
+                    </header>
+                    <span class="lc-hp-bar" aria-hidden="true"><i class="is-hp"></i><i class="is-shield"></i></span>
+                    {# 4버튼과 4×2 버튼을 모두 그려 두고, 기기 설정과 보호막 여부로 하나만 보인다. #}
+                    <div class="lc-hp-steps is-four">
                         <button class="lc-hp-step is-damage is-heavy" type="button" data-hp-target="{{ target }}" data-hp-step="-500" data-queue-label="−500">−500</button>
                         <button class="lc-hp-step is-damage" type="button" data-hp-target="{{ target }}" data-hp-step="-100" data-queue-label="−100">−100</button>
                         <button class="lc-hp-step is-heal" type="button" data-hp-target="{{ target }}" data-hp-step="100" data-queue-label="+100">+100</button>
                         <button class="lc-hp-step is-heal is-heavy" type="button" data-hp-target="{{ target }}" data-hp-step="500" data-queue-label="+500">+500</button>
                     </div>
+                    <div class="lc-hp-steps is-eight">
+                        <button class="lc-hp-step is-damage is-heavy" type="button" data-hp-target="{{ target }}" data-hp-step="-600" data-queue-label="−600">−600</button>
+                        <button class="lc-hp-step is-damage is-heavy" type="button" data-hp-target="{{ target }}" data-hp-step="-500" data-queue-label="−500">−500</button>
+                        <button class="lc-hp-step is-damage" type="button" data-hp-target="{{ target }}" data-hp-step="-400" data-queue-label="−400">−400</button>
+                        <button class="lc-hp-step is-damage" type="button" data-hp-target="{{ target }}" data-hp-step="-300" data-queue-label="−300">−300</button>
+                    </div>
+                    <div class="lc-hp-steps is-eight">
+                        <button class="lc-hp-step is-damage" type="button" data-hp-target="{{ target }}" data-hp-step="-200" data-queue-label="−200">−200</button>
+                        <button class="lc-hp-step is-damage" type="button" data-hp-target="{{ target }}" data-hp-step="-100" data-queue-label="−100">−100</button>
+                        <button class="lc-hp-step is-heal" type="button" data-hp-target="{{ target }}" data-hp-step="100" data-queue-label="+100">+100</button>
+                        <button class="lc-hp-step is-heal" type="button" data-hp-target="{{ target }}" data-hp-step="200" data-queue-label="+200">+200</button>
+                    </div>
+                    <div class="lc-shield-slot" data-shield-slot="{{ target }}"></div>
                 </div>
                 <div class="lc-fp">
                     <button class="lc-step" type="button" data-fp-target="{{ target }}" data-fp-step="1" data-queue-label="+" aria-label="FP +1">+</button>
@@ -155,11 +168,12 @@
     };
 </script>
 <script src="{% static "v2/session-history.js" %}"></script>
-<script src="{% static 'v2/calculator-shield-model.js' %}"></script>
+<script src="{% static 'v2/calculator-shield-model.js' %}?v=20261125a"></script>
 <script src="{% static 'v2/calculator-passive-input-model.js' %}"></script>
-<script src="{% static 'v2/calculator-appearance-model.js' %}"></script>
+<script src="{% static 'v2/calculator-appearance-model.js' %}?v=20261124a"></script>
 <script src="{% static 'v2/calculator-log.js' %}?v=20261119a"></script>
-<script src="{% static 'v2/calculator-passive-tray.js' %}?v=20261119a"></script>
-<script src="{% static 'v2/calculator-hud.js' %}?v=20261119a"></script>
-<script src="{% static "v2/battle-calculator.js" %}?v=20261119a"></script>
+<script src="{% static 'v2/calculator-layout.js' %}?v=20261125a"></script>
+<script src="{% static 'v2/calculator-passive-tray.js' %}?v=20261125a"></script>
+<script src="{% static 'v2/calculator-hud.js' %}?v=20261125b"></script>
+<script src="{% static "v2/battle-calculator.js" %}?v=20261125b"></script>
 {% endblock content %}

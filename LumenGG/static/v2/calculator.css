@@ -34,7 +34,7 @@
     font-variant-numeric: tabular-nums;
 }
 .lc:fullscreen { height: 100vh; }
-.lc button, .lc a { -webkit-tap-highlight-color: transparent; font: inherit; }
+:where(.lc) :where(button, a) { -webkit-tap-highlight-color: transparent; font: inherit; }
 .lc button { cursor: pointer; }
 .lc button:disabled { cursor: default; }
 .lc svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
@@ -54,10 +54,14 @@
 .lc { display: flex; }
 .lc > .lc-board { flex: 1; align-self: center; }
 
-/* ---------- 플레이어 ---------- */
+/* ---------- 플레이어 ----------
+   세로 공간: 이름 줄 · HP 바(고정) → HP 버튼·보호막 줄(남는 높이 전부) → 패시브(최대 높이 고정).
+   FP 열은 이름 줄부터 버튼 끝까지 이어진다. P1은 [HP | FP], P2는 [FP | HP]로 대칭. */
 .lc-player {
     --lc-accent: #c9a45c;
     --lc-accent-2: #f1e7d2;
+    /* 글자 크기를 화면이 아니라 패널 폭(cqi)에 맞춘다. */
+    container-type: inline-size;
     position: relative;
     isolation: isolate;
     display: flex;
@@ -97,11 +101,17 @@
 .lc-player.is-low { border-color: color-mix(in srgb, var(--lc-damage) 55%, transparent); }
 .lc-player.is-down .lc-hp-value { color: var(--lc-faint) !important; }
 
-.lc-player-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lc-controls { flex: 1 1 auto; min-height: 0; display: flex; gap: 8px; }
+.lc-player[data-player-panel="p2"] .lc-controls { flex-direction: row-reverse; }
+.lc-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.lc-player-head { display: flex; align-items: center; gap: 8px; min-width: 0; flex: none; }
+.lc-player-head > * { min-width: 0; }
+.lc-player[data-player-panel="p2"] .lc-player-head { flex-direction: row-reverse; text-align: right; }
 .lc-avatar {
     flex: none;
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     overflow: hidden;
     border-radius: 50%;
     background: color-mix(in srgb, var(--lc-accent) 35%, #000);
@@ -110,147 +120,84 @@
 .lc-avatar:empty { display: none; }
 .lc-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .lc-ident { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.15; }
-.lc-ident h2 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -.01em; color: var(--lc-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-ident h2 { margin: 0; font-size: 14px; font-weight: 800; color: var(--lc-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lc-ident span { font-size: 11px; color: var(--lc-accent-2); opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lc-ident span:empty { display: none; }
 .lc-hand {
-    flex: none;
-    padding: 4px 9px;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 3px 8px;
     border-radius: 999px;
     border: 1px solid color-mix(in srgb, var(--lc-gold) 45%, transparent);
     background: rgba(232, 189, 98, .1);
     color: var(--lc-gold);
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 800;
     white-space: nowrap;
 }
-
 .lc-caption { font-size: 10px; font-weight: 800; letter-spacing: .12em; color: var(--lc-muted); }
-.lc-controls { display: flex; gap: 8px; min-height: 0; }
-.lc-player[data-player-panel="p2"] .lc-controls { flex-direction: row-reverse; }
-.lc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 
-.lc-hp {
-    flex: 1;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-width: 0;
-    padding: 6px 12px 10px;
-    border-radius: var(--lc-radius);
-    background: rgba(5, 7, 11, .55);
-    border: 1px solid var(--lc-line);
-    backdrop-filter: blur(6px);
-}
-.lc-hp .lc-caption { position: absolute; top: 7px; left: 12px; }
+/* HP 숫자는 이름 줄 안에서 가장 큰 글자 */
+.lc-hp { position: relative; flex: none; display: flex; align-items: baseline; }
 .lc-hp-value {
-    display: block;
-    text-align: center;
-    font-size: clamp(42px, min(11vh, 6.4vw), 96px);
-    line-height: 1.05;
+    font-size: clamp(20px, min(6.5vh, 9cqi), 44px);
+    line-height: 1.15;
     font-weight: 900;
-    letter-spacing: -.03em;
+    letter-spacing: -.02em;
     color: var(--battle-hp-strong-color, var(--lc-heal));
-    text-shadow: 0 2px 18px color-mix(in srgb, var(--battle-hp-strong-color, var(--lc-heal)) 30%, transparent);
     transition: color .3s;
+    font-variant-numeric: tabular-nums;
 }
-.lc-hp-bar { position: absolute; left: 12px; right: 12px; bottom: 6px; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .08); overflow: hidden; }
-.lc-hp-bar i { display: block; height: 100%; width: calc(var(--battle-hp-ratio, 1) * 100%); background: var(--battle-hp-strong-color, var(--lc-heal)); border-radius: inherit; transition: width .35s ease, background .3s; }
-.lc-hp .v2-battle-shield-value {
-    position: relative;
-    top: -.9em;
-    margin-left: 4px;
-    padding: 2px 6px;
-    border-radius: 6px;
-    background: rgba(120, 190, 255, .18);
-    color: #9fd0ff;
-    font-size: 14px;
-    letter-spacing: 0;
-    vertical-align: middle;
-}
+.lc-hp .v2-battle-shield-value { margin-left: 4px; font-size: .5em; color: #8cc8ff; letter-spacing: 0; vertical-align: super; }
 .lc-hp .v2-battle-hp-delta,
 .lc-hp .v2-battle-hp-pending {
     position: absolute;
-    top: 6px;
-    right: 10px;
-    padding: 2px 8px;
-    border-radius: 8px;
-    font-size: 15px;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 2;
+    padding: 1px 7px;
+    border-radius: 7px;
+    font-size: 13px;
     font-weight: 900;
+    white-space: nowrap;
     pointer-events: none;
 }
-.lc-hp .is-damage { color: var(--lc-damage); background: rgba(255, 111, 111, .14); }
-.lc-hp .is-heal { color: var(--lc-heal); background: rgba(69, 208, 160, .14); }
+.lc-player[data-player-panel="p2"] .lc-hp .v2-battle-hp-delta,
+.lc-player[data-player-panel="p2"] .lc-hp .v2-battle-hp-pending { right: auto; left: 0; }
+.lc-hp .is-damage { color: var(--lc-damage); background: rgba(40, 14, 14, .92); }
+.lc-hp .is-heal { color: var(--lc-heal); background: rgba(10, 32, 26, .92); }
 .lc-hp .v2-battle-hp-delta { animation: lc-rise 1.1s ease-out forwards; }
 .lc-hp .v2-battle-hp-pending { outline: 1px dashed currentColor; }
-@keyframes lc-rise { 0% { transform: translateY(6px); opacity: 0; } 15% { transform: none; opacity: 1; } 100% { transform: translateY(-14px); opacity: 0; } }
+@keyframes lc-rise { 0% { transform: translateY(-4px); opacity: 0; } 15% { transform: none; opacity: 1; } 100% { transform: translateY(6px); opacity: 0; } }
 
-.lc-fp {
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    width: 56px;
-}
-.lc-fp-box {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 0;
-    border-radius: 12px;
-    background: rgba(5, 7, 11, .62);
-    border: 1px solid color-mix(in srgb, var(--lc-fp) 30%, var(--lc-line));
-}
-.lc-fp-value {
-    width: 100%;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--lc-text);
-    font-size: 24px;
-    font-weight: 900;
-    line-height: 1.1;
-}
-.lc-fp-value.is-positive { color: var(--lc-fp); }
-.lc-fp-value.is-negative { color: var(--lc-damage); }
-.lc-fp-value.is-zero { color: var(--lc-muted); }
+/* HP 바: 체력 뒤에 보호막을 파랗게 붙인다(전체 = 최대 체력과 체력+보호막 중 큰 값) */
+.lc-hp-bar { flex: none; display: flex; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.lc-player[data-player-panel="p2"] .lc-hp-bar { flex-direction: row-reverse; }
+.lc-hp-bar i { display: block; height: 100%; transition: width .35s ease, background .3s; }
+.lc-hp-bar .is-hp { width: calc(var(--lc-bar-hp, var(--battle-hp-ratio, 1)) * 100%); background: var(--battle-hp-strong-color, var(--lc-heal)); }
+.lc-hp-bar .is-shield { width: calc(var(--lc-bar-shield, 0) * 100%); background: #5aa8f0; }
 
-.lc-step {
-    min-height: 36px;
-    min-width: 36px;
-    padding: 0 4px;
-    border: 1px solid var(--lc-line);
-    border-radius: 10px;
-    background: var(--lc-raise);
-    color: var(--lc-text);
-    font-size: 18px;
-    font-weight: 800;
-    white-space: pre;
-    line-height: 1;
-}
-.lc-fp .lc-step { min-height: 42px; color: var(--lc-fp); font-size: 20px; }
-.lc-step:not(:disabled):hover { background: var(--lc-raise-strong); }
-.lc-step:not(:disabled):active { transform: scale(.96); }
-.lc-step:disabled { opacity: .35; }
-
-.lc-hp-steps { display: flex; gap: 6px; }
+/* HP 버튼 영역은 항상 두 줄 높이(4×2 기준)이고, 끝나는 곳에서 바로 패시브가 시작한다.
+   4버튼: [HP 4개] + [보호막 줄], 8버튼: [HP 4개] × 2. 보호막 특성(핀프 등)은 8버튼 설정이어도 4버튼 + 보호막 줄 */
+.lc-hp-steps { flex: 1 1 0; min-height: 34px; display: flex; gap: 6px; }
 .lc-hp-steps > * { flex: 1 1 0; min-width: 0; }
-/* P2는 바깥쪽부터 −500이 오도록 뒤집어 P1과 거울 대칭을 이룬다. */
 .lc-player[data-player-panel="p2"] .lc-hp-steps { flex-direction: row-reverse; }
-.lc-player[data-player-panel="p2"] .lc-player-head { flex-direction: row-reverse; text-align: right; }
+.lc-hp-steps.is-eight { display: none; }
+.lc[data-hp-buttons="8"] .lc-player:not(.has-shield) .lc-hp-steps.is-eight { display: flex; }
+.lc[data-hp-buttons="8"] .lc-player:not(.has-shield) .lc-hp-steps.is-four { display: none; }
 .lc-hp-step {
-    min-height: 46px;
+    min-height: 0;
+    padding: 0 2px;
     border-radius: 12px;
     border: 1px solid;
-    font-size: 17px;
+    font-size: clamp(11px, min(4.4vh, 5.2cqi), 22px);
     font-weight: 900;
-    letter-spacing: -.01em;
+    letter-spacing: -.03em;
     transition: transform .08s, background .15s;
+    --lc-tint: rgba(255, 255, 255, .06);
+    background: linear-gradient(var(--lc-tint), var(--lc-tint)), rgba(9, 12, 18, .82);
 }
-.lc-hp-step { --lc-tint: rgba(255, 255, 255, .06); background: linear-gradient(var(--lc-tint), var(--lc-tint)), rgba(9, 12, 18, .82); }
 .lc-hp-step.is-damage { color: var(--lc-damage); border-color: rgba(255, 111, 111, .32); --lc-tint: rgba(255, 111, 111, .1); }
 .lc-hp-step.is-heal { color: var(--lc-heal); border-color: rgba(69, 208, 160, .3); --lc-tint: rgba(69, 208, 160, .09); }
 .lc-hp-step.is-heavy.is-damage { --lc-tint: rgba(255, 111, 111, .22); }
@@ -258,196 +205,243 @@
 .lc-hp-step:not(:disabled):active { transform: scale(.96); }
 .lc-hp-step:disabled { opacity: .4; }
 
-/* ---------- 패시브 트레이 ----------
-   스크롤 없이 남은 높이에 맞춘다. 넘치면 calculator-hud.js가 is-tight → is-tighter 단계로 줄인다. */
-.lc-passives { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
-.lc-tray { flex: 1; min-height: 0; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; }
-.lc-tray-empty { margin: 0; padding: 8px; font-size: 12px; color: var(--lc-faint); text-align: center; }
-.lc-passive {
-    flex: 1 1 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 5px;
+/* 보호막 줄: 4버튼일 때 두 번째 줄(모든 캐릭터 공통) */
+.lc-shield-slot { display: flex; flex: 1 1 0; min-height: 34px; }
+.lc[data-hp-buttons="8"] .lc-player:not(.has-shield) .lc-shield-slot { display: none; }
+.lc-shield-slot .v2-shield-controls { flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.lc-shield-slot .v2-shield-button {
     min-width: 0;
-    padding: 7px 10px;
+    min-height: 0;
+    padding: 0 6px;
     border-radius: 12px;
-    border: 1px solid var(--lc-line);
-    background: rgba(9, 12, 18, .74);
-    backdrop-filter: blur(6px);
-    box-sizing: border-box;
-    transition: border-color .2s, background .2s, box-shadow .2s;
-}
-/* 켜고 끄는 항목은 두 개씩 나란히 둔다. */
-.lc-passive.is-toggle, .lc-passive.is-trigger, .lc-passive.is-status { flex: 1 1 calc(50% - 3px); padding: 0; }
-.lc-passive.is-status { padding: 7px 10px; }
-.lc-passive-press {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 3px;
-    width: 100%;
-    height: 100%;
-    min-height: 44px;
-    padding: 7px 10px;
-    border: 0;
-    border-radius: inherit;
-    background: none;
-    color: inherit;
-    text-align: left;
-}
-.lc-passive-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.lc-passive-icon { flex: none; width: 20px; height: 20px; opacity: .55; transition: opacity .2s; }
-.lc-passive-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 800; color: var(--lc-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lc-passive-hint { font-size: 11px; line-height: 1.25; color: var(--lc-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lc-pill {
-    flex: none;
-    min-width: 34px;
-    padding: 2px 7px;
-    border-radius: 999px;
-    border: 1px solid var(--lc-line-strong);
-    color: var(--lc-muted);
-    font-size: 10.5px;
-    font-weight: 900;
-    text-align: center;
-    letter-spacing: .03em;
-}
-.lc-count { flex: none; font-size: 13.5px; font-weight: 900; color: var(--lc-muted); }
-
-.lc-passive.is-active { border-color: color-mix(in srgb, var(--lc-accent) 75%, transparent); background: color-mix(in srgb, var(--lc-accent) 20%, rgba(9, 12, 18, .8)); box-shadow: 0 0 18px -6px var(--lc-accent); }
-.lc-passive.is-active .lc-passive-icon { opacity: 1; }
-.lc-passive.is-active .lc-pill { background: var(--lc-accent); border-color: var(--lc-accent); color: #111; }
-.lc-passive.is-active .lc-count { color: var(--lc-accent-2); }
-.lc-passive.is-ready { border-color: color-mix(in srgb, var(--lc-gold) 80%, transparent); animation: lc-ready 1.6s ease-in-out infinite; }
-.lc-passive.is-ready .lc-pill { color: var(--lc-gold); border-color: var(--lc-gold); }
-@keyframes lc-ready { 50% { box-shadow: 0 0 0 3px rgba(232, 189, 98, .2); } }
-.lc-passive.is-status { border-style: dashed; }
-.lc-passive.is-blocked:not(.is-status):not(.is-active) .lc-passive-name { color: var(--lc-muted); }
-.lc-passive-press:not(:disabled):hover { background: rgba(255, 255, 255, .04); }
-.lc-passive-press:not(:disabled):active { transform: scale(.985); }
-
-/* 카운터는 이름과 칸을 한 줄에 둔다. */
-.lc-passive.is-counter { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 3px; }
-.lc-passive.is-counter .lc-passive-head { flex: 0 1 auto; max-width: 42%; }
-.lc-passive.is-counter .lc-passive-hint { flex-basis: 100%; }
-.lc-counter { flex: 1 1 140px; display: flex; align-items: center; gap: 5px; min-width: 0; }
-.lc-counter .lc-step { min-height: 32px; min-width: 32px; }
-.lc-counter-value { flex: 1; text-align: center; font-size: 20px; font-weight: 900; }
-.lc-pips { flex: 1; display: grid; grid-template-columns: repeat(var(--pips), minmax(0, 1fr)); gap: 4px; min-width: 0; }
-.lc-pip { height: 28px; min-width: 0; padding: 0; border-radius: 7px; border: 1px solid var(--lc-line-strong); background: rgba(255, 255, 255, .04); }
-.lc-pip.is-on { background: var(--lc-accent); border-color: var(--lc-accent); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .18); }
-.lc-pip:not(:disabled):hover { border-color: var(--lc-accent); }
-.lc-passive.is-blocked .lc-pips { opacity: .55; }
-
-/* 선택지는 이름 옆에 붙인다. */
-.lc-passive.is-choice { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 3px; }
-.lc-passive.is-choice .lc-passive-head { flex: 0 1 auto; max-width: 36%; }
-.lc-passive.is-choice .lc-passive-hint { flex-basis: 100%; }
-.lc-choices { flex: 1 1 150px; display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(255, 255, 255, .05); min-width: 0; }
-.lc-choice { flex: 1; min-width: 0; min-height: 32px; padding: 0 4px; border: 0; border-radius: 8px; background: none; color: var(--lc-muted); font-size: 12.5px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lc-choice.is-on { background: var(--lc-accent); color: #111; }
-.lc-choice:disabled:not(.is-on) { opacity: .4; }
-.lc-text { width: 100%; min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--lc-line); background: rgba(0, 0, 0, .3); color: var(--lc-text); box-sizing: border-box; }
-
-/* 공간이 남을 때의 확대 단계: 누르는 칸을 키운다. calculator-hud.js가 들어가는 가장 큰 단계를 고른다. */
-.lc-passives.is-roomy .lc-tray { gap: 8px; }
-.lc-passives.is-roomy .lc-passive { padding: 10px 12px; gap: 8px; border-radius: 14px; }
-.lc-passives.is-roomy .lc-passive.is-toggle, .lc-passives.is-roomy .lc-passive.is-trigger { padding: 0; }
-.lc-passives.is-roomy .lc-passive-press { min-height: 64px; padding: 10px 14px; gap: 5px; }
-.lc-passives.is-roomy .lc-passive-name { font-size: 15.5px; }
-.lc-passives.is-roomy .lc-passive-hint { font-size: 12px; }
-.lc-passives.is-roomy .lc-passive-icon { width: 24px; height: 24px; }
-.lc-passives.is-roomy .lc-pill { min-width: 44px; padding: 4px 10px; font-size: 12px; }
-.lc-passives.is-roomy .lc-count { font-size: 16px; }
-/* 카운터·선택지는 이름 줄 아래에 조작 줄을 통째로 두어 칸을 넓힌다. */
-.lc-passives.is-roomy .lc-passive.is-counter .lc-passive-head,
-.lc-passives.is-roomy .lc-passive.is-choice .lc-passive-head { flex-basis: 100%; max-width: none; }
-.lc-passives.is-roomy .lc-counter, .lc-passives.is-roomy .lc-choices { flex-basis: 100%; }
-.lc-passives.is-roomy .lc-counter { gap: 8px; }
-.lc-passives.is-roomy .lc-counter .lc-step { min-height: 44px; min-width: 44px; font-size: 22px; border-radius: 12px; }
-.lc-passives.is-roomy .lc-pips { gap: 6px; }
-.lc-passives.is-roomy .lc-pip { height: 44px; border-radius: 10px; }
-.lc-passives.is-roomy .lc-counter-value { font-size: 26px; }
-.lc-passives.is-roomy .lc-choice { min-height: 44px; font-size: 14px; border-radius: 10px; }
-.lc-passives.is-roomiest .lc-passive-press { min-height: 84px; }
-.lc-passives.is-roomiest .lc-passive-name { font-size: 17px; }
-.lc-passives.is-roomiest .lc-pill { padding: 5px 12px; font-size: 13px; }
-.lc-passives.is-roomiest .lc-counter .lc-step { min-height: 58px; min-width: 58px; font-size: 26px; }
-.lc-passives.is-roomiest .lc-pip { height: 58px; border-radius: 12px; }
-.lc-passives.is-roomiest .lc-choice { min-height: 56px; font-size: 15.5px; }
-
-/* 패시브 그림: 넉넉할 때만 선 아이콘 대신 크게 보여 준다. */
-.lc-passive-art, .lc-choice-art { display: none; flex: none; object-fit: contain; border-radius: 10px; filter: saturate(.35) brightness(.75); transition: filter .2s, transform .2s; }
-.lc-passive.is-active .lc-passive-art, .lc-choice.is-on .lc-choice-art { filter: none; }
-.lc-passives.is-roomy .lc-passive-art { display: block; width: 44px; height: 44px; }
-.lc-passives.is-roomy .lc-passive-head:has(.lc-passive-art) .lc-passive-icon { display: none; }
-.lc-passives.is-roomy .lc-passive.is-active .lc-passive-art { box-shadow: 0 0 0 2px var(--lc-accent); }
-.lc-passives.is-roomiest .lc-passive-art { width: 60px; height: 60px; border-radius: 12px; }
-.lc-choice > span { overflow: hidden; text-overflow: ellipsis; }
-.lc-passives.is-roomy .lc-choice:has(.lc-choice-art) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 4px; }
-.lc-passives.is-roomy .lc-choice-art { display: block; width: 36px; height: 36px; border-radius: 8px; }
-.lc-passives.is-roomiest .lc-choice-art { width: 48px; height: 48px; }
-.lc-passives.is-roomy .lc-choice:has(.lc-choice-art) { min-height: 70px; }
-.lc-passives.is-roomiest .lc-choice:has(.lc-choice-art) { min-height: 86px; }
-
-/* 공간이 모자랄 때의 압축 단계 */
-.lc-passives.is-tight .lc-passive-hint { display: none; }
-.lc-passives.is-tight .lc-passive { padding-top: 5px; padding-bottom: 5px; }
-.lc-passives.is-tight .lc-passive.is-toggle, .lc-passives.is-tight .lc-passive.is-trigger { padding: 0; }
-.lc-passives.is-tight .lc-passive-press { min-height: 36px; padding: 5px 9px; }
-.lc-passives.is-tight .lc-pip { height: 24px; }
-.lc-passives.is-tight .lc-counter .lc-step, .lc-passives.is-tight .lc-choice { min-height: 28px; }
-.lc-passives.is-tighter .lc-passive-icon { display: none; }
-.lc-passives.is-tighter .lc-tray, .lc-passives.is-tighter { gap: 4px; }
-.lc-passives.is-tighter .lc-passive { flex-basis: calc(50% - 2px); padding: 3px 7px; border-radius: 9px; }
-.lc-passives.is-tighter .lc-passive.is-counter .lc-passive-head { max-width: 100%; }
-.lc-passives.is-tighter .lc-passive-press { min-height: 30px; padding: 3px 7px; }
-.lc-passives.is-tighter .lc-pip { height: 20px; }
-.lc-passives.is-tighter .lc-counter .lc-step { min-height: 24px; min-width: 24px; font-size: 15px; }
-.lc-passives.is-tighter .lc-choice { min-height: 24px; font-size: 11.5px; }
-.lc-passives.is-tighter .lc-passive-name { font-size: 12px; }
-/* 마지막 단계: 칸을 직접 눌러 조작하므로 카운터의 −/+를 빼고 더 낮춘다. */
-.lc-passives.is-tightest .lc-counter .lc-step { display: none; }
-.lc-passives.is-tightest .lc-passive { padding: 2px 6px; }
-.lc-passives.is-tightest .lc-passive-press { min-height: 26px; padding: 2px 6px; }
-.lc-passives.is-tightest .lc-pip { height: 16px; }
-.lc-passives.is-tightest .lc-choice { min-height: 20px; font-size: 11px; }
-.lc-passives.is-tightest .lc-passive-name, .lc-passives.is-tightest .lc-count { font-size: 11px; }
-.lc-passives.is-tightest .lc-pill { padding: 0 5px; font-size: 9.5px; }
-.lc-passives.is-tighter .v2-shield-button { min-height: 32px; }
-.lc-passives.is-tighter .v2-shield-controls { padding: 4px; gap: 4px; }
-.lc-passives.is-tightest .v2-shield-button { min-height: 26px; font-size: 11px; }
-
-/* 보호막은 엔진이 만든 세 버튼을 트레이 한 칸처럼 보여준다. */
-.lc-passives .v2-shield-controls {
-    order: -1;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
-    padding: 6px;
-    border-radius: 12px;
-    border: 1px solid rgba(120, 190, 255, .28);
-    background: rgba(40, 80, 120, .18);
-}
-.lc-passives .v2-shield-button {
-    min-width: 0;
-    min-height: 38px;
-    padding: 0 8px;
-    border-radius: 9px;
-    border: 1px solid rgba(120, 190, 255, .3);
-    background: rgba(120, 190, 255, .08);
+    border: 1px solid rgba(120, 190, 255, .32);
+    background: rgba(40, 90, 140, .22);
     color: #a9d6ff;
-    font-size: 12.5px;
+    font-size: clamp(11px, min(4.4vh, 5.2cqi), 22px);
     font-weight: 800;
     white-space: pre;
     line-height: 1.15;
 }
 /* 엔진은 [보호막+, 초기화, 보호막−] 순서로 만든다. 화면에서는 [보호막−, 초기화, 보호막+]로 같은 폭에 둔다. */
-.lc-passives .v2-shield-button[data-shield-step="-100"] { order: 1; }
-.lc-passives .v2-shield-button[data-shield-reset] { order: 2; }
-.lc-passives .v2-shield-button[data-shield-step="100"] { order: 3; }
-.lc-passives .v2-shield-button[data-shield-reset] { color: var(--lc-muted); border-color: var(--lc-line); background: none; }
-.lc-passives .v2-shield-button:disabled { opacity: .4; }
+.lc-shield-slot .v2-shield-button[data-shield-step="-100"] { order: 1; }
+.lc-shield-slot .v2-shield-button[data-shield-reset] { order: 2; letter-spacing: .04em; }
+.lc-shield-slot .v2-shield-button[data-shield-step="100"] { order: 3; }
+.lc-shield-slot .v2-shield-button:disabled { opacity: .4; }
+
+/* FP 열: 이름 줄부터 버튼 끝까지, +/−가 가장 큰 버튼 */
+.lc-fp { flex: none; width: 64px; display: flex; flex-direction: column; gap: 6px; }
+.lc-fp .lc-step { flex: 1 1 0; min-height: 36px; color: var(--lc-fp); font-size: 24px; border-radius: 12px; }
+.lc-fp-box {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 0;
+    border-radius: 12px;
+    background: rgba(5, 7, 11, .62);
+    border: 1px solid color-mix(in srgb, var(--lc-fp) 30%, var(--lc-line));
+}
+.lc-fp-value { width: 100%; padding: 0; border: 0; background: none; color: var(--lc-text); font-size: 24px; font-weight: 900; line-height: 1.1; }
+.lc-fp-value.is-positive { color: var(--lc-fp); }
+.lc-fp-value.is-negative { color: var(--lc-damage); }
+.lc-fp-value.is-zero { color: var(--lc-muted); }
+.lc-step {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 0 4px;
+    border: 1px solid var(--lc-line);
+    border-radius: 10px;
+    background: rgba(9, 12, 18, .82);
+    color: var(--lc-text);
+    font-size: 18px;
+    font-weight: 800;
+    white-space: pre;
+    line-height: 1;
+}
+.lc-step:not(:disabled):hover { background: var(--lc-raise-strong); }
+.lc-step:not(:disabled):active { transform: scale(.96); }
+.lc-step:disabled { opacity: .35; }
+
+/* ---------- 패시브: 카드 그림 · 불빛 · ± ----------
+   높이는 최대치(패널의 28%, 96~150px)까지만 쓰고 늘어나지 않는다. 남는 높이는 HP 쪽이 가져간다. */
+.lc-passives { flex: 0 1 auto; max-height: clamp(96px, 28%, 150px); min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+.lc-passives:empty { display: none; }
+.lc-tray { display: flex; gap: 6px; min-height: 0; }
+.lc-tray.is-list { flex-direction: column; gap: 5px; }
+
+.lc-crop {
+    position: relative;
+    display: block;
+    flex: none;
+    border-radius: 9px;
+    background-color: #2a2418;
+    background-repeat: no-repeat;
+    border: 1px solid rgba(255, 255, 255, .12);
+    box-sizing: border-box;
+    filter: saturate(.45) brightness(.62);
+    transition: filter .2s;
+}
+.lc-crop.is-art { background-size: contain; background-position: center; background-color: rgba(9, 12, 18, .9); }
+.lc-crop.is-fill { position: absolute; inset: 0; border: 0; border-radius: inherit; }
+.lc-crop.is-thumb { width: 28px; height: 28px; border-radius: 7px; }
+.is-active > .lc-crop, .lc-crop.is-lit, .is-active .lc-tile-face > .lc-crop { filter: none; }
+
+.lc-tile {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--lc-line-strong);
+    background: #15181f;
+    color: var(--lc-text);
+    text-align: left;
+    box-sizing: border-box;
+}
+.lc-tile::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 35%, rgba(5, 7, 11, .82)); pointer-events: none; }
+.lc-tile > :not(.lc-crop) { position: relative; z-index: 1; }
+.lc-tile-name { min-width: 0; font-size: 12.5px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 3px #000; }
+.lc-tile.is-active, .is-active > .lc-tile-face { border-color: var(--lc-accent); box-shadow: 0 0 0 1px var(--lc-accent), 0 0 16px -4px var(--lc-accent); }
+.lc-tile.is-ready, .lc-counter-tile.is-ready .lc-tile-face { border-color: var(--lc-gold); animation: lc-ready 1.6s ease-in-out infinite; }
+@keyframes lc-ready { 50% { box-shadow: 0 0 0 3px rgba(232, 189, 98, .25); } }
+.lc-tile.is-status { border-style: dashed; }
+button.lc-tile:not(:disabled):active { transform: scale(.98); }
+.lc-pill {
+    flex: none;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--lc-line-strong);
+    background: rgba(5, 7, 11, .7);
+    color: var(--lc-muted);
+    font-size: 10.5px;
+    font-weight: 900;
+}
+.is-active > .lc-pill { background: var(--lc-accent); border-color: var(--lc-accent); color: #111; }
+.lc-tile.is-ready > .lc-pill { color: var(--lc-gold); border-color: var(--lc-gold); }
+
+/* 불빛: 칸 하나 = 불 하나, 눌러서 그 칸까지 켠다 */
+.lc-lights { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; pointer-events: none; }
+/* 카운터 박스 전체가 초기화 버튼. ± 버튼은 박스 쪽으로 누름 영역을 넓혀, 가까운 곳은 ±로 동작한다. */
+.lc-resettable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.lc-resettable[aria-disabled="true"] { cursor: default; }
+.lc-resettable:not([aria-disabled="true"]):active { filter: brightness(1.25); }
+.lc-resettable:focus-visible { outline: 2px solid var(--lc-gold); outline-offset: 1px; }
+.lc-pstep { position: relative; z-index: 2; }
+/* 넓힌 누름 영역은 박스 쪽으로만 뻗는다(바깥으로 넘치지 않게). − 는 오른쪽, + 는 왼쪽, 아래 ± 막대는 위쪽 */
+.lc-pstep::after { content: ""; position: absolute; inset: 0; }
+.lc-counter-tile > .lc-pstep:first-of-type::after, .lc-row-part > .lc-pstep:first-of-type::after { right: -12px; }
+.lc-counter-tile > .lc-pstep:last-of-type::after, .lc-row-part > .lc-pstep:last-of-type::after { left: -12px; }
+.lc-pstep-bar .lc-pstep::after { top: -14px; }
+.lc-light { flex: none; display: block; width: 14px; height: 14px; padding: 0; border-radius: 50%; box-sizing: border-box; border: 1px solid rgba(255, 255, 255, .35); background: rgba(5, 7, 11, .75); }
+.lc-light.is-on { background: var(--lc-accent); border-color: var(--lc-accent); box-shadow: 0 0 8px var(--lc-accent); }
+.lc-count { font-size: 20px; font-weight: 900; text-shadow: 0 1px 4px #000; }
+.lc-pstep {
+    flex: none;
+    min-width: 40px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid var(--lc-line);
+    background: rgba(9, 12, 18, .85);
+    color: var(--lc-text);
+    font-size: 20px;
+    font-weight: 800;
+}
+.lc-pstep:disabled { opacity: .35; }
+.lc-pstep:not(:disabled):active { transform: scale(.95); }
+
+/* 크게 1개: 정해진 높이의 카드 한 장(늘어나지 않음) */
+.lc-tray.is-hero .lc-tile, .lc-tray.is-hero .lc-counter-tile, .lc-tray.is-hero .lc-choice-tile { height: 72px; flex: 1 1 0; }
+.lc-counter-tile { display: flex; gap: 6px; min-width: 0; }
+.lc-counter-tile .lc-tile-face { flex: 1 1 0; flex-direction: column; align-items: flex-start; justify-content: flex-end; }
+.lc-tray.is-hero .lc-counter-tile .lc-pstep { width: 56px; }
+.lc-tray.is-hero .lc-counter-tile .lc-light { width: 16px; height: 16px; }
+.lc-choice-tile { display: flex; gap: 6px; min-width: 0; }
+.lc-choice-tile .lc-tile { align-items: flex-end; justify-content: center; }
+
+/* 둘로 나누기: 세로 카드 두 장. 카운터는 그림 아래 ± 막대 */
+.lc-tray.is-split > * { flex: 1 1 0; min-width: 0; height: 96px; }
+.lc-tray.is-split .lc-counter-tile { flex-direction: column; }
+.lc-pstep-bar { flex: none; display: flex; gap: 5px; height: 30px; }
+.lc-pstep-bar .lc-pstep { flex: 1; }
+
+/* 목록(3개 이상): 카드 한 장 틀 안에 줄을 쌓는다. 작은 카운터 둘은 반씩, 상태 + 선택지는 한 줄 */
+.lc-tray.is-list {
+    position: relative;
+    overflow: hidden;
+    padding: 5px;
+    border-radius: 12px;
+    border: 1px solid var(--lc-line-strong);
+    background: #15181f;
+}
+.lc-crop.is-backdrop { position: absolute; inset: 0; border: 0; border-radius: 0; opacity: .45; filter: saturate(.8); }
+.lc-tray.is-list::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 10, 15, .9), rgba(8, 10, 15, .55)); pointer-events: none; }
+.lc-tray.is-list > .lc-row { position: relative; z-index: 1; }
+.lc-row { display: flex; gap: 5px; min-height: 0; }
+.lc-row > .lc-tile { height: 34px; padding: 4px 8px; align-items: center; }
+.lc-row-part {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    background: rgba(5, 7, 11, .62);
+}
+.lc-row-part.is-active { border-color: color-mix(in srgb, var(--lc-accent) 55%, transparent); }
+.lc-row-part.is-ready { border-color: var(--lc-gold); animation: lc-ready 1.6s ease-in-out infinite; }
+.lc-row-name { flex: none; max-width: 4.5em; padding-left: 4px; font-size: 12px; font-weight: 800; color: var(--lc-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-row-part.is-active .lc-row-name, .lc-row-part.is-status-on .lc-row-name { color: var(--lc-text); }
+.lc-row-part .lc-lights { flex: 1; align-self: stretch; justify-content: center; flex-wrap: nowrap; gap: 6px; min-width: 0; margin: 0; padding: 0 2px; }
+.lc-row-part .lc-light { flex: none; }
+.lc-row-part .lc-count { flex: 1; text-align: center; font-size: 16px; }
+.lc-row-part .lc-pstep { min-width: 30px; height: 28px; font-size: 17px; border-color: rgba(255, 255, 255, .1); background: rgba(255, 255, 255, .05); }
+/* 짝으로 놓인 카운터는 같은 카드라 그림 대신 이름으로 구분한다. */
+.lc-row.is-pair .lc-crop.is-thumb { display: none; }
+.lc-row.is-pair .lc-row-name { max-width: none; font-size: 13px; }
+/* 타오: 양은 흰 불, 음은 검은 불(밝은 테두리). 꺼진 칸은 작은 점 */
+.lc-row-part[data-control-key="yang_counter"] .lc-light,
+.lc-row-part[data-control-key="yin_counter"] .lc-light { width: 14px; height: 14px; border: 0; background: radial-gradient(circle, rgba(255, 255, 255, .32) 0 3px, transparent 3.5px); box-shadow: none; }
+.lc-row-part[data-control-key="yang_counter"] .lc-light.is-on { border: 1px solid #f4f1ea; background: #f4f1ea; box-shadow: 0 0 7px rgba(244, 241, 234, .65); }
+.lc-row-part[data-control-key="yin_counter"] .lc-light.is-on { border: 2px solid #c9c3b6; background: #050608; box-shadow: 0 0 6px rgba(201, 195, 182, .35); }
+/* 상태 + 선택지: 상태 불 하나와 구획 선택 막대 */
+.lc-row-lamp { flex: none; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: rgba(255, 255, 255, .16); }
+.lc-row-lamp.is-on { background: var(--lc-accent); box-shadow: 0 0 8px var(--lc-accent); }
+.lc-row-part.is-status-on { border-color: color-mix(in srgb, var(--lc-accent) 55%, transparent); }
+.lc-row-choices { flex: 1; display: flex; gap: 2px; min-width: 0; padding: 2px; border-radius: 8px; background: rgba(0, 0, 0, .4); }
+.lc-row-choice { flex: 1; min-width: 0; height: 26px; padding: 0 4px; border-radius: 6px; border: 0; background: none; color: var(--lc-muted); font-size: 12px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-row-choice.is-active { background: var(--lc-accent); color: #111; }
+.lc-row-part:not(.is-status-on) .lc-row-choice.is-active { background: color-mix(in srgb, var(--lc-accent) 30%, transparent); color: var(--lc-text); }
+.lc-row-choice:disabled:not(.is-active) { opacity: .4; }
+.lc-text { width: 100%; min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--lc-line); background: rgba(0, 0, 0, .3); color: var(--lc-text); box-sizing: border-box; }
+
+/* 최대 높이를 넘으면: 이름을 빼고(1단계), 그림을 빼고 더 낮춘다(2단계) */
+.lc-passives.is-tight .lc-row-name, .lc-passives.is-tight .lc-tile-name { display: none; }
+.lc-passives.is-tight .lc-tray.is-hero > * { height: 58px; }
+.lc-passives.is-tight .lc-tray.is-split > * { height: 78px; }
+.lc-passives.is-tighter .lc-crop.is-thumb { display: none; }
+.lc-passives.is-tighter .lc-row > .lc-tile { height: 28px; }
+.lc-passives.is-tighter .lc-row-part .lc-pstep { height: 24px; }
+.lc-passives.is-tighter .lc-row-choice { height: 22px; }
+.lc-passives.is-tighter .lc-light { width: 11px; height: 11px; }
+
+/* 처음 접속 시 HP 버튼 방식 선택 */
+.lc-choose-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.lc-choose-option { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; border: 1px solid var(--lc-line-strong); background: rgba(9, 12, 18, .6); color: var(--lc-text); text-align: left; }
+.lc-choose-option:hover { border-color: var(--lc-gold); }
+.lc-choose-preview { display: flex; flex-direction: column; gap: 4px; }
+.lc-choose-row { display: flex; gap: 3px; }
+.lc-choose-row i { flex: 1; font-style: normal; font-size: 10.5px; font-weight: 800; text-align: center; padding: 4px 0; border-radius: 6px; }
+.lc-choose-row i.is-damage { color: var(--lc-damage); background: rgba(255, 111, 111, .14); }
+.lc-choose-row i.is-heal { color: var(--lc-heal); background: rgba(69, 208, 160, .12); }
 
 /* ---------- 가운데 ---------- */
 .lc-center {
@@ -655,7 +649,7 @@
 .v2-battle-readonly .lc-hp-steps,
 .v2-battle-readonly .lc-fp .lc-step,
 .v2-battle-readonly .lc-tools [data-battle-action="undo"],
-.v2-battle-readonly .lc-passives .v2-shield-controls { display: none; }
+.v2-battle-readonly .lc-shield-slot { display: none !important; }
 .v2-battle-readonly .lc-tools { grid-template-columns: repeat(3, 1fr); }
 
 /* ---------- 반응형 ---------- */
@@ -664,11 +658,7 @@
     .lc-player { padding: 7px; gap: 6px; }
     .lc-avatar { width: 26px; height: 26px; }
     .lc-ident h2 { font-size: 14px; }
-    .lc-hp { padding: 4px 10px 8px; }
-    .lc-hp-value { font-size: clamp(34px, 11vh, 52px); }
-    .lc-hp-step { min-height: 38px; font-size: 15px; }
-    .lc-fp { width: 50px; }
-    .lc-fp .lc-step { min-height: 36px; }
+    .lc-fp { width: 54px; }
     .lc-fp-value { font-size: 20px; }
     .lc-center { padding: 6px; gap: 6px; }
     .lc-icon { width: 36px; height: 36px; }
@@ -682,10 +672,10 @@
 }
 /* 작은 가로 화면 */
 @media (max-width: 720px) and (orientation: landscape) {
+    .lc-avatar, .lc-ident span { display: none; }
     .lc-board { grid-template-columns: minmax(0, 1fr) 118px minmax(0, 1fr); }
     .lc-hp-steps { gap: 4px; }
-    .lc-hp-step { font-size: 13px; letter-spacing: -.03em; padding: 0; }
-    .lc-fp { width: 44px; }
+    .lc-fp { width: 50px; }
     .lc-controls { gap: 5px; }
     .lc-hand { padding: 3px 6px; font-size: 11px; }
 }
@@ -693,14 +683,9 @@
     .lc-player { padding: 14px; gap: 12px; }
     .lc-ident h2 { font-size: 18px; }
     .lc-avatar { width: 38px; height: 38px; }
-    .lc-hp-step { min-height: 64px; font-size: 22px; }
-    .lc-fp { width: 76px; }
-    .lc-fp .lc-step { min-height: 56px; font-size: 24px; }
-    .lc-fp-value { font-size: 34px; }
-    .lc-passive-name { font-size: 15px; }
-    .lc-passive-hint { font-size: 12px; }
-    .lc-pip { height: 34px; }
-    .lc-passive-press { min-height: 54px; }
+    .lc-fp { width: 80px; }
+    .lc-fp-value { font-size: 32px; }
+    .lc-fp .lc-step { font-size: 30px; }
 }
 /*
  * 세로로 든 휴대폰: 세로 배치는 자리가 모자라므로 계산기 전체를 90° 돌려 항상 가로 배치로 보여 준다.
@@ -728,14 +713,10 @@
     .lc { --lc-gap: 6px; }
     .lc-board { grid-template-columns: minmax(0, 1fr) 118px minmax(0, 1fr); }
     .lc-player { padding: 7px; gap: 6px; }
-    .lc-avatar { width: 26px; height: 26px; }
+    .lc-avatar, .lc-ident span { display: none; }
     .lc-ident h2 { font-size: 14px; }
-    .lc-hp { padding: 4px 10px 8px; }
-    .lc-hp-value { font-size: clamp(34px, 11vw, 52px); }
     .lc-hp-steps { gap: 4px; }
-    .lc-hp-step { min-height: 38px; font-size: 13px; letter-spacing: -.03em; padding: 0; }
-    .lc-fp { width: 44px; }
-    .lc-fp .lc-step { min-height: 36px; }
+    .lc-fp { width: 50px; }
     .lc-fp-value { font-size: 20px; }
     .lc-controls { gap: 5px; }
     .lc-hand { padding: 3px 6px; font-size: 11px; }
@@ -755,4 +736,54 @@
 }
 @media (prefers-reduced-motion: reduce) {
     .lc *, .lc *::before, .lc *::after { animation: none !important; transition: none !important; }
+}
+
+/* 좁은 패널(태블릿 세로, 작은 휴대폰): 아바타·캐릭터 이름을 빼서 이름 줄을 맞춘다. */
+@container (max-width: 300px) {
+    .lc-avatar, .lc-ident span { display: none; }
+    .lc-hand { padding: 2px 6px; font-size: 11px; }
+}
+@container (max-width: 240px) {
+    .lc-hp-steps { gap: 3px; }
+    .lc-hp-step { padding: 0; font-size: 10px; letter-spacing: -.06em; border-radius: 9px; }
+    .lc-controls { gap: 5px; }
+    .lc-fp { width: 42px; }
+    .lc-fp .lc-step { font-size: 20px; }
+    .lc-fp-value { font-size: 18px; }
+}
+
+/* 태블릿·PC: HP·FP 조작부가 충분히 크므로 패시브 칸을 2배 넘게 키우고, 카운터를 크게 누르기 쉽게 한다.
+   타오처럼 짝으로 놓인 카운터는 한 줄씩 펼쳐 불빛과 ± 버튼을 키운다. */
+@media (min-width: 768px) and (min-height: 600px) {
+    .lc-passives { max-height: clamp(200px, 44%, 340px); }
+    .lc-tile-name { font-size: 15px; }
+    .lc-count { font-size: 28px; }
+    .lc-light { width: 20px; height: 20px; }
+    .lc-lights { gap: 8px; }
+    .lc-pill { padding: 3px 12px; font-size: 13px; }
+    .lc-pstep { font-size: 28px; border-radius: 12px; }
+    .lc-tray.is-hero .lc-tile, .lc-tray.is-hero .lc-counter-tile, .lc-tray.is-hero .lc-choice-tile { height: 150px; }
+    .lc-tray.is-hero .lc-counter-tile .lc-pstep { width: 88px; }
+    .lc-tray.is-hero .lc-counter-tile .lc-light { width: 24px; height: 24px; }
+    .lc-tray.is-split > * { height: 200px; }
+    .lc-pstep-bar { height: 52px; gap: 8px; }
+    .lc-tray.is-list { padding: 8px; gap: 8px; }
+    .lc-row { gap: 8px; }
+    .lc-row.is-pair { flex-direction: column; }
+    .lc-row > .lc-tile { height: 52px; }
+    .lc-row-part { min-height: 58px; gap: 10px; padding: 5px; border-radius: 12px; }
+    .lc-row-name, .lc-row.is-pair .lc-row-name { max-width: 6em; padding-left: 8px; font-size: 16px; }
+    .lc-row-part .lc-pstep { min-width: 64px; height: 46px; font-size: 26px; }
+    .lc-row-part .lc-lights { gap: 12px; }
+    .lc-row-part .lc-count { font-size: 24px; }
+    .lc-row-part[data-control-key="yang_counter"] .lc-light,
+    .lc-row-part[data-control-key="yin_counter"] .lc-light { width: 24px; height: 24px; background-size: 100% 100%; }
+    .lc-row-part[data-control-key="yin_counter"] .lc-light:not(.is-on),
+    .lc-row-part[data-control-key="yang_counter"] .lc-light:not(.is-on) { background: radial-gradient(circle, rgba(255, 255, 255, .32) 0 4px, transparent 4.5px); }
+    .lc-row-lamp { width: 12px; height: 12px; margin-left: 8px; }
+    .lc-row-choices { padding: 3px; gap: 3px; border-radius: 10px; }
+    .lc-row-choice { height: 44px; font-size: 16px; border-radius: 8px; }
+    .lc-crop.is-thumb { width: 44px; height: 44px; border-radius: 9px; }
+    .lc-passives.is-tight .lc-tray.is-hero > * { height: 120px; }
+    .lc-passives.is-tight .lc-tray.is-split > * { height: 160px; }
 }
