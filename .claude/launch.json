@@ -21,6 +21,17 @@
         "play/vite.pyodide.config.ts"
       ],
       "port": 5176
+    },
+    {
+      "name": "play-vite",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "play/node_modules/vite/bin/vite.js",
+        "--config",
+        "play/vite.config.ts",
+        "play"
+      ],
+      "port": 5175
     }
   ]
 }

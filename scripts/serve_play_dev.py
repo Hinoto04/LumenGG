@@ -48,6 +48,10 @@ from django.db import connection, transaction  # noqa: E402
 # Wait for SQLite locks instead of failing (which would push an automatic
 # match into manual fallback), and let readers work during a write (WAL).
 connection.settings_dict.setdefault('OPTIONS', {})['timeout'] = 30
+# WAL에서 읽기로 시작한 트랜잭션이 쓰기로 올라가다 다른 쓰기와 부딪히면 SQLite는 timeout을
+# 기다리지 않고 바로 'database is locked'를 낸다. 트랜잭션을 처음부터 쓰기 잠금으로 열어
+# (BEGIN IMMEDIATE) 차례를 기다리게 한다. AI 백그라운드 스레드·WebSocket·HTTP가 동시에 쓴다.
+connection.settings_dict['OPTIONS']['transaction_mode'] = 'IMMEDIATE'
 
 # The guard that matters: refuse to run against anything but our SQLite file.
 if connection.vendor != 'sqlite' or Path(connection.settings_dict['NAME']).resolve() != database.resolve():
@@ -56,6 +60,12 @@ if connection.vendor != 'sqlite' or Path(connection.settings_dict['NAME']).resol
 with connection.cursor() as cursor:
     cursor.execute('PRAGMA journal_mode=WAL')
 call_command('migrate', interactive=False, verbosity=0)
+# 지난 실행에서 남은 대전은 AI 백그라운드 스레드가 서버와 함께 사라져 이어 갈 수 없고,
+# 다시 열리면 서로 잠금을 다투다 수동 모드로 떨어진다. 실행할 때마다 비우고 시작한다.
+from battlelog.models import LumenSimulatorSession  # noqa: E402
+_stale_sessions, _ = LumenSimulatorSession.objects.all().delete()
+if _stale_sessions:
+    print(f'남아 있던 대전 세션 {_stale_sessions}개를 정리했습니다.')
 settings.ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 # Vite(5175)가 프록시한 POST도 받는다. 운영에서는 같은 출처라 필요 없다.
 settings.CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:5175', 'http://localhost:5175']
