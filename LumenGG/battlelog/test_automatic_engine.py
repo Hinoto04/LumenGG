@@ -2554,7 +2554,8 @@ class AutomaticEngineTests(SimpleTestCase):
                 if action.get('type') == 'select_combo_first'
             },
         )
-        self.assertNotIn('end_combo', {action.get('type') for action in actions})
+        # 8.3.1: 1콤보 뒤에는 2·3콤보를 제시하지 않고 콤보 타임을 끝낼 수 있다.
+        self.assertIn('end_combo', {action.get('type') for action in actions})
 
     def test_sandbox_shapes_unconditional_defense_speed_boundaries(self):
         from .game.sandbox import _sandbox_defense_reference_speed
@@ -5241,6 +5242,45 @@ class AutomaticEngineTests(SimpleTestCase):
             for event in engine.events
         ))
 
+    def test_combo_owner_can_end_combo_time_after_first_combo(self):
+        """8.3.1: 이을 2·3콤보가 있어도 1콤보만 하고 콤보 타임을 끝낼 수 있다."""
+        starter = attack('early-end-starter', 'p1', frame=2, hit='콤보')
+        second = attack('early-end-second', 'p1', code='EARLY-SECOND', frame=3)
+        third = attack('early-end-third', 'p1', code='EARLY-THIRD', frame=4)
+        opposing = attack('early-end-opposing', 'p2', frame=7)
+        state = base_state([], [])
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [starter]
+        state['players']['p1']['zones']['hand'] = [second, third]
+        state['players']['p2']['zones']['battle'] = [opposing]
+        engine = AutomaticGameEngine.initialize(
+            state, ruleset(starter, second, third, opposing),
+            seed='combo-early-end',
+        )
+        engine.state['phase'] = 'battle'
+        engine.engine_state['battle'] = {
+            'p1': {'instance_id': starter['instance_id'], 'card': starter},
+            'p2': {'instance_id': opposing['instance_id'], 'card': opposing},
+        }
+        engine.grant_combo('p1', source=starter['instance_id'])
+
+        actions = engine.legal_actions('p1')
+        self.assertTrue(any(
+            action.get('type') == 'select_combo_first' for action in actions
+        ))
+        end = next(action for action in actions if action.get('type') == 'end_combo')
+        engine.submit_action('p1', end['action_id'], {}, command_id='early-end')
+
+        self.assertIsNone(engine.engine_state.get('combo'))
+        ended = [event for event in engine.events if event.get('type') == 'combo_ended']
+        self.assertEqual(len(ended), 1)
+        self.assertEqual(ended[0]['payload']['used'], [])
+        self.assertFalse(any(
+            event.get('type') == 'combo_card_used' for event in engine.events
+        ))
+        hand_ids = {card['instance_id'] for card in engine.state['players']['p1']['zones']['hand']}
+        self.assertEqual(hand_ids, {second['instance_id'], third['instance_id']})
+
     def test_combo_offers_initial_pair_then_fourth_after_both_after_use_steps(self):
         starter = attack('staged-starter', 'p1', frame=2, hit='콤보')
         second = attack(
@@ -5301,11 +5341,11 @@ class AutomaticEngineTests(SimpleTestCase):
             and action['payload']['card_instance_id'] == second['instance_id']
         )
         self.assertFalse(any(
-            action.get('type') in {
-                'play_combo_card', 'play_combo_sequence', 'end_combo',
-            }
+            action.get('type') in {'play_combo_card', 'play_combo_sequence'}
             for action in initial_actions
         ))
+        # 8.3.1: 쌍을 제시하기 전에도 콤보 타임을 끝낼 수 있다.
+        self.assertIn('end_combo', {action.get('type') for action in initial_actions})
 
         engine.submit_action('p1', first['action_id'], {}, command_id='staged-first')
         followup = next(

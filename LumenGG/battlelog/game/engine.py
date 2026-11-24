@@ -706,14 +706,11 @@ class AutomaticGameEngine:
             if combo.get('owner') == role and not combo.get('proposal_submitted'):
                 combo_actions = self._combo_actions(role, combo, staged=True)
                 actions.extend(combo_actions)
-                review_isolation = (
-                    self._combo_review_isolation()
-                    and not combo.get('special')
-                )
-                initial_pair_pending = (
-                    not (combo.get('used') or []) and not review_isolation
-                )
-                if not initial_pair_pending and not (
+                # 8.3.1: 1콤보 뒤에는 2·3콤보 쌍을 제시하지 않고 콤보 타임을
+                # 끝낼 수 있다. 쌍은 함께 제시하므로 2콤보 한 장만 쓰고 끝내는
+                # 일은 없다(Q-AUTO 피의 만찬 답변). 다음 콤보를 강제하는 효과가
+                # 있으면 끝낼 수 없다.
+                if not (
                     combo_actions
                     and self._required_combo_followup_rules(role, combo)
                 ):
@@ -1181,8 +1178,13 @@ class AutomaticGameEngine:
             or (combo.get('used') or [])
         ):
             return False
+        # 콤보 종료(8.3.1)만 남았다면 이을 콤보가 없는 것이므로 바로 끝낸다.
+        # 콤보 한 칸을 따로 떼어 보는 검수 시나리오는 예전처럼 열어 둔다.
+        idle = {'concede', 'request_rewind'}
+        if not (self._combo_review_isolation() and not combo.get('special')):
+            idle.add('end_combo')
         if any(
-            action.get('type') not in {'concede', 'request_rewind'}
+            action.get('type') not in idle
             for action in self.legal_actions(role)
         ):
             return False
