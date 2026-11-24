@@ -25411,7 +25411,7 @@ class AutomaticEngineTests(SimpleTestCase):
             '[[state:down_stance]]의 영향을 받지 않는다.\n그 경우, 이 '
             '기술의 데미지-100, 히트 판정을 <+0>으로 변경하고 사용 후 '
             '이 기술을 패로 되돌린다.\n'
-            '②상대 회피 시, 상대는 2FP를 잃고 이번 턴 Get을 스킵한다.'
+            '②상대 회피 시, 자신은 2FP를 잃고 이번 턴 Get을 스킵한다.'
         )
         result = self._assert_st2_technique_review(
             'UNC-AT-022', text, [152], {
@@ -25443,8 +25443,10 @@ class AutomaticEngineTests(SimpleTestCase):
         dodge = {
             item['name']: item for item in by_id['unc-at-022-n2'].scenarios
         }
-        self.assertTrue(
-            dodge['owner-p1-opponent-loses-two-fp-and-skips-get']['skip_get']
+        own = dodge['owner-p1-loses-two-fp-and-skips-get']
+        self.assertEqual(
+            (own['owner_fp'], own['opponent_fp'], own['skip_get'], own['opponent_skip_get']),
+            (3, 5, True, False),
         )
 
     def test_unc_at_023_reviews_bottom_fp_and_exact_moved_card_get_lock(self):

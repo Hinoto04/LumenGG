@@ -22625,7 +22625,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             },
             {
                 'id': 'st2-ps1-charge-use',
-                'label': '차지로 레디한 공격의 속도 +2 및 데미지 +200',
+                'label': '차지로 레디한 공격은 2속도 느려지고 데미지 +200',
                 'kind': 'effect', 'mode': 'mandatory', 'timing': 'use',
                 'visibility': 'public', 'source_refs': source_refs,
                 'draft': True, 'draft_compiled': True,
@@ -25213,7 +25213,7 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             },
             {
                 'id': 'unc-at-022-n2',
-                'label': '② 상대 회피 시 상대 -2FP 및 Get 스킵',
+                'label': '② 상대 회피 시 자신 -2FP 및 Get 스킵',
                 'kind': 'effect', 'mode': 'mandatory',
                 'timing': 'opponent_dodge', 'visibility': 'public',
                 'active_zones': ['battle'],
@@ -25222,10 +25222,10 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'effects': [
                     {
                         'op': 'change_fp',
-                        'player': {'opponent': True}, 'amount': -2,
+                        'player': {'controller': True}, 'amount': -2,
                     },
                     {
-                        'op': 'skip_get', 'player': {'opponent': True},
+                        'op': 'skip_get', 'player': {'controller': True},
                     },
                 ],
                 'draft': True, 'draft_compiled': True,

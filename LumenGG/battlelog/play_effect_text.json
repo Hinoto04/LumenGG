@@ -635,6 +635,10 @@
   "② On opponent's dodge: opponent -2 FP and skip Get",
   "② 相手の回避時 相手-2FP、ゲットをスキップ"
  ],
+ "② 상대 회피 시 자신 -2FP 및 Get 스킵": [
+  "② On opponent's dodge: you -2 FP and skip Get",
+  "② 相手の回避時 自分-2FP、ゲットをスキップ"
+ ],
  "②상쇄 시 상대의 +6 이상 히트 판정을 +4로 변경한다": [
   "②On clash, change opponent's hit judgment of +6 or higher to +4",
   "②相殺時、相手の+6以上のヒット判定を+4に変更する"
@@ -3110,6 +3114,10 @@
  "차지 효과의 속도 증가를 적용하지 않음": [
   "Charge's Speed increase does not apply",
   "チャージ効果による速度増加を適用しない"
+ ],
+ "차지로 레디한 공격은 2속도 느려지고 데미지 +200": [
+  "Attacks readied in Charge become 2 Speed slower and gain Damage +200",
+  "チャージでレディした攻撃は2速度遅くなり、ダメージ+200"
  ],
  "차지로 레디한 공격의 속도 +2 및 데미지 +200": [
   "Attacks readied in Charge: Speed +2 and Damage +200",

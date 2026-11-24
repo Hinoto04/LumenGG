@@ -77561,14 +77561,16 @@ def _run_unc_at_022_catch_scenario(
 
 
 def _run_unc_at_022_dodge_scenario(
-    definition, card_snapshot, owner, *, opponent_fp=5,
+    definition, card_snapshot, owner, *, owner_fp=5, opponent_fp=5,
     event_type='opponent_dodge', source_zone='battle',
     numbered_negated=False,
 ):
+    # ②상대의 회피 시, 자신은 2FP를 잃고 이번 턴 겟 페이즈를 스킵한다.
     other = 'p2' if owner == 'p1' else 'p1'
     engine, source, opposing = _st2_battle_engine(
         definition, card_snapshot, owner, source_zone=source_zone,
-        numbered_negated=numbered_negated, opponent_fp=opponent_fp,
+        numbered_negated=numbered_negated, owner_fp=owner_fp,
+        opponent_fp=opponent_fp,
     )
     engine._fire(event_type, {
         'controller': owner, 'event_controller': owner,
@@ -77579,11 +77581,12 @@ def _run_unc_at_022_dodge_scenario(
         'opponent_card': copy.deepcopy(opposing),
         'source_battle_card_only': source_zone == 'battle',
     })
+    skip_get = engine.engine_state.get('skip_get') or {}
     return {
+        'owner_fp': int(engine.state['players'][owner]['fp']),
         'opponent_fp': int(engine.state['players'][other]['fp']),
-        'skip_get': bool(
-            (engine.engine_state.get('skip_get') or {}).get(other)
-        ),
+        'skip_get': bool(skip_get.get(owner)),
+        'opponent_skip_get': bool(skip_get.get(other)),
         'resolved': _st2_resolution_count(engine, 'unc-at-022-n2'),
         'pending': bool(engine.engine_state.get('pending_decision')),
     }
@@ -77624,6 +77627,10 @@ def _review_unc_at_022_definition(definition, card_snapshot, extra_root):
         and dodge and dodge.get('trigger') == {'event': 'opponent_dodge'}
         and [effect.get('op') for effect in dodge.get('effects') or []]
         == ['change_fp', 'skip_get']
+        and all(
+            effect.get('player') == {'controller': True}
+            for effect in dodge.get('effects') or []
+        )
         and _st2_snapshot_matches(card_snapshot, {
             'code': 'UNC-AT-022', 'name': '플래시 잽', 'type': '공격',
             'frame': 5, 'damage': 300, 'pos': '상단', 'body': '손',
@@ -77671,22 +77678,24 @@ def _review_unc_at_022_definition(definition, card_snapshot, extra_root):
     dodge_scenarios = _st2_scenarios(
         _run_unc_at_022_dodge_scenario, definition, card_snapshot,
         (
-            ('owner-p1-opponent-loses-two-fp-and-skips-get', 'p1', {}, {
-                'opponent_fp': 3, 'skip_get': True, 'resolved': 1}),
-            ('owner-p2-opponent-loses-two-fp-and-skips-get', 'p2', {
-                'opponent_fp': 2,
-            }, {'opponent_fp': 0, 'skip_get': True, 'resolved': 1}),
-            ('fp-may-become-negative', 'p1', {'opponent_fp': 1}, {
-                'opponent_fp': -1, 'skip_get': True, 'resolved': 1}),
+            ('owner-p1-loses-two-fp-and-skips-get', 'p1', {}, {
+                'owner_fp': 3, 'opponent_fp': 5, 'skip_get': True,
+                'opponent_skip_get': False, 'resolved': 1}),
+            ('owner-p2-loses-two-fp-and-skips-get', 'p2', {
+                'owner_fp': 2,
+            }, {'owner_fp': 0, 'opponent_fp': 5, 'skip_get': True,
+                'opponent_skip_get': False, 'resolved': 1}),
+            ('fp-may-become-negative', 'p1', {'owner_fp': 1}, {
+                'owner_fp': -1, 'skip_get': True, 'resolved': 1}),
             ('own-dodge-does-not-trigger', 'p2', {
                 'event_type': 'dodge',
-            }, {'opponent_fp': 5, 'skip_get': False, 'resolved': 0}),
+            }, {'owner_fp': 5, 'skip_get': False, 'resolved': 0}),
             ('numbered-negation-does-not-trigger', 'p1', {
                 'numbered_negated': True,
-            }, {'opponent_fp': 5, 'skip_get': False, 'resolved': 0}),
+            }, {'owner_fp': 5, 'skip_get': False, 'resolved': 0}),
             ('outside-battle-does-not-trigger', 'p2', {
                 'source_zone': 'hand',
-            }, {'opponent_fp': 5, 'skip_get': False, 'resolved': 0}),
+            }, {'owner_fp': 5, 'skip_get': False, 'resolved': 0}),
         ),
     )
     reviews = [
