@@ -8,6 +8,7 @@ cards can be exercised safely during review.
 
 import copy
 import json
+import re
 from datetime import datetime, timedelta, timezone
 
 from common.localization import (
@@ -471,11 +472,18 @@ def _selector_fixture_snapshot(selector, code, name):
         snapshot['name'] = f'{where["name_contains"]} {name}'
     if where.get('name_not_contains') and str(where['name_not_contains']) in snapshot['name']:
         snapshot['name'] = name
+    def text_part(marker):
+        # 상태 표식 필터는 "상태 효과가 있는 기술"이므로 상태 효과 형식으로 만든다.
+        marker = str(marker)
+        if re.fullmatch(r'\[\[state:[a-z0-9_]+\]\]', marker):
+            return f'①{marker}: 샌드박스 효과'
+        return marker
+
     text_parts = []
     if where.get('text_contains'):
-        text_parts.append(str(where['text_contains']))
+        text_parts.append(text_part(where['text_contains']))
     if isinstance(where.get('text_contains_any'), list) and where['text_contains_any']:
-        text_parts.append(str(where['text_contains_any'][0]))
+        text_parts.append(text_part(where['text_contains_any'][0]))
     snapshot['text'] = ' '.join(text_parts)
     if where.get('text_not_contains') and str(where['text_not_contains']) in snapshot['text']:
         snapshot['text'] = ''

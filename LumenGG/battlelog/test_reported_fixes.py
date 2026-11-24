@@ -887,10 +887,10 @@ class ChildOfStarlightSpecialExclusionTests(SimpleTestCase):
         attach = next(a for a in definition['abilities'] if a['id'] == 'dfr-at-027-n1')
         selector = attach['effects'][0]['selector']
         self.assertEqual(selector['where'].get('type_not_contains'), '특수')
-        technique = {**attack('saintess-attack', 'p1'), 'text': '[[state:saintess]] 효과'}
+        technique = {**attack('saintess-attack', 'p1'), 'text': '①[[state:saintess]]: 효과'}
         light = {
             **attack('light-lumen', 'p1', code='LMI-AT-001'), 'type': '특수',
-            'frame': None, 'damage': None, 'text': '[[state:saintess]] 효과',
+            'frame': None, 'damage': None, 'text': '①[[state:saintess]]: 효과',
         }
         state = base_state([], [])
         state['players']['p1']['zones']['side'] = [technique, light]
@@ -1635,3 +1635,155 @@ class ProvidenceOneComboAfterUseBreakTests(SimpleTestCase):
     def test_normal_hit_after_use_break_still_offers(self):
         engine = self.run_battle('2')
         self.assertTrue(self.providence_offered(engine))
+
+
+TEMPO_DE_DEUX_TEXT = (
+    '①1턴에 1번 콤보 시, [[token:hidden_bond]]카운터가 있을 경우 배틀 존의 이 기술을 '
+    '다른 <[[character:viola]]> 기술 뒤에 속도를 무시하고 이을 수 있다. \n'
+    '②이 기술이 한 턴에 두 번 이상 사용되었을 경우, 이 기술은 데미지 보정을 적용하지 않는다.'
+)
+
+
+class TempoDeDeuxRepeatUseWaiverTests(SimpleTestCase):
+    """템포 드 두 ②: 이번 턴 첫 사용이면 콤보 데미지 보정을 그대로 받는다."""
+
+    def combo_damage(self, *, used_before):
+        from .game.drafts import build_effect_draft
+
+        opener = attack('opener', 'p1', frame=8, hit='콤보')
+        mid = attack('mid', 'p1', code='MID', frame=5, damage=400)
+        tempo = attack('tempo', 'p1', code='CB02-AT-026', frame=6, damage=300)
+        guard = defense('guard', 'p2', top=None, mid=None, bottom=None)
+        rules = ruleset(opener, mid, tempo, guard)
+        rules['cards']['CB02-AT-026']['effect_definition'] = build_effect_draft(
+            'CB02-AT-026', TEMPO_DE_DEUX_TEXT,
+        )
+        engine = AutomaticGameEngine.initialize(
+            base_state([opener, mid, tempo], [guard]), rules,
+            seed='tempo-de-deux-waiver', run_startup=False,
+        )
+
+        def act(role, kind, pick=None):
+            engine.submit_action(role, next(
+                a for a in engine.legal_actions(role)
+                if a['type'] == kind and (pick is None or a['payload'].get('card_instance_id') == pick)
+            )['action_id'])
+        act('p1', 'pass_phase'); act('p2', 'pass_phase')
+        act('p1', 'ready_card', 'opener'); act('p2', 'ready_card')
+        self.assertEqual(engine.engine_state.get('step'), 'combo')
+        if used_before:
+            engine._mark_card_used(engine._find_card('tempo'), 'p1', 'ready')
+        pair = next(
+            a for a in engine._combo_actions('p1', engine.engine_state['combo'])
+            if a['type'] == 'play_combo_pair'
+            and a['payload']['card_instance_ids'] == ['mid', 'tempo']
+        )
+        payload = pair['payload']
+        first = next(
+            a for a in engine.legal_actions('p1')
+            if a['type'] == 'select_combo_first'
+            and a['payload']['card_instance_id'] == 'mid'
+            and a['payload']['combo_speed'] == payload['combo_speeds'][0]
+        )
+        engine.submit_action('p1', first['action_id'])
+        engine.submit_action('p1', next(
+            a for a in engine.legal_actions('p1')
+            if a['type'] == 'select_combo_followup' and a['payload'].get('proposal') == payload
+        )['action_id'])
+        damages = [
+            e['payload']['amount'] for e in engine.events
+            if e['type'] == 'damage_dealt' and e['payload'].get('target') == 'p2'
+        ]
+        return damages[-1]
+
+    def test_first_use_keeps_three_combo_penalty(self):
+        self.assertEqual(self.combo_damage(used_before=False), 100)
+
+    def test_second_use_ignores_penalty(self):
+        self.assertEqual(self.combo_damage(used_before=True), 300)
+
+
+class StateEffectTechniqueFilterTests(SimpleTestCase):
+    """「X」 효과가 있는 기술은 효과 번호 바로 뒤에 상태 조건이 붙은 기술(①[[state:x]]:)이다."""
+
+    GRAND_LEGIONS = (
+        '①사용 시, 패 4장까지 버리고 해당 기술에 있는 효과에 따라 이하의 효과를 각각 1번씩 적용할 수 있다.\n'
+        '-[[state:saintess]]: 사용 후, 리스트에서 기술 2장을 획득한다.\n'
+        '-[[state:guardian]]: 이 기술 데미지+200'
+    )
+    PROMISED_VICTORY = (
+        '①[[state:paladin]]: 판정 전, 패에서 [[state:guardian]]효과가 있는 기술을 1장 버린다면 이 기술의 데미지+200\n '
+        '②[[state:paladin]]: 콤보 시, 리스트에서 [[state:saintess]]효과가 있는 기술 1장을 사용할 수 있다.'
+    )
+
+    def matches(self, text, where):
+        from .game.effects import card_matches
+
+        return card_matches({'type': '공격', 'text': text}, {'is_technique': True, **where}, {}, {})
+
+    def test_bullet_branch_is_not_a_state_effect(self):
+        self.assertFalse(self.matches(self.GRAND_LEGIONS, {'text_contains': '[[state:saintess]]'}))
+        self.assertFalse(self.matches(self.GRAND_LEGIONS, {
+            'text_contains_any': ['[[state:paladin]]', '[[state:saintess]]'],
+        }))
+
+    def test_mentioned_state_is_not_a_state_effect(self):
+        self.assertFalse(self.matches(self.PROMISED_VICTORY, {'text_contains': '[[state:guardian]]'}))
+        self.assertTrue(self.matches(self.PROMISED_VICTORY, {'text_contains': '[[state:paladin]]'}))
+
+    def test_numbered_state_effect_matches(self):
+        self.assertTrue(self.matches('①[[state:saintess]]: 캐치 시, <5속도>로 사용할 수 있다', {
+            'text_contains': '[[state:saintess]]',
+        }))
+        self.assertTrue(self.matches('① [[state:dark_night]] : 이 기술 데미지+200', {
+            'text_contains': '[[state:dark_night]]',
+        }))
+        self.assertFalse(self.matches('①[[state:saintess]]: 효과', {
+            'text_not_contains': '[[state:saintess]]',
+        }))
+
+    def test_replacement_line_is_not_a_state_effect(self):
+        self.assertFalse(self.matches(
+            '①캐치 시, <9속도>로 사용할 수 있다.\n[[state:assassin]] : 대신 1FP를 얻는다.',
+            {'text_contains': '[[state:assassin]]'},
+        ))
+
+    def test_other_markers_stay_literal(self):
+        self.assertTrue(self.matches('[[token:drum]] 카운터', {'text_contains': '[[token:drum]]'}))
+
+
+class BattleJudgmentVisibleOnBoardTests(SimpleTestCase):
+    """인스턴트 스매시 ①: 판정 전 히트 판정 변경이 배틀 존 카드(화면)에도 보이고, 배틀 후 되돌아간다."""
+
+    TEXT = (
+        '①[[state:charge]]: 판정 전, 이 기술의 속도를 7로 고정한다, 그 후 이하의 효과를 적용한다.\n'
+        '-이 기술의 데미지-100, 히트 판정을 <+3>로 변경한다.\n'
+        '②상쇄 시, 자신의 패 1장을 브레이크한다.'
+    )
+
+    def test_hit_change_is_on_battle_zone_card_then_restored(self):
+        from .game.drafts import build_effect_draft
+
+        smash = attack('smash', 'p1', code='UNC-AT-017', frame=8, damage=400)
+        smash.update({'hit': '4', 'counter': '4', 'guard': '-6'})
+        foe = defense('foe', 'p2', top=None, bottom='방어')
+        state = base_state([smash], [foe])
+        state['players']['p1']['passive_state']['charge'] = {'value': True}
+        rules = ruleset(smash, foe)
+        rules['cards']['UNC-AT-017']['effect_definition'] = build_effect_draft('UNC-AT-017', self.TEXT)
+        engine = AutomaticGameEngine.initialize(state, rules, seed='smash-board-hit', run_startup=False)
+        seen = []
+        fire = engine._fire
+
+        def spy(event, *args, **kwargs):
+            if event == 'hit':
+                seen.append(engine._find_card('smash', owner='p1', zone='battle').get('hit'))
+            return fire(event, *args, **kwargs)
+        engine._fire = spy
+        act = lambda role, kind: engine.submit_action(role, next(
+            a for a in engine.legal_actions(role) if a['type'] == kind)['action_id'])
+        act('p1', 'pass_phase'); act('p2', 'pass_phase')
+        act('p1', 'ready_card'); act('p2', 'ready_card')
+        self.assertEqual(seen, ['+3'])
+        self.assertEqual(engine.state['players']['p1']['fp'], 3)
+        self.assertEqual(engine._find_card('smash').get('hit'), '4')

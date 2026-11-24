@@ -10,6 +10,7 @@ import copy
 import hashlib
 import json
 import random
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone as datetime_timezone
 
 from .effects import EffectResolver, EffectResolutionError, card_matches, condition_matches, resolve_value
@@ -3910,13 +3911,16 @@ class AutomaticGameEngine:
             used = list(rules_combo.get('used') or [])
             if used and used[-1] == pipeline.get('card_instance_id'):
                 rules_combo['used'] = used[:-1]
-            applied_penalty = self._combo_applied_penalty(
-                role, card, rules_combo, _number(pipeline.get('penalty'), 100),
-                use_optional_ignore=bool(
-                    pipeline.get('used_optional_ignore_damage_penalty')
-                ),
-            )
-            combo_rules = self._combo_rules(role, card, rules_combo)
+            # 보정 규칙은 카드를 고를 때와 같은 기준(이번 사용 전)으로 본다.
+            # 이번 사용까지 세면 "두 번 이상 사용" 같은 조건이 첫 사용에도 참이 된다.
+            with self._without_current_combo_use(pipeline.get('card_instance_id')):
+                applied_penalty = self._combo_applied_penalty(
+                    role, card, rules_combo, _number(pipeline.get('penalty'), 100),
+                    use_optional_ignore=bool(
+                        pipeline.get('used_optional_ignore_damage_penalty')
+                    ),
+                )
+                combo_rules = self._combo_rules(role, card, rules_combo)
             damage_bonus = self._combo_damage_bonus(
                 combo_rules, pipeline.get('combo_speed'),
                 use_optional_speed_ignore=bool(
@@ -8365,6 +8369,12 @@ class AutomaticGameEngine:
             and isinstance(pipeline.get('card'), dict)
         ):
             pipeline['card'][field] = value
+        if duration not in {None, 'continuous'}:
+            # 판정에 쓰는 배틀 기록의 카드와 배틀 존(화면)의 카드가 따로 있다.
+            # 화면에도 바뀐 판정이 보이도록 같이 바꾸고, 만료 시 둘 다 되돌린다.
+            live = self._find_card(instance_id, owner=side, zone='battle')
+            if isinstance(live, dict) and live is not card and live.get(field) == before:
+                live[field] = value
         self._track_temporary_judgment(
             instance_id, field, before, value, duration,
         )
@@ -9219,8 +9229,9 @@ class AutomaticGameEngine:
             or source_card.get('character_key') != alias.get('source_character')
         ):
             return effective
+        # 버릴 때 해당 상태 효과가 있는 것으로 취급하므로 상태 효과 표식(①[[state:x]]:)으로 붙인다.
         markers = ''.join(
-            f' [[state:{state_key}]]' for state_key in alias.get('states') or []
+            f'\n①[[state:{state_key}]]:' for state_key in alias.get('states') or []
         )
         effective['text'] = f'{effective.get("text") or ""}{markers}'
         effective['discard_state_alias_applied'] = True
@@ -10208,6 +10219,22 @@ class AutomaticGameEngine:
                 if source_code in set(immunity.get('source_codes') or []):
                     return True
         return False
+
+    @contextmanager
+    def _without_current_combo_use(self, instance_id):
+        """콤보 처리 중인 카드의 이번 사용 기록을 잠시 빼고 계산한다."""
+        history = self.engine_state.get('card_use_history') or []
+        index = next((
+            position for position in range(len(history) - 1, -1, -1)
+            if history[position].get('instance_id') == instance_id
+            and history[position].get('use_context') == 'combo'
+        ), None)
+        entry = history.pop(index) if index is not None else None
+        try:
+            yield
+        finally:
+            if entry is not None:
+                history.insert(index, entry)
 
     def _mark_card_used(self, card, owner, use_context='ready'):
         self.engine_state.setdefault('card_use_history', []).append({

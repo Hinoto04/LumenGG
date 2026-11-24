@@ -37,6 +37,23 @@ def _normalized_filter_text(value):
         normalized = normalized.replace(legacy, canonical)
     return normalized
 
+
+_STATE_MARKER = re.compile(r'\[\[state:[a-z0-9_]+\]\]')
+
+
+def _text_has_filter_marker(text, marker):
+    """카드 텍스트 필터. 상태 표식만 찾을 때는 "상태 효과가 있는 기술"로 본다.
+
+    상태 효과는 효과 번호 바로 뒤에 상태 조건이 붙은 효과(``①[[state:x]]:``)다.
+    다른 효과 안의 분기(``-[[state:x]]:``)·대체 문구(``[[state:x]]: 대신``)나
+    상태를 언급만 하는 문구는 그 상태 효과가 있는 기술이 아니다.
+    """
+    text = _normalized_filter_text(text)
+    marker = _normalized_filter_text(marker)
+    if _STATE_MARKER.fullmatch(marker):
+        return bool(re.search(rf'[①-⑳]\s*{re.escape(marker)}\s*:', text))
+    return marker in text
+
 # These timings ordinarily belong to the Technique that is currently being
 # used or judged. A different Technique sitting in Battle/List/Hand/Side or
 # Break must not react merely because it has text with the same timing. Cards
@@ -529,13 +546,11 @@ def _card_matches(card, where, state=None, context=None):
             if not any(str(item) in keywords for item in expected):
                 return False
         elif key == 'text_contains':
-            text = _normalized_filter_text(card.get('text'))
-            if _normalized_filter_text(expected) not in text:
+            if not _text_has_filter_marker(card.get('text'), expected):
                 return False
         elif key == 'text_contains_any':
-            text = _normalized_filter_text(card.get('text'))
             if not any(
-                _normalized_filter_text(item) in text
+                _text_has_filter_marker(card.get('text'), item)
                 for item in (expected or [])
             ):
                 return False
@@ -549,9 +564,7 @@ def _card_matches(card, where, state=None, context=None):
             ):
                 return False
         elif key == 'text_not_contains':
-            if _normalized_filter_text(expected) in _normalized_filter_text(
-                card.get('text'),
-            ):
+            if _text_has_filter_marker(card.get('text'), expected):
                 return False
         elif key == 'type_in':
             if card.get('non_technique_while_face_down') or card.get('type') not in expected:

@@ -23011,7 +23011,7 @@ def _run_unc_at_017_combo_scenario(
     )
     immediate.update({'frame': 7, 'damage': 500})
     if next_has_charge and not insert_non_charge:
-        immediate['text'] = '[[state:charge]]: 검토용 차지 효과'
+        immediate['text'] = '①[[state:charge]]: 검토용 차지 효과'
     later = None
     if insert_non_charge:
         later = _card(
@@ -23020,7 +23020,7 @@ def _run_unc_at_017_combo_scenario(
         )
         later.update({
             'frame': 8, 'damage': 500,
-            'text': '[[state:charge]]: 검토용 차지 효과',
+            'text': '①[[state:charge]]: 검토용 차지 효과',
         })
     opposing = _card(
         'REVIEW-INSTANT-SMASH-COMBO-OPPONENT', other,
@@ -42946,7 +42946,7 @@ def _run_awl_at_007_acquire_scenario(
         )
         card.update({
             'name': f'암야 후보 {index + 1}',
-            'text': '[[state:dark_night]]: 검토용 암야 효과',
+            'text': '①[[state:dark_night]]: 검토용 암야 효과',
         })
         matching.append(card)
     unrelated = _card(
@@ -47048,7 +47048,7 @@ def _run_awl_at_023_catch_scenario(
     )
     listed.update({
         'name': '리스트 차지 기술',
-        'text': '[[state:charge]]: 이 기술 데미지+200',
+        'text': '①[[state:charge]]: 이 기술 데미지+200',
         'face_up': True,
     })
     special = _card(
@@ -47058,7 +47058,7 @@ def _run_awl_at_023_catch_scenario(
     special.update({
         'name': '특수 차지 기술', 'type': '특수',
         'frame': None, 'damage': None,
-        'text': '[[state:charge]]: 테스트', 'face_up': False,
+        'text': '①[[state:charge]]: 테스트', 'face_up': False,
     })
     storm = _card(
         'LMI-AT-016', owner, f'{owner}-dominate-stormbringer',
@@ -47067,7 +47067,7 @@ def _run_awl_at_023_catch_scenario(
         'name': '스톰브링거', 'frame': 14, 'damage': 600,
         'pos': '상단', 'body': '', 'special': '',
         'hit': '3', 'counter': '3',
-        'text': '[[state:charge]]: 이 기술은 14속도로 고정된다.',
+        'text': '①[[state:charge]]: 이 기술은 14속도로 고정된다.',
         'face_up': False,
     })
     all_in_card = _card(
@@ -65157,7 +65157,7 @@ def _dfr_at_026_hand_card(owner, index, *, effect=None, face_up=False):
         f'REVIEW-SACRED-HAND-{index}', owner,
         f'{owner}-sacred-hand-{index}',
     )
-    tag = f'[[state:{effect}]] 효과' if effect else '효과 없음'
+    tag = f'①[[state:{effect}]]: 효과' if effect else '효과 없음'
     card.update({
         'name': f'검토 패 {index}', 'text': tag,
         'character_key': 'lita', 'face_up': bool(face_up),
@@ -65229,7 +65229,7 @@ def _dfr_at_026_list_card(owner, suffix, *, effect=None, card_type='공격'):
     card.update({
         'name': f'리스트 {suffix}', 'type': card_type,
         'text': (
-            f'[[state:{effect}]] 효과'
+            f'①[[state:{effect}]]: 효과'
             if effect else '관련 상태 효과 없음'
         ),
         'frame': 8, 'damage': 500, 'hit': '+1', 'counter': '+1',
@@ -65644,7 +65644,7 @@ def _run_dfr_at_027_attach_scenario(
     matching = [
         _dfr_at_027_card(
             owner, f'saintess-{index + 1}',
-            text='[[state:saintess]] 효과',
+            text='①[[state:saintess]]: 효과',
         )
         for index in range(matching_count)
     ]
@@ -65820,7 +65820,7 @@ def _run_dfr_at_027_turn_end_scenario(
     attachments = [
         _dfr_at_027_card(
             owner, f'attachment-{index + 1}', card_type=card_type,
-            text='[[state:saintess]] 효과', attached_to=source_id,
+            text='①[[state:saintess]]: 효과', attached_to=source_id,
         )
         for index, card_type in enumerate(attachment_types)
     ]
@@ -79282,7 +79282,7 @@ def _run_st3_ps1_slow_scenario(
     unmarked.update({'frame': 5, 'damage': 400})
     marked = _st3_ps1_event_card(
         owner, 'marked',
-        text='[[state:down_stance]]: 이 기술의 속도가 1 빨라진다.',
+        text='①[[state:down_stance]]: 이 기술의 속도가 1 빨라진다.',
     )
     marked.update({'frame': 5, 'damage': 400})
     immunity_text = _st3_ps1_event_card(
@@ -83165,7 +83165,7 @@ def _lmi_at_001_engine(
     saintess = _card(
         'REVIEW-LIGHT-SAINTESS', owner, f'{owner}-light-saintess',
     )
-    saintess['text'] = '[[state:saintess]] 효과가 있는 기술'
+    saintess['text'] = '①[[state:saintess]]: 효과가 있는 기술'
     ordinary = _card(
         'REVIEW-LIGHT-ORDINARY', owner, f'{owner}-light-ordinary',
     )
@@ -95218,12 +95218,13 @@ def _review_st3_006_definition(definition, card_snapshot, extra_root):
 
     position_scenarios = []
     for name, owner, kwargs, expected in (
+        # 배틀 중 바뀐 판정은 배틀 존의 카드에도 보인다(배틀 후 되돌아간다).
         ('owner-p1-defense-changes-to-middle', 'p1', {}, {
-            'source_position': '상단', 'battle_position': '중단',
+            'source_position': '중단', 'battle_position': '중단',
             'resolved_count': 1,
         }),
         ('owner-p2-defense-changes-to-middle', 'p2', {}, {
-            'source_position': '상단', 'battle_position': '중단',
+            'source_position': '중단', 'battle_position': '중단',
             'resolved_count': 1,
         }),
         ('attack-opponent-keeps-upper', 'p1', {
@@ -151680,7 +151681,7 @@ def _pmp_at_043_trait_card(owner, tag, index=1):
     )
     card.update({
         'name': f'{tag} 검토 기술 {index}',
-        'text': f'[[state:{tag}]] 검토용 기술',
+        'text': f'①[[state:{tag}]]: 검토용 기술',
         'face_up': False,
     })
     return card

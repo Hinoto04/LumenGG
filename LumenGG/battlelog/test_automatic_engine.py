@@ -6746,7 +6746,7 @@ class AutomaticEngineTests(SimpleTestCase):
 
     def test_state_only_use_restriction_blocks_cards_without_the_marker(self):
         saintess = attack('saintess', 'p1', code='SAINTESS')
-        saintess['text'] = '[[state:saintess]]: 이 기술 데미지+100'
+        saintess['text'] = '①[[state:saintess]]: 이 기술 데미지+100'
         ordinary = attack('ordinary', 'p1', code='ORDINARY')
         ordinary['text'] = '효과 없음'
         engine = self.make_engine([saintess, ordinary], [])
@@ -28354,9 +28354,9 @@ class AutomaticEngineTests(SimpleTestCase):
         )
         source = attack('paladin-source', 'p1', code='DFR-AT-026')
         first = attack('paladin-list-first', 'p1', frame=6, damage=500)
-        first['text'] = '[[state:paladin]]: 테스트'
+        first['text'] = '①[[state:paladin]]: 테스트'
         second = attack('saintess-list-second', 'p1', frame=7, damage=500)
-        second['text'] = '[[state:saintess]]: 테스트'
+        second['text'] = '①[[state:saintess]]: 테스트'
         followup = attack('paladin-hand-followup', 'p1', frame=7, damage=500)
         state = base_state([], [])
         state['phase'] = 'battle'
@@ -28414,7 +28414,7 @@ class AutomaticEngineTests(SimpleTestCase):
         source['code'] = 'LMI-AT-010'
         required = attack('saintess-required', 'p1', code='LMI-AT-001')
         candidate = attack('saintess-catch-card', 'p1', frame=10, damage=500)
-        candidate['text'] = '[[state:saintess]]: 테스트'
+        candidate['text'] = '①[[state:saintess]]: 테스트'
         state = base_state([], [])
         state['phase'] = 'battle'
         state['players']['p1']['zones']['battle'] = [source]
@@ -31273,7 +31273,7 @@ class AutomaticEngineTests(SimpleTestCase):
         source = attack('combo-source', 'p1', code='UNC-AT-017', hit='콤보')
         charged = attack('charged', 'p1', code='CHARGED', frame=6, damage=500)
         charged_followup = attack('charged-followup', 'p1', frame=7, damage=400)
-        charged['text'] = '[[state:charge]]'
+        charged['text'] = '①[[state:charge]]:'
         release = ruleset(source, charged, charged_followup)
         engine = AutomaticGameEngine.initialize(
             base_state([charged, charged_followup], []), release,
@@ -31645,7 +31645,7 @@ class AutomaticEngineTests(SimpleTestCase):
         light = attack('light-lumen', 'p1', code='LMI-AT-001')
         light.update({'type': '특수', 'frame': None, 'damage': None})
         saintess = attack('saintess-technique', 'p1', damage=400)
-        saintess['text'] = '[[state:saintess]] 효과가 있는 기술'
+        saintess['text'] = '①[[state:saintess]]: 효과가 있는 기술'
         ordinary = attack('ordinary-technique', 'p1', damage=400)
         opponent_card = attack('light-opponent', 'p2')
         charm = attack('light-charm', 'p2', code='AWL-SP-003')
@@ -31936,9 +31936,9 @@ class AutomaticEngineTests(SimpleTestCase):
 
         source = attack('cost-source', 'p1', code='TEST-AT-COST')
         guardian = attack('guardian-cost', 'p1')
-        guardian['text'] = '[[state:guardian]]'
+        guardian['text'] = '①[[state:guardian]]:'
         paladin = attack('paladin-cost', 'p1')
-        paladin['text'] = '[[state:paladin]]'
+        paladin['text'] = '①[[state:paladin]]:'
         release = ruleset(source, guardian, paladin)
         release['cards']['TEST-AT-COST']['effect_definition'] = definition
         engine = AutomaticGameEngine.initialize(
@@ -34217,7 +34217,7 @@ class AutomaticEngineTests(SimpleTestCase):
 
         host = attack('set-host', 'p1', code='DFR-AT-027')
         attached = attack('set-card', 'p1', frame=5)
-        attached['text'] = '[[state:saintess]]'
+        attached['text'] = '①[[state:saintess]]:'
         attached['character_key'] = 'cmyk'
         state = base_state([], [])
         state['players']['p1']['zones']['ultimate'] = [host]
@@ -35614,7 +35614,7 @@ class AutomaticEngineTests(SimpleTestCase):
         source = attack('paladin-reveal', 'p1', code='DFR-AT-026')
         hand = [attack(f'paladin-hand-{index}', 'p1') for index in range(5)]
         for index, card in enumerate(hand):
-            card['text'] = '[[state:paladin]]' if index < 3 else '일반 기술'
+            card['text'] = '①[[state:paladin]]:' if index < 3 else '일반 기술'
         state = base_state(hand, [])
         state['phase'] = 'battle'
         state['players']['p1']['zones']['battle'] = [source]
@@ -39316,7 +39316,7 @@ class AutomaticEngineTests(SimpleTestCase):
         )
         neutral = attack('down-neutral', 'p1', position='중단')
         marked = attack('down-marked', 'p1', position='중단')
-        marked['text'] = '[[state:down_stance]]: 이 기술을 사용할 수 있다.'
+        marked['text'] = '①[[state:down_stance]]: 이 기술을 사용할 수 있다.'
         externally_changed = attack('down-external', 'p1', position='중단')
         changed_away = attack(
             'down-changed-away', 'p1', special='상단 회피',
