@@ -118,17 +118,51 @@ button {
   position: relative;
 }
 
+/* 왼쪽 열: 캐릭터 패널은 바깥쪽, 패시브·얼티밋은 배틀존 쪽. 둘 다 가운데 선에 붙인다. */
+.field-lead {
+  grid-area: portrait;
+  align-self: stretch;
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  min-width: 0;
+}
+
+.field-opp .field-lead {
+  align-items: flex-end;
+}
+
+.field-me .field-lead {
+  align-items: flex-start;
+}
+
 .field .portrait {
-  justify-self: start;
+  flex: 0 1 15em;
   width: min(15em, 100%);
 }
 
+.field-singles {
+  flex: none;
+}
+
+/* 오른쪽 열을 다 쓴다: 리스트는 남는 폭 안에서 카드 크기를 맞추고, 더미는 바깥쪽 끝에 붙는다. */
 .field-side {
   grid-area: side;
-  justify-self: end;
+  justify-self: stretch;
   display: flex;
+  justify-content: space-between;
   gap: 1.2em;
   min-width: 0;
+}
+
+.field-side .list-zone {
+  flex: 1 1 0;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.field-side .piles {
+  flex: none;
 }
 
 .field-opp .field-side {
@@ -169,12 +203,6 @@ button {
 }
 .field-me {
   align-items: start;
-}
-.field-opp .portrait {
-  align-self: start;
-}
-.field-me .portrait {
-  align-self: end;
 }
 
 /* portrait */
@@ -328,7 +356,8 @@ button {
 .list-cards {
   --rows: 1;
   --cols: 1;
-  --list-len: calc(var(--cw) * 4.6);
+  /* 리스트 존(컨테이너) 폭을 넘지 않는다. 6장이 한 줄이어도 배틀존을 침범하지 않게. */
+  --list-len: min(calc(var(--cw) * 5.4), 100cqw);
   --list-max: calc(var(--cw) * (0.62 - (var(--rows) - 1) * 0.07));
   --list-cw: min(var(--list-max), calc((var(--list-len) - (var(--cols) - 1) * 0.25em) / var(--cols)));
   display: grid;
@@ -344,8 +373,9 @@ button {
 }
 
 .piles {
+  --pile-count: 3;
   display: grid;
-  grid-template-columns: repeat(3, auto);
+  grid-template-columns: repeat(var(--pile-count), auto);
   gap: 0.4em 0.5em;
 }
 
@@ -2519,11 +2549,13 @@ button.prep-tile-name {
     min-height: 0;
   }
 
-  .field-side {
+  .field-side,
+  .field-lead {
     display: contents;
   }
 
   .field .portrait {
+    grid-area: portrait;
     width: 100%;
   }
 

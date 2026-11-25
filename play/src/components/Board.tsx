@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useAnimate } from "motion/react";
 import { useEffect, useMemo, type CSSProperties } from "react";
 import { isStateCounterToken, type BoardCard, type LegalAction, type PlayEnvelope, type PlayerState, type Side, type ZoneName } from "../protocol";
-import { PHASE_LABELS, PHASE_ORDER, PILE_ZONES, ZONE_LABELS } from "../labels";
+import { PHASE_LABELS, PHASE_ORDER, PILE_ZONES, SINGLE_ZONES, ZONE_LABELS } from "../labels";
 import { cardActions, indexActions, perspective, refKey, showCardInfo, usePlay, type ActionIndex } from "../store";
 import { useFx } from "../anim/fx";
 import { Card } from "./Card";
@@ -258,14 +258,20 @@ function Field({ side, player, actions, envelope, onAction, mine }: FieldProps) 
   const battleHandlers = useCardHandlers(side, "battle", actions, onAction);
   const listHandlers = useCardHandlers(side, "list", actions, onAction);
   const priority = envelope.state.priority_player === side;
+  const compact = useCompact();
+  const pileProps = { side, player, actions, onAction };
   return (
     <section className={`field ${mine ? "field-me" : "field-opp"}`} aria-label={mine ? t("내 필드") : t("상대 필드")}>
-      <Portrait
-        player={player}
-        side={side}
-        active={priority}
-        onOpen={isManual(envelope) ? () => usePlay.getState().setPlayerSheet(side) : undefined}
-      />
+      {/* 가로 화면: 캐릭터 패널(가운데 선 쪽) · 패시브·얼티밋(배틀존 옆). 세로 화면에서는 감싸지 않은 것처럼 놓인다. */}
+      <div className="field-lead">
+        <Portrait
+          player={player}
+          side={side}
+          active={priority}
+          onOpen={isManual(envelope) ? () => usePlay.getState().setPlayerSheet(side) : undefined}
+        />
+        {!compact && <Piles {...pileProps} zones={SINGLE_ZONES} className="field-singles" />}
+      </div>
       <div className="battle-zone" data-drop-owner={side} data-drop-zone="battle" aria-label={t("배틀존")}>
         <AnimatePresence>
           {player.zones.battle.map((card, index) => (
@@ -293,7 +299,8 @@ function Field({ side, player, actions, envelope, onAction, mine }: FieldProps) 
             ))}
           </div>
         </div>
-        <Piles side={side} player={player} actions={actions} onAction={onAction} />
+        {/* 세로 화면은 한 줄에 패시브·얼티밋·루멘·브레이크·사이드 순으로 놓는다. */}
+        <Piles {...pileProps} zones={compact ? [...SINGLE_ZONES, ...PILE_ZONES] : PILE_ZONES} />
       </div>
     </section>
   );
@@ -314,11 +321,15 @@ function Piles({
   player,
   actions,
   onAction,
+  zones,
+  className,
 }: {
   side: Side;
   player: PlayerState;
   actions: ActionIndex;
   onAction: (action: LegalAction) => void;
+  zones: ZoneName[];
+  className?: string;
 }) {
   const setOpenZone = usePlay((s) => s.setOpenZone);
   const ultimateHandlers = useCardHandlers(side, "ultimate", actions, onAction);
@@ -328,8 +339,8 @@ function Piles({
   const candidates = useMemo(() => (envelope ? decisionCandidates(envelope) : null), [envelope]);
   const staged = useMemo(() => stagedIds(envelope, picks), [envelope, picks]);
   return (
-    <div className="piles">
-      {PILE_ZONES.map((zone) => {
+    <div className={`piles ${className ?? ""}`} style={{ "--pile-count": zones.length } as CSSProperties}>
+      {zones.map((zone) => {
         const cards = player.zones[zone];
         // 거미처럼 무한히 쌓이는 토큰은 초상의 플레이어 상태에 개수로 보이므로 더미 장 수에서 뺀다.
         const shown = cards.filter((card) => !isStateCounterToken(card));

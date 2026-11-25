@@ -24,7 +24,10 @@ export const ZONE_LABELS: Record<ZoneName, string> = {
 };
 
 /** 보드 옆에 더미로 접어 두는 존. 순서대로 그린다. */
-export const PILE_ZONES: ZoneName[] = ["lumen", "break", "ultimate", "side", "passive"];
+/** 장 수로 보이는 더미(필드 바깥쪽). */
+export const PILE_ZONES: ZoneName[] = ["lumen", "break", "side"];
+/** 한 장뿐이라 카드 앞면으로 보이는 존. 가로 화면은 캐릭터 패널과 배틀존 사이, 세로 화면은 더미 줄 앞에 놓는다. */
+export const SINGLE_ZONES: ZoneName[] = ["passive", "ultimate"];
 
 export function cardTypeClass(type: unknown): string {
   const value = String(type ?? "");
