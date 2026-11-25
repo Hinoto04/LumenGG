@@ -3,7 +3,7 @@ import { liveUrl } from "./mode";
 import { getJson, postJson } from "./net/http";
 import { lastGame } from "./net/live";
 import { QuickPanel, RoomPanel, rememberedRoom } from "./RoomLobby";
-import { completedLessons } from "./components/TutorialCoach";
+import { completedLessons, startTutorial } from "./components/TutorialCoach";
 import { seconds as formatSeconds, t } from "./i18n";
 
 export interface DeckRow {
@@ -238,46 +238,70 @@ const TABS: [LobbyTab, string][] = [
 interface TutorialRow {
   id: string;
   title: string;
+  summary?: string;
   steps: number;
   available: boolean;
 }
 
-/** 튜토리얼 시작 카드(docs/TUTORIAL.md). 준비된 단원이 없으면 보이지 않는다. */
+/**
+ * 튜토리얼 과정 카드(docs/TUTORIAL.md). 준비된 단원 목록을 차례로 보여 주고, 마치지 않은 첫 단원을
+ * 큰 버튼으로 권한다. 다른 단원은 줄을 눌러 바로 시작한다. 준비된 단원이 없으면 보이지 않는다.
+ */
 function TutorialPanel() {
-  const [lesson, setLesson] = useState<TutorialRow | null>(null);
-  const [starting, setStarting] = useState(false);
+  const [lessons, setLessons] = useState<TutorialRow[]>([]);
+  const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     getJson<{ tutorials: TutorialRow[] }>("/battlelog/play/api/tutorials/")
-      .then((data) => setLesson(data.tutorials.find((row) => row.available) ?? null))
-      .catch(() => setLesson(null));
+      .then((data) => setLessons(data.tutorials.filter((row) => row.available)))
+      .catch(() => setLessons([]));
   }, []);
-  if (!lesson) return null;
-  const done = !!completedLessons()[lesson.id];
-  const start = async () => {
-    setStarting(true);
+  if (!lessons.length) return null;
+  const completed = completedLessons();
+  const next = lessons.find((row) => !completed[row.id]) ?? null;
+  const allDone = !next;
+  const start = async (lesson: string) => {
+    setStarting(lesson);
     setError(null);
     try {
-      const data = await postJson<NewGame>("/battlelog/play/api/tutorial/", { lesson: lesson.id });
-      location.assign(liveUrl({ view: data.view_token, seat: "p1", token: data.seats.p1 }));
+      await startTutorial(lesson);
     } catch (exception) {
       setError((exception as Error).message);
-      setStarting(false);
+      setStarting(null);
     }
   };
   return (
     <section className="lobby-card lobby-tutorial">
-      <span className="lobby-kicker">
-        {t("튜토리얼")} · {lesson.title}
-      </span>
+      <span className="lobby-kicker">{t("튜토리얼")}</span>
       <p>
-        {done
-          ? t("이 단원을 마쳤습니다. 언제든 다시 해 볼 수 있어요.")
-          : t("처음이신가요? 5분 동안 직접 해 보며 기본 규칙을 배워 보세요.")}
+        {allDone
+          ? t("모든 단원을 마쳤습니다. 언제든 다시 해 볼 수 있어요.")
+          : t("처음이신가요? 단원마다 몇 분씩 직접 해 보며 기본 규칙을 배워 보세요.")}
       </p>
-      <button type="button" className={done ? "btn-secondary" : "btn-primary"} disabled={starting} onClick={start}>
-        {starting ? t("만드는 중…") : done ? t("다시 하기") : t("튜토리얼 시작")}
-      </button>
+      <ol className="tutorial-lessons">
+        {lessons.map((row, index) => (
+          <li key={row.id}>
+            <button
+              type="button"
+              className={`${completed[row.id] ? "is-done" : ""} ${next?.id === row.id ? "is-next" : ""}`}
+              disabled={!!starting}
+              onClick={() => start(row.id)}
+            >
+              <span className="tutorial-lesson-no">{completed[row.id] ? "✓" : index + 1}</span>
+              <span className="tutorial-lesson-text">
+                <b>{row.title}</b>
+                {row.summary && <small>{row.summary}</small>}
+              </span>
+              {starting === row.id && <span className="muted">{t("만드는 중…")}</span>}
+            </button>
+          </li>
+        ))}
+      </ol>
+      {next && (
+        <button type="button" className="btn-primary" disabled={!!starting} onClick={() => start(next.id)}>
+          {next.id === lessons[0].id ? t("튜토리얼 시작") : t("이어서: {title}", { title: next.title })}
+        </button>
+      )}
       {error && <p className="lobby-error">{error}</p>}
     </section>
   );

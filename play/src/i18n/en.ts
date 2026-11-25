@@ -460,4 +460,9 @@ export const EN: Record<string, string> = {
   "처음이신가요? 5분 동안 직접 해 보며 기본 규칙을 배워 보세요.": "New here? Learn the basic rules by playing for 5 minutes.",
   "다시 하기": "Play again",
   "튜토리얼 시작": "Start tutorial",
+  "우선권": "Priority",
+  "다음 단원: {title}": "Next lesson: {title}",
+  "이어서: {title}": "Continue: {title}",
+  "모든 단원을 마쳤습니다. 언제든 다시 해 볼 수 있어요.": "You've finished every lesson. You can play them again any time.",
+  "처음이신가요? 단원마다 몇 분씩 직접 해 보며 기본 규칙을 배워 보세요.": "New here? Learn the basic rules by playing a few minutes per lesson.",
 };

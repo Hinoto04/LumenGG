@@ -21,7 +21,7 @@ from card.models import Card, Character
 from common.language import DEFAULT_LANGUAGE, game_term, normalize_language, translated_card_field
 
 from ..models import LumenSimulatorSession
-from .lessons import FAILED_MESSAGE, get_lesson, lesson_setup
+from .lessons import ANATOMY_PARTS, FAILED_MESSAGE, get_lesson, lesson_setup, next_lesson_id
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +37,19 @@ TUTORIAL_SETTINGS = {
     'effect_timeout_seconds': None,
 }
 CARD_STAT_KEYS = (
-    'card_id', 'code', 'name', 'type', 'frame', 'damage', 'pos', 'g_top', 'g_mid', 'g_bot',
+    'card_id', 'code', 'name', 'type', 'frame', 'damage', 'pos', 'body', 'special',
+    'hit', 'guard', 'counter', 'g_top', 'g_mid', 'g_bot',
 )
+# 판정 결과 FP 자리 표시자 → 카드 필드(카드의 'guard'는 방어당했을 때의 FP다).
+FP_FIELDS = {'fp_hit': 'hit', 'fp_guard': 'guard', 'fp_counter': 'counter'}
 GUARD_POSITIONS = (('g_top', '상단'), ('g_mid', '중단'), ('g_bot', '하단'))
-# 자리 표시자 바로 뒤의 조사는 한국어에서 받침에 맞게 고른다({A}를 → 하이 잽을).
-PLACEHOLDER = re.compile(r'\{([A-Z][A-Z0-9_]*)(?:\.([a-z_]+))?\}(으로|을|를|이|가|은|는|과|와|로)?')
+# 자리 표시자: {A}, {A.frame}, {p1.fp}, {B.frame-p1.fp}. 바로 뒤의 조사는 한국어에서 받침에 맞게
+# 고른다({A}를 → 하이 잽을).
+PLACEHOLDER = re.compile(
+    r'\{([A-Z][A-Z0-9_]*|p[12])(?:\.([a-z_]+))?'
+    r'(?:-([A-Z][A-Z0-9_]*|p[12])\.([a-z_]+))?\}'
+    r'(으로|을|를|이|가|은|는|과|와|로)?'
+)
 JOSA_PAIRS = {'을': ('을', '를'), '를': ('을', '를'), '이': ('이', '가'), '가': ('이', '가'),
               '은': ('은', '는'), '는': ('은', '는'), '과': ('과', '와'), '와': ('과', '와'),
               '으로': ('으로', '로'), '로': ('으로', '로')}
@@ -153,16 +161,23 @@ def build_tutorial_state(lesson, setup, release):
     )
     if p2_hp > 0:
         players['p2']['hp'] = min(p2_hp, players['p2']['initial_hp'] or p2_hp)
+    for side, hp in (lesson.get('hp') or {}).items():
+        players[side]['hp'] = min(int(hp), players[side]['initial_hp'] or int(hp))
+    priority = _priority(lesson)
     return {
         'turn': 1,
         'phase': 'lumen',
-        'status': {side: {'requested': side == 'p1', 'done': False} for side in SIDES},
-        'priority_player': 'p1',
+        'status': {side: {'requested': side == priority, 'done': False} for side in SIDES},
+        'priority_player': priority,
         'timer': {'started_at': None, 'duration_seconds': 10},
         'turn_changes': _initial_turn_changes(),
         'counter_revisions': _initial_counter_revisions(),
         'players': players,
     }
+
+
+def _priority(lesson):
+    return lesson.get('priority') if lesson.get('priority') in SIDES else 'p1'
 
 
 def _pinned_cards(lesson, setup, release):
@@ -197,7 +212,7 @@ def tutorial_document(lesson, release, seed):
     setup = lesson_setup(lesson)
     state = build_tutorial_state(lesson, setup, release)
     document = initialize_automatic_scenario_document(
-        state, release, seed=seed, phase='lumen', priority_player='p1',
+        state, release, seed=seed, phase='lumen', priority_player=_priority(lesson),
         settings=TUTORIAL_SETTINGS,
     )
     sides = _role_sides(lesson)
@@ -214,6 +229,8 @@ def tutorial_document(lesson, release, seed):
         'steps': copy.deepcopy(lesson['steps']),
         'completed': copy.deepcopy(lesson['completed']),
         'title': copy.deepcopy(lesson['title']),
+        'finish': lesson.get('finish') or 'win',
+        'next': next_lesson_id(lesson['id']),
         'instances': {role: _instance_id(side, role) for role, side in sides.items()},
         'cards': _pinned_cards(lesson, setup, release),
     }
@@ -362,6 +379,7 @@ def after_command(document, role, action, new_events):
     elif judged:
         _fail(tutorial, f'{step["id"]}: 기대하지 않은 판정 {[r.get("p1") for r in judged]}')
         return
+    concede_finish = tutorial.get('finish') == 'concede'
     if expect.get('winner') and winner != expect['winner']:
         _fail(tutorial, f'{step["id"]}: 승자 {winner or "없음"}, 기대 {expect["winner"]}')
         return
@@ -372,7 +390,8 @@ def after_command(document, role, action, new_events):
     tutorial['step'] = int(tutorial.get('step') or 0) + 1
     tutorial['done'] = {'p1': [], 'p2': []}
     if tutorial['step'] >= len(steps):
-        if winner == 'p1':
+        if winner == 'p1' or (concede_finish and winner is None):
+            # 'concede' 단원은 각본 상대가 곧 기권해 게임을 끝낸다(opponent_decision).
             tutorial['status'] = 'completed'
             tutorial['completed_at'] = timezone.now().isoformat()
         else:
@@ -397,7 +416,15 @@ def opponent_decision(session, role):
 
     document = session.document or {}
     tutorial = tutorial_of(document)
-    if tutorial is None or tutorial.get('status') != 'running':
+    if tutorial is None:
+        return None
+    if tutorial.get('status') == 'completed' and tutorial.get('finish') == 'concede':
+        if _engine_status(session) != 'running':
+            return None
+        engine = _session_engine(session)
+        concede = next((a for a in engine.legal_actions(role) if a.get('type') == 'concede'), None)
+        return SimpleNamespace(action=concede, selections={}, score=0.0) if concede else None
+    if tutorial.get('status') != 'running':
         return None
     engine = _session_engine(session)
     actions = [
@@ -405,7 +432,7 @@ def opponent_decision(session, role):
         if action.get('type') not in SYSTEM_ACTIONS
     ]
     if actions:
-        return SimpleNamespace(action=actions[0], selections={}, score=0.0)
+        return SimpleNamespace(action=actions[0], selections=default_selections(actions[0]), score=0.0)
     human = [
         action for action in filter_actions(document, 'p1', engine.legal_actions('p1'))
         if action.get('type') not in SYSTEM_ACTIONS
@@ -414,6 +441,15 @@ def opponent_decision(session, role):
         engine_step = (engine.engine_state or {}).get('step')
         fail_session(session, f'단계 {tutorial.get("step")}: 각본의 행동을 할 수 없는 상태입니다(엔진 {engine_step}).')
     return None
+
+
+def default_selections(action):
+    """선택 창 행동(submit_decision)은 필요한 만큼 앞에서부터 고른다. 다른 행동은 선택이 없다."""
+    if action.get('type') != 'submit_decision':
+        return {}
+    options = action.get('options') or []
+    count = max(1, int(action.get('minimum') or 1))
+    return {'selected': [option.get('id') for option in options[:count]]}
 
 
 def fail_session(session, reason):
@@ -473,7 +509,9 @@ def simulate_lesson(lesson_id, release, *, max_commands=60):
         role, action = chosen
         before = len(engine.events)
         step_before = tutorial['step']
-        engine.submit_action(role, action['action_id'], {}, command_id=f'tutorial-check-{index}')
+        engine.submit_action(
+            role, action['action_id'], default_selections(action), command_id=f'tutorial-check-{index}',
+        )
         after_command(document, role, action, engine.events[before:])
         document['state'], document['events'] = engine.state, engine.events
         if tutorial['step'] != step_before:
@@ -499,8 +537,35 @@ def _pick(text, language):
     return str(text or '')
 
 
-def _card_values(tutorial, language):
+def _fp_text(value, language):
+    """판정 결과 FP 표기: 숫자는 부호를 붙이고(+1, -6), 콤보·X 같은 글자는 그대로 번역한다."""
+    text = str(value if value is not None else '').strip()
+    if not text:
+        return '0'
+    if text.lstrip('+-').isdigit():
+        number = int(text)
+        return f'+{number}' if number > 0 else str(number)
+    return game_term(text, language)
+
+
+def _hand_limit(player):
+    """캐릭터 체력 구간표로 본 손패 상한(엔진 _current_hand_limit의 기본값과 같다)."""
+    table = {}
+    for threshold, limit in (((player.get('character') or {}).get('hand_table')) or {}).items():
+        try:
+            table[int(threshold)] = int(limit)
+        except (TypeError, ValueError):
+            continue
+    if not table:
+        return None
+    hp = int(player.get('hp') or 0)
+    return next((table[threshold] for threshold in sorted(table) if hp <= threshold), table[max(table)])
+
+
+def _card_values(tutorial, language, state=None):
+    """자리 표시자 값 찾기 ``lookup(role, field)``. role은 카드 역할(A, B …)이나 p1/p2."""
     pinned = tutorial.get('cards') or {}
+    players = (state or {}).get('players') or {}
     models = {
         card.id: card
         for card in Card.objects.prefetch_related('translations').filter(
@@ -512,17 +577,41 @@ def _card_values(tutorial, language):
         data = pinned.get(role) or {}
         model = models.get(data.get('card_id'))
         guard = [game_term(label, language) for key, label in GUARD_POSITIONS if data.get(key) == '방어']
-        return {
+        defense = [
+            f'{game_term(label, language)} {game_term(data[key], language)}'
+            for key, label in GUARD_POSITIONS if data.get(key)
+        ]
+        result = {
             'name': translated_card_field(model, language, 'name') if model else (data.get('name') or role),
             'frame': '' if data.get('frame') is None else str(data.get('frame')),
             'damage': '' if data.get('damage') is None else str(data.get('damage')),
             'pos': game_term(data.get('pos') or '', language) if data.get('pos') else '',
+            'body': game_term(data.get('body') or '', language) if data.get('body') else '',
             'guard': ' · '.join(guard),
+            'defense': ' · '.join(defense),
         }
+        for field, key in FP_FIELDS.items():
+            result[field] = _fp_text(data.get(key), language)
+        return result
+
+    def player_value(side, field):
+        player = players.get(side)
+        if player is None:
+            return None
+        if field == 'hand':
+            return str(len(((player.get('zones') or {}).get('hand')) or []))
+        if field == 'limit':
+            limit = _hand_limit(player)
+            return None if limit is None else str(limit)
+        if field in ('hp', 'fp'):
+            return str(int(player.get(field) or 0))
+        return None
 
     cache = {}
 
     def lookup(role, field):
+        if role in SIDES:
+            return player_value(role, field)
         if role not in pinned:
             return None
         if role not in cache:
@@ -553,12 +642,21 @@ def _josa(word, written):
     return with_batchim if batchim else without
 
 
+def _number(value):
+    text = str(value or '').strip()
+    return int(text) if text.lstrip('+-').isdigit() else None
+
+
 def _render(text, lookup, language=DEFAULT_LANGUAGE):
     def replace(match):
         value = lookup(match.group(1), match.group(2))
+        if value is not None and match.group(3):
+            left = _number(value)
+            right = _number(lookup(match.group(3), match.group(4)))
+            value = None if left is None or right is None else str(left - right)
         if value is None:
             return match.group(0)
-        josa = match.group(3) or ''
+        josa = match.group(5) or ''
         if josa and language == 'ko':
             josa = _josa(value, josa)
         return value + josa
@@ -582,13 +680,23 @@ def _focus(tutorial, focus, state, viewer):
     if not focus:
         return None
     focus = dict(focus)
-    if focus.get('kind') == 'card':
+    if focus.get('kind') in ('card', 'anatomy'):
         instance = (tutorial.get('instances') or {}).get(focus.pop('card', None))
         ref = _card_ref(state, instance, viewer) if instance else None
-        if ref is None:
+        if ref is None or (focus['kind'] == 'anatomy' and 'instance_id' not in ref):
+            # 보이지 않는 카드는 비출 수 없다. 그때는 글만 보여 준다.
             return None
         focus['card'] = ref
+        if focus['kind'] == 'anatomy' and focus.get('part') not in ANATOMY_PARTS:
+            focus['part'] = 'name'
     return focus
+
+
+def _next_lesson(tutorial, language):
+    lesson = get_lesson(tutorial.get('next'))
+    if lesson is None:
+        return None
+    return {'lesson': lesson['id'], 'title': _pick(lesson.get('title'), language)}
 
 
 def tutorial_view(document, role, language=DEFAULT_LANGUAGE):
@@ -612,9 +720,9 @@ def tutorial_view(document, role, language=DEFAULT_LANGUAGE):
     else:
         step_id = status
         messages = []
-    lookup = _card_values(tutorial, language)
     state = (document or {}).get('state') or {}
-    return {
+    lookup = _card_values(tutorial, language, state)
+    view = {
         'lesson': tutorial.get('lesson'),
         'title': _pick(tutorial.get('title'), language),
         'status': status,
@@ -629,3 +737,7 @@ def tutorial_view(document, role, language=DEFAULT_LANGUAGE):
             for message in messages
         ],
     }
+    next_lesson = _next_lesson(tutorial, language)
+    if next_lesson:
+        view['next'] = next_lesson
+    return view

@@ -443,7 +443,11 @@ export type TutorialFocus =
   | { kind: "action" }
   | { kind: "card"; card: CardRef }
   | { kind: "zone"; zone: string }
-  | { kind: "hud"; hud: string };
+  | { kind: "hud"; hud: string }
+  /** 카드를 크게 띄우고 한 부분(속도·위치·데미지·FP·효과·수비 판정 등)을 비춘다 */
+  | { kind: "anatomy"; card: CardRef; part: AnatomyPart };
+
+export type AnatomyPart = "name" | "speed" | "pos" | "damage" | "fp" | "text" | "guard";
 
 export interface TutorialMessage {
   text: string;
@@ -460,6 +464,8 @@ export interface TutorialView {
   steps: number;
   step_id: string;
   messages: TutorialMessage[];
+  /** 다음 단원(마지막 단원이면 없음) */
+  next?: { lesson: string; title: string } | null;
 }
 
 /** 클라이언트 → 서버 명령 본문. WebSocket에서는 seat/seat_token을 생략하면 연결 값이 쓰인다. */

@@ -4193,3 +4193,101 @@ body.play-lobby-page #root.play-embedded {
     animation: none;
   }
 }
+
+/* 튜토리얼: 카드 읽기(크게 띄운 카드와 부분 테두리), 우선권 표시 */
+.tutorial-bubble.is-anatomy {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6em 1em;
+  align-items: center;
+}
+.tutorial-bubble.is-anatomy .tutorial-bubble-foot {
+  grid-column: 1 / -1;
+}
+.tutorial-bubble.is-anatomy.is-sheet {
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+.tutorial-anatomy {
+  position: relative;
+  line-height: 0;
+}
+.tutorial-anatomy .card-large {
+  --lw: min(220px, 38dvh, 50vw);
+}
+.tutorial-bubble.is-sheet .tutorial-anatomy .card-large {
+  --lw: min(200px, 30dvh, 55vw);
+}
+.tutorial-anatomy-mark {
+  position: absolute;
+  border: 3px solid var(--accent);
+  border-radius: 0.5em;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45), 0 0 1em var(--accent);
+  pointer-events: none;
+}
+.tutorial-anatomy:has(.card:not(.has-image)) .tutorial-anatomy-mark {
+  display: none;
+}
+.tutorial-anatomy {
+  overflow: hidden;
+  border-radius: 0.6em;
+}
+.priority-badge {
+  margin-left: 0.5em;
+  padding: 0 0.45em;
+  border-radius: 0.6em;
+  font-style: normal;
+  font-size: 0.85em;
+  color: #1b1b1b;
+  background: rgba(224, 180, 91, 0.9);
+}
+
+.tutorial-lessons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35em;
+}
+.tutorial-lessons button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  padding: 0.5em 0.7em;
+  border-radius: 0.6em;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.tutorial-lessons button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+.tutorial-lessons button.is-next {
+  border-color: rgba(224, 180, 91, 0.6);
+}
+.tutorial-lesson-no {
+  flex: none;
+  width: 1.8em;
+  height: 1.8em;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.1);
+}
+.tutorial-lessons .is-done .tutorial-lesson-no {
+  background: #2fd58a;
+  color: #10241a;
+}
+.tutorial-lesson-text {
+  display: grid;
+  gap: 0.1em;
+  min-width: 0;
+  flex: 1;
+}
+.tutorial-lesson-text small {
+  color: var(--muted);
+}

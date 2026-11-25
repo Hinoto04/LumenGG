@@ -3,8 +3,11 @@ import { useEffect, useLayoutEffect, useMemo, useState, type CSSProperties } fro
 import { create } from "zustand";
 import { useFx } from "../anim/fx";
 import { t } from "../i18n";
-import type { CardRef, LegalAction, PlayEnvelope, TutorialFocus, TutorialView } from "../protocol";
+import { liveUrl } from "../mode";
+import { postJson } from "../net/http";
+import type { AnatomyPart, BoardCard, CardRef, LegalAction, PlayEnvelope, TutorialFocus, TutorialView } from "../protocol";
 import { usePlay } from "../store";
+import { Card } from "./Card";
 import { useCompact } from "./Selection";
 
 /**
@@ -46,6 +49,55 @@ function rememberCompleted(lesson: string) {
   } catch {
     // 저장소를 못 쓰면 기록만 남기지 않는다.
   }
+}
+
+/** 튜토리얼 단원을 새로 만들고 그 대전으로 옮겨 간다. 실패하면 서버 메시지를 던진다. */
+export async function startTutorial(lesson: string): Promise<void> {
+  const data = await postJson<{ view_token: string; seats: { p1: string } }>("/battlelog/play/api/tutorial/", { lesson });
+  location.assign(liveUrl({ view: data.view_token, seat: "p1", token: data.seats.p1 }));
+}
+
+/**
+ * 카드 이미지에서 각 부분의 자리(카드 너비·높이에 대한 %). 실제 카드 인쇄 배치 기준이며
+ * 서버의 lessons.ANATOMY_PARTS와 이름이 같다. 이미지가 없는 카드(그린 앞면)는 CSS로 요소를 비춘다.
+ */
+const ANATOMY_BOXES: Record<AnatomyPart, { left: number; top: number; width: number; height: number }> = {
+  name: { left: 31, top: 4.5, width: 38, height: 10.5 },
+  speed: { left: 6.5, top: 5.5, width: 17, height: 13 },
+  pos: { left: 76, top: 5, width: 18, height: 13.5 },
+  damage: { left: 35, top: 86, width: 30, height: 11 },
+  fp: { left: 6, top: 49.5, width: 32, height: 23 },
+  guard: { left: 6, top: 49.5, width: 34, height: 22 },
+  text: { left: 8, top: 69.5, width: 84, height: 12 },
+};
+
+function findCard(envelope: PlayEnvelope, ref: CardRef): BoardCard | null {
+  const cards = envelope.state.players[ref.owner]?.zones[ref.zone] ?? [];
+  if (ref.instance_id) {
+    const byId = cards.find((card) => !card.hidden && String(card.instance_id) === String(ref.instance_id));
+    if (byId) return byId;
+  }
+  return cards[ref.index] ?? null;
+}
+
+/** 말풍선 안에 크게 띄운 카드와 지금 설명하는 부분의 테두리 */
+function AnatomyCard({ envelope, focus }: { envelope: PlayEnvelope; focus: Extract<TutorialFocus, { kind: "anatomy" }> }) {
+  const card = findCard(envelope, focus.card);
+  if (!card || card.hidden) return null;
+  const box = ANATOMY_BOXES[focus.part] ?? ANATOMY_BOXES.name;
+  return (
+    <div className="tutorial-anatomy" data-part={focus.part}>
+      <Card card={card} size="large" detached />
+      <motion.i
+        key={focus.part}
+        className="tutorial-anatomy-mark"
+        style={{ left: `${box.left}%`, top: `${box.top}%`, width: `${box.width}%`, height: `${box.height}%` }}
+        initial={{ opacity: 0, scale: 1.25 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.25 }}
+      />
+    </div>
+  );
 }
 
 export function tutorialOf(envelope: PlayEnvelope | null): TutorialView | null {
@@ -232,9 +284,13 @@ export function TutorialCoach({ envelope, onAction }: { envelope: PlayEnvelope; 
     : null;
   const width = window.innerWidth;
   const height = window.innerHeight;
-  const bubbleWidth = Math.min(380, width - 32);
+  const anatomy = message.focus?.kind === "anatomy" ? message.focus : null;
+  const bubbleWidth = Math.min(anatomy ? 560 : 380, width - 32);
   let bubbleStyle: CSSProperties;
-  if (compact || !hole) {
+  if (anatomy && !compact) {
+    // 카드를 크게 띄운 설명은 화면 가운데에 둔다(보드는 전부 어둡게).
+    bubbleStyle = { top: Math.max(60, height / 2 - 220), left: (width - bubbleWidth) / 2, width: bubbleWidth };
+  } else if (compact || !hole) {
     bubbleStyle = hole && hole.y + hole.h / 2 > height * 0.55 ? { top: 16 + 44, left: 16, right: 16 } : { bottom: 16, left: 16, right: 16 };
     if (!compact) bubbleStyle = { ...bubbleStyle, left: (width - bubbleWidth) / 2, right: undefined, width: bubbleWidth };
   } else {
@@ -269,7 +325,7 @@ export function TutorialCoach({ envelope, onAction }: { envelope: PlayEnvelope; 
           {!yieldToSelection && (
           <motion.div
             key={`${stepKey}:${index}`}
-            className={`tutorial-bubble ${compact ? "is-sheet" : ""} ${failed ? "is-failed" : ""}`}
+            className={`tutorial-bubble ${compact ? "is-sheet" : ""} ${failed ? "is-failed" : ""} ${anatomy ? "is-anatomy" : ""}`}
             style={bubbleStyle}
             role="dialog"
             aria-live="polite"
@@ -278,6 +334,7 @@ export function TutorialCoach({ envelope, onAction }: { envelope: PlayEnvelope; 
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
           >
+            {anatomy && <AnatomyCard envelope={envelope} focus={anatomy} />}
             <p>{message.text}</p>
             <div className="tutorial-bubble-foot">
               {messages.length > 1 && (
@@ -309,6 +366,20 @@ export function TutorialCoach({ envelope, onAction }: { envelope: PlayEnvelope; 
 
 /** 튜토리얼 완료 화면(GameOver 대신). 완료 메시지를 다 본 뒤에 뜬다. */
 export function TutorialFinished({ view }: { view: TutorialView }) {
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const next = view.next ?? null;
+  const goNext = async () => {
+    if (!next) return;
+    setStarting(true);
+    setError(null);
+    try {
+      await startTutorial(next.lesson);
+    } catch (exception) {
+      setError((exception as Error).message);
+      setStarting(false);
+    }
+  };
   return (
     <motion.div className="game-over" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="game-over-card tutorial-finished">
@@ -316,13 +387,19 @@ export function TutorialFinished({ view }: { view: TutorialView }) {
         <h2>{t("튜토리얼 완료!")}</h2>
         <p className="muted">{view.title}</p>
         <div className="lobby-row">
-          <a className="btn-primary" href={location.pathname}>
-            {t("AI와 대전하기")}
+          {next && (
+            <button type="button" className="btn-primary" disabled={starting} onClick={goNext}>
+              {starting ? t("만드는 중…") : t("다음 단원: {title}", { title: next.title })}
+            </button>
+          )}
+          <a className={next ? "btn-secondary" : "btn-primary"} href={location.pathname}>
+            {next ? t("로비로") : t("AI와 대전하기")}
           </a>
           <a className="btn-secondary" href="/rules/" target="_blank" rel="noreferrer">
             {t("룰북 읽기")}
           </a>
         </div>
+        {error && <p className="lobby-error">{error}</p>}
       </div>
     </motion.div>
   );

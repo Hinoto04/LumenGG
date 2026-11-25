@@ -117,9 +117,11 @@ def play_tutorials(req):
     for lesson in LESSONS.values():
         available, _reason = lesson_available(lesson, release)
         title = lesson.get('title') or {}
+        summary = lesson.get('summary') or {}
         rows.append({
             'id': lesson['id'],
             'title': title.get(language) or title.get('ko') or lesson['id'],
+            'summary': summary.get(language) or summary.get('ko') or '',
             'steps': len(lesson.get('steps') or []),
             'available': available,
         })

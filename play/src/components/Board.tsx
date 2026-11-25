@@ -231,8 +231,13 @@ function Portrait({
           <motion.i animate={{ width: `${hpRatio * 100}%` }} transition={{ duration: 0.5 }} />
           <b>{player.hp}</b>
         </div>
-        <span className="fp" title="FP">
+        <span className="fp" title="FP" data-tutorial={`${side}.fp`}>
           FP <b>{player.fp}</b>
+          {active && (
+            <i className="priority-badge" data-tutorial="priority">
+              {t("우선권")}
+            </i>
+          )}
         </span>
         <PassiveBadges player={player} manual={!!onOpen} />
       </div>
@@ -441,7 +446,7 @@ function MyHand({
           })}
         </AnimatePresence>
       </div>
-      <span className="hand-count">
+      <span className="hand-count" data-tutorial={`${side}.hand-count`}>
         {t("손패 {n}", { n: cards.length })}
         {limit != null ? ` / ${limit}` : ""}
       </span>
