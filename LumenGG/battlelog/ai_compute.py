@@ -102,6 +102,7 @@ def compute_decision(job):
     from django.utils.dateparse import parse_datetime
 
     from .game.ai import choose_action
+    from .game.ai_decisions import annotate_effect_codes
     from .game.ai_outcomes import build_ready_evaluator
     from .game.engine import AutomaticGameEngine
 
@@ -110,7 +111,7 @@ def compute_decision(job):
         now=parse_datetime(job['now']), events=[], seed=job['engine_seed'],
     )
     role = job['role']
-    observation = engine.observe(role, include_memory=True)
+    observation = annotate_effect_codes(engine.observe(role, include_memory=True), engine.ruleset)
     # 레디 결과표: 기본은 카드별 수치표(table). 판정을 바꾸는 카드의 칸을 엔진으로 다시 볼지는
     # LUMEN_AI_TABLE_ENGINE_CELLS(기본 끔: 대전 측정에서 승률 차이가 없고 레디당 1초가 더 듦).
     # 부하가 높으면(engine_eval=False) 엔진 칸은 늘 생략한다.

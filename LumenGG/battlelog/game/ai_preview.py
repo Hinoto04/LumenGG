@@ -178,6 +178,64 @@ def _fp_gain(card, result):
     return 0.0
 
 
+def catch_after(my_fp, their_fp):
+    """``('mine'|'theirs', max_speed)`` when the post-judgment FP opens a Catch (8.6), else ``None``."""
+    if my_fp > 0 and their_fp == 0:
+        return 'mine', my_fp
+    if my_fp == 0 and their_fp < 0:
+        return 'mine', -their_fp
+    if their_fp > 0 and my_fp == 0:
+        return 'theirs', their_fp
+    if their_fp == 0 and my_fp < 0:
+        return 'theirs', -my_fp
+    return None
+
+
+def _starts_combo(card, result):
+    return result in DAMAGING and str(card.get(result) or '').strip() == '콤보'
+
+
+def rival_combo_threat(observation, role):
+    """Why the opponent may get a Combo out of this battle, or ``None``.
+
+    Looks at the two face-up battle cards before the judgment:
+
+    * ``combo_hit``: the opponent's card is predicted to hit/counter with a Combo judgment;
+    * ``catch_combo``: the judgment FP opens a Catch for the opponent and a known
+      card of theirs with a Combo hit is fast enough for it;
+    * ``effect_combo``: their battle card starts a Combo or grants a Catch by its
+      effect, or a visible card of theirs (hand, Lumen, passive) can start a Combo
+      by its effect. Needs ``observation['effect_combo_codes']`` (``annotate_effect_codes``).
+    """
+    own, rival = _players(observation, role)
+    theirs = next((card for card in _zone(rival, 'battle') if isinstance(card, dict) and not card.get('hidden')), None)
+    if theirs is None:
+        return None
+    effect_codes = observation.get('effect_combo_codes') or {}
+    starters = set(effect_codes.get('start_combo') or [])
+    catchers = set(effect_codes.get('grant_catch') or [])
+    if theirs.get('code') in starters | catchers:
+        return 'effect_combo'
+    mine = next((card for card in _zone(own, 'battle') if isinstance(card, dict)), None)
+    if mine is not None and is_ready_candidate(mine) and is_ready_candidate(theirs):
+        my_fp, their_fp = fp_values(observation, role)
+        mine_result, theirs_result = preview_battle(mine, theirs, my_fp=my_fp, their_fp=their_fp)
+        if _starts_combo(theirs, theirs_result):
+            return 'combo_hit'
+        catch = catch_after(_fp_gain(mine, mine_result), _fp_gain(theirs, theirs_result))
+        if catch and catch[0] == 'theirs':
+            known, _unknown = rival_hand_view(observation, role)
+            if any(
+                _is_attack(card) and _number(card.get('frame'), 99.0) <= catch[1] and _starts_combo(card, 'hit')
+                for card in known
+            ):
+                return 'catch_combo'
+    visible = [*rival_hand_view(observation, role)[0], *_zone(rival, 'lumen'), *_zone(rival, 'passive')]
+    if any(isinstance(card, dict) and card.get('code') in starters for card in visible):
+        return 'effect_combo'
+    return None
+
+
 def battle_value(mine, theirs, *, my_fp=0, their_fp=0):
     """Score one predicted battle for me, about -2..+2.
 

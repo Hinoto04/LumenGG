@@ -1,0 +1,154 @@
+# 루트 AI 설정 · 공격형 — 커뮤니티 공략(루멘콘덴서 갤 「루트 공략 1부·2부」, 글 산삼)을 양식으로 옮긴 것
+# 관리자 화면 › AI 덱 › AI 설정(TOML)에 붙여 넣습니다. AI 덱의 덱도 아래 덱과 같아야 합니다.
+# 금지제한으로 파워풀 스윕과 차징 배리어를 함께 넣을 수 없어, 공격형은 차징 배리어를 뺀다.
+# 덱:
+#   리스트  다운 가드 · 기어체인지 · 루트아스트라 · 루트킷 · 인스턴트 스매시 · 차징 스매시 · 하이 볼티지 · 파워풀 스윕 · 그라인더 슬링
+#   손패    오펜스 브레이크 · 커팅 · 패니 슬라이드 · 배드맨 퍼니시 · 루시드 디거
+#   사이드  올 인 차지 · 세이프티 디스턴스 · 점프 · 볼트 스톰프 · 터닝 와이드 · 백 샷
+#   얼티밋  오버 라이트닝 차지
+#
+# 카드 코드
+#   다운 가드 ST1-012   기어체인지 UNC-AT-018   루트아스트라 CRS-AT-024   루트킷 ST2-004
+#   인스턴트 스매시 UNC-AT-017   차징 스매시 ST2-005   하이 볼티지 CB01-AT-010   파워풀 스윕 UNC-AT-016
+#   그라인더 슬링 ST2-009   차징 배리어 ST2-010   커팅 ST1-016   패니 슬라이드 ST2-002
+#   배드맨 퍼니시 AWL-AT-019   루시드 디거 ST2-006   올 인 차지 AWL-SP-001   오펜스 브레이크 DFR-AT-049
+#   점프 ST1-014   볼트 스톰프 CB02-AT-015   터닝 와이드 ST2-003   백 샷 ST2-008
+#
+# FP는 (내 FP - 상대 FP) = fp_lead 입니다.
+
+style = "balanced"
+
+# ── 레디 ─────────────────────────────────────────────
+# 공략: 시작은 패니 슬라이드. 중단 기술이 강해서 상대는 대부분 서서 막는다.
+# 뉴트럴·+1~+3FP: 커팅·패니·배드맨 중하단 이지선다로 +FP를 가져오거나, 상대 공격을 가드해 +4FP 이상을 노린다.
+
+[[situation]]
+name = "뉴트럴~+3FP: 중하단 이지선다(커팅·패니·배드맨), 가드도 섞음"
+when = { action = ["ready"], fp_lead_min = 0, fp_lead_max = 3 }
+prefer = { "ST2-002" = 3, "AWL-AT-019" = 2, "ST1-016" = 2 }
+weights = { card_defense = 1.0 }
+
+# 공략: +4FP 이상이면 차지. 막으려는 상대는 차징 스매시(차지 시 방어·상쇄 불가)로 뚫고,
+# 스매시를 의식해 상대가 공격하면 중하단으로 데미지를 준다.
+[[situation]]
+name = "+4FP 이상: 차징 스매시, 중하단"
+when = { action = ["ready"], fp_lead_min = 4 }
+prefer = { "ST2-005" = 4, "ST2-002" = 2, "AWL-AT-019" = 2, "ST1-016" = 1 }
+
+# 공략: 불리하면 수비로 턴을 받아낸다(공격형은 차징 배리어가 없어 가드로).
+[[situation]]
+name = "-1FP 이하: 수비"
+when = { action = ["ready"], fp_lead_max = -1 }
+weights = { card_defense = 2.0 }
+
+# 공략: 위험하다 판단되면 파워풀 스윕(상·중단 회피, 회피 시 +6FP)으로 카운터 싸움.
+[[situation]]
+name = "-4FP 이하: 파워풀 스윕"
+when = { action = ["ready"], fp_lead_max = -4 }
+prefer = { "UNC-AT-016" = 2 }
+
+# ── 겟 페이즈 (손패 장수별) ──────────────────────────
+# 공략의 손패 장수별 「가져오면 좋은 카드」.
+
+# 공략: 루시드 디거는 초반(주력 하단 8속도 이하 상대) 특판 카드라 첫 겟부터 다운 가드(상단 회피·하단 방어)를
+# 가져오고, 손패가 6장을 넘으면 루시드 디거는 아낀다. (정책 AI 리타가 가드 손실이 큰 암약요원을 지나치게 자주
+# 내던 측정에서는 손해로 보였으나, 라이브와 같은 AI 상대로는 차이가 없었다.)
+[[situation]]
+name = "겟: 다운 가드 확보"
+when = { action = ["get"], hand_min = 5 }
+prefer = { "ST1-012" = 3 }
+
+[[situation]]
+name = "손패 6장 이상 레디: 루시드 디거는 아낀다"
+when = { action = ["ready"], hand_min = 6 }
+prefer = { "ST2-006" = -2 }
+
+[[situation]]
+name = "손패 6장·+1~+3FP: 기어체인지"
+when = { action = ["get"], hand_max = 6, fp_lead_min = 1, fp_lead_max = 3 }
+prefer = { "UNC-AT-018" = 3 }
+
+[[situation]]
+name = "손패 6장·상대가 FP를 가져감: 루트아스트라, 다운 가드"
+when = { action = ["get"], hand_max = 6, fp_lead_max = -1 }
+prefer = { "CRS-AT-024" = 2, "ST1-012" = 2 }
+
+[[situation]]
+name = "손패 7장: 콤보 대비 그라인더 슬링"
+when = { action = ["get"], hand_min = 7, hand_max = 7 }
+prefer = { "ST2-009" = 3 }
+
+[[situation]]
+name = "손패 7장·공턴: 차징 스매시"
+when = { action = ["get"], hand_min = 7, fp_lead_min = 1 }
+prefer = { "ST2-005" = 3 }
+
+[[situation]]
+name = "손패 8장 이상: 하이 볼티지, 파워풀 스윕"
+when = { action = ["get"], hand_min = 8 }
+prefer = { "CB01-AT-010" = 3, "UNC-AT-016" = 2 }
+
+# ── 캐치 ─────────────────────────────────────────────
+# 루트킷·차징 스매시(캐치 시 10속도)는 히트가 콤보라 캐치 후 콤보로 이어진다(catch_combo 가중치).
+# 저속 캐치를 거절하면 남은 FP 우위를 상대가 수비로 받아 내고 오히려 가드당해 캐치당하는 일이 많아
+# (요한전 측정) 다른 캐치는 기본 정책에 맡긴다.
+[[situation]]
+name = "캐치: 루트킷·차징 스매시 우선"
+when = { action = ["catch"] }
+prefer = { "ST2-004" = 4, "ST2-005" = 4 }
+
+# ── 콤보 루트 ────────────────────────────────────────
+# 공략의 대표 콤보. 2·3콤보는 패니(6)+배드맨(7)을 함께 낸다.
+
+[[combo]]
+name = "차징 스매시 → 패니+배드맨 → 그라인더 → 하이 볼티지"
+cards = ["ST2-005", "ST2-002", "AWL-AT-019", "ST2-009", "CB01-AT-010"]
+bonus = 3
+
+[[combo]]
+name = "루트아스트라 → 패니+배드맨 → 그라인더 → 하이 볼티지"
+cards = ["CRS-AT-024", "ST2-002", "AWL-AT-019", "ST2-009", "CB01-AT-010"]
+bonus = 3
+
+[[combo]]
+name = "루트킷 → 패니+배드맨 → 그라인더 → 하이 볼티지"
+cards = ["ST2-004", "ST2-002", "AWL-AT-019", "ST2-009", "CB01-AT-010"]
+bonus = 3
+
+# ── 패시브·선택형 효과 ───────────────────────────────
+
+[[effect]]
+name = "+4FP 이상이면 차지"
+ability = "st2-ps1-charge-enter"
+when = { fp_lead_min = 4 }
+use = true
+
+[[effect]]
+name = "그 밖에는 차지하지 않음"
+ability = "st2-ps1-charge-enter"
+use = false
+
+[[effect]]
+name = "후반(체력 1500 이하) +4FP: 올 인 차지 배치"
+ability = "awl-sp-001-deploy"
+when = { my_hp_max = 1500, fp_lead_min = 4 }
+use = true
+
+[[effect]]
+name = "그 밖에는 올 인 차지를 배치하지 않음"
+ability = "awl-sp-001-deploy"
+use = false
+
+[[effect]]
+name = "브레이크 보충(파워풀 스윕 회피 등): 백 샷, 볼트 스톰프"
+decision = "break_replenish"
+pick = ["ST2-008", "CB02-AT-015"]
+count = 1
+
+[counter]
+enabled = true
+bonus = 2.0
+scope = "hand"
+
+[safety]
+avoid_certain_loss = true

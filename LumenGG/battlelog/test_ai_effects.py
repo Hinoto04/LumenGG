@@ -103,6 +103,8 @@ ability = "b"
             'st2-ps1-charge-enter', 'crs-ps-002-n1', 'dfr-ps-001-n1', 'lmi-ps-001-bless',
             'pmp-ps-001-n2', 'st1-ps1-over-limit-recovery', 'st5-ps1-intimidation-enter',
             'cb01-ps-001-n3', 'cb04-ps-001-n2',
+            # 패시브는 아니지만 사용 타이밍이 중요한 공용 특수 카드(세이프티 디스턴스)
+            'cb03-at-034-n1',
         })
 
 
@@ -254,7 +256,7 @@ class RouteExampleProfileTests(SimpleTestCase):
     def test_example_parses(self):
         profile = self.profile()
 
-        self.assertEqual(len(profile['situations']), 8)
+        self.assertEqual(len(profile['situations']), 7)
         self.assertEqual(len(profile['combos']), 2)
         self.assertEqual(profile['effects'][0]['when'], {'fp_lead_min': 4.0})
 
@@ -271,3 +273,41 @@ class RouteExampleProfileTests(SimpleTestCase):
 
         self.assertEqual(decide(obs(5, 1), 'p1', action, profile), {'selected': ['accept']})
         self.assertEqual(decide(obs(3, 1), 'p1', action, profile), {'selected': ['decline']})
+
+
+class RouteAttackProfileTests(SimpleTestCase):
+    """docs/ROUTE_AI_ATTACK.toml(커뮤니티 공략을 옮긴 루트 공격형 설정)이 계속 유효한지."""
+
+    def profile(self):
+        from pathlib import Path
+        text = (Path(__file__).resolve().parents[2] / 'docs' / 'ROUTE_AI_ATTACK.toml').read_text(encoding='utf-8')
+        return parse_profile_text(text)
+
+    def test_attack_profile_parses_without_the_banned_pair(self):
+        profile = self.profile()
+        codes = {code for situation in profile['situations'] for code in (situation.get('prefer') or {})}
+
+        # 금지제한: 파워풀 스윕(UNC-AT-016)과 차징 배리어(ST2-010)는 함께 넣을 수 없다. 공격형은 스윕을 쓴다.
+        self.assertIn('UNC-AT-016', codes)
+        self.assertNotIn('ST2-010', codes)
+        self.assertEqual(len(profile['combos']), 3)
+        self.assertEqual(
+            [rule['use'] for rule in profile['effects'] if rule.get('ability') == ['st2-ps1-charge-enter']],
+            [True, False],
+        )
+
+
+class RouteDefenseProfileTests(SimpleTestCase):
+    """docs/ROUTE_AI_DEFENSE.toml(커뮤니티 공략을 옮긴 루트 수비형 설정)이 계속 유효한지."""
+
+    def test_defense_profile_parses_without_the_banned_pair(self):
+        from pathlib import Path
+        text = (Path(__file__).resolve().parents[2] / 'docs' / 'ROUTE_AI_DEFENSE.toml').read_text(encoding='utf-8')
+        profile = parse_profile_text(text)
+        codes = {code for situation in profile['situations'] for code in (situation.get('prefer') or {})}
+
+        # 금지제한: 수비형은 차징 배리어(ST2-010)를 쓰고 파워풀 스윕(UNC-AT-016)은 뺀다.
+        self.assertIn('ST2-010', codes)
+        self.assertNotIn('UNC-AT-016', codes)
+        guard_get = next(s for s in profile['situations'] if s['when'].get('hand_defense_max') == 1)
+        self.assertEqual(guard_get['when']['action'], ['get'])

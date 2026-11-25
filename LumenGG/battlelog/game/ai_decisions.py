@@ -22,6 +22,56 @@ def _load_defaults():
 
 DEFAULT_EFFECT_RULES = _load_defaults()
 
+# 효과로 콤보 타임을 열거나(start_combo) 캐치를 주는(grant_catch) 카드. 관찰에는 카드 효과 정의가 없어
+# 엔진을 가진 호출부가 룰셋에서 뽑아 observation['effect_combo_codes']로 넘긴다(rival_combo_threat 조건).
+EFFECT_COMBO_OPS = ('start_combo', 'grant_catch')
+_effect_code_cache = {}
+
+
+def _effect_ops(node, found, speeds):
+    if isinstance(node, dict):
+        if node.get('op') in EFFECT_COMBO_OPS:
+            found.add(node['op'])
+            if node['op'] == 'grant_catch':
+                try:
+                    speeds.append(float(node.get('max_speed')))
+                except (TypeError, ValueError):
+                    speeds.append(99.0)
+        for value in node.values():
+            _effect_ops(value, found, speeds)
+    elif isinstance(node, list):
+        for value in node:
+            _effect_ops(value, found, speeds)
+
+
+def effect_combo_codes(ruleset):
+    """``{'start_combo': [codes], 'grant_catch': [codes], 'catch_speed': {code: max_speed}}`` (cached per ruleset).
+
+    ``catch_speed`` is the fastest speed limit among a card's granted Catches (99 when unlimited).
+    """
+    cards = (ruleset or {}).get('cards') or {}
+    key = (id(cards), (ruleset or {}).get('version'), len(cards))
+    cached = _effect_code_cache.get(key)
+    if cached is None:
+        cached = {**{op: [] for op in EFFECT_COMBO_OPS}, 'catch_speed': {}}
+        for code, card in sorted(cards.items()):
+            found, speeds = set(), []
+            _effect_ops((card or {}).get('effect_definition'), found, speeds)
+            for op in found:
+                cached[op].append(code)
+            if speeds:
+                cached['catch_speed'][code] = max(speeds)
+        if len(_effect_code_cache) > 8:
+            _effect_code_cache.clear()
+        _effect_code_cache[key] = cached
+    return cached
+
+
+def annotate_effect_codes(observation, ruleset):
+    """Attach ``effect_combo_codes`` to an observation built from an engine with ``ruleset``."""
+    observation['effect_combo_codes'] = effect_combo_codes(ruleset)
+    return observation
+
 
 def _rule_matches(rule, decision, observation, role, action):
     source = decision.get('source') or {}
@@ -96,8 +146,12 @@ def decide(observation, role, action, profile=None, fallback=None):
         if choice in ids:
             return {'selected': [choice]}
         return fallback
-    if use_rule is not None and use_rule['use'] is False and minimum == 0:
-        return {'selected': []}
+    if use_rule is not None and use_rule['use'] is False:
+        if minimum == 0:
+            return {'selected': []}
+        if 'decline' in ids:
+            # 선택형 비용(수비 비용 등)은 "decline" 선택지로 거절한다.
+            return {'selected': ['decline']}
 
     if kind == 'effect_amount':
         amount_rule = _first(rules, 'amount')

@@ -55,6 +55,10 @@ HEURISTIC_WEIGHTS = {
     # How much a full prediction replaces the stat proxies (speed, damage,
     # attack/defense): proxies are scaled by 1 - preview_trust * coverage.
     'preview_trust': 0.7,
+    # A catch with a card whose hit judgment is a Combo opens Combo Time
+    # (8.7.2): worth far more than the catch damage when the hand holds
+    # follow-up attacks (``catch_combo`` feature).
+    'catch_combo': 6.0,
 }
 # Stat features that only stand in for "this card wins the battle".
 PROXY_FEATURES = (
@@ -123,7 +127,7 @@ def action_features(observation, role, action, *, outlook=None):
     speed = max(0.0, 12.0 - min(frames, default=12.0))
     card_types = {str(card.get('type') or '') for card in cards}
     value, coverage = outlook or (0.0, 0.0)
-    return {
+    features = {
         'bias': 1.0,
         str(action.get('type') or ''): 1.0,
         'card_damage': damage / 100.0,
@@ -144,6 +148,27 @@ def action_features(observation, role, action, *, outlook=None):
         ),
         'battle_preview': value * coverage,
     }
+    if action.get('type') == 'play_catch_card':
+        features['catch_combo'] = _catch_combo(observation, role, action)
+    return features
+
+
+def _catch_combo(observation, role, action):
+    """1 when the catch card's hit judgment is a Combo and another attack in
+    hand can follow it, else 0."""
+    listed = action.get('card') if isinstance(action.get('card'), dict) else None
+    if not listed:
+        return 0.0
+    card = own_card(observation, role, listed.get('instance_id')) or listed
+    if str(card.get('hit') or '') != '콤보':
+        return 0.0
+    hand = ((((observation.get('state') or {}).get('players') or {}).get(role) or {}).get('zones') or {}).get('hand') or []
+    followups = [
+        other for other in hand
+        if isinstance(other, dict) and other.get('instance_id') != card.get('instance_id')
+        and '공격' in str(other.get('type') or '')
+    ]
+    return 1.0 if followups else 0.0
 
 
 def score_action(observation, role, action, weights=None, profile=None):
@@ -215,8 +240,37 @@ def _decision_selections(observation, action, *, role=None, profile=None):
     fallback = _engine_default_selections(observation, action)
     if action.get('type') != 'submit_decision':
         return fallback
-    fallback = _hand_limit_discard(observation, role, action, profile) or fallback
+    fallback = (
+        _hand_limit_discard(observation, role, action, profile)
+        or _defense_cost_payment(observation, role, action, profile)
+        or fallback
+    )
     return decide(observation, role, action, profile, fallback=fallback)
+
+
+def _defense_cost_payment(observation, role, action, profile):
+    """Pay an optional defense cost (e.g. Charging Barrier: discard a hand card of the same position).
+
+    The engine's default declines the cost, which turns the defense into a
+    failed defense: the attack hits. Paying one card is almost always cheaper,
+    so pay with the card whose loss costs the hand least (``ai_hand``).
+    """
+    if (observation.get('pending_decision') or {}).get('kind') != 'defense_cost':
+        return None
+    ids = [
+        str(option.get('id')) for option in action.get('options') or []
+        if isinstance(option, dict) and option.get('id') not in (None, 'decline')
+    ]
+    count = max(1, int(action.get('minimum') or 0))
+    if len(ids) < count:
+        return None
+    cards = [card for card in hand_cards(observation, role) if str(card.get('instance_id')) in ids]
+    if len(cards) >= count:
+        settings = hand_settings(profile)
+        hand = HandValue(observation, role, keep=settings.get('keep') or 1)
+        if hand.known:
+            return {'selected': [str(card.get('instance_id')) for card in hand.best_discard(cards, count)]}
+    return {'selected': ids[:count]}
 
 
 def _hand_limit_discard(observation, role, action, profile):

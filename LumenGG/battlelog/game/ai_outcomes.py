@@ -24,7 +24,10 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from .ai_preview import DAMAGING, _fp_gain, _number, fp_values, is_ready_candidate, own_card, preview_battle
+from .ai_preview import (
+    DAMAGING, _fp_gain, _is_attack, _number, _players, _zone, catch_after, fp_values, is_ready_candidate,
+    own_card, preview_battle, rival_hand_view,
+)
 
 TABLE_PATH = Path(__file__).with_name('ai_outcome_table.json')
 RESOURCES = ('damage', 'fp', 'counter', 'card')
@@ -35,6 +38,15 @@ MIN_SAMPLES = 3
 # 인쇄 수치 예측이 실제 판정과 이 비율 넘게 달랐던 카드는 효과가 판정을 바꾸는 카드로 본다.
 DRIFT_LIMIT = 0.2
 WIN_VALUE = 20.0
+# 수비 카드가 공격을 막거나 피하거나 상쇄한 판정(효과 캐치가 나는 때)
+DEFENDED = {'guard', 'dodge', 'clash'}
+
+
+def _same_card(a, b):
+    if a is b:
+        return True
+    ida, idb = a.get('instance_id'), b.get('instance_id')
+    return bool(ida) and ida == idb
 
 
 def _code(card):
@@ -192,7 +204,73 @@ class TableReadyEvaluator:
         self.rival_states = state_key(players.get(rival_role), engine_state, rival_role)
         self.my_hp = _number((players.get(role) or {}).get('hp'), 0)
         self.rival_hp = _number((players.get(rival_role) or {}).get('hp'), 0)
+        own, _rival = _players(observation, role)
+        self.my_hand = [card for card in _zone(own, 'hand') if isinstance(card, dict) and not card.get('hidden')]
+        self.rival_hand = rival_hand_view(observation, role)[0]
+        # 효과로 캐치를 주는 카드와 그 캐치의 속도 상한(ai_decisions.annotate_effect_codes가 붙인 값).
+        self.effect_catch = dict((observation.get('effect_combo_codes') or {}).get('catch_speed') or {})
         self.refined = 0
+
+    def _catch_damage(self, hand, readied, max_speed):
+        """Most damage a Catch from ``hand`` deals (the readied card is in battle), or ``None``."""
+        damages = [
+            self.table.gain(card, 'hit')['damage']
+            for card in hand
+            if not _same_card(card, readied) and _is_attack(card)
+            and _number(card.get('frame'), 99.0) <= max_speed
+        ]
+        return max(damages) if damages else None
+
+    def _with_catch(self, mine, rival_card, mine_result, theirs_result, mine_gain, theirs_gain):
+        """Settle the Catch the judgment FP opens instead of the measured averages.
+
+        The table measures a battle up to its end, so a Catch that followed is
+        averaged into the row (being guarded looks cheap: the FP was reset by the
+        opponent's Catch and its damage went to the guard card's row, shared by
+        every attacker). Here the printed FP decides who may Catch and the known
+        hand decides with what; without a card the FP lead simply remains.
+        """
+        my_fp, their_fp = _fp_gain(mine, mine_result), _fp_gain(rival_card, theirs_result)
+        catch = catch_after(my_fp, their_fp)
+        # 효과 캐치: 수비 카드가 막거나 피한 뒤 효과로 캐치하는 경우(리타 「나의 영혼은 성녀를 위해」 등).
+        # FP와 상관없이 캐치가 생긴다. 효과의 다른 조건(루멘 존 카드 등)은 보지 않고 늘 캐치한다고 본다.
+        effect_catch = None
+        if theirs_result in DEFENDED and _code(rival_card) in self.effect_catch:
+            effect_catch = ('theirs', self.effect_catch[_code(rival_card)])
+        elif mine_result in DEFENDED and _code(mine) in self.effect_catch:
+            effect_catch = ('mine', self.effect_catch[_code(mine)])
+        if catch is None and effect_catch is None:
+            return mine_gain, theirs_gain
+        defaults = (self.table.default_gain(mine, mine_result), self.table.default_gain(rival_card, theirs_result))
+        mine_gain, theirs_gain = (
+            {**gain, 'damage': default['damage'], 'fp': default['fp']}
+            for gain, default in zip((mine_gain, theirs_gain), defaults)
+        )
+        if effect_catch is not None:
+            owner, max_speed = effect_catch
+            if owner == 'mine':
+                damage, gain = self._catch_damage(self.my_hand, mine, max_speed), mine_gain
+            else:
+                damage, gain = self._catch_damage(self.rival_hand, rival_card, max_speed), theirs_gain
+            if damage is not None:
+                gain['damage'] += damage
+                mine_gain['fp'] = theirs_gain['fp'] = 0.0
+                return mine_gain, theirs_gain
+            if catch is None:
+                return mine_gain, theirs_gain
+        owner, max_speed = catch
+        if owner == 'mine':
+            damage, gain, target_hp = self._catch_damage(self.my_hand, mine, max_speed), mine_gain, self.rival_hp
+        else:
+            damage, gain, target_hp = self._catch_damage(self.rival_hand, rival_card, max_speed), theirs_gain, self.my_hp
+        # 캐치하지 않으면 FP 우위(max_speed)가 남는다. 더 큰 쪽을 고른다고 본다.
+        if damage is not None and (
+            self.rates['damage'] * damage >= self.rates['fp'] * max_speed
+            or 0 < target_hp <= gain['damage'] + damage
+        ):
+            gain['damage'] += damage
+            mine_gain['fp'] = theirs_gain['fp'] = 0.0
+        return mine_gain, theirs_gain
 
     def _mine(self, action):
         card = action.get('card') or {}
@@ -210,6 +288,7 @@ class TableReadyEvaluator:
         )
         mine_gain = self.table.gain(mine, mine_result)
         theirs_gain = self.table.gain(rival_card, theirs_result)
+        mine_gain, theirs_gain = self._with_catch(mine, rival_card, mine_result, theirs_result, mine_gain, theirs_gain)
         value = sum(self.rates[key] * (mine_gain[key] - theirs_gain[key]) for key in RESOURCES)
         if self.rival_hp > 0 and mine_gain['damage'] >= self.rival_hp:
             value += WIN_VALUE

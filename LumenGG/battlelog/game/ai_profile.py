@@ -59,6 +59,7 @@ WEIGHT_DESCRIPTIONS = {
     'low_hp_defense': '내 체력 1500 이하에서 수비 카드면 더하는 점수',
     'hp_advantage_attack': '공격 카드일 때 (내 체력 - 상대 체력)/5000 에 곱하는 점수',
     'battle_preview': '레디할 카드가 상대가 낼 법한 카드(공개·기억한 손패)와 붙었을 때의 기대 결과(약 -2~+2)에 곱하는 점수. 기본 6',
+    'catch_combo': '히트 판정이 콤보인 카드(콤보 시동기)로 캐치하고 손패에 이어 칠 공격이 있으면 더하는 점수. 기본 6',
     'preview_trust': '상대 손패를 알수록 속도·데미지·공수 점수를 줄이는 정도(0~1). 1이면 다 알 때 예측만 봄. 기본 0.7',
     'ready_card': '레디 행동 자체의 기본 점수',
     'select_get_card': '리스트 카드 획득 행동의 기본 점수',
@@ -136,6 +137,7 @@ CONDITION_KEYS = {
     'hand_attack_max': ('number', '내 손패의 공격 기술 장수 이하'),
     'hand_defense_min': ('number', '내 손패의 수비 기술 장수 이상'),
     'hand_defense_max': ('number', '내 손패의 수비 기술 장수 이하'),
+    'rival_combo_threat': ('bool', '상대가 이번 배틀에서 콤보를 낼 수 있어 보이면 true(콤보 판정 히트 예측, 판정 FP로 콤보 시동기 캐치, 효과로 콤보·캐치). 레디 공개 뒤에만 의미가 있음'),
     'my_lumen_min': ('number', '내 루멘 존 카드 장수 이상'),
     'my_lumen_max': ('number', '내 루멘 존 카드 장수 이하'),
     'speed_lead_min': ('number', '속도 우위(상대의 가장 빠른 공개 공격 속도 - 내 손패의 가장 빠른 공격 속도, FP 반영) 이상. '
@@ -296,6 +298,11 @@ def normalize_profile(raw, *, allowed_codes=None):
                     if number is not None:
                         counters[str(name)] = number
                 result[key] = counters
+            elif kind == 'bool':
+                if not isinstance(item, bool):
+                    errors.append(f'{where}: {key}는 true 또는 false여야 합니다.')
+                else:
+                    result[key] = item
             elif kind == 'kinds':
                 items = item if isinstance(item, list) else [item]
                 bad = [str(entry) for entry in items if entry not in ACTION_KINDS]
@@ -681,6 +688,11 @@ def condition_matches(when, observation, role, action=None):
                     return False
         elif key == 'i_hold':
             if not set(expected) & _zone_codes(own, ('hand',), visible_only=False):
+                return False
+        elif key == 'rival_combo_threat':
+            from .ai_preview import rival_combo_threat
+
+            if bool(rival_combo_threat(observation, role)) != expected:
                 return False
         else:
             name, bound = key.rsplit('_', 1)

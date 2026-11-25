@@ -4,7 +4,7 @@ from django.test import SimpleTestCase
 
 from .game.ai import choose_action
 from .game.ai_engine_eval import EngineReadyEvaluator
-from .game.ai_matrix import solve_zero_sum
+from .game.ai_matrix import ready_matrix, solve_zero_sum
 from .game.engine import AutomaticGameEngine
 from .test_automatic_engine import attack, base_state, defense, ruleset
 
@@ -131,3 +131,23 @@ class EngineEvaluatorTests(SimpleTestCase):
 
         self.assertTrue(decision.details['engine_evaluated'])
         self.assertEqual(decision.action['card']['instance_id'], 'fast')
+
+
+class ForesightRevealTests(SimpleTestCase):
+    """예지로 공개된 패를 상대보다 먼저 레디하면 상대가 보고 고르므로 그 행은 최악의 응수로 본다."""
+
+    def test_revealed_card_row_takes_the_worst_column(self):
+        fast = attack('fast', 'p1', frame=3)
+        slow = attack('slow', 'p1', frame=9)
+        engine = ready_engine([fast, slow], [attack('quick', 'p2', frame=2), defense('wall', 'p2')])
+        observation = engine.observe('p1', include_memory=True)
+        actions = [a for a in observation['legal_actions'] if a['type'] == 'ready_card']
+        hidden, _o, _c = ready_matrix(observation, 'p1', actions)
+        for card in observation['state']['players']['p1']['zones']['hand']:
+            if card['instance_id'] == 'fast':
+                card['face_up'] = True
+        revealed, _o, _c = ready_matrix(observation, 'p1', actions)
+        row = next(i for i, a in enumerate(actions) if a['card']['instance_id'] == 'fast')
+
+        self.assertNotEqual(len(set(hidden[row])), 1)
+        self.assertEqual(revealed[row], [min(hidden[row])] * len(hidden[row]))

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from .engine import AutomaticGameEngine
 from .ai import DEFAULT_POLICY_WEIGHTS, choose_action
+from .ai_decisions import annotate_effect_codes
 from .ai_engine_eval import EngineReadyEvaluator
 from .ai_outcomes import build_ready_evaluator
 from .spec import PLAYER_SIDES
@@ -168,7 +169,7 @@ def run_policy_game(
             )
         decisions = []
         for side in PLAYER_SIDES:
-            observation = engine.observe(side, include_memory=True)
+            observation = annotate_effect_codes(engine.observe(side, include_memory=True), engine.ruleset)
             side_weights = policies.get(side) or DEFAULT_POLICY_WEIGHTS
             evaluator = None
             if ready_eval:

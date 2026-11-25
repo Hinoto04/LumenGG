@@ -93,7 +93,20 @@ def ready_matrix(observation, role, ready_actions, *, evaluator=None, row_bonus=
                 value = refine(action, other)
                 if value is not None:
                     matrix[i][j] = value + bonus
+    if not _rival_readied(observation, role):
+        # 예지(요한 서드아이) 등으로 공개된 패를 레디하면 배틀 존에서도 무슨 카드인지 알려진다.
+        # 상대가 아직 레디하지 않았으면(선레디 강제 포함) 보고 고를 수 있으므로 그 행은 최악의 응수로 본다.
+        for i, action in enumerate(ready_actions):
+            card = own_card(observation, role, (action.get('card') or {}).get('instance_id')) or {}
+            if card.get('face_up') and matrix[i]:
+                matrix[i] = [min(matrix[i])] * len(matrix[i])
     return matrix, options, coverage
+
+
+def _rival_readied(observation, role):
+    rival_role = 'p2' if role == 'p1' else 'p1'
+    rival = (((observation.get('state') or {}).get('players') or {}).get(rival_role) or {})
+    return bool(((rival.get('zones') or {}).get('battle')) or [])
 
 
 def dominated_free_columns(matrix, *, protected=(), tolerance=1e-9, margin=0.0):

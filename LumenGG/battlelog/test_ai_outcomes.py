@@ -6,7 +6,7 @@ from .game.ai import choose_action
 from .game.ai_matrix import dominated_free_columns, ready_matrix
 from .game.ai_outcomes import (
     MIN_SAMPLES, WIN_VALUE, OutcomeRecorder, OutcomeTable, TableReadyEvaluator, build_ready_evaluator,
-    state_key, table_for_profile,
+    catch_after, state_key, table_for_profile,
 )
 from .game.ai_profile import ProfileError, parse_profile_text
 from .test_ai_matrix import ready_engine
@@ -112,6 +112,72 @@ class TableEvaluatorTests(SimpleTestCase):
         self.assertTrue(decision.details['table_evaluated'])
         self.assertFalse(decision.details['engine_evaluated'])
         self.assertEqual(decision.details['engine_cells'], 0)
+
+
+class CatchCellTests(SimpleTestCase):
+    """판정 FP가 여는 캐치는 측정 평균 대신 아는 손패로 따진다(요한 다운 가드 → 메두사 캐치)."""
+
+    # 가드당하면 상대 캐치로 FP가 0이 되고 데미지는 가드 카드 쪽에 섞여, 측정값만으로는 거의 손해가 없어 보인다.
+    CAUGHT_AVERAGE = {
+        'POKE': {'results': {'guarded': {'n': 20, 'damage': 0, 'fp': 0, 'counter': 0, 'card': 1}}},
+        'BLOCK': {'results': {'guard': {'n': 20, 'damage': 150, 'fp': 0, 'counter': 0, 'card': 1}}},
+    }
+
+    def cell(self, rival_extra, *, table=None):
+        poke = attack('poke', 'p1', frame=4, position='상단')
+        poke['guard'] = '-6'
+        engine = ready_engine([poke, attack('other', 'p1', frame=9)], [defense('block', 'p2'), *rival_extra])
+        observation = engine.observe('p1', include_memory=True)
+        evaluator = TableReadyEvaluator(observation, 'p1', table=table or OutcomeTable(self.CAUGHT_AVERAGE))
+        action = next(a for a in ready_actions(engine) if a['card']['instance_id'] == 'poke')
+        block = next(card for card in observation['memory']['rival_hand'] if card['instance_id'] == 'block')
+        return evaluator(action, block)
+
+    def test_catch_after_follows_the_fp_rule(self):
+        self.assertEqual(catch_after(0, -6), ('mine', 6))
+        self.assertEqual(catch_after(3, 0), ('mine', 3))
+        self.assertEqual(catch_after(-6, 0), ('theirs', 6))
+        self.assertEqual(catch_after(0, 2), ('theirs', 2))
+        self.assertIsNone(catch_after(2, -1))
+        self.assertIsNone(catch_after(0, 0))
+
+    def test_guarded_attack_counts_the_rivals_catch(self):
+        caught = self.cell([attack('quick', 'p2', frame=6, damage=800)])
+
+        # 손해 = 캐치 800 데미지(2) + 처음 레디 카드(card 1)는 같으니 데미지만 본다. 가드 FP는 캐치로 사라진다.
+        self.assertAlmostEqual(caught, -2.0)
+
+    def test_without_a_fast_enough_card_the_fp_lead_remains(self):
+        kept = self.cell([attack('slow', 'p2', frame=7, damage=800)])
+
+        self.assertAlmostEqual(kept, -1.0)  # 가드 -6 FP / 6
+
+    def test_my_guard_counts_my_catch(self):
+        swing = attack('swing', 'p2', frame=8, position='상단')
+        swing['guard'] = '-5'
+        quick = attack('quick', 'p1', frame=5, damage=1200)
+        engine = ready_engine([defense('block', 'p1'), quick], [swing])
+        observation = engine.observe('p1', include_memory=True)
+        evaluator = TableReadyEvaluator(observation, 'p1', table=OutcomeTable())
+        action = next(a for a in ready_actions(engine) if a['card']['instance_id'] == 'block')
+
+        self.assertAlmostEqual(evaluator(action, observation['memory']['rival_hand'][0]), 3.0)
+
+
+    def test_effect_catch_after_a_guard_counts_without_fp(self):
+        """리타 「나의 영혼은 성녀를 위해」처럼 방어 뒤 효과로 캐치하는 수비에 막히면 캐치 데미지까지 본다."""
+        poke = attack('poke', 'p1', frame=4, position='상단')
+        poke['guard'] = '0'
+        engine = ready_engine([poke, attack('other', 'p1', frame=9)], [defense('saint', 'p2'), attack('quick', 'p2', frame=9, damage=800)])
+        observation = engine.observe('p1', include_memory=True)
+        action = next(a for a in ready_actions(engine) if a['card']['instance_id'] == 'poke')
+        saint = next(card for card in observation['memory']['rival_hand'] if card['instance_id'] == 'saint')
+        plain = TableReadyEvaluator(observation, 'p1', table=OutcomeTable())(action, saint)
+        observation['effect_combo_codes'] = {'start_combo': [], 'grant_catch': ['SAINT'], 'catch_speed': {'SAINT': 10.0}}
+        caught = TableReadyEvaluator(observation, 'p1', table=OutcomeTable())(action, saint)
+
+        self.assertAlmostEqual(plain, 0.0)
+        self.assertAlmostEqual(caught, -2.0)  # 9속도 800 캐치(속도 상한 10)
 
 
 class RefineTests(SimpleTestCase):
