@@ -36,7 +36,11 @@ def card_changes(engine, card, owner):
     """카드 하나의 {필드: {'base': 인쇄값, 'current': 현재값}}. 바뀐 것이 없으면 빈 dict."""
     printed = engine._printed_card_snapshot(card)
     changes = {}
+    # 수비 기술은 속도 비교 대상이 아니므로 FP 보정·속도 변화·고정이 있어도 속도를 내려보내지 않는다.
+    defense = '수비' in str(card.get('type') or printed.get('type') or '')
     for stat in NUMERIC_STATS:
+        if defense and stat == 'frame':
+            continue
         base = _number(printed.get(stat))
         if base is None:
             continue

@@ -268,7 +268,8 @@ export function StatChangeOverlay({
   return (
     <span className="stat-changes" aria-label={t("효과로 바뀐 값")}>
       <AnimatePresence>
-        {(changes.frame || changes.pos) && (
+        {/* 수비 기술은 속도 비교 대상이 아니므로 FP 보정·고정 효과가 있어도 왼쪽 위 속도를 쓰지 않는다. */}
+        {!defense && (changes.frame || changes.pos) && (
           <SpeedDiamond
             key={`diamond:${changes.frame?.current ?? ""}:${changes.pos?.current ?? ""}`}
             changes={changes}

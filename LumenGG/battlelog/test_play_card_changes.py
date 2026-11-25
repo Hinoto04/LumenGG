@@ -44,6 +44,17 @@ class CardChangesTests(SimpleTestCase):
             'special': {'base': None, 'current': '가드 불가'},
         }})
 
+    def test_defense_card_speed_change_is_not_reported(self):
+        """수비 기술은 속도 비교 대상이 아니므로 속도 변화를 표시하지 않는다."""
+        defense = {'instance_id': 'p1-2', 'code': 'DF-1', 'type': '수비', 'frame': 0, 'damage': None, 'g_top': '방어'}
+        self.state['players']['p1']['zones']['battle'].append(defense)
+        self.engine.printed['DF-1'] = {'frame': 0, 'g_top': '방어'}
+        self.engine.deltas = {('p1-2', 'frame'): 3}
+        defense['g_top'] = '회피'
+        self.assertEqual(card_changes(self.engine, defense, 'p1'), {
+            'g_top': {'base': '방어', 'current': '회피'},
+        })
+
     def test_attach_only_to_visible_cards(self):
         changes = {'p1-1': {'frame': {'base': 5, 'current': 3}}}
         filtered = {'players': {

@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { isStateCounterToken, type BoardCard, type LegalAction, type PlayEnvelope, type VisibleCard, type ZoneName } from "../protocol";
 import { zoneEntries } from "../counterTokens";
 import { cardDetailText, cardText, useCardView } from "../catalog";
-import { ZONE_LABELS } from "../labels";
+import { cardTypeClass, ZONE_LABELS } from "../labels";
 import { cardActions, indexActions, usePlay, type InspectTarget } from "../store";
 import { isManual } from "../net/live";
 import { Card } from "./Card";
@@ -105,7 +105,8 @@ export function CardDetails({ card, zone }: { card: BoardCard; zone: ZoneName })
   };
   const meta = [
     view.type_label || view.type,
-    view.frame != null ? t("속도 {speed}", { speed: String(changed("frame", view.frame)) }) : null,
+    // 수비 기술은 속도 비교 대상이 아니다.
+    view.frame != null && cardTypeClass(view.type) !== "type-defense" ? t("속도 {speed}", { speed: String(changed("frame", view.frame)) }) : null,
     view.damage != null ? t("데미지 {damage}", { damage: String(changed("damage", view.damage)) }) : null,
     changed("pos", view.pos_label || view.pos, (value) => t(String(value))),
     ZONE_LABELS[zone],
