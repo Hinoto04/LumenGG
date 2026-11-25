@@ -71,9 +71,14 @@ def _attack_vs_defense(attack, defense):
 
 
 def is_loss(mine, theirs, *, my_fp=0, their_fp=0):
-    """I take damage and deal none."""
+    """I take damage and deal none, or we trade hits and only they get a Combo judgment."""
     mine_result, theirs_result = preview_battle(mine, theirs, my_fp=my_fp, their_fp=their_fp)
-    return theirs_result in DAMAGING and mine_result not in DAMAGING
+    if theirs_result not in DAMAGING:
+        return False
+    if mine_result not in DAMAGING:
+        return True
+    # 동시 히트라도 상대만 콤보 판정이면 상대는 콤보로 크게 넣고 나는 1장만 맞힌다.
+    return _starts_combo(theirs, theirs_result) and not _starts_combo(mine, mine_result)
 
 
 def answers(mine, theirs, *, my_fp=0, their_fp=0):
@@ -240,7 +245,7 @@ def battle_value(mine, theirs, *, my_fp=0, their_fp=0):
     """Score one predicted battle for me, about -2..+2.
 
     +1 when I deal damage, -1 when I take it, plus the FP swing / 6 (a guard
-    against a -6 attack is worth +1) and +0.5 when my judgment starts a Combo.
+    against a -6 attack is worth +1) and ±0.5 when a judgment starts a Combo.
     """
     mine_result, theirs_result = preview_battle(mine, theirs, my_fp=my_fp, their_fp=their_fp)
     value = 0.0
@@ -250,6 +255,8 @@ def battle_value(mine, theirs, *, my_fp=0, their_fp=0):
             value += 0.5
     if theirs_result in DAMAGING:
         value -= 1.0
+        if str(theirs.get(theirs_result) or '') == '콤보':
+            value -= 0.5
     value += (_fp_gain(mine, mine_result) - _fp_gain(theirs, theirs_result)) / FP_VALUE_SCALE
     return value
 
@@ -287,7 +294,7 @@ def expected_battle_value(observation, role, card, **kwargs):
 
 
 def known_rival_threats(observation, role, *, scope='hand'):
-    """Visible opponent cards to prepare answers for."""
+    """Visible opponent cards to prepare answers for (as ``threat_card`` sees them)."""
     _own, rival = _players(observation, role)
     zones = ['battle', 'hand'] + (['list'] if scope == 'hand_and_list' else [])
     threats = []
@@ -298,8 +305,79 @@ def known_rival_threats(observation, role, *, scope='hand'):
             key = card.get('instance_id') or id(card)
             if is_ready_candidate(card) and key not in seen:
                 seen.add(key)
-                threats.append(card)
+                threat = threat_card(observation, rival, card)
+                if threat is not None:
+                    threats.append(threat)
     return threats
+
+
+def _hints(observation):
+    return observation.get('effect_combo_codes') or {}
+
+
+def threat_card(observation, owner, card):
+    """``card`` as a threat: ``None`` when its use condition fails, sped up by its own speed effect.
+
+    Uses the ruleset hints (``ai_decisions.annotate_effect_codes``): a card that
+    needs a counter (Pain Prison needs 「은연」 hidden_bond) is no threat
+    without it; a card that can speed itself up before judgment (Pain Prison
+    "8 faster" unless its owner leads in FP) is judged at that speed, since a
+    guard plan must hold in the worst case.
+    """
+    hints = _hints(observation)
+    code = card.get('code')
+    counter = (hints.get('play_counter') or {}).get(code)
+    if counter:
+        entry = ((owner or {}).get('passive_state') or {}).get(counter) or {}
+        count = entry.get('count') if isinstance(entry, dict) else entry
+        if _number(count) < 1:
+            return None
+    boost = _number((hints.get('speed_boost') or {}).get(code))
+    if boost < 0 and card.get('frame') not in (None, ''):
+        card = {**card, 'frame': max(1.0, _number(card.get('frame'), 99.0) + boost)}
+    return card
+
+
+POSITION_FIELDS = {'상단': 'g_top', '중단': 'g_mid', '하단': 'g_bot'}
+
+
+def without_judgment(defense, attack):
+    """``defense`` with no judgment at ``attack``'s position (its unpaid costed judgment fails)."""
+    field = POSITION_FIELDS.get(attack.get('pos'))
+    return {**defense, field: None} if field else defense
+
+
+def _cost_card_matches(card, where, attack):
+    for key, value in (where or {}).items():
+        if key == 'is_technique':
+            if bool(value) != (_is_attack(card) or _is_defense(card)):
+                return False
+        elif key == 'pos':
+            if card.get('pos') != attack.get('pos'):
+                return False
+        elif key == 'frame_gte':
+            if _number(card.get('frame'), -1.0) < _number(attack.get('frame'), 99.0):
+                return False
+        # 그 밖의 조건은 알 수 없으므로 치를 수 있다고 본다.
+    return True
+
+
+def defense_cost_blocked(observation, defense, attack, hand):
+    """``defense`` would judge ``attack`` with a costed judgment that no other ``hand`` card can pay.
+
+    Charging Barrier clashes only by discarding a hand technique of the
+    attack's position; without one the clash fails and the attack hits.
+    """
+    costs = (_hints(observation).get('defense_costs') or {}).get(defense.get('code'))
+    if not costs or not _is_defense(defense) or not _is_attack(attack):
+        return False
+    judgment = _guard_result(defense, attack.get('pos'))
+    payers = [card for card in hand if isinstance(card, dict) and card is not defense
+              and card.get('instance_id') != defense.get('instance_id')]
+    for rule in costs:
+        if rule.get('judgment') == judgment:
+            return not any(_cost_card_matches(card, rule.get('where'), attack) for card in payers)
+    return False
 
 
 def fp_values(observation, role):
@@ -347,17 +425,22 @@ def minimum_answer_cards(observation, role, candidates, *, scope='hand', max_siz
     my_fp, their_fp = fp_values(observation, role)
     if rival_fp_lead is not None:
         my_fp, their_fp = 0.0, max(0.0, _number(rival_fp_lead))
-    hand = [card for card in _zone(own, 'hand') if is_ready_candidate(card)]
-    open_threats = [
-        threat for threat in threats
-        if not any(answers(card, threat, my_fp=my_fp, their_fp=their_fp) for card in hand)
-    ]
+    full_hand = [card for card in _zone(own, 'hand') if isinstance(card, dict)]
+    hand = [card for card in full_hand if is_ready_candidate(card)]
+
+    def answered(card, threat):
+        return (
+            answers(card, threat, my_fp=my_fp, their_fp=their_fp)
+            and not defense_cost_blocked(observation, card, threat, full_hand)
+        )
+
+    open_threats = [threat for threat in threats if not any(answered(card, threat) for card in hand)]
     if not open_threats:
         return [], []
     answer_sets = {
         card['instance_id']: {
             index for index, threat in enumerate(open_threats)
-            if answers(card, threat, my_fp=my_fp, their_fp=their_fp)
+            if answered(card, threat)
         }
         for card in candidates if card.get('instance_id')
     }

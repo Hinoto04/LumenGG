@@ -390,7 +390,11 @@ def choose_action(
         reverse=True,
     )
     score, action = ranked[0]
-    if get_plan['pass'] is not None and action.get('type') == 'select_get_card':
+    if (
+        get_plan['pass'] is not None and action.get('type') == 'select_get_card'
+        # 상대 위협에 대처할 카드(대처·가드 가산)는 패 가치가 덜 오르더라도 넘기지 않고 가져온다.
+        and not counter_bonus.get(action.get('action_id'))
+    ):
         # 패가 가득 찼는데 어떤 교체도 패를 낫게 하지 못한다: 가져왔다 되돌려 놓는 대신 넘긴다.
         pass_action = get_plan['pass']
         return AIDecision(

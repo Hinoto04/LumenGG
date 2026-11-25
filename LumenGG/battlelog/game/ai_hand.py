@@ -20,7 +20,10 @@ simulated. Cards that cannot be readied (no attack/defense) are never thrown
 back by this value and add nothing to it.
 """
 
-from .ai_preview import _players, _zone, battle_value, fp_values, is_ready_candidate, rival_hand_view
+from .ai_preview import (
+    _players, _zone, battle_value, defense_cost_blocked, fp_values, is_ready_candidate, rival_hand_view, threat_card,
+    without_judgment,
+)
 
 LIST_WEIGHT = 0.5
 
@@ -31,7 +34,9 @@ def rival_cards(observation, role):
     known, _unknown = rival_hand_view(observation, role)
     cards = [(card, 1.0) for card in known if is_ready_candidate(card)]
     cards += [(card, LIST_WEIGHT) for card in _zone(rival, 'list') if is_ready_candidate(card)]
-    return cards
+    # 사용 조건이 안 되는 카드는 빼고, 효과로 빨라지는 카드는 빨라진 속도로 본다(ai_preview.threat_card).
+    threats = [(threat_card(observation, rival, card), weight) for card, weight in cards]
+    return [(card, weight) for card, weight in threats if card is not None]
 
 
 class HandValue:
@@ -41,6 +46,10 @@ class HandValue:
         self.threats = rival_cards(observation, role)
         self.total = sum(weight for _card, weight in self.threats)
         self.my_fp, self.their_fp = fp_values(observation, role)
+        self.observation = observation
+        own, _rival = _players(observation, role)
+        # 수비 비용(차징 배리어 상쇄의 같은 위치 패 버리기)은 지금 손패로 치를 수 있는지 본다.
+        self.cost_hand = [card for card in _zone(own, 'hand') if isinstance(card, dict)]
         self.keep = max(1, int(keep))
         self._rows = {}
 
@@ -52,7 +61,11 @@ class HandValue:
         key = card.get('instance_id') or id(card)
         if key not in self._rows:
             self._rows[key] = [
-                battle_value(card, threat, my_fp=self.my_fp, their_fp=self.their_fp)
+                battle_value(
+                    without_judgment(card, threat)
+                    if defense_cost_blocked(self.observation, card, threat, self.cost_hand) else card,
+                    threat, my_fp=self.my_fp, their_fp=self.their_fp,
+                )
                 for threat, _weight in self.threats
             ]
         return self._rows[key]

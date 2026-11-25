@@ -71,8 +71,9 @@ class RivalComboThreatTests(SimpleTestCase):
             'C': {'effect_definition': {'abilities': [{'effects': [{'op': 'deal_damage'}]}]}},
         }}
 
+        codes = effect_combo_codes(rules)
         self.assertEqual(
-            effect_combo_codes(rules), {'start_combo': ['A'], 'grant_catch': ['B'], 'catch_speed': {'B': 10.0}},
+            (codes['start_combo'], codes['grant_catch'], codes['catch_speed']), (['A'], ['B'], {'B': 10.0}),
         )
 
 

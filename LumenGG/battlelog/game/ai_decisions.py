@@ -22,8 +22,13 @@ def _load_defaults():
 
 DEFAULT_EFFECT_RULES = _load_defaults()
 
-# 효과로 콤보 타임을 열거나(start_combo) 캐치를 주는(grant_catch) 카드. 관찰에는 카드 효과 정의가 없어
-# 엔진을 가진 호출부가 룰셋에서 뽑아 observation['effect_combo_codes']로 넘긴다(rival_combo_threat 조건).
+# 카드 효과 정의에서 뽑는 AI 힌트. 관찰에는 효과 정의가 없어 엔진을 가진 호출부가 룰셋에서 뽑아
+# observation['effect_combo_codes']로 넘긴다.
+#   start_combo / grant_catch: 효과로 콤보 타임을 열거나 캐치를 주는 카드(rival_combo_threat, 효과 캐치)
+#   catch_speed: 효과 캐치의 속도 상한
+#   speed_boost: 효과로 자기 속도를 가장 많이 빠르게 하는 값(음수, 조건은 보지 않음. 예: 페인 프리즌 -8)
+#   play_counter: 이 카운터가 1개 이상 있어야 쓸 수 있는 카드(예: 페인 프리즌 → hidden_bond 「은연」)
+#   defense_costs: 비용을 치러야 하는 수비 판정 [{judgment, where}] (예: 차징 배리어 상쇄)
 EFFECT_COMBO_OPS = ('start_combo', 'grant_catch')
 _effect_code_cache = {}
 
@@ -44,23 +49,60 @@ def _effect_ops(node, found, speeds):
             _effect_ops(value, found, speeds)
 
 
-def effect_combo_codes(ruleset):
-    """``{'start_combo': [codes], 'grant_catch': [codes], 'catch_speed': {code: max_speed}}`` (cached per ruleset).
+def _speed_boost(node):
+    """Most negative own-speed change (``modify_stat`` frame/speed for the controller) in a definition."""
+    best = 0.0
+    if isinstance(node, dict):
+        if (
+            node.get('op') == 'modify_stat' and node.get('stat') in ('frame', 'speed')
+            and (node.get('player') in (None, {'controller': True}))
+        ):
+            try:
+                best = min(best, float(node.get('amount')))
+            except (TypeError, ValueError):
+                pass
+        for value in node.values():
+            best = min(best, _speed_boost(value))
+    elif isinstance(node, list):
+        for value in node:
+            best = min(best, _speed_boost(value))
+    return best
 
-    ``catch_speed`` is the fastest speed limit among a card's granted Catches (99 when unlimited).
+
+def effect_combo_codes(ruleset):
+    """AI hints from a ruleset's effect definitions (cached per ruleset); see the comment above.
+
+    ``{'start_combo': [codes], 'grant_catch': [codes], 'catch_speed': {code: max_speed},
+    'speed_boost': {code: frames}, 'play_counter': {code: counter}, 'defense_costs': {code: [rules]}}``
     """
     cards = (ruleset or {}).get('cards') or {}
     key = (id(cards), (ruleset or {}).get('version'), len(cards))
     cached = _effect_code_cache.get(key)
     if cached is None:
-        cached = {**{op: [] for op in EFFECT_COMBO_OPS}, 'catch_speed': {}}
+        cached = {
+            **{op: [] for op in EFFECT_COMBO_OPS},
+            'catch_speed': {}, 'speed_boost': {}, 'play_counter': {}, 'defense_costs': {},
+        }
         for code, card in sorted(cards.items()):
+            definition = (card or {}).get('effect_definition') or {}
             found, speeds = set(), []
-            _effect_ops((card or {}).get('effect_definition'), found, speeds)
+            _effect_ops(definition, found, speeds)
             for op in found:
                 cached[op].append(code)
             if speeds:
                 cached['catch_speed'][code] = max(speeds)
+            boost = _speed_boost(definition.get('abilities'))
+            if boost < 0:
+                cached['speed_boost'][code] = boost
+            condition = definition.get('play_condition') if isinstance(definition, dict) else None
+            if isinstance(condition, dict) and condition.get('op') == 'counter_at_least' and condition.get('counter'):
+                cached['play_counter'][code] = str(condition['counter'])
+            costs = [
+                {'judgment': rule.get('judgment'), 'where': ((rule.get('cost') or {}).get('selector') or {}).get('where') or {}}
+                for rule in (definition.get('defense_rules') or []) if isinstance(rule, dict) and rule.get('cost')
+            ]
+            if costs:
+                cached['defense_costs'][code] = costs
         if len(_effect_code_cache) > 8:
             _effect_code_cache.clear()
         _effect_code_cache[key] = cached
