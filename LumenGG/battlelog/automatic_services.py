@@ -839,7 +839,7 @@ def perform_automatic_command(session, body, *, allow_ai=False):
                 raise StaleState(
                     f'상태 버전이 오래되었습니다. 현재 버전: {locked.version}',
                 )
-            if not action or not tutorial.is_allowed(document, role, action):
+            if not action or not tutorial.is_allowed(document, role, action, selections):
                 raise IllegalAction('현재 합법 행동이 아니거나 만료된 action_id입니다.')
             action_type = action.get('type')
             if action_type == 'request_rewind' and (

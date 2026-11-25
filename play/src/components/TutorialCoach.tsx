@@ -63,7 +63,8 @@ type PartBox = { left: number; top: number; width: number; height: number };
  * 카드 이미지에서 각 부분의 자리(카드 너비·높이에 대한 %). 실제 카드 인쇄 배치 기준이며
  * 서버의 lessons.ANATOMY_PARTS와 이름이 같다. 디자인은 서버가 카드 코드로 정해 보낸다(lessons.card_design).
  * - current(신규): 속도를 감싼 마름모의 빛나는 꼭짓점이 위치, 이름 아래 대사, 오른쪽 위 손/발 아이콘, 효과 위 특수 판정 띠
- * - classic(예전, 스타터 덱 등): 왼쪽 위 동그라미 속도, 오른쪽 위 위치 마크, 이름 아래 손/발 글자
+ * - classic(예전, 스타터 덱 등): 왼쪽 위 동그라미 속도, 오른쪽 위 위치 마크, 이름 아래 손/발 글자,
+ *   일러스트 아래 가운데 특수 판정 띠
  * 이미지가 없는 카드(그린 앞면)는 테두리를 그리지 않는다.
  */
 const ANATOMY_BOXES: Record<CardDesign, Record<AnatomyPart, PartBox>> = {
@@ -85,7 +86,8 @@ const ANATOMY_BOXES: Record<CardDesign, Record<AnatomyPart, PartBox>> = {
     body: { left: 42, top: 9.5, width: 16, height: 5.5 },
     damage: { left: 35, top: 86, width: 30, height: 11 },
     fp: { left: 6, top: 49.5, width: 32, height: 23 },
-    special: { left: 8, top: 69.5, width: 84, height: 12 },
+    // 일러스트 바로 아래 가운데 띠(예: "중단 상쇄").
+    special: { left: 30, top: 62, width: 40, height: 7.5 },
     guard: { left: 6, top: 49.5, width: 34, height: 22 },
     text: { left: 8, top: 69.5, width: 84, height: 12 },
   },
@@ -129,8 +131,14 @@ function playableActions(envelope: PlayEnvelope): LegalAction[] {
   return envelope.legal_actions.filter((action) => !SYSTEM_ACTIONS.has(action.type));
 }
 
-function refSelector(ref: Pick<CardRef, "owner" | "zone" | "index">): string {
-  return `[data-select-key="${ref.owner}:${ref.zone}:${ref.index}"]`;
+/**
+ * 보이는 카드는 instance_id로 찾는다. 화면이 서버와 다른 자리에 카드를 보여 줄 때가 있어서다
+ * (콤보 첫 카드는 서버에선 손패에 있지만 화면에선 배틀 존에 놓여 손패 순번이 당겨진다).
+ */
+function refSelector(ref: Pick<CardRef, "owner" | "zone" | "index"> & { instance_id?: string }): string {
+  return ref.instance_id
+    ? `[data-instance-id="${ref.instance_id}"]`
+    : `[data-select-key="${ref.owner}:${ref.zone}:${ref.index}"]`;
 }
 
 /** focus가 가리키는 화면 요소들의 CSS 선택자 */
@@ -249,6 +257,7 @@ export function TutorialCoach({ envelope, onAction }: { envelope: PlayEnvelope; 
   const playing = useFx((s) => s.playing);
   const dragging = usePlay((s) => !!s.drag?.active);
   const choosing = usePlay((s) => !!s.selected || !!s.inspect);
+  const decisionOpen = usePlay((s) => !s.decisionCollapsed);
   const finishSeen = useTutorial((s) => s.finishSeen);
   const setFinishSeen = useTutorial((s) => s.setFinishSeen);
   const compact = useCompact();
@@ -296,6 +305,8 @@ export function TutorialCoach({ envelope, onAction }: { envelope: PlayEnvelope; 
   const waitingOpponent = last && actionStep && !playable.length && view.status === "running";
   // 카드를 골라 사용 버튼(선택 팝오버)·카드 정보가 뜨면 그 아래로 내려가고 말풍선을 잠시 숨긴다.
   const yieldToSelection = passThrough && choosing;
+  // 선택 창(그랩 무효, 브레이크 보충 등)이 열려 있으면 덮개만 창 아래로 내리고 말풍선은 창 위에 둔다.
+  const deciding = passThrough && !choosing && decisionOpen && playable.some((action) => action.type === "submit_decision");
   const next = () => {
     if (!last) setIndex(index + 1);
     else if (view.status === "completed") setFinishSeen(true);
@@ -325,7 +336,9 @@ export function TutorialCoach({ envelope, onAction }: { envelope: PlayEnvelope; 
   return (
     <>
       <Progress view={view} onQuit={quit} />
-      <div className={`tutorial-coach ${passThrough ? "is-pass-through" : ""} ${yieldToSelection ? "is-yield" : ""}`}>
+      <div
+        className={`tutorial-coach ${passThrough ? "is-pass-through" : ""} ${yieldToSelection ? "is-yield" : ""} ${deciding ? "is-deciding" : ""}`}
+      >
         {!waitingOpponent && (
           <svg className="tutorial-dim" width={width} height={height} aria-hidden="true">
             <path

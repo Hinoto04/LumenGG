@@ -271,39 +271,41 @@ function TutorialPanel() {
     }
   };
   return (
-    <section className="lobby-card lobby-tutorial">
-      <span className="lobby-kicker">{t("튜토리얼")}</span>
-      <p>
-        {allDone
-          ? t("모든 단원을 마쳤습니다. 언제든 다시 해 볼 수 있어요.")
-          : t("처음이신가요? 단원마다 몇 분씩 직접 해 보며 기본 규칙을 배워 보세요.")}
-      </p>
-      <ol className="tutorial-lessons">
-        {lessons.map((row, index) => (
-          <li key={row.id}>
-            <button
-              type="button"
-              className={`${completed[row.id] ? "is-done" : ""} ${next?.id === row.id ? "is-next" : ""}`}
-              disabled={!!starting}
-              onClick={() => start(row.id)}
-            >
-              <span className="tutorial-lesson-no">{completed[row.id] ? "✓" : index + 1}</span>
-              <span className="tutorial-lesson-text">
-                <b>{row.title}</b>
-                {row.summary && <small>{row.summary}</small>}
-              </span>
-              {starting === row.id && <span className="muted">{t("만드는 중…")}</span>}
-            </button>
-          </li>
-        ))}
-      </ol>
-      {next && (
-        <button type="button" className="btn-primary" disabled={!!starting} onClick={() => start(next.id)}>
-          {next.id === lessons[0].id ? t("튜토리얼 시작") : t("이어서: {title}", { title: next.title })}
-        </button>
-      )}
-      {error && <p className="lobby-error">{error}</p>}
-    </section>
+    <aside className="lobby-aside" aria-label={t("튜토리얼")}>
+      <section className="lobby-card lobby-tutorial">
+        <span className="lobby-kicker">{t("튜토리얼")}</span>
+        <p>
+          {allDone
+            ? t("모든 단원을 마쳤습니다. 언제든 다시 해 볼 수 있어요.")
+            : t("처음이신가요? 단원마다 몇 분씩 직접 해 보며 기본 규칙을 배워 보세요.")}
+        </p>
+        <ol className="tutorial-lessons">
+          {lessons.map((row, index) => (
+            <li key={row.id}>
+              <button
+                type="button"
+                className={`${completed[row.id] ? "is-done" : ""} ${next?.id === row.id ? "is-next" : ""}`}
+                disabled={!!starting}
+                onClick={() => start(row.id)}
+              >
+                <span className="tutorial-lesson-no">{completed[row.id] ? "✓" : index + 1}</span>
+                <span className="tutorial-lesson-text">
+                  <b>{row.title}</b>
+                  {row.summary && <small>{row.summary}</small>}
+                </span>
+                {starting === row.id && <span className="muted">{t("만드는 중…")}</span>}
+              </button>
+            </li>
+          ))}
+        </ol>
+        {next && (
+          <button type="button" className="btn-primary" disabled={!!starting} onClick={() => start(next.id)}>
+            {next.id === lessons[0].id ? t("튜토리얼 시작") : t("이어서: {title}", { title: next.title })}
+          </button>
+        )}
+        {error && <p className="lobby-error">{error}</p>}
+      </section>
+    </aside>
   );
 }
 
@@ -330,7 +332,11 @@ export function Lobby() {
   const mode = "automatic" as const;
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [rivalUrl, setRivalUrl] = useState<{ mine: string; rival: string; watch: string } | null>(null);
+  const [rivalUrl, setRivalUrl] = useState<{
+    mine: string;
+    rival: string;
+    watch: string;
+  } | null>(null);
   const [readyTimer, setReadyTimer] = useState(10);
   const [effectTimer, setEffectTimer] = useState(30);
   const [resume] = useState(lastGame);
@@ -362,7 +368,14 @@ export function Lobby() {
       if (data.seats.p2) {
         setRivalUrl({
           mine: mineUrl,
-          rival: data.legacy && data.urls.p2 ? data.urls.p2 : liveUrl({ view: data.view_token, seat: "p2", token: data.seats.p2 }),
+          rival:
+            data.legacy && data.urls.p2
+              ? data.urls.p2
+              : liveUrl({
+                  view: data.view_token,
+                  seat: "p2",
+                  token: data.seats.p2,
+                }),
           watch: data.legacy ? data.urls.viewer : liveUrl({ view: data.view_token, seat: "", token: "" }),
         });
         return;
@@ -377,54 +390,59 @@ export function Lobby() {
 
   return (
     <main className="lobby">
-      <header className="lobby-head">
-        <span className="lobby-kicker">LUMEN CONDENSOR SIMULATOR</span>
-        <h1>{t("루멘콘덴서 대전")}</h1>
-      </header>
-      {resume && !rivalUrl && (
-        <section className="lobby-card lobby-resume">
-          <p>{t("진행 중이던 대전이 있습니다.")}</p>
-          <a className="btn-primary" href={liveUrl(resume)}>
-            {t("이어하기")}
-          </a>
-        </section>
-      )}
-      {!rivalUrl && <TutorialPanel />}
-      <div className="lobby-row segmented lobby-tabs" role="tablist" aria-label={t("대전 종류")}>
-        {TABS.map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={tab === value}
-            className={tab === value ? "is-active" : ""}
-            onClick={() => setTab(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {tab === "room" && <RoomPanel mine={mine} loginRequired={loginRequired} />}
-      {tab === "quick" && <QuickPanel mine={mine} loginRequired={loginRequired} />}
-      {tab === "ai" && (
-        <section className="lobby-card">
-          <DeckPicker label={t("내 덱")} value={p1} onChange={setP1} mine={mine} loginRequired={loginRequired} />
-          <AIDeckPicker value={p2} onChange={setP2} />
-          <div className="lobby-row lobby-timers">
-            <TimerSelect label={t("레디 제한")} value={readyTimer} onChange={setReadyTimer} />
-            <TimerSelect label={t("효과 선택 제한")} value={effectTimer} onChange={setEffectTimer} />
+      <div className="lobby-layout">
+        <div className="lobby-main">
+          <header className="lobby-head">
+            <span className="lobby-kicker">LUMEN CONDENSOR SIMULATOR</span>
+            <h1>{t("루멘콘덴서 대전")}</h1>
+          </header>
+          {resume && !rivalUrl && (
+            <section className="lobby-card lobby-resume">
+              <p>{t("진행 중이던 대전이 있습니다.")}</p>
+              <a className="btn-primary" href={liveUrl(resume)}>
+                {t("이어하기")}
+              </a>
+            </section>
+          )}
+          <div className="lobby-row segmented lobby-tabs" role="tablist" aria-label={t("대전 종류")}>
+            {TABS.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={tab === value}
+                className={tab === value ? "is-active" : ""}
+                onClick={() => setTab(value)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <button type="button" className="btn-primary lobby-start" disabled={creating || !p1 || !p2} onClick={start}>
-            {creating ? t("만드는 중…") : t("대전 시작")}
-          </button>
-        </section>
-      )}
-      {error && <p className="lobby-error">{error}</p>}
-      {import.meta.env.DEV && (
-        <p className="muted">
-          <a href="?fixtures">픽스처 보기</a> · <a href="/play-dev/login/">개발 사용자로 로그인</a>
-        </p>
-      )}
+          {tab === "room" && <RoomPanel mine={mine} loginRequired={loginRequired} />}
+          {tab === "quick" && <QuickPanel mine={mine} loginRequired={loginRequired} />}
+          {tab === "ai" && (
+            <section className="lobby-card">
+              <DeckPicker label={t("내 덱")} value={p1} onChange={setP1} mine={mine} loginRequired={loginRequired} />
+              <AIDeckPicker value={p2} onChange={setP2} />
+              <div className="lobby-row lobby-timers">
+                <TimerSelect label={t("레디 제한")} value={readyTimer} onChange={setReadyTimer} />
+                <TimerSelect label={t("효과 선택 제한")} value={effectTimer} onChange={setEffectTimer} />
+              </div>
+              <button type="button" className="btn-primary lobby-start" disabled={creating || !p1 || !p2} onClick={start}>
+                {creating ? t("만드는 중…") : t("대전 시작")}
+              </button>
+            </section>
+          )}
+          {error && <p className="lobby-error">{error}</p>}
+          {import.meta.env.DEV && (
+            <p className="muted">
+              <a href="?fixtures">픽스처 보기</a> · <a href="/play-dev/login/">개발 사용자로 로그인</a>
+            </p>
+          )}
+        </div>
+        {/* 넓은 화면은 오른쪽 옆 열에 늘 붙어 있고, 좁은 화면은 대전 설정 아래에 온다. */}
+        {!rivalUrl && <TutorialPanel />}
+      </div>
     </main>
   );
 }

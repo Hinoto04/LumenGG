@@ -19,6 +19,7 @@ from .models import LumenSimulatorSession, RulesetRelease
 from .play_protocol import validate_play_envelope
 from .simulator_services import serialize_simulator_session
 from .tutorial import create_tutorial_session, tutorial_of
+from .tutorial.runtime import default_selections
 
 EMPTY_EFFECT = {'schema_version': 1, 'reviewed': True, 'abilities': []}
 # 역할 → (종류, 속도, 데미지, 위치, 상단 방어)
@@ -33,7 +34,7 @@ TUTORIAL_CARDS = {
     'P2_EXTRA_1': ('공격', 9, 100, '상단', None),
     'P2_EXTRA_2': ('공격', 9, 100, '중단', None),
 }
-# 2~4단원용 합성 카드: 코드 → (종류, 속도, 데미지, 위치, {수비 위치: 판정}, 히트 FP)
+# 2~6단원용 합성 카드: 코드 → (종류, 속도, 데미지, 위치, {수비 위치: 판정}, 히트 FP[, 그 밖의 필드])
 EXTRA_CARDS = {
     'MID_GUARD': ('수비', None, None, None, {'g_mid': '방어'}, None),
     'FP_ATK': ('공격', 8, 800, '상단', {}, '6'),
@@ -43,6 +44,13 @@ EXTRA_CARDS = {
     'FILL_2': ('공격', 9, 100, '하단', {}, '0'),
     'FILL_3': ('공격', 10, 100, '상단', {}, '0'),
     'FILL_4': ('공격', 10, 100, '하단', {}, '0'),
+    'COMBO_MID': ('공격', 8, 500, '중단', {}, '콤보', {'counter': '콤보'}),
+    'COMBO_5': ('공격', 5, 400, '하단', {}, '1'),
+    'FP_ATK7': ('공격', 7, 800, '상단', {}, '6'),  # 3콤보(6) 뒤에 이을 수도 있다
+    'QUICK_LOW': ('공격', 6, 300, '하단', {}, '1'),
+    'GRAB': ('공격', 7, 400, '상단', {}, '2', {'special': '그랩'}),
+    'CLASH_LOW': ('공격', 7, 500, '하단', {}, '3', {'special': '하단 상쇄'}),
+    'DODGE_LOW': ('공격', 10, 500, '상단', {}, '3', {'special': '하단 회피', 'counter': '6'}),
 }
 # 단원 → 역할 → 카드(TUTORIAL_CARDS의 역할이나 EXTRA_CARDS의 코드)
 LESSON_CARDS = {
@@ -58,6 +66,14 @@ LESSON_CARDS = {
         'A': 'SLOW_MID', 'D': 'MID_GUARD', 'H1': 'FILL_1', 'H2': 'FILL_2', 'H3': 'FILL_3', 'H4': 'FILL_4',
         'E': 'P1_EXTRA', 'L1': 'FILL_1',
         'X': 'QUICK_MID', 'P2_EXTRA_1': 'P2_EXTRA_1', 'P2_EXTRA_2': 'P2_EXTRA_2',
+    },
+    'basic-5': {
+        'A': 'COMBO_MID', 'C1': 'COMBO_5', 'C2': 'QUICK_MID', 'T': 'FP_ATK7', 'K': 'QUICK_LOW', 'L1': 'FILL_1',
+        'W': 'SLOW_MID', 'Z': 'MID_GUARD', 'P2_EXTRA_1': 'P2_EXTRA_1', 'P2_EXTRA_2': 'P2_EXTRA_2',
+    },
+    'basic-6': {
+        'S': 'FILL_3', 'G': 'GRAB', 'V': 'CLASH_LOW', 'R': 'DODGE_LOW', 'L1': 'FILL_1', 'SD': 'FILL_4',
+        'GR': 'GRAB', 'Y': 'COMBO_5', 'E4': 'FILL_2', 'P2_EXTRA_1': 'P2_EXTRA_1', 'P2_EXTRA_2': 'P2_EXTRA_2',
     },
 }
 
@@ -83,11 +99,12 @@ class TutorialTestBase(TestCase):
                 'g_top': guard, 'g_mid': None, 'g_bot': None, 'ultimate': False,
                 'character_id': self.character.id, 'effect_definition': EMPTY_EFFECT,
             }
-        for key, (card_type, frame, damage, position, guards, hit_fp) in EXTRA_CARDS.items():
+        for key, (card_type, frame, damage, position, guards, hit_fp, *rest) in EXTRA_CARDS.items():
+            fields = rest[0] if rest else {}
             card = Card.objects.create(
                 name=f'튜토리얼 {key}', code=f'TUT-{key}', character=self.character,
                 type=card_type, frame=frame, damage=damage, pos=position, effect_definition=EMPTY_EFFECT,
-                **guards,
+                special=fields.get('special'), **guards,
             )
             self.codes[key] = card.code
             snapshot['cards'][card.code] = {
@@ -95,7 +112,7 @@ class TutorialTestBase(TestCase):
                 'frame': frame, 'damage': damage, 'pos': position, 'special': None, 'body': '손',
                 'hit': hit_fp, 'guard': '0' if hit_fp else None, 'counter': '3' if hit_fp else None,
                 'g_top': None, 'g_mid': None, 'g_bot': None, **guards, 'ultimate': False,
-                'character_id': self.character.id, 'effect_definition': EMPTY_EFFECT,
+                'character_id': self.character.id, 'effect_definition': EMPTY_EFFECT, **fields,
             }
         self.publish(snapshot)
         # 4단원: 체력 4000 이하에서 손패 상한이 6 → 7로 늘어나는 캐릭터
@@ -136,7 +153,7 @@ class TutorialTestBase(TestCase):
             'command_id': f'tutorial-{label}',
             'action_id': action['action_id'],
             'expected_version': session.version,
-            'selections': {},
+            'selections': default_selections(action),
             'seat': 'p1', 'seat_token': session.player1_token,
         })
         return advance_ai_session(session)
@@ -289,7 +306,7 @@ class TutorialCheckCommandTests(TutorialTestBase):
         self.assertEqual(code, 0, out)
         self.assertIn('completed', out)
         self.assertIn("['counter', 'guard', 'hit']", out)
-        self.assertEqual(out.count('completed'), 4, out)
+        self.assertEqual(out.count('completed'), 6, out)
         self.assertEqual(LumenSimulatorSession.objects.count(), sessions)  # 아무것도 저장하지 않는다
 
     def test_fails_on_a_release_that_breaks_the_script(self):
@@ -307,7 +324,7 @@ class TutorialApiTests(TutorialTestBase):
         listing = self.client.get(reverse('battlelog:playTutorials')).json()['tutorials']
         self.assertEqual(
             [(row['id'], row['available']) for row in listing],
-            [('basic-1', True), ('basic-2', True), ('basic-3', True), ('basic-4', True)],
+            [(f'basic-{n}', True) for n in range(1, 7)],
         )
         self.assertTrue(all(row['summary'] for row in listing))
         response = self.client.post(
@@ -340,7 +357,7 @@ class TutorialApiTests(TutorialTestBase):
 
 
 class LaterLessonTests(TutorialTestBase):
-    """2~4단원: 카드 읽기, FP와 우선권, 손패와 겟."""
+    """2~6단원: 카드 읽기, FP와 우선권, 손패와 겟, 콤보와 캐치, 특수 판정과 브레이크."""
 
     def play(self, lesson_id, inspect=None):
         """각본대로 끝까지 진행한다. inspect(step_id, envelope)로 단계마다 화면을 본다."""
@@ -442,7 +459,75 @@ class LaterLessonTests(TutorialTestBase):
         self.assertIn('7장 / 7장', seen['t2-ready']['tutorial']['messages'][0]['text'])
         self.assertEqual([a['type'] for a in self.playable(seen['t2-get'])], ['pass_phase'])
         view = self.assert_completed(session)
+        self.assertEqual(view['next']['lesson'], 'basic-5')
+
+    def test_combo_and_catch_lesson(self):
+        seen = {}
+
+        def inspect(step_id, envelope):
+            seen[step_id] = envelope
+
+        session, steps = self.play('basic-5', inspect)
+        self.assertEqual(steps, ['t1-ready', 't1-combo', 't1-combo', 't1-combo-end', 't1-get', 't2-ready', 't2-catch'])
+        self.assertEqual(self.results(session), ['counter', 'hit'])
+        ready = seen['t1-ready']['tutorial']['messages']
+        self.assertEqual(ready[0]['focus']['part'], 'fp')
+        # 콤보 첫 카드·이을 카드는 각본 카드만 남는다.
+        self.assertEqual([a['type'] for a in self.playable(seen['t1-combo'])], ['select_combo_followup'])
+        self.assertIn('FP는 6', seen['t2-catch']['tutorial']['messages'][0]['text'])
+        self.assertEqual([a['type'] for a in self.playable(seen['t2-catch'])], ['play_catch_card'])
+        moved = [
+            event['payload']['card_instance_id'] for event in session.document['events']
+            if event['type'] == 'card_moved' and (event['payload'] or {}).get('to_zone') == 'list'
+        ]
+        for instance in ('p1-tutorial-a', 'p1-tutorial-c1', 'p1-tutorial-c2'):
+            self.assertIn(instance, moved)  # 콤보에 쓴 카드는 리스트로
+        p2 = session.document['state']['players']['p2']
+        # 500 + (400 − 100) + (400 − 200), 히트 800, 캐치 300
+        self.assertEqual(p2['initial_hp'] - p2['hp'], 500 + 300 + 200 + 800 + 300)
+        self.assertEqual(self.assert_completed(session)['next']['lesson'], 'basic-6')
+
+    def test_special_judgment_and_break_lesson(self):
+        seen = {}
+
+        def inspect(step_id, envelope):
+            seen[step_id] = envelope
+
+        session, steps = self.play('basic-6', inspect)
+        self.assertEqual(steps, ['t1-ready', 't1-grab', 't1-replenish', 't1-reready', 't1-get', 't2-ready'])
+        self.assertEqual(self.results(session), ['clash', 'counter'])
+        # 선택 창은 각본 카드 하나만 보여 주고 건너뛸 수 없다.
+        grab = self.playable(seen['t1-grab'])
+        self.assertEqual([o['id'] for o in grab[0]['options']], ['p1-tutorial-g'])
+        self.assertEqual((grab[0]['minimum'], grab[0]['maximum']), (1, 1))
+        replenish = self.playable(seen['t1-replenish'])
+        self.assertEqual([o['id'] for o in replenish[0]['options']], ['p1-tutorial-sd'])
+        zones = session.document['state']['players']['p1']['zones']
+        self.assertIn('p1-tutorial-g', [card['instance_id'] for card in zones['break']])
+        self.assertIn('p1-tutorial-sd', [card['instance_id'] for card in zones['list']])
+        specials = [
+            m['focus']['card']['instance_id'] for envelope in seen.values()
+            for m in envelope['tutorial']['messages'] if (m['focus'] or {}).get('part') == 'special'
+        ]
+        self.assertEqual(specials, ['p1-tutorial-g', 'p1-tutorial-v', 'p1-tutorial-r'])
+        self.assertIn('차이 100', seen['t1-get']['tutorial']['messages'][0]['text'])
+        view = self.assert_completed(session)
         self.assertNotIn('next', view)  # 마지막 단원
+
+    def test_scripted_choice_rejects_other_selections(self):
+        session = create_tutorial_session('basic-6')
+        session = self.act(session, self.playable(self.envelope(session))[0], 'grab-ready')
+        action = self.playable(self.envelope(session))[0]
+        self.assertEqual(action['type'], 'submit_decision')
+        for selected in ([], ['decline']):
+            with self.assertRaises(IllegalAction):
+                perform_automatic_command(session, {
+                    'command_id': f'tutorial-skip-{len(selected)}',
+                    'action_id': action['action_id'],
+                    'expected_version': session.version,
+                    'selections': {'selected': selected},
+                    'seat': 'p1', 'seat_token': session.player1_token,
+                })
 
 
 class PlaceholderTests(SimpleTestCase):

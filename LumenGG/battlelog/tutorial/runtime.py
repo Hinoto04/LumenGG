@@ -284,13 +284,43 @@ def _entries(tutorial, role):
 
 
 def _matches(tutorial, action, entry):
-    action_type, card_role = entry
+    action_type, card_role = entry[0], entry[1]
     if action.get('type') != action_type:
         return False
     if card_role is None:
         return True
     instance = (tutorial.get('instances') or {}).get(card_role)
+    if action_type == 'submit_decision':
+        # 선택 창(그랩 무효, 브레이크 보충 등)은 그 카드를 고를 수 있어야 한다.
+        return any(option.get('id') == instance for option in action.get('options') or [])
     return (action.get('payload') or {}).get('card_instance_id') == instance
+
+
+def _optional(entry):
+    """``(행동, 역할, 'optional')``: 카드 효과에 따라 생길 수도 있는 행동. 없어도 단계는 끝난다."""
+    return len(entry) > 2 and entry[2] == 'optional'
+
+
+def _scripted_choice(tutorial, role, action):
+    """각본이 정한 선택 창의 답(카드 instance_id). 정하지 않았으면 None."""
+    if action.get('type') != 'submit_decision':
+        return None
+    index = _pending_entry(tutorial, role, action)
+    if index is None:
+        return None
+    card_role = _entries(tutorial, role)[index][1]
+    return (tutorial.get('instances') or {}).get(card_role) if card_role else None
+
+
+def _narrow(tutorial, role, action):
+    """각본이 답을 정한 선택 창은 그 선택지 하나만 남기고 건너뛸 수 없게 한다."""
+    choice = _scripted_choice(tutorial, role, action)
+    if choice is None:
+        return action
+    narrowed = dict(action)
+    narrowed['options'] = [option for option in action.get('options') or [] if option.get('id') == choice]
+    narrowed['minimum'] = narrowed['maximum'] = 1
+    return narrowed
 
 
 def _pending_entry(tutorial, role, action):
@@ -304,7 +334,8 @@ def _pending_entry(tutorial, role, action):
     return None
 
 
-def is_allowed(document, role, action):
+def is_allowed(document, role, action, selections=None):
+    """``selections``를 주면 각본이 답을 정한 선택 창에서 그 답만 받는다."""
     tutorial = tutorial_of(document)
     if tutorial is None:
         return True
@@ -314,13 +345,19 @@ def is_allowed(document, role, action):
         return False
     if action.get('type') in SYSTEM_ACTIONS:
         return True
-    return _pending_entry(tutorial, role, action) is not None
+    if _pending_entry(tutorial, role, action) is None:
+        return False
+    choice = _scripted_choice(tutorial, role, action)
+    if choice is not None and selections is not None:
+        return list((selections or {}).get('selected') or []) == [choice]
+    return True
 
 
 def filter_actions(document, role, actions):
-    if tutorial_of(document) is None:
+    tutorial = tutorial_of(document)
+    if tutorial is None:
         return actions
-    return [action for action in actions if is_allowed(document, role, action)]
+    return [_narrow(tutorial, role, action) for action in actions if is_allowed(document, role, action)]
 
 
 def _fail(tutorial, reason):
@@ -363,7 +400,10 @@ def after_command(document, role, action, new_events):
     judged = _judged(new_events)
     winner = _winner(new_events)
     complete = all(
-        len(done.get(side) or []) >= len(_entries(tutorial, side)) for side in SIDES
+        index in (done.get(side) or [])
+        for side in SIDES
+        for index, entry in enumerate(_entries(tutorial, side))
+        if not _optional(entry)
     )
     if not complete:
         if judged or winner is not None:

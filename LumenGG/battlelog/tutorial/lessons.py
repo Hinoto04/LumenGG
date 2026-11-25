@@ -12,7 +12,8 @@ setup 모양::
     }
 
 각 단계의 ``allow``는 p1이, ``opponent``는 각본 상대(p2)가 그 단계에 해야 할 행동이다.
-둘 다 끝나면 다음 단계로 넘어간다. ``expect``는 그 단계를 끝낸 명령에서 나와야 할
+둘 다 끝나면 다음 단계로 넘어간다. 항목은 ``(행동, 카드 역할)``이고, 선택 창(``submit_decision``)에 역할을 주면
+그 카드만 고를 수 있다. 세 번째 값 ``'optional'``은 카드 효과에 따라 생길 수도 있는 행동이다(없어도 단계가 끝난다). ``expect``는 그 단계를 끝낸 명령에서 나와야 할
 판정이다(p1 기준 ``battle_judged`` 결과, 승자). 다르면 튜토리얼을 실패로 끝낸다.
 
 단원 설정
@@ -77,7 +78,21 @@ BASIC_1 = {
         'レディ・バトル・ゲットで1ゲームを最後まで遊びます。',
     ),
     # 운영진이 고를 카드(docs/TUTORIAL.md 2절 조건). 비어 있으면 튜토리얼을 열지 않는다.
-    'setup': None,
+    # 검증한 배정(2026.11.16-CB04, check_tutorials·브라우저로 끝까지 진행). 설정 LUMEN_TUTORIAL_SETUP이 우선한다.
+    'setup': {
+        'characters': {'p1': 3, 'p2': 2},
+        'cards': {
+            'A': 'ST2-001',
+            'B': 'ST2-002',
+            'D': 'ST2-010',
+            'P1_EXTRA': 'ST2-005',
+            'X': 'ST1-006',
+            'Y': 'ST1-002',
+            'Z': 'ST1-010',
+            'P2_EXTRA_1': 'ST1-007',
+            'P2_EXTRA_2': 'ST1-008',
+        },
+    },
     'roles': ('A', 'B', 'D', 'P1_EXTRA', 'X', 'Y', 'Z', 'P2_EXTRA_1', 'P2_EXTRA_2'),
     'board': {
         'p1': {'hand': ['A', 'B'], 'list': ['D', 'P1_EXTRA']},
@@ -216,7 +231,19 @@ BASIC_2 = {
         'Find speed, position, damage, FP and defense marks on a card — old card designs included.',
         '速度・位置・ダメージ・FP・守備判定がカードのどこにあるかを見ます。旧デザインのカードも一緒に。',
     ),
-    'setup': None,
+    # 검증한 배정(2026.11.16-CB04, check_tutorials·브라우저로 끝까지 진행). 설정 LUMEN_TUTORIAL_SETUP이 우선한다.
+    'setup': {
+        'characters': {'p1': 14, 'p2': 2},
+        'cards': {
+            'A': 'CB02-AT-003',
+            'B': 'CB02-AT-007',
+            'D': 'CB02-AT-012',
+            'P1_EXTRA': 'CB02-AT-005',
+            'W': 'ST1-010',
+            'X': 'ST1-006',
+            'P2_EXTRA_1': 'ST1-002',
+        },
+    },
     # A·B·D·P1_EXTRA는 신규 디자인 카드, 상대 리스트의 P2_EXTRA_1은 예전 디자인 카드로 고른다.
     # A: 손/발 판정이 있는 상단·하단 공격, B: 특수 판정(회피·상쇄 등)이 있는 공격, D: 수비,
     # W: A의 위치를 막지 못하는 상대 수비.
@@ -364,7 +391,18 @@ BASIC_3 = {
         'Speed up an attack with FP and see how priority is decided.',
         'FPで攻撃を速くし、優先権の決まり方を見ます。',
     ),
-    'setup': None,
+    # 검증한 배정(2026.11.16-CB04, check_tutorials·브라우저로 끝까지 진행). 설정 LUMEN_TUTORIAL_SETUP이 우선한다.
+    'setup': {
+        'characters': {'p1': 3, 'p2': 2},
+        'cards': {
+            'A': 'ST2-009',
+            'B': 'ST2-005',
+            'P1_EXTRA': 'ST2-007',
+            'W': 'ST1-010',
+            'X': 'ST1-002',
+            'P2_EXTRA_1': 'ST1-007',
+        },
+    },
     'roles': ('A', 'B', 'P1_EXTRA', 'W', 'X', 'P2_EXTRA_1'),
     'board': {
         'p1': {'hand': ['A', 'B'], 'list': ['P1_EXTRA']},
@@ -471,7 +509,23 @@ BASIC_4 = {
         'See how your hand limit follows your HP, and when you may skip a Get.',
         '手札の上限が体力で変わることと、ゲットを飛ばせるときを見ます。',
     ),
-    'setup': None,
+    # 검증한 배정(2026.11.16-CB04, check_tutorials·브라우저로 끝까지 진행). 설정 LUMEN_TUTORIAL_SETUP이 우선한다.
+    'setup': {
+        'characters': {'p1': 3, 'p2': 2},
+        'cards': {
+            'A': 'ST2-005',
+            'D': 'ST2-010',
+            'H1': 'ST2-001',
+            'H2': 'ST2-002',
+            'H3': 'ST2-003',
+            'H4': 'ST2-006',
+            'E': 'ST2-007',
+            'L1': 'ST2-009',
+            'X': 'ST1-002',
+            'P2_EXTRA_1': 'ST1-007',
+            'P2_EXTRA_2': 'ST1-008',
+        },
+    },
     'roles': ('A', 'D', 'H1', 'H2', 'H3', 'H4', 'E', 'L1', 'X', 'P2_EXTRA_1', 'P2_EXTRA_2'),
     'board': {
         'p1': {'hand': ['A', 'D', 'H1', 'H2', 'H3', 'H4'], 'list': ['E', 'L1']},
@@ -570,7 +624,359 @@ BASIC_4 = {
 }
 
 
-LESSONS = {lesson['id']: lesson for lesson in (BASIC_1, BASIC_2, BASIC_3, BASIC_4)}
+BASIC_5 = {
+    'id': 'basic-5',
+    'version': 1,
+    'title': _text('콤보와 캐치', 'Combos and Catches', 'コンボとキャッチ'),
+    'summary': _text(
+        '콤보 타임에 공격을 잇는 법과, 배틀 끝에 FP로 캐치하는 법을 배웁니다.',
+        'Learn to chain attacks in Combo Time and to Catch with FP at the end of a battle.',
+        'コンボタイムで攻撃をつなぐ方法と、バトルの最後にFPでキャッチする方法を学びます。',
+    ),
+    # 검증한 배정(2026.11.16-CB04, check_tutorials·브라우저로 끝까지 진행). 설정 LUMEN_TUTORIAL_SETUP이 우선한다.
+    'setup': {
+        'characters': {'p1': 3, 'p2': 2},
+        'cards': {
+            'A': 'ST2-004',
+            'C1': 'ST2-001',
+            'C2': 'ST2-002',
+            'T': 'ST2-009',
+            'K': 'UNC-AT-018',
+            'L1': 'ST2-007',
+            'W': 'ST1-008',
+            'Z': 'ST1-010',
+            'P2_EXTRA_1': 'ST1-002',
+            'P2_EXTRA_2': 'ST1-007',
+        },
+    },
+    'roles': ('A', 'C1', 'C2', 'T', 'K', 'L1', 'W', 'Z', 'P2_EXTRA_1', 'P2_EXTRA_2'),
+    'board': {
+        'p1': {'hand': ['A', 'C1', 'C2', 'T', 'K'], 'list': ['L1']},
+        'p2': {'hand': ['W', 'Z'], 'list': ['P2_EXTRA_1', 'P2_EXTRA_2']},
+    },
+    'finish': 'concede',
+    'steps': [
+        {
+            'id': 't1-ready',
+            'allow': [('ready_card', 'A')],
+            'opponent': [('ready_card', 'W')],
+            'expect': {'battle': 'counter'},
+            'messages': [
+                _message(
+                    '{A}의 판정 결과 FP를 보세요. 히트·카운터 자리에 숫자 대신 "콤보"가 적혀 있습니다.',
+                    'Look at the result FP of {A}. Its hit and counter slots say "Combo" instead of a number.',
+                    '{A}の判定結果FPを見てください。ヒット・カウンターの欄に数字ではなく「コンボ」と書かれています。',
+                    _anatomy('A', 'fp'),
+                ),
+                _message(
+                    '이런 콤보 판정 공격이 히트하거나 카운터하면 그 공격이 1콤보가 되고 콤보 타임이 시작됩니다.',
+                    'When an attack with a Combo result hits or counters, it becomes Combo 1 and Combo Time begins.',
+                    'このようなコンボ判定の攻撃がヒットかカウンターすると、その攻撃が1コンボになりコンボタイムが始まります。',
+                ),
+                _message(
+                    '상대는 속도 {W.frame}인 느린 {W}를 냅니다. 속도 {A.frame}인 {A}를 레디하세요.',
+                    'Your opponent plays the slow {W} (speed {W.frame}). Ready {A}, speed {A.frame}.',
+                    '相手は遅い{W}（速度{W.frame}）を出します。速度{A.frame}の{A}をレディしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-combo',
+            'allow': [('select_combo_first', 'C1'), ('select_combo_followup', 'C2')],
+            'opponent': [],
+            'messages': [
+                _message(
+                    '카운터! {A}가 1콤보가 되어 콤보 타임이 시작되었습니다.',
+                    'Counter! {A} is Combo 1, and Combo Time has begun.',
+                    'カウンター！{A}が1コンボになり、コンボタイムが始まりました。',
+                    {'kind': 'hud', 'hud': 'p2.hp'},
+                ),
+                _message(
+                    '콤보를 이으려면 손패의 공격 2장을 함께 냅니다. 두 번째 카드는 첫 카드보다 속도 숫자가 정확히 1 커야 해요. 속도 {C1.frame}인 {C1} 다음에 속도 {C2.frame}인 {C2}를 이을 수 있습니다.',
+                    'To continue, put out two attacks from your hand together. The second must have a speed exactly 1 higher than the first: {C1} (speed {C1.frame}) can be followed by {C2} (speed {C2.frame}).',
+                    'コンボを続けるには手札の攻撃2枚を一緒に出します。2枚目は1枚目より速度の数字がちょうど1大きくなければなりません。{C1}（速度{C1.frame}）の次に{C2}（速度{C2.frame}）をつなげます。',
+                    {'kind': 'zone', 'zone': 'p1.hand'},
+                ),
+                _message(
+                    '콤보 카드는 판정 없이 바로 데미지를 줍니다. 대신 이어질수록 데미지가 줄어, 2콤보는 −100, 3콤보는 −200입니다.',
+                    'Combo cards deal damage right away, with no judgment. But damage drops the longer the chain: −100 at Combo 2, −200 at Combo 3.',
+                    'コンボのカードは判定なしでそのままダメージを与えます。その代わりつなぐほどダメージが減り、2コンボは−100、3コンボは−200です。',
+                ),
+                _message(
+                    '첫 카드로 {C1}를 고른 뒤, 이어서 {C2}를 고르세요.',
+                    'Choose {C1} as the first card, then choose {C2}.',
+                    '1枚目に{C1}を選び、続けて{C2}を選んでください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-combo-end',
+            'allow': [('end_combo', None)],
+            'opponent': [],
+            'messages': [
+                _message(
+                    '3콤보까지 들어갔습니다! 이 뒤로는 직전 카드보다 속도 숫자가 1 큰 공격(효과로 이을 수 있는 카드 포함)을 한 장씩 더 이을 수 있어요. 4콤보는 −300입니다.',
+                    'That is Combo 3! After this you may add one attack at a time whose speed is 1 higher than the last card (or one whose effect lets it follow). Combo 4 is −300.',
+                    '3コンボまで入りました！この後は直前のカードより速度の数字が1大きい攻撃（効果でつなげるカードを含む）を1枚ずつつなげます。4コンボは−300です。',
+                    {'kind': 'hud', 'hud': 'p2.hp'},
+                ),
+                _message(
+                    '{T}는 다음 턴에 쓸 테니 여기서 끝냅시다. 콤보 타임이 끝나면 콤보에 쓴 카드는 모두 리스트로 가고, 양쪽 FP는 0이 되며, 배틀 페이즈가 바로 끝납니다. "콤보 종료"를 누르세요.',
+                    'Save {T} for next turn and stop here. When Combo Time ends, every card used in the combo goes to the list, both FP become 0, and the Battle phase ends at once. Press "End combo".',
+                    '{T}は次のターンに使うので、ここで終えましょう。コンボタイムが終わると、コンボに使ったカードはすべてリストへ行き、双方のFPは0になり、バトルフェイズはすぐ終わります。「コンボ終了」を押してください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-get',
+            'allow': [('select_get_card', 'L1')],
+            'opponent': [('select_get_card', 'P2_EXTRA_1')],
+            'messages': [
+                _message(
+                    '콤보에 쓴 {A}·{C1}·{C2}가 리스트로 갔습니다. 콤보는 강하지만 쓴 카드가 손패를 떠나요.',
+                    '{A}, {C1} and {C2} went to the list. Combos hit hard, but the cards you use leave your hand.',
+                    'コンボに使った{A}・{C1}・{C2}がリストへ行きました。コンボは強力ですが、使ったカードは手札を離れます。',
+                    {'kind': 'zone', 'zone': 'p1.list'},
+                ),
+                _message(
+                    '{L1}를 가져오세요.',
+                    'Take {L1}.',
+                    '{L1}を加えましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-ready',
+            'allow': [('ready_card', 'T')],
+            'opponent': [('ready_card', 'Z')],
+            'expect': {'battle': 'hit'},
+            'messages': [
+                _message(
+                    '이번에는 캐치입니다. 캐치는 배틀이 끝날 때 FP로 거는 추가 공격이에요.',
+                    'Now for the Catch: an extra attack you make with FP at the end of a battle.',
+                    '今度はキャッチです。キャッチはバトルの最後にFPで仕掛ける追加の攻撃です。',
+                ),
+                _message(
+                    '상대는 {Z.guard}만 막는 {Z}를 냅니다. {T.pos} 공격인 {T}는 히트해서 FP {T.fp_hit}를 얻어요. {T}를 레디하세요.',
+                    'Your opponent plays {Z}, which only guards {Z.guard}. {T}, a {T.pos} attack, will hit and gain {T.fp_hit} FP. Ready {T}.',
+                    '相手は{Z.guard}しか防がない{Z}を出します。{T.pos}攻撃の{T}はヒットしてFP{T.fp_hit}を得ます。{T}をレディしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-catch',
+            'allow': [('play_catch_card', 'K')],
+            'opponent': [],
+            'messages': [
+                _message(
+                    '히트! 내 FP는 {p1.fp}, 상대 FP는 {p2.fp}. 내 FP가 0보다 크고 상대 FP가 0이면 캐치할 수 있습니다.',
+                    "Hit! Your FP is {p1.fp} and your opponent's is {p2.fp}. With your FP above 0 and theirs at 0, you can Catch.",
+                    'ヒット！自分のFPは{p1.fp}、相手のFPは{p2.fp}。自分のFPが0より大きく相手のFPが0ならキャッチできます。',
+                    {'kind': 'hud', 'hud': 'p1.fp'},
+                ),
+                _message(
+                    '캐치에는 속도가 내 FP({p1.fp}) 이하인 공격을 씁니다. {K}의 속도는 {K.frame}. 조건에 맞아 쓸 수 있어요.',
+                    'A Catch uses an attack whose speed is at most your FP ({p1.fp}). {K} has speed {K.frame}, so it qualifies.',
+                    'キャッチには速度が自分のFP（{p1.fp}）以下の攻撃を使います。{K}は速度{K.frame}なので使えます。',
+                    {'kind': 'card', 'card': 'K'},
+                ),
+                _message(
+                    '캐치하면 먼저 양쪽 FP가 0이 되고, 캐치 공격은 자동으로 히트합니다. 방어·회피·상쇄로 막을 수 없어요. {K}로 캐치하세요.',
+                    'A Catch first sets both FP to 0, then hits automatically. It cannot be guarded, dodged or clashed. Catch with {K}.',
+                    'キャッチするとまず双方のFPが0になり、キャッチの攻撃は自動でヒットします。防御・回避・相殺で防げません。{K}でキャッチしましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+    ],
+    'completed': [
+        _message(
+            '배운 것: ① 판정 결과 FP가 "콤보"인 공격이 히트·카운터하면 콤보 타임 ② 속도 숫자가 1씩 커지는 공격을 이어 붙이고, 이어질수록 데미지 −100씩 ③ 콤보에 쓴 카드는 리스트로, FP는 0 ④ 내 FP > 0·상대 FP = 0이면 내 FP 이하 속도의 공격으로 캐치(자동 히트). 내 FP가 0이고 상대 FP가 음수일 때도 상대가 잃은 만큼의 속도까지 캐치할 수 있습니다.',
+            'You learned: ① an attack with a "Combo" result that hits or counters starts Combo Time ② chain attacks whose speed rises by 1 each; damage drops by 100 per step ③ combo cards go to the list and FP becomes 0 ④ with your FP above 0 and theirs at 0, Catch with an attack no faster than your FP (it hits automatically). If your FP is 0 and theirs is negative, you may Catch with speed up to the FP they lost.',
+            '学んだこと：① 判定結果FPが「コンボ」の攻撃がヒット・カウンターするとコンボタイム ② 速度の数字が1ずつ大きい攻撃をつなぎ、つなぐほどダメージ−100ずつ ③ コンボに使ったカードはリストへ、FPは0 ④ 自分のFP > 0・相手のFP = 0なら自分のFP以下の速度の攻撃でキャッチ（自動ヒット）。自分のFPが0で相手のFPがマイナスのときも、相手が失った分の速度までキャッチできます。',
+        ),
+    ],
+}
+
+BASIC_6 = {
+    'id': 'basic-6',
+    'version': 1,
+    'title': _text('특수 판정과 브레이크', 'Special judgments and Break', '特殊判定とブレイク'),
+    'summary': _text(
+        '그랩·상쇄·회피를 직접 겪고, 카드를 브레이크해 그랩을 무효로 하고 사이드 덱에서 보충합니다.',
+        'Experience Grab, Clash and Dodge, break a card to negate a Grab, and refill from the side deck.',
+        'グラブ・相殺・回避を体験し、カードをブレイクしてグラブを無効にし、サイドデッキから補充します。',
+    ),
+    # 검증한 배정(2026.11.16-CB04, check_tutorials·브라우저로 끝까지 진행). 설정 LUMEN_TUTORIAL_SETUP이 우선한다.
+    'setup': {
+        'characters': {'p1': 3, 'p2': 2},
+        'cards': {
+            'S': 'ST2-007',
+            'G': 'CB01-AT-010',
+            'V': 'CB02-AT-015',
+            'R': 'ST2-006',
+            'L1': 'ST2-008',
+            'SD': 'ST2-003',
+            'GR': 'CB01-AT-007',
+            'Y': 'ST1-001',
+            'E4': 'ST1-004',
+            'P2_EXTRA_1': 'ST1-002',
+            'P2_EXTRA_2': 'ST1-003',
+        },
+    },
+    'roles': ('S', 'G', 'V', 'R', 'L1', 'SD', 'GR', 'Y', 'E4', 'P2_EXTRA_1', 'P2_EXTRA_2'),
+    'board': {
+        'p1': {'hand': ['S', 'G', 'V', 'R'], 'list': ['L1'], 'side': ['SD']},
+        'p2': {'hand': ['GR', 'Y', 'E4'], 'list': ['P2_EXTRA_1', 'P2_EXTRA_2']},
+    },
+    'finish': 'concede',
+    'steps': [
+        {
+            'id': 't1-ready',
+            'allow': [('ready_card', 'S')],
+            'opponent': [('ready_card', 'GR')],
+            # 그랩 무효 선택 창은 판정 결과를 적용하기 전에 열린다(판정 이벤트 없음).
+            'messages': [
+                _message(
+                    '특수 판정은 카드에 적힌 특별한 판정으로, 회피·상쇄·그랩이 있습니다. {G}의 특수 판정은 {G.special}입니다.',
+                    'Special judgments are extra rules printed on a card: Dodge, Clash and Grab. The special judgment of {G} is {G.special}.',
+                    '特殊判定はカードに書かれた特別な判定で、回避・相殺・グラブがあります。{G}の特殊判定は{G.special}です。',
+                    _anatomy('G', 'special'),
+                ),
+                _message(
+                    '그랩 공격은 보통 공격처럼 판정하지만, 맞을 때 손패의 그랩 기술 1장을 브레이크하면 무효로 할 수 있습니다.',
+                    'A Grab is judged like any attack, but when it lands you may break a Grab from your hand to negate it.',
+                    'グラブ攻撃は普通の攻撃のように判定しますが、受けるときに手札のグラブ技1枚をブレイクすれば無効にできます。',
+                ),
+                _message(
+                    '상대가 속도 {GR.frame}인 그랩 기술 {GR}를 냅니다. 일부러 속도 {S.frame}인 느린 {S}를 레디해 그랩을 맞아 봅시다.',
+                    'Your opponent plays the Grab {GR} (speed {GR.frame}). Ready the slow {S} (speed {S.frame}) on purpose and take the Grab.',
+                    '相手はグラブ技{GR}（速度{GR.frame}）を出します。わざと遅い{S}（速度{S.frame}）をレディしてグラブを受けてみましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-grab',
+            'allow': [('submit_decision', 'G')],
+            'opponent': [],
+            'messages': [
+                _message(
+                    '상대 그랩이 카운터로 들어오려 합니다! 판정을 적용하기 직전, 손패의 그랩 기술 {G}를 브레이크해 무효로 할 수 있어요.',
+                    'The Grab is about to counter you! Right before it is applied, you may break the Grab {G} from your hand to negate it.',
+                    '相手のグラブがカウンターで入ろうとしています！判定を適用する直前に、手札のグラブ技{G}をブレイクして無効にできます。',
+                    {'kind': 'card', 'card': 'G'},
+                ),
+                _message(
+                    '브레이크한 카드는 브레이크 존으로 가서 그 게임에서 다시 쓸 수 없습니다. 카드 효과나, 리스트가 14장일 때 리스트로 가려던 카드도 브레이크돼요. {G}를 골라 그랩을 무효로 하세요.',
+                    'A broken card goes to the Break zone and cannot be used again this game. Card effects can break cards too, as can a card moving to a list that already holds 14. Choose {G} to negate the Grab.',
+                    'ブレイクしたカードはブレイクゾーンへ行き、そのゲームでは二度と使えません。カード効果や、リストが14枚のときにリストへ行こうとしたカードもブレイクされます。{G}を選んでグラブを無効にしましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-replenish',
+            'allow': [('submit_decision', 'SD')],
+            'opponent': [],
+            'messages': [
+                _message(
+                    '그랩 무효! 공격·수비 기술이 브레이크되면 사이드 덱의 공격·수비 기술 1장을 리스트에 보충할 수 있습니다.',
+                    'Grab negated! When an attack or defense card is broken, you may put one attack or defense card from your side deck into your list.',
+                    'グラブ無効！攻撃・守備技がブレイクされると、サイドデッキの攻撃・守備技1枚をリストに補充できます。',
+                    {'kind': 'zone', 'zone': 'p1.list'},
+                ),
+                _message(
+                    '{SD}를 골라 리스트에 보충하세요.',
+                    'Choose {SD} to add it to your list.',
+                    '{SD}を選んでリストに補充しましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-reready',
+            'allow': [('ready_card', 'V')],
+            'opponent': [('ready_card', 'Y')],
+            'expect': {'battle': 'clash'},
+            'messages': [
+                _message(
+                    '그랩을 무효로 하면 양쪽 레디 카드가 손패로 돌아가고, 같은 턴의 레디 페이즈를 다시 합니다.',
+                    'Negating a Grab returns both ready cards to hand and repeats the Ready phase of the same turn.',
+                    'グラブを無効にすると双方のレディカードが手札に戻り、同じターンのレディフェイズをやり直します。',
+                    {'kind': 'zone', 'zone': 'p1.hand'},
+                ),
+                _message(
+                    '{V}의 특수 판정은 {V.special}입니다. 상대 공격이 그 위치이고 내 공격보다 빠르면 서로 상쇄되어, 데미지가 낮은 쪽이 차이만큼만 체력을 잃어요.',
+                    'The special judgment of {V} is {V.special}. If the opposing attack is at that position and faster than yours, the two clash: the side with less damage loses only the difference.',
+                    '{V}の特殊判定は{V.special}です。相手の攻撃がその位置で自分の攻撃より速いと互いに相殺され、ダメージの低い側が差の分だけ体力を失います。',
+                    _anatomy('V', 'special'),
+                ),
+                _message(
+                    '상대는 속도 {Y.frame}인 빠른 {Y.pos} 공격 {Y}를 냅니다. {V}를 레디하세요.',
+                    'Your opponent plays the fast {Y.pos} attack {Y} (speed {Y.frame}). Ready {V}.',
+                    '相手は速い{Y.pos}攻撃{Y}（速度{Y.frame}）を出します。{V}をレディしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-get',
+            'allow': [('select_get_card', 'L1')],
+            # Y에 사용 후 효과(랩 캐츠: 리스트 카드 1장을 루멘 존에)가 있으면 상대가 먼저 고른다.
+            'opponent': [('submit_decision', 'P2_EXTRA_1', 'optional'), ('select_get_card', 'P2_EXTRA_2')],
+            'messages': [
+                _message(
+                    '상쇄! 데미지 {V.damage}와 {Y.damage}의 차이 {V.damage-Y.damage}만큼만 상대 체력이 줄었습니다.',
+                    'Clash! Your opponent lost only the difference between {V.damage} and {Y.damage}: {V.damage-Y.damage}.',
+                    '相殺！ダメージ{V.damage}と{Y.damage}の差{V.damage-Y.damage}だけ相手の体力が減りました。',
+                    {'kind': 'hud', 'hud': 'p2.hp'},
+                ),
+                _message(
+                    '{L1}를 가져오세요.',
+                    'Take {L1}.',
+                    '{L1}を加えましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-ready',
+            'allow': [('ready_card', 'R')],
+            'opponent': [('ready_card', 'E4')],
+            'expect': {'battle': 'counter'},
+            'messages': [
+                _message(
+                    '{R}의 특수 판정은 {R.special}입니다. 상대 공격이 그 위치면 피해서 데미지를 받지 않아요. 효과 글에 회피할 수 있는 속도 같은 조건이 붙기도 합니다.',
+                    'The special judgment of {R} is {R.special}. An attack at that position is dodged and deals no damage. The effect text may add conditions, such as which speeds it can dodge.',
+                    '{R}の特殊判定は{R.special}です。相手の攻撃がその位置なら避けてダメージを受けません。効果文に回避できる速度などの条件が付くこともあります。',
+                    _anatomy('R', 'special'),
+                ),
+                _message(
+                    '상대는 속도 {E4.frame}인 {E4.pos} 공격 {E4}를 냅니다. {R}가 더 느려도, 회피하면서 공격하면 카운터가 됩니다. {R}를 레디하세요.',
+                    'Your opponent plays the {E4.pos} attack {E4} (speed {E4.frame}). Even though {R} is slower, dodging while attacking counts as a counter. Ready {R}.',
+                    '相手は{E4.pos}攻撃{E4}（速度{E4.frame}）を出します。{R}のほうが遅くても、回避しながら攻撃すればカウンターになります。{R}をレディしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+    ],
+    'completed': [
+        _message(
+            '배운 것: ① 특수 판정은 카드에 적힌 회피·상쇄·그랩 ② 회피: 그 위치의 공격을 피하고, 피하면서 공격하면 카운터 ③ 상쇄: 그 위치의 더 빠른 공격과 상쇄해 데미지 차이만 받는다 ④ 그랩: 맞을 때 손패의 그랩을 브레이크해 무효로 하고 레디를 다시 한다 ⑤ 브레이크한 카드는 다시 쓸 수 없고, 공격·수비 기술이면 사이드 덱에서 1장 보충한다.',
+            'You learned: ① special judgments are Dodge, Clash and Grab printed on a card ② Dodge avoids an attack at that position; dodging while attacking is a counter ③ Clash meets a faster attack at that position and only the damage difference applies ④ Grab: break a Grab from your hand to negate it, then Ready again ⑤ a broken card cannot be used again; for an attack or defense card, refill one from your side deck.',
+            '学んだこと：① 特殊判定はカードに書かれた回避・相殺・グラブ ② 回避：その位置の攻撃を避け、避けながら攻撃するとカウンター ③ 相殺：その位置のより速い攻撃と相殺し、ダメージの差だけ受ける ④ グラブ：受けるときに手札のグラブをブレイクして無効にし、レディをやり直す ⑤ ブレイクしたカードは二度と使えず、攻撃・守備技ならサイドデッキから1枚補充する。',
+        ),
+    ],
+}
+
+
+LESSONS = {lesson['id']: lesson for lesson in (BASIC_1, BASIC_2, BASIC_3, BASIC_4, BASIC_5, BASIC_6)}
 
 FAILED_MESSAGE = _message(
     '튜토리얼을 이어 갈 수 없습니다. 카드 규칙이 바뀌어 각본과 다른 결과가 나왔습니다. 운영진에게 알렸습니다.',

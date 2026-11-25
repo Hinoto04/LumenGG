@@ -4066,6 +4066,21 @@ body.play-lobby-page #root.play-embedded {
   z-index: 30;
 }
 
+/* 선택 창(30)이 열린 동안: 덮개는 창 아래, 말풍선은 창 위.
+   fixed는 늘 쌓임 맥락을 만들어 자식 z-index가 갇히므로, 이때만 덮개를 직접 fixed로 둔다. */
+.tutorial-coach.is-deciding {
+  position: static;
+}
+
+.tutorial-coach.is-deciding .tutorial-dim {
+  position: fixed;
+  z-index: 29;
+}
+
+.tutorial-coach.is-deciding .tutorial-bubble {
+  z-index: 31;
+}
+
 .tutorial-dim {
   position: absolute;
   inset: 0;
@@ -4202,6 +4217,47 @@ body.play-lobby-page #root.play-embedded {
 
 .lobby-tutorial {
   border-color: rgba(224, 180, 91, 0.55);
+}
+
+/* 로비: 대전 설정 열 + 튜토리얼 옆 열. 좁은 화면은 한 줄로 쌓여 튜토리얼이 아래에 온다. */
+.lobby-layout,
+.lobby-main {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 1.2em;
+}
+
+.lobby-aside {
+  width: min(30em, 100%);
+  display: grid;
+}
+
+.lobby-aside .lobby-card {
+  width: 100%;
+}
+
+@media (min-width: 1000px) and (orientation: landscape) {
+  /* 가운데 열은 그대로 두고 오른쪽 열에 튜토리얼을 붙인다. 로비를 스크롤해도 따라온다. */
+  .lobby-layout {
+    grid-template-columns: minmax(0, 1fr) min(30em, 100%) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .lobby-main {
+    grid-column: 2;
+  }
+
+  .lobby-aside {
+    grid-column: 3;
+    justify-self: start;
+    width: min(22em, 100%);
+    position: sticky;
+    top: 16px;
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+  }
 }
 
 .tutorial-finished .btn-secondary {
