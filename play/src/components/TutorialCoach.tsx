@@ -5,7 +5,7 @@ import { useFx } from "../anim/fx";
 import { t } from "../i18n";
 import { liveUrl } from "../mode";
 import { postJson } from "../net/http";
-import type { AnatomyPart, BoardCard, CardRef, LegalAction, PlayEnvelope, TutorialFocus, TutorialView } from "../protocol";
+import type { AnatomyPart, BoardCard, CardDesign, CardRef, LegalAction, PlayEnvelope, TutorialFocus, TutorialView } from "../protocol";
 import { usePlay } from "../store";
 import { Card } from "./Card";
 import { useCompact } from "./Selection";
@@ -57,18 +57,38 @@ export async function startTutorial(lesson: string): Promise<void> {
   location.assign(liveUrl({ view: data.view_token, seat: "p1", token: data.seats.p1 }));
 }
 
+type PartBox = { left: number; top: number; width: number; height: number };
+
 /**
  * 카드 이미지에서 각 부분의 자리(카드 너비·높이에 대한 %). 실제 카드 인쇄 배치 기준이며
- * 서버의 lessons.ANATOMY_PARTS와 이름이 같다. 이미지가 없는 카드(그린 앞면)는 CSS로 요소를 비춘다.
+ * 서버의 lessons.ANATOMY_PARTS와 이름이 같다. 디자인은 서버가 카드 코드로 정해 보낸다(lessons.card_design).
+ * - current(신규): 속도를 감싼 마름모의 빛나는 꼭짓점이 위치, 이름 아래 대사, 오른쪽 위 손/발 아이콘, 효과 위 특수 판정 띠
+ * - classic(예전, 스타터 덱 등): 왼쪽 위 동그라미 속도, 오른쪽 위 위치 마크, 이름 아래 손/발 글자
+ * 이미지가 없는 카드(그린 앞면)는 테두리를 그리지 않는다.
  */
-const ANATOMY_BOXES: Record<AnatomyPart, { left: number; top: number; width: number; height: number }> = {
-  name: { left: 31, top: 4.5, width: 38, height: 10.5 },
-  speed: { left: 6.5, top: 5.5, width: 17, height: 13 },
-  pos: { left: 76, top: 5, width: 18, height: 13.5 },
-  damage: { left: 35, top: 86, width: 30, height: 11 },
-  fp: { left: 6, top: 49.5, width: 32, height: 23 },
-  guard: { left: 6, top: 49.5, width: 34, height: 22 },
-  text: { left: 8, top: 69.5, width: 84, height: 12 },
+const ANATOMY_BOXES: Record<CardDesign, Record<AnatomyPart, PartBox>> = {
+  current: {
+    name: { left: 25, top: 4, width: 50, height: 12.5 },
+    speed: { left: 5, top: 4, width: 19.5, height: 15 },
+    pos: { left: 5, top: 4, width: 19.5, height: 15 },
+    body: { left: 78, top: 7.5, width: 15, height: 7 },
+    damage: { left: 35, top: 87, width: 30, height: 10 },
+    fp: { left: 6, top: 50, width: 31, height: 23.5 },
+    special: { left: 30, top: 63, width: 60, height: 6.5 },
+    guard: { left: 5, top: 50, width: 40, height: 21 },
+    text: { left: 8, top: 69.5, width: 84, height: 13 },
+  },
+  classic: {
+    name: { left: 31, top: 4.5, width: 38, height: 10.5 },
+    speed: { left: 6.5, top: 5.5, width: 17, height: 13 },
+    pos: { left: 76, top: 5, width: 18, height: 13.5 },
+    body: { left: 42, top: 9.5, width: 16, height: 5.5 },
+    damage: { left: 35, top: 86, width: 30, height: 11 },
+    fp: { left: 6, top: 49.5, width: 32, height: 23 },
+    special: { left: 8, top: 69.5, width: 84, height: 12 },
+    guard: { left: 6, top: 49.5, width: 34, height: 22 },
+    text: { left: 8, top: 69.5, width: 84, height: 12 },
+  },
 };
 
 function findCard(envelope: PlayEnvelope, ref: CardRef): BoardCard | null {
@@ -84,9 +104,10 @@ function findCard(envelope: PlayEnvelope, ref: CardRef): BoardCard | null {
 function AnatomyCard({ envelope, focus }: { envelope: PlayEnvelope; focus: Extract<TutorialFocus, { kind: "anatomy" }> }) {
   const card = findCard(envelope, focus.card);
   if (!card || card.hidden) return null;
-  const box = ANATOMY_BOXES[focus.part] ?? ANATOMY_BOXES.name;
+  const boxes = ANATOMY_BOXES[focus.design ?? "current"] ?? ANATOMY_BOXES.current;
+  const box = boxes[focus.part] ?? boxes.name;
   return (
-    <div className="tutorial-anatomy" data-part={focus.part}>
+    <div className="tutorial-anatomy" data-part={focus.part} data-design={focus.design ?? "current"}>
       <Card card={card} size="large" detached />
       <motion.i
         key={focus.part}

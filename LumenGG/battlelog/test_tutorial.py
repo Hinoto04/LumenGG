@@ -388,12 +388,28 @@ class LaterLessonTests(TutorialTestBase):
         self.assert_completed(session)  # 짧은 단원은 상대 기권으로 끝난다
         ready = seen['t1-ready']['messages']
         parts = [m['focus']['part'] for m in ready if (m['focus'] or {}).get('kind') == 'anatomy']
-        self.assertEqual(parts, ['name', 'speed', 'pos', 'damage', 'fp', 'text'])
+        self.assertEqual(parts, ['speed', 'pos', 'name', 'body', 'damage', 'fp', 'special', 'text'])
         self.assertEqual(ready[1]['focus']['card']['instance_id'], 'p1-tutorial-a')
+        self.assertEqual(ready[1]['focus']['design'], 'current')  # TUT- 코드는 신규 디자인
         guard = next(m for m in seen['t1-get']['messages'] if (m['focus'] or {}).get('part') == 'guard')
         self.assertEqual(guard['focus']['card']['zone'], 'list')
         self.assertIn('상단 방어', guard['text'])
+        # 상대 리스트 카드로 예전 디자인을 비춘다(공개 카드라 상대 것도 비출 수 있다).
+        opponent = [
+            m['focus'] for m in seen['t1-get']['messages']
+            if (m['focus'] or {}).get('kind') == 'anatomy' and m['focus']['card']['owner'] == 'p2'
+        ]
+        self.assertEqual([focus['part'] for focus in opponent], ['pos', 'body'])
         self.assertEqual(seen['t1-ready']['next']['lesson'], 'basic-3')
+
+    def test_card_design_follows_the_set(self):
+        from .tutorial.lessons import card_design
+
+        self.assertEqual(card_design('ST2-001'), 'classic')
+        self.assertEqual(card_design('AWL-AT-019'), 'classic')
+        self.assertEqual(card_design('UNC-AT-016'), 'classic')
+        self.assertEqual(card_design('CB02-AT-003'), 'current')
+        self.assertEqual(card_design('CRS-AT-024'), 'current')
 
     def test_fp_lesson_moves_priority_and_speeds_up_the_attack(self):
         seen = {}

@@ -216,7 +216,8 @@ def validate_play_envelope(envelope):
 
 TUTORIAL_STATUSES = {'running', 'completed', 'failed', 'ended'}
 TUTORIAL_FOCUS_KINDS = {'action', 'card', 'zone', 'hud', 'anatomy'}
-TUTORIAL_ANATOMY_PARTS = {'name', 'speed', 'pos', 'damage', 'fp', 'text', 'guard'}
+TUTORIAL_ANATOMY_PARTS = {'name', 'speed', 'pos', 'body', 'damage', 'fp', 'special', 'text', 'guard'}
+TUTORIAL_CARD_DESIGNS = {'current', 'classic'}
 
 
 def _check_tutorial(errors, tutorial, state):
@@ -248,6 +249,8 @@ def _check_tutorial(errors, tutorial, state):
             _check_card_ref(errors, f'{where}.focus.card', state, focus.get('card'))
             if focus['kind'] == 'anatomy' and focus.get('part') not in TUTORIAL_ANATOMY_PARTS:
                 errors.append(f'{where}.focus.part is invalid')
+            if focus['kind'] == 'anatomy' and focus.get('design') not in TUTORIAL_CARD_DESIGNS:
+                errors.append(f'{where}.focus.design is invalid')
     next_lesson = tutorial.get('next')
     if next_lesson is not None and (
         not isinstance(next_lesson, dict) or not isinstance(next_lesson.get('lesson'), str)

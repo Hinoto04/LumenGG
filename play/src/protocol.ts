@@ -445,9 +445,11 @@ export type TutorialFocus =
   | { kind: "zone"; zone: string }
   | { kind: "hud"; hud: string }
   /** 카드를 크게 띄우고 한 부분(속도·위치·데미지·FP·효과·수비 판정 등)을 비춘다 */
-  | { kind: "anatomy"; card: CardRef; part: AnatomyPart };
+  | { kind: "anatomy"; card: CardRef; part: AnatomyPart; design?: CardDesign };
 
-export type AnatomyPart = "name" | "speed" | "pos" | "damage" | "fp" | "text" | "guard";
+export type AnatomyPart = "name" | "speed" | "pos" | "body" | "damage" | "fp" | "special" | "text" | "guard";
+/** 카드 인쇄 디자인: current = 신규(속도 마름모·손발 아이콘), classic = 예전(스타터 덱 등) */
+export type CardDesign = "current" | "classic";
 
 export interface TutorialMessage {
   text: string;

@@ -21,7 +21,7 @@ from card.models import Card, Character
 from common.language import DEFAULT_LANGUAGE, game_term, normalize_language, translated_card_field
 
 from ..models import LumenSimulatorSession
-from .lessons import ANATOMY_PARTS, FAILED_MESSAGE, get_lesson, lesson_setup, next_lesson_id
+from .lessons import ANATOMY_PARTS, FAILED_MESSAGE, card_design, get_lesson, lesson_setup, next_lesson_id
 
 logger = logging.getLogger(__name__)
 
@@ -587,6 +587,7 @@ def _card_values(tutorial, language, state=None):
             'damage': '' if data.get('damage') is None else str(data.get('damage')),
             'pos': game_term(data.get('pos') or '', language) if data.get('pos') else '',
             'body': game_term(data.get('body') or '', language) if data.get('body') else '',
+            'special': game_term(data.get('special') or '', language) if data.get('special') else '',
             'guard': ' · '.join(guard),
             'defense': ' · '.join(defense),
         }
@@ -681,14 +682,18 @@ def _focus(tutorial, focus, state, viewer):
         return None
     focus = dict(focus)
     if focus.get('kind') in ('card', 'anatomy'):
-        instance = (tutorial.get('instances') or {}).get(focus.pop('card', None))
+        role = focus.pop('card', None)
+        instance = (tutorial.get('instances') or {}).get(role)
         ref = _card_ref(state, instance, viewer) if instance else None
         if ref is None or (focus['kind'] == 'anatomy' and 'instance_id' not in ref):
             # 보이지 않는 카드는 비출 수 없다. 그때는 글만 보여 준다.
             return None
         focus['card'] = ref
-        if focus['kind'] == 'anatomy' and focus.get('part') not in ANATOMY_PARTS:
-            focus['part'] = 'name'
+        if focus['kind'] == 'anatomy':
+            if focus.get('part') not in ANATOMY_PARTS:
+                focus['part'] = 'name'
+            # 예전·신규 카드 디자인은 속도·위치·손발 자리가 다르다(lessons.CLASSIC_DESIGN_SETS).
+            focus['design'] = card_design(((tutorial.get('cards') or {}).get(role) or {}).get('code'))
     return focus
 
 

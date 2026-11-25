@@ -26,7 +26,7 @@ setup 모양::
 
 - 카드: ``{A}`` 카드명, ``{A.frame}`` 속도, ``{A.damage}`` 데미지, ``{A.pos}`` 위치, ``{A.body}`` 손/발,
   ``{A.fp_hit}``·``{A.fp_guard}``·``{A.fp_counter}`` 판정 결과 FP(+1처럼 부호를 붙인다),
-  ``{D.guard}`` 수비 카드가 방어하는 위치, ``{D.defense}`` 위치별 수비 판정 전체.
+  ``{B.special}`` 특수 판정, ``{D.guard}`` 수비 카드가 방어하는 위치, ``{D.defense}`` 위치별 수비 판정 전체.
 - 계산: ``{B.frame-p1.fp}``(두 값의 차. 앞은 카드, 뒤는 카드나 현재 상태).
 - 현재 상태: ``{p1.hp}``, ``{p1.fp}``, ``{p1.hand}`` 손패 장수, ``{p1.limit}`` 손패 상한(p2도 같다).
 
@@ -34,7 +34,7 @@ setup 모양::
 ``{'kind': 'zone', 'zone': 'p1.hand'}``, ``{'kind': 'hud', 'hud': 'p2.hp'}``
 (``p1.fp``, ``priority``, ``p1.hand-count``, ``phase`` 포함),
 ``{'kind': 'anatomy', 'card': 'A', 'part': 'speed'}`` 카드를 크게 띄우고 한 부분을 비춘다
-(``ANATOMY_PARTS``).
+(``ANATOMY_PARTS``). 화면에는 카드 디자인(``card_design``)을 함께 보내 디자인별 자리를 비춘다.
 """
 
 from django.conf import settings
@@ -54,7 +54,17 @@ def _anatomy(card, part):
 
 ACTION = {'kind': 'action'}
 # 카드 이미지에서 비출 수 있는 부분(play/src/components/TutorialCoach.tsx의 ANATOMY_BOXES와 같다).
-ANATOMY_PARTS = ('name', 'speed', 'pos', 'damage', 'fp', 'text', 'guard')
+ANATOMY_PARTS = ('name', 'speed', 'pos', 'body', 'damage', 'fp', 'special', 'text', 'guard')
+# 예전 카드 디자인을 쓰는 팩(카드 코드 앞부분). 그 밖의 팩은 신규 디자인이다.
+# 예전: 속도는 왼쪽 위 동그라미, 위치 마크는 오른쪽 위, 손/발은 이름 아래.
+# 신규: 속도를 감싼 마름모의 빛나는 꼭짓점이 위치, 이름 아래 대사, 손/발 아이콘은 오른쪽 위,
+#       특수 판정은 효과 글 위의 띠.
+CLASSIC_DESIGN_SETS = ('ST1', 'ST2', 'ST3', 'ST4', 'ST5', 'ST6', 'AWL', 'UNC')
+
+
+def card_design(code):
+    """카드 코드로 본 인쇄 디자인: 'classic'(예전) 또는 'current'(신규)."""
+    return 'classic' if str(code or '').split('-')[0] in CLASSIC_DESIGN_SETS else 'current'
 
 
 BASIC_1 = {
@@ -199,14 +209,17 @@ BASIC_1 = {
 
 BASIC_2 = {
     'id': 'basic-2',
-    'version': 1,
+    'version': 2,
     'title': _text('카드 읽는 법', 'Reading a card', 'カードの読み方'),
     'summary': _text(
-        '속도·위치·데미지·FP·수비 판정이 카드 어디에 있는지 봅니다.',
-        'Find speed, position, damage, FP and defense marks on a card.',
-        '速度・位置・ダメージ・FP・守備判定がカードのどこにあるかを見ます。',
+        '속도·위치·데미지·FP·수비 판정이 카드 어디에 있는지 봅니다. 예전 디자인 카드도 함께.',
+        'Find speed, position, damage, FP and defense marks on a card — old card designs included.',
+        '速度・位置・ダメージ・FP・守備判定がカードのどこにあるかを見ます。旧デザインのカードも一緒に。',
     ),
     'setup': None,
+    # A·B·D·P1_EXTRA는 신규 디자인 카드, 상대 리스트의 P2_EXTRA_1은 예전 디자인 카드로 고른다.
+    # A: 손/발 판정이 있는 상단·하단 공격, B: 특수 판정(회피·상쇄 등)이 있는 공격, D: 수비,
+    # W: A의 위치를 막지 못하는 상대 수비.
     'roles': ('A', 'B', 'D', 'P1_EXTRA', 'W', 'X', 'P2_EXTRA_1'),
     'board': {
         'p1': {'hand': ['A', 'B'], 'list': ['D', 'P1_EXTRA']},
@@ -227,22 +240,28 @@ BASIC_2 = {
                     {'kind': 'card', 'card': 'A'},
                 ),
                 _message(
-                    '맨 위 가운데는 기술 이름, 그 아래는 손/발 판정입니다. {A}는 {A.body} 기술이에요.',
-                    'The top centre shows the technique name, and below it whether it is a Hand or Foot technique. {A} is a {A.body} technique.',
-                    '上の中央は技の名前、その下は手/足の判定です。{A}は{A.body}の技です。',
-                    _anatomy('A', 'name'),
-                ),
-                _message(
-                    '왼쪽 위 숫자는 속도입니다. 숫자가 작을수록 빠릅니다. {A}의 속도는 {A.frame}.',
-                    'The number at the top left is the speed. The lower the number, the faster. {A} has speed {A.frame}.',
-                    '左上の数字は速度です。数字が小さいほど速くなります。{A}の速度は{A.frame}です。',
+                    '왼쪽 위 마름모 안의 숫자는 속도입니다. 숫자가 작을수록 빠릅니다. {A}의 속도는 {A.frame}.',
+                    'The number in the diamond at the top left is the speed. The lower the number, the faster. {A} has speed {A.frame}.',
+                    '左上のひし形の中の数字は速度です。数字が小さいほど速くなります。{A}の速度は{A.frame}です。',
                     _anatomy('A', 'speed'),
                 ),
                 _message(
-                    '오른쪽 위 마크는 공격 위치입니다. 상단·중단·하단 중 하나로, {A}는 {A.pos} 공격이에요.',
-                    'The mark at the top right is the attack position: High, Mid or Low. {A} attacks {A.pos}.',
-                    '右上のマークは攻撃位置です。上段・中段・下段のいずれかで、{A}は{A.pos}攻撃です。',
+                    '마름모에서 빛나는 꼭짓점이 공격 위치입니다. 위는 상단, 양옆은 중단, 아래는 하단. {A}는 {A.pos} 공격이에요.',
+                    'The lit corner of the diamond is the attack position: top for High, both sides for Mid, bottom for Low. {A} attacks {A.pos}.',
+                    'ひし形の光っている角が攻撃位置です。上は上段、左右は中段、下は下段。{A}は{A.pos}攻撃です。',
                     _anatomy('A', 'pos'),
+                ),
+                _message(
+                    '맨 위 가운데는 기술 이름, 그 아래는 기술의 대사입니다.',
+                    'The top centre shows the technique name, with the technique\'s quote below it.',
+                    '上の中央は技の名前、その下は技のセリフです。',
+                    _anatomy('A', 'name'),
+                ),
+                _message(
+                    '오른쪽 위 아이콘은 손/발 판정입니다. {A}는 {A.body} 기술이에요. 손/발 표시가 없는 기술도 있습니다.',
+                    'The icon at the top right is the Hand/Foot mark. {A} is a {A.body} technique. Some techniques have no Hand/Foot mark.',
+                    '右上のアイコンは手/足の判定です。{A}は{A.body}の技です。手/足の表示がない技もあります。',
+                    _anatomy('A', 'body'),
                 ),
                 _message(
                     '아래쪽 큰 숫자는 데미지입니다. 공격이 히트하거나 카운터하면 상대 체력이 이만큼 줄어듭니다. {A}는 {A.damage}.',
@@ -257,10 +276,16 @@ BASIC_2 = {
                     _anatomy('A', 'fp'),
                 ),
                 _message(
-                    '가운데 글은 카드 효과입니다. 대전 중 카드를 누르면(PC는 오른쪽 클릭도) 크게 보고 효과 설명을 읽을 수 있어요.',
-                    'The text in the middle is the card\'s effect. During a match, tap a card (or right-click on PC) to see it large with the effect explained.',
-                    '中央の文章はカードの効果です。対戦中にカードを押すと（PCは右クリックも）大きく表示して効果の説明を読めます。',
-                    _anatomy('A', 'text'),
+                    '특수 판정이 있는 기술은 효과 글 위의 띠에 적혀 있습니다. 손패의 {B}는 {B.special}.',
+                    'A technique with a special judgment shows it on the band above the effect text. {B} in your hand has {B.special}.',
+                    '特殊判定がある技は、効果文の上の帯に書かれています。手札の{B}は{B.special}です。',
+                    _anatomy('B', 'special'),
+                ),
+                _message(
+                    '그 아래 글은 카드 효과입니다. 대전 중 카드를 누르면(PC는 오른쪽 클릭도) 크게 보고 효과 설명을 읽을 수 있어요.',
+                    'The text below it is the card\'s effect. During a match, tap a card (or right-click on PC) to see it large with the effect explained.',
+                    'その下の文章はカードの効果です。対戦中にカードを押すと（PCは右クリックも）大きく表示して効果の説明を読めます。',
+                    _anatomy('B', 'text'),
                 ),
                 _message(
                     '{A}를 레디하세요.',
@@ -300,6 +325,18 @@ BASIC_2 = {
                     {'kind': 'zone', 'zone': 'p2.list'},
                 ),
                 _message(
+                    '상대 리스트의 카드 「{P2_EXTRA_1}」처럼 스타터 덱 등 초기 카드는 예전 디자인입니다. 속도는 왼쪽 위 동그라미 안에 있고, 공격 위치는 오른쪽 위에 따로 마크로 표시됩니다. 이 카드는 속도 {P2_EXTRA_1.frame}, 위치 {P2_EXTRA_1.pos}.',
+                    '{P2_EXTRA_1} in your opponent\'s list uses the old card design, found on starter decks and other early cards. The speed is in the circle at the top left, and the attack position has its own mark at the top right. {P2_EXTRA_1}: speed {P2_EXTRA_1.frame}, {P2_EXTRA_1.pos}.',
+                    '相手のリストの{P2_EXTRA_1}は旧デザインのカードです。スターターデッキなど初期のカードはこのデザインです。速度は左上の円の中にあり、攻撃位置は右上に別のマークで表示されます。{P2_EXTRA_1}は速度{P2_EXTRA_1.frame}、{P2_EXTRA_1.pos}です。',
+                    _anatomy('P2_EXTRA_1', 'pos'),
+                ),
+                _message(
+                    '예전 디자인은 손/발 판정이 이름 바로 아래에 글자로 적혀 있습니다. 데미지·FP·효과의 자리는 신규 디자인과 같아요.',
+                    'On the old design, Hand/Foot is written right under the name. Damage, FP and the effect are in the same places as on the new design.',
+                    '旧デザインでは手/足の判定が名前のすぐ下に文字で書かれています。ダメージ・FP・効果の位置は新デザインと同じです。',
+                    _anatomy('P2_EXTRA_1', 'body'),
+                ),
+                _message(
                     '겟 페이즈입니다. {D}를 가져오세요.',
                     'It is the Get phase. Take {D}.',
                     'ゲットフェイズです。{D}を手札に加えましょう。',
@@ -310,9 +347,9 @@ BASIC_2 = {
     ],
     'completed': [
         _message(
-            '배운 것: ① 왼쪽 위 속도, 오른쪽 위 위치, 아래 데미지 ② 왼쪽 아이콘은 공격이면 결과별 FP, 수비면 위치별 수비 판정 ③ 카드를 누르면 크게 볼 수 있다.',
-            'You learned: ① speed top left, position top right, damage at the bottom ② the left icons are FP per result on attacks, and defense marks per position on defenses ③ tap a card to see it large.',
-            '学んだこと：① 左上は速度、右上は位置、下はダメージ ② 左のアイコンは攻撃なら結果ごとのFP、守備なら位置ごとの守備判定 ③ カードを押すと大きく見られる。',
+            '배운 것: ① 왼쪽 위 마름모는 속도, 빛나는 꼭짓점은 위치 ② 아래 큰 숫자는 데미지, 왼쪽 아이콘은 공격이면 결과별 FP, 수비면 위치별 수비 판정 ③ 예전 디자인은 위치 마크가 오른쪽 위, 손/발이 이름 아래.',
+            'You learned: ① the top-left diamond is the speed, and its lit corner the position ② the big number at the bottom is damage; the left icons are FP per result on attacks and defense marks per position on defenses ③ the old design puts the position mark at the top right and Hand/Foot under the name.',
+            '学んだこと：① 左上のひし形は速度、光っている角は位置 ② 下の大きな数字はダメージ、左のアイコンは攻撃なら結果ごとのFP、守備なら位置ごとの守備判定 ③ 旧デザインは位置マークが右上、手/足は名前の下。',
         ),
     ],
 }
