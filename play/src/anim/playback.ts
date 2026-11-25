@@ -539,6 +539,41 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
       return { envelope, ms: getCard ? 1250 : 420 };
     }
 
+    case "card_visibility_changed": {
+      // 효과로 공개된 손패(요한 예지 등): 카드를 효과 발동처럼 한 번 띄워 강조하고, 손패에도 앞면으로 둔다.
+      const owner = actor as Side;
+      if (!payload.face_up || payload.was_face_up || !players[owner]) return { envelope, ms: 0 };
+      const detail = { ...((payload.card as Record<string, unknown> | undefined) ?? {}) };
+      const found = locate(envelope, payload.card_instance_id);
+      if (found?.zone && found.zone !== "hand") return { envelope, ms: 0 };
+      const hand = players[owner].zones.hand;
+      if (found) {
+        const card = hand[found.index];
+        if (!card.hidden) hand[found.index] = { ...card, face_up: true };
+      } else {
+        // 상대 손패는 뒷면 자리만 있으므로 그중 하나를 공개된 카드로 바꾼다(최종 상태가 다시 맞춘다).
+        const slot = hand.map((card) => card.hidden).lastIndexOf(true);
+        const shown = { ...visibleStub(owner, "hand", payload), ...detail, face_up: true } as VisibleCard;
+        if (slot >= 0) hand[slot] = shown;
+      }
+      const popup = speed < 4 ? activationCard(envelope, payload, owner) : null;
+      if (!popup) return { envelope, ms: 0 };
+      const handRect = owner === me ? undefined : document.querySelector(".opp-hand")?.getBoundingClientRect();
+      showActivation(
+        {
+          side: owner,
+          card: { ...popup, ...(found ? {} : detail), face_up: true } as VisibleCard,
+          label: t("공개"),
+          text: owner === me ? t("상대에게 공개된 내 손패") : t("공개된 상대 손패"),
+          from: found
+            ? boardRect(String(payload.card_instance_id))
+            : handRect && { x: handRect.left + handRect.width / 2, y: handRect.top + handRect.height / 2, width: handRect.height * 0.7 },
+        },
+        dur(1700),
+      );
+      return { envelope, ms: 1250 };
+    }
+
     case "battle_revealed": {
       for (const side of ["p1", "p2"] as const) {
         const entry = payload[side] as Record<string, unknown> | undefined;

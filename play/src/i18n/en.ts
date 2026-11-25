@@ -65,6 +65,8 @@ export const EN: Record<string, string> = {
   "곧 시작합니다": "Starting soon",
   "공": "Atk",
   "공개": "Reveal",
+  "공개된 상대 손패": "Revealed card from your opponent's hand",
+  "상대에게 공개된 내 손패": "Card from your hand revealed to your opponent",
   "공개됨": "Revealed",
   "공개하기": "Reveal",
   "공격 기술": "Attack technique",

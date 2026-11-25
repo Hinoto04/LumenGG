@@ -2589,6 +2589,11 @@ button.prep-tile-name {
     width: 100%;
   }
 
+  /* 상대 손패(z-index 3)가 아래로 넘쳐도 상대 체력바가 그 위에 보이게 한다. */
+  .field-opp .portrait {
+    z-index: 4;
+  }
+
   .field-opp {
     grid-template-areas:
       "portrait portrait"
