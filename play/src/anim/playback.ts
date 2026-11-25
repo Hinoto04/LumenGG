@@ -472,9 +472,24 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
         return { envelope, ms: 0 };
       }
       const found = isPrivate ? null : locate(envelope, payload.card_instance_id);
+      // 겟: 상대가 가져간 카드를 효과 발동처럼 화면 가운데에 한 번 띄운다(리스트·얼티밋은 공개 영역).
+      const opponentGet = !isPrivate && payload.reason === "get" && to !== me && toZone === "hand" && speed < 4;
+      const getCard = opponentGet ? activationCard(envelope, payload, to) : null;
+      if (getCard) {
+        showActivation(
+          {
+            side: to,
+            card: getCard,
+            label: t("겟"),
+            text: t("상대가 {zone}에서 패로 가져간 카드", { zone: ZONE_LABELS[fromZone] ?? t("리스트") }),
+            from: found ? boardRect(String(payload.card_instance_id)) : undefined,
+          },
+          dur(1700),
+        );
+      }
       // 패로 들어가는 카드는 공개된다. 내 화면에서 보이지 않던 카드(사이드·뒷면 카드 등)였다면
       // 상대(관전자 포함)에게 잠시 보여 준다. 이미 보이던 카드는 기록으로 충분하다.
-      if (!isPrivate && payload.revealed && to !== me && !found) {
+      if (!getCard && !isPrivate && payload.revealed && to !== me && !found) {
         showBanner(
           {
             kind: "card",
@@ -521,7 +536,7 @@ function applyEvent(base: PlayEnvelope, rawEvent: GameEvent, speed: number): { e
         return { envelope, ms: 200 };
       }
       players[to].zones[toZone].push(moved);
-      return { envelope, ms: 420 };
+      return { envelope, ms: getCard ? 1250 : 420 };
     }
 
     case "battle_revealed": {
