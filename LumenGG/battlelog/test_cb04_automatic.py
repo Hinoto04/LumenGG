@@ -126,16 +126,24 @@ class CB04AutomaticEffectTests(SimpleTestCase):
         self.assertTrue(engine._defense_judgment_allowed(cold, x_attack, 'dodge', 'p2'))
         self.assertFalse(engine._defense_judgment_allowed(cold, normal_attack, 'dodge', 'p2'))
 
-        engine._fire('use', {
-            'controller': 'p1', 'source_card': combo_card,
-            'source_card_instance_id': combo_card['instance_id'], 'combo': False,
-        })
+        # 콤보에 쓰이지 않은 기술에는 적용하지 않고, 콤보로 쓰면 지속 효과로 +100.
+        engine._refresh_continuous_rules()
         self.assertEqual(engine.card_stat(combo_card, 'damage', 'p1'), 400)
+        engine.engine_state['combo'] = {'owner': 'p1', 'used': [combo_card['instance_id']]}
+        engine._refresh_continuous_rules()
+        self.assertEqual(engine.card_stat(combo_card, 'damage', 'p1'), 500)
+        # 혹한은 유발 효과가 아니므로 콤보 사용마다 발동 기록이 남지 않는다.
         engine._fire('use', {
             'controller': 'p1', 'source_card': combo_card,
             'source_card_instance_id': combo_card['instance_id'], 'combo': True,
         })
+        self.resolve(engine)
         self.assertEqual(engine.card_stat(combo_card, 'damage', 'p1'), 500)
+        self.assertFalse([
+            event for event in engine.events
+            if event.get('type') == 'effect_resolved'
+            and event['payload'].get('card_code') == 'CB04-AT-012'
+        ])
 
     def test_snow_country_negates_opponent_effects_then_gives_frost_and_breaks(self):
         snow = bukuki(defense('snow', 'p1', top='방어', mid='방어', bottom='방어'))
@@ -295,23 +303,29 @@ class CB04AutomaticEffectTests(SimpleTestCase):
         self.assertEqual(engine.engine_state['state_expirations'][0]['remaining'], 2)
 
     def test_bitter_cold_also_powers_bukuki_combo_starter_once(self):
-        # Q-AUTO-011: 1콤보 시동 기술에도 +100을 적용한다.
+        # Q-AUTO-011: 1콤보 시동 기술에도 +100을 적용한다. 2·3콤보가 이어져도 중첩하지 않는다.
         cold = bukuki(attack('cold', 'p1', code='CB04-AT-012', frame=14, damage=600))
         starter = bukuki(attack('starter', 'p1', code='CB04-AT-007', damage=400, hit='콤보'))
+        second = bukuki(attack('second', 'p1', code='CB04-AT-002', damage=400))
+        third = bukuki(attack('third', 'p1', code='CB04-AT-003', damage=300))
         other = attack('other-starter', 'p1', code='OTHER-003', damage=400, hit='콤보')
         state = base_state([], [])
         state['players']['p1']['zones']['lumen'] = [cold]
-        state['players']['p1']['zones']['battle'] = [starter, other]
-        engine = self.engine_for(state, [cold, starter, other], seed='bitter-cold-starter')
+        state['players']['p1']['zones']['battle'] = [starter, second, third, other]
+        engine = self.engine_for(state, [cold, starter, second, third, other], seed='bitter-cold-starter')
 
-        for card in (starter, other):
-            for _ in range(2):
-                engine._fire('combo', {
-                    'controller': 'p1', 'source_card': card,
-                    'source_card_instance_id': card['instance_id'],
-                    'combo_judgment': True, 'combo_number': 1,
-                })
-                self.resolve(engine)
+        engine.engine_state['combo_source_ids'] = ['starter', 'other-starter']
+        engine.engine_state['combo'] = {'owner': 'p1', 'used': []}
+        for card in (second, third):
+            engine.engine_state['combo']['used'].append(card['instance_id'])
+            engine._refresh_continuous_rules()
 
         self.assertEqual(engine.card_stat(starter, 'damage', 'p1'), 500)
+        self.assertEqual(engine.card_stat(second, 'damage', 'p1'), 500)
+        self.assertEqual(engine.card_stat(third, 'damage', 'p1'), 400)
         self.assertEqual(engine.card_stat(other, 'damage', 'p1'), 400)
+        # 배틀이 끝나 콤보 기록이 사라지면 원래 데미지로 돌아온다.
+        engine.engine_state['combo'] = None
+        engine.engine_state.pop('combo_source_ids')
+        engine._refresh_continuous_rules()
+        self.assertEqual(engine.card_stat(second, 'damage', 'p1'), 400)

@@ -118,29 +118,11 @@ def _bitter_cold(code):
             kind='function', mode='continuous', timing='function', active_zones=['battle'],
             effects=[{'op': 'static_rule', 'rules': ['defense_rules']}],
         ),
+        # 루멘 존에 있는 동안 계속 적용되는 효과다. 콤보에 쓰인 [부쿠키] 기술(콤보를 연 1콤보
+        # 시동 기술 포함, Q-AUTO-011)의 데미지를 한 번씩만 올리며, 콤보마다 유발되지 않는다.
         _ability(
             code, 'n1', '이 기술이 루멘 존에 존재하는 한, 콤보 시 [부쿠키] 기술 데미지+100',
-            timing='use', active_zones=['lumen'], trigger={'event': 'use'},
-            condition={'op': 'all', 'conditions': [
-                {'op': 'equals', 'left': 'context.event_controller', 'right': {'controller': True}},
-                {'op': 'equals', 'left': 'context.combo', 'right': True},
-                {'op': 'card_matches', 'card': {'path': 'context.event_card'},
-                 'where': dict(BUKUKI_TECHNIQUE)},
-            ]},
-            effects=[_bitter_cold_bonus()],
-        ),
-        # Q-AUTO-011: 콤보 타임을 연 1콤보 시동 기술도 대상이다. 시동 기술의
-        # '콤보' 이벤트는 배틀 데미지 계산 전에 발생한다.
-        _ability(
-            code, 'n1-starter', '이 기술이 루멘 존에 존재하는 한, 콤보 시 [부쿠키] 기술 데미지+100',
-            timing='combo', active_zones=['lumen'], trigger={'event': 'combo'},
-            limit={'scope': 'turn', 'max': 1, 'key': 'cb04-at-012-n1-starter', 'per_event_card': True},
-            condition={'op': 'all', 'conditions': [
-                {'op': 'equals', 'left': 'context.event_controller', 'right': {'controller': True}},
-                {'op': 'equals', 'left': 'context.combo_number', 'right': 1},
-                {'op': 'card_matches', 'card': {'path': 'context.event_card'},
-                 'where': dict(BUKUKI_TECHNIQUE)},
-            ]},
+            mode='continuous', timing='function', active_zones=['lumen'],
             effects=[_bitter_cold_bonus()],
         ),
     ]
@@ -148,8 +130,9 @@ def _bitter_cold(code):
 
 def _bitter_cold_bonus():
     return {
-        'op': 'modify_stat', 'player': {'controller': True}, 'target_card': 'event_card',
-        'stat': 'damage', 'amount': 100, 'duration': 'battle',
+        'op': 'modify_stat', 'player': {'controller': True}, 'scope': 'player_cards',
+        'where': {**BUKUKI_TECHNIQUE, 'combo_member': True},
+        'stat': 'damage', 'amount': 100, 'duration': 'continuous',
     }
 
 

@@ -1897,3 +1897,61 @@ class DefenseJudgmentComparisonTests(SimpleTestCase):
         ))
         steel = self.condition('LMI-AT-009', self.STEEL_FAITH, 'lmi-at-009-n2')
         self.assertFalse(self.matches(steel, {**defense('d', 'p2'), 'hit': '+6'}))
+
+
+class BitterColdContinuousComboTests(SimpleTestCase):
+    """혹한: 루멘 존에 있는 동안 콤보에 쓰인 부쿠키 기술 데미지 +100. 콤보마다 유발·중첩하지 않는다."""
+
+    def test_real_combo_adds_100_once_per_card_without_activation(self):
+        from .game.drafts import build_effect_draft
+
+        def bukuki(card):
+            card['character_key'] = '부쿠키'
+            return card
+
+        cold = bukuki(attack('cold', 'p1', code='CB04-AT-012', frame=14, damage=600))
+        opener = bukuki(attack('opener', 'p1', frame=8, hit='콤보', damage=400))
+        mid = bukuki(attack('mid', 'p1', code='MID', frame=5, damage=400))
+        last = bukuki(attack('last', 'p1', code='LAST', frame=6, damage=400))
+        guard = defense('guard', 'p2', top=None, mid=None, bottom=None)
+        rules = ruleset(cold, opener, mid, last, guard)
+        rules['cards']['CB04-AT-012']['effect_definition'] = build_effect_draft('CB04-AT-012', '')
+        state = base_state([opener, mid, last], [guard])
+        state['players']['p1']['zones']['lumen'] = [cold]
+        engine = AutomaticGameEngine.initialize(state, rules, seed='bitter-cold-real-combo', run_startup=False)
+
+        def act(role, kind, pick=None):
+            engine.submit_action(role, next(
+                a for a in engine.legal_actions(role)
+                if a['type'] == kind and (pick is None or a['payload'].get('card_instance_id') == pick)
+            )['action_id'])
+        act('p1', 'pass_phase'); act('p2', 'pass_phase')
+        act('p1', 'ready_card', 'opener'); act('p2', 'ready_card')
+        self.assertEqual(engine.engine_state.get('step'), 'combo')
+        pair = next(
+            a for a in engine._combo_actions('p1', engine.engine_state['combo'])
+            if a['type'] == 'play_combo_pair'
+            and a['payload']['card_instance_ids'] == ['mid', 'last']
+        )
+        payload = pair['payload']
+        engine.submit_action('p1', next(
+            a for a in engine.legal_actions('p1')
+            if a['type'] == 'select_combo_first'
+            and a['payload']['card_instance_id'] == 'mid'
+            and a['payload']['combo_speed'] == payload['combo_speeds'][0]
+        )['action_id'])
+        engine.submit_action('p1', next(
+            a for a in engine.legal_actions('p1')
+            if a['type'] == 'select_combo_followup' and a['payload'].get('proposal') == payload
+        )['action_id'])
+        damages = [
+            e['payload']['amount'] for e in engine.events
+            if e['type'] == 'damage_dealt' and e['payload'].get('target') == 'p2'
+        ]
+        # 시동 400+100, 2콤보 400+100-100, 3콤보 400+100-200: 카드마다 한 번씩만 +100.
+        self.assertEqual(damages, [500, 400, 300])
+        self.assertFalse([
+            e for e in engine.events
+            if e['type'] in {'effect_resolved', 'decision_requested'}
+            and e['payload'].get('card_code') == 'CB04-AT-012'
+        ])

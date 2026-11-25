@@ -267,17 +267,28 @@ def _run_ps001_recovery(definition, snapshot, owner, *, owner_fp, opponent_fp):
     return {'stored_zone': _zone_of(engine, stored['instance_id'])}
 
 
-def _run_at012_combo(definition, snapshot, owner, *, combo=True, starter=False, character=BUKUKI):
+def _run_at012_combo(definition, snapshot, owner, *, combo=True, starter=False, character=BUKUKI,
+                     extra_combos=0):
+    """루멘 존의 혹한: 콤보에 쓰인 [부쿠키] 기술 데미지 +100. 콤보가 이어져도 한 번만 적용한다."""
     source = _source(snapshot, 'CB04-AT-012', owner)
     used = _card(f'{owner}-used', owner, code='REVIEW-CB04-USED', damage=400,
                  hit='콤보' if starter else '0', character=character)
-    engine = _engine(definition, source, {owner: {'lumen': [source], 'battle': [used]}},
-                     seed=f'cb04-at012:{owner}:{combo}:{starter}:{character}')
-    for _ in range(2 if starter else 1):
-        if starter:
-            _fire(engine, 'combo', used, combo_judgment=True, combo_number=1)
-        else:
-            _fire(engine, 'use', used, combo=combo)
+    later = [
+        _card(f'{owner}-later-{index}', owner, code='REVIEW-CB04-LATER', damage=400, character=BUKUKI)
+        for index in range(extra_combos)
+    ]
+    engine = _engine(definition, source, {owner: {'lumen': [source], 'battle': [used, *later]}},
+                     seed=f'cb04-at012:{owner}:{combo}:{starter}:{character}:{extra_combos}')
+    if combo and starter:
+        engine.engine_state['combo_source_ids'] = [used['instance_id']]
+        engine.engine_state['combo'] = {'owner': owner, 'used': []}
+    elif combo:
+        engine.engine_state['combo'] = {'owner': owner, 'used': [used['instance_id']]}
+    for card in later:
+        combo_state = engine.engine_state.setdefault('combo', {'owner': owner, 'used': []})
+        combo_state.setdefault('used', []).append(card['instance_id'])
+        engine._refresh_continuous_rules()
+    engine._refresh_continuous_rules()
     return {'damage_delta': _damage_delta(engine, used, owner)}
 
 
@@ -1260,12 +1271,11 @@ def _cases():
             ('owner-p1-combo-bukuki-adds-100', 'p1', {}, {'damage_delta': 100}),
             ('owner-p2-combo-bukuki-adds-100', 'p2', {}, {'damage_delta': 100}),
             ('non-combo-use-keeps-damage', 'p1', {'combo': False}, {'damage_delta': 0}),
-        )),
-        'cb04-at-012-n1-starter': (_run_at012_combo, (
-            ('owner-p1-bukuki-starter-adds-100-once', 'p1', {'starter': True}, {'damage_delta': 100}),
-            ('owner-p2-bukuki-starter-adds-100-once', 'p2', {'starter': True}, {'damage_delta': 100}),
+            ('bukuki-starter-adds-100', 'p1', {'starter': True}, {'damage_delta': 100}),
             ('non-bukuki-starter-keeps-damage', 'p1', {'starter': True, 'character': None},
              {'damage_delta': 0}),
+            ('later-combos-do-not-stack', 'p1', {'starter': True, 'extra_combos': 2},
+             {'damage_delta': 100}),
         )),
         'cb04-at-001-function': (_run_at001_play, (
             ('owner-p1-hp-2500-can-use', 'p1', {'hp': 2500}, {'use_allowed': True}),

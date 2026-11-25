@@ -618,6 +618,24 @@ def _card_matches(card, where, state=None, context=None):
             # "<발> 판정 이외의 기술"처럼 특정 부위 판정을 제외한다(부위 없음은 통과).
             if card.get('body') in (expected or []):
                 return False
+        elif key == 'combo_member':
+            # 이번 배틀의 콤보에 쓰인 기술: 콤보를 연 1콤보 기술과 콤보로 사용한 기술.
+            engine_state = (state or {}).get('engine') or {}
+            combo = engine_state.get('combo') or {}
+            members = set(engine_state.get('combo_source_ids') or [])
+            members.update(combo.get('used') or [])
+            # 1콤보 기술은 콤보 판정이 난 순간(데미지 전)부터 콤보에 쓰인 기술이다.
+            battle = engine_state.get('battle') or {}
+            for side, result in (battle.get('result') or {}).items():
+                entry = battle.get(side) or {}
+                judgment = 'hit' if result == 'clash' else result
+                if (
+                    result in {'hit', 'counter', 'clash'}
+                    and str((entry.get('card') or {}).get(judgment) or '') == '콤보'
+                ):
+                    members.add(entry.get('instance_id'))
+            if bool(card.get('instance_id') in members) != bool(expected):
+                return False
         elif key == 'is_technique':
             card_type = str(card.get('type') or '')
             # Tokens and other generic cards are not Techniques merely because

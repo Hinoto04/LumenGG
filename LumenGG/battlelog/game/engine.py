@@ -8985,7 +8985,7 @@ class AutomaticGameEngine:
             ):
                 continue
             where = modifier.get('where')
-            if where and not card_matches(card, where):
+            if where and not card_matches(card, where, self.state):
                 continue
             if modifier.get('op') != 'fix_speed' and not modifier.get('fixed') and fixed is None:
                 delta += _number(modifier.get('amount'))
@@ -9024,7 +9024,7 @@ class AutomaticGameEngine:
             ):
                 continue
             where = modifier.get('where')
-            if where and not card_matches(card, where):
+            if where and not card_matches(card, where, self.state):
                 continue
             if modifier.get('op') == 'fix_speed' or modifier.get('fixed'):
                 value = _number(
