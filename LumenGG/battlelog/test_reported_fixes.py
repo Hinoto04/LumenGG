@@ -1847,3 +1847,53 @@ class BaguaReconcileQuietTests(SimpleTestCase):
         engine._fire('card_moved', {'controller': 'p1', 'player': 'p1'})
         engine._continue()
         self.assertEqual(self.resolved(engine), [])
+
+
+class DefenseJudgmentComparisonTests(SimpleTestCase):
+    """수비 기술의 히트·가드·카운터 판정은 비교 조건을 항상 만족하지 않는다(인쇄값이 0이어도)."""
+
+    SAFETY_DISTANCE = (
+        '게임 시작 시, 사이드 덱에서 루멘 존에 배치한다. ①기술의 사용 시, 상대 기술의 가드 판정이 '
+        '<-7> 이상이라면 패에서 수비 기술 1장을 버리고 이 기술을 브레이크할 수 있다. '
+        '그 경우, 이번 턴 상대는 추가로 카드를 사용할 수 없다.'
+    )
+    STEEL_FAITH = (
+        '①[[state:guardian]]: 판정 전, 이하의 효과를 적용한다.\n'
+        ' -<8속도 이상 중단 상쇄>특수 판정을 추가한다.\n'
+        ' -상쇄 시, 상대 기술의 히트 판정이 <콤보>일 경우, 그 판정을 <+4>로 변경한다.\n'
+        ' ②상쇄 시, 상대 기술의 히트 판정이 <+6> 이상일 경우 그 판정을 <+4>로 변경한다.'
+    )
+
+    def condition(self, code, text, ability_id):
+        from .game.drafts import build_effect_draft
+
+        definition = build_effect_draft(code, text)
+        return next(a for a in definition['abilities'] if a['id'] == ability_id)['condition']
+
+    def matches(self, condition, opponent_card):
+        from .game.effects import condition_matches
+
+        context = {'controller': 'p1', 'event_controller': 'p1', 'opponent_card': opponent_card}
+        return condition_matches(condition, {'players': {}}, context)
+
+    def test_safety_distance_ignores_defense_opponent(self):
+        condition = self.condition('CB03-AT-034', self.SAFETY_DISTANCE, 'cb03-at-034-n1')
+        self.assertTrue(self.matches(condition, {**attack('a', 'p2'), 'guard': '-3'}))
+        self.assertFalse(self.matches(condition, {**attack('a', 'p2'), 'guard': '-8'}))
+        self.assertFalse(self.matches(condition, defense('d', 'p2')))
+
+    def test_steel_faith_hit_comparison_ignores_defense_opponent(self):
+        from .game.effects import condition_matches
+
+        gte = {'op': 'gte', 'left': 'context.opponent_card.hit', 'right': 6}
+        self.assertTrue(self.matches(gte, attack('a', 'p2', hit='+6')))
+        self.assertFalse(self.matches(gte, {**defense('d', 'p2'), 'hit': '+6'}))
+        # 비교 대상이 오른쪽에 있어도, 판정이 아닌 수비 기술 값은 그대로 비교한다.
+        right = {'op': 'lte', 'left': -7, 'right': {'path': 'context.opponent_card.guard'}}
+        self.assertFalse(condition_matches(right, {}, {'opponent_card': defense('d', 'p2')}))
+        self.assertTrue(condition_matches(
+            {'op': 'equals', 'left': 'context.opponent_card.type', 'right': '수비'},
+            {}, {'opponent_card': defense('d', 'p2')},
+        ))
+        steel = self.condition('LMI-AT-009', self.STEEL_FAITH, 'lmi-at-009-n2')
+        self.assertFalse(self.matches(steel, {**defense('d', 'p2'), 'hit': '+6'}))

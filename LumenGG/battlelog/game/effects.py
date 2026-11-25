@@ -319,6 +319,40 @@ def _comparison_values(left, right):
         return left, right
 
 
+# 수비 기술의 히트·가드·카운터 판정은 비교 조건을 언제나 만족하지 않는다(인쇄값이 0이어도).
+# 예: 세이프티 디스턴스 "상대 기술의 가드 판정이 <-7> 이상", 강철의 신앙 "히트 판정이 <+6> 이상".
+JUDGMENT_FIELDS = {'hit', 'guard', 'counter'}
+JUDGMENT_COMPARISON_OPS = {'equals', 'not_equals', 'gt', 'gte', 'lt', 'lte', 'in', 'contains'}
+
+
+def _is_defense_card(card):
+    return (
+        isinstance(card, dict)
+        and not card.get('non_technique_while_face_down')
+        and '수비' in str(card.get('type') or '')
+    )
+
+
+def _defense_judgment_operand(operand, state, context):
+    if isinstance(operand, dict):
+        if set(operand) - {'path', 'default'}:
+            return False
+        path = operand.get('path')
+    else:
+        path = operand
+    if not isinstance(path, str) or '.' not in path:
+        return False
+    card_path, field = path.rsplit('.', 1)
+    if field not in JUDGMENT_FIELDS:
+        return False
+    card = (
+        state_path(context, card_path[8:])
+        if card_path.startswith('context.')
+        else state_path(state, card_path)
+    )
+    return _is_defense_card(card)
+
+
 def condition_matches(condition, state, context):
     if condition in (None, True):
         return True
@@ -332,6 +366,11 @@ def condition_matches(condition, state, context):
     if op == 'not':
         return not condition_matches(condition.get('condition'), state, context)
     left_operand = condition.get('left')
+    if op in JUDGMENT_COMPARISON_OPS and any(
+        _defense_judgment_operand(condition.get(side), state, context)
+        for side in ('left', 'right')
+    ):
+        return False
     left = (
         resolve_value(left_operand, state, context)
         if isinstance(left_operand, dict)
