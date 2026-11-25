@@ -270,6 +270,7 @@ function Field({ side, player, actions, envelope, onAction, mine }: FieldProps) 
           active={priority}
           onOpen={isManual(envelope) ? () => usePlay.getState().setPlayerSheet(side) : undefined}
         />
+        {!compact && <LumenStrip side={side} player={player} actions={actions} onAction={onAction} />}
         {!compact && <Piles {...pileProps} zones={SINGLE_ZONES} className="field-singles" />}
       </div>
       <div className="battle-zone" data-drop-owner={side} data-drop-zone="battle" aria-label={t("배틀존")}>
@@ -303,6 +304,49 @@ function Field({ side, player, actions, envelope, onAction, mine }: FieldProps) 
         <Piles {...pileProps} zones={compact ? [...SINGLE_ZONES, ...PILE_ZONES] : PILE_ZONES} />
       </div>
     </section>
+  );
+}
+
+/**
+ * 가로 화면: 캐릭터 패널과 패시브·얼티밋 사이 빈 곳에 루멘 존 카드를 작게 가로로 늘어놓는다.
+ * 루멘 더미(장 수)는 그대로 두고 보조로 보여 준다. 폭이 모자라면 카드를 겹치고,
+ * 너무 좁으면 CSS(컨테이너 쿼리)가 숨긴다. 거미처럼 개수로 보이는 토큰은 뺀다.
+ */
+function LumenStrip({
+  side,
+  player,
+  actions,
+  onAction,
+}: {
+  side: Side;
+  player: PlayerState;
+  actions: ActionIndex;
+  onAction: (action: LegalAction) => void;
+}) {
+  const handlers = useCardHandlers(side, "lumen", actions, onAction);
+  const entries = player.zones.lumen
+    .map((card, index) => ({ card, index }))
+    .filter(({ card }) => !isStateCounterToken(card));
+  return (
+    <div className="lumen-strip" data-drop-owner={side} data-drop-zone="lumen" aria-label={t("루멘")}>
+      {entries.length > 0 && (
+        <div className="lumen-strip-cards" style={{ "--n": entries.length } as CSSProperties}>
+          <span className="zone-title">{t("루멘")}</span>
+          <div className="lumen-strip-row">
+            <AnimatePresence>
+              {entries.map(({ card, index }) => (
+                <Card
+                  key={card.hidden ? `${side}-lumen-${index}` : String(card.instance_id)}
+                  card={card}
+                  size="mini"
+                  {...handlers(card, index)}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

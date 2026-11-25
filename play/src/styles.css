@@ -145,6 +145,57 @@ button {
   flex: none;
 }
 
+/*
+ * 루멘 줄(가로 화면 보조 표시): 캐릭터 패널과 패시브·얼티밋 사이의 남는 폭을 쓴다.
+ * 카드 폭 --ls-w로 다 들어가면 조금 띄우고, 모자라면 겹친다(100cqw = 줄의 폭).
+ */
+.lumen-strip {
+  flex: 1 1 0;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  justify-content: center;
+  container-type: inline-size;
+}
+
+.field-opp .lumen-strip {
+  align-items: flex-end;
+}
+
+.field-me .lumen-strip {
+  align-items: flex-start;
+}
+
+.lumen-strip-cards {
+  --ls-w: calc(var(--cw) * 0.5);
+  display: grid;
+  gap: 0.2em;
+  justify-items: start;
+  max-width: 100%;
+}
+
+.lumen-strip-row {
+  display: flex;
+  align-items: flex-end;
+}
+
+.lumen-strip-row > .card {
+  flex: none;
+  width: var(--ls-w);
+  font-size: calc(var(--ls-w) * 0.12);
+}
+
+.lumen-strip-row > .card + .card {
+  margin-left: min(0.3em, calc((100cqw - var(--n) * var(--ls-w)) / max(var(--n) - 1, 1)));
+}
+
+/* 겹쳐도 카드 한 장 반이 안 들어가는 좁은 화면에서는 줄을 숨긴다(루멘 더미는 그대로). */
+@container (max-width: 5.5em) {
+  .lumen-strip-cards {
+    display: none;
+  }
+}
+
 /* 오른쪽 열을 다 쓴다: 리스트는 남는 폭 안에서 카드 크기를 맞추고, 더미는 바깥쪽 끝에 붙는다. */
 .field-side {
   grid-area: side;

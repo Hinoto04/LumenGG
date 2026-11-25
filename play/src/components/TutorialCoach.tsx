@@ -149,7 +149,8 @@ function focusSelectors(focus: TutorialFocus | null, envelope: PlayEnvelope): st
       return [refSelector(focus.card)];
     case "zone": {
       const [owner, zone] = focus.zone.split(".");
-      return [`[data-drop-owner="${owner}"][data-drop-zone="${zone}"]`];
+      // 가로 화면의 루멘 줄(Board.tsx LumenStrip)은 보조 표시라 루멘 더미만 비춘다.
+      return [`[data-drop-owner="${owner}"][data-drop-zone="${zone}"]:not(.lumen-strip)`];
     }
     case "hud":
       return [`[data-tutorial="${focus.hud}"]`];
