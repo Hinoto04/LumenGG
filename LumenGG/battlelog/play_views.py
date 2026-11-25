@@ -123,6 +123,7 @@ def play_tutorials(req):
             'title': title.get(language) or title.get('ko') or lesson['id'],
             'summary': summary.get(language) or summary.get('ko') or '',
             'steps': len(lesson.get('steps') or []),
+            'level': lesson.get('level') or 'basic',
             'available': available,
         })
     return JsonResponse({'tutorials': rows})

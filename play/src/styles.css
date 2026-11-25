@@ -4305,6 +4305,18 @@ body.play-lobby-page #root.play-embedded {
   border-color: rgba(224, 180, 91, 0.55);
 }
 
+.tutorial-level {
+  display: grid;
+  gap: 0.45em;
+}
+
+.tutorial-level-title {
+  margin: 0;
+  font-size: 0.78em;
+  font-weight: 800;
+  color: var(--muted);
+}
+
 /* 로비: 대전 설정 열 + 튜토리얼 옆 열. 좁은 화면은 한 줄로 쌓여 튜토리얼이 아래에 온다. */
 .lobby-layout,
 .lobby-main {

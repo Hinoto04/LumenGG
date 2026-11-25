@@ -163,6 +163,8 @@ def build_tutorial_state(lesson, setup, release):
         players['p2']['hp'] = min(p2_hp, players['p2']['initial_hp'] or p2_hp)
     for side, hp in (lesson.get('hp') or {}).items():
         players[side]['hp'] = min(int(hp), players[side]['initial_hp'] or int(hp))
+    for side, fp in (lesson.get('fp') or {}).items():
+        players[side]['fp'] = int(fp)
     priority = _priority(lesson)
     return {
         'turn': 1,
@@ -510,6 +512,54 @@ def fail_session(session, reason):
 # 점검 (check_tutorials)
 
 
+# 'unbeatable' 단계에서 p1이 "막히지 않았다"고 볼 판정.
+SAFE_RESULTS = frozenset({'hit', 'counter', 'guard', 'dodge'})
+
+
+def _unbeatable_failures(document, engine, ruleset, seed):
+    """상대가 손패의 어떤 카드를 레디해도 p1의 각본 카드가 지지 않는지 하나씩 돌려 본다.
+
+    카드 카운팅 단원처럼 "상대는 이 기술을 막을 방법이 없다"고 가르치는 단계를 릴리스마다 지킨다.
+    """
+    from ..game.engine import AutomaticGameEngine
+
+    failures = []
+    for alternative in engine.legal_actions('p2'):
+        if alternative.get('type') != 'ready_card':
+            continue
+        trial = AutomaticGameEngine(
+            copy.deepcopy(engine.state), ruleset, events=copy.deepcopy(engine.events), seed=seed,
+        )
+        trial.submit_action('p2', alternative['action_id'], {}, command_id='tutorial-check-alt-p2')
+        scripted = next((
+            action for action in filter_actions(document, 'p1', trial.legal_actions('p1'))
+            if action.get('type') == 'ready_card'
+        ), None)
+        name = (alternative.get('card') or {}).get('name') or alternative.get('label') or '?'
+        if scripted is None:
+            failures.append(f'{name}: 각본 카드를 낼 수 없음')
+            continue
+        before = len(trial.events)
+        trial.submit_action('p1', scripted['action_id'], {}, command_id='tutorial-check-alt-p1')
+        # 판정 전에 선택 창(예: 그랩 무효)이 열리면 고르지 않거나(선택 사항) 기본값으로 넘긴다.
+        for attempt in range(6):
+            if _judged(trial.events[before:]):
+                break
+            decision = next((
+                (side, action) for side in SIDES for action in trial.legal_actions(side)
+                if action.get('type') == 'submit_decision'
+            ), None)
+            if decision is None:
+                break
+            side, action = decision
+            selections = {'selected': []} if not int(action.get('minimum') or 0) else default_selections(action)
+            trial.submit_action(side, action['action_id'], selections, command_id=f'tutorial-check-alt-d{attempt}')
+        results = [result.get('p1') for result in _judged(trial.events[before:])]
+        if not results or results[0] not in SAFE_RESULTS:
+            failures.append(f'{name}: {results[0] if results else "판정 없음"}')
+    return failures
+
+
 def simulate_lesson(lesson_id, release, *, max_commands=60):
     """각본대로 끝까지 진행해 본 결과. 메모리에서만 돌고 아무것도 저장하지 않는다.
 
@@ -524,6 +574,7 @@ def simulate_lesson(lesson_id, release, *, max_commands=60):
     ruleset = copy.deepcopy(release.snapshot or {})
     ruleset['version'] = release.version
     finished_steps = []
+    checked = set()
     for index in range(max_commands):
         if tutorial['status'] != 'running':
             break
@@ -533,6 +584,14 @@ def simulate_lesson(lesson_id, release, *, max_commands=60):
         if engine.engine_state.get('status') != 'running':
             _fail(tutorial, '각본이 끝나기 전에 게임이 끝났습니다.')
             break
+        step_index = int(tutorial['step'])
+        step = tutorial['steps'][step_index]
+        if step.get('unbeatable') and step_index not in checked and not (tutorial.get('done') or {}).get('p2'):
+            checked.add(step_index)
+            failures = _unbeatable_failures(document, engine, ruleset, seed)
+            if failures:
+                _fail(tutorial, f'{step["id"]}: 상대가 막을 수 있는 카드가 있습니다 — {", ".join(failures)}')
+                break
         chosen = None
         for role in ('p2', 'p1'):
             actions = [
@@ -646,9 +705,21 @@ def _card_values(tutorial, language, state=None):
             return None if limit is None else str(limit)
         if field in ('hp', 'fp'):
             return str(int(player.get(field) or 0))
+        if field == 'fp_lost':
+            return str(max(0, -int(player.get('fp') or 0)))
+        if field in ('hand_cards', 'list_cards'):
+            # 실전에서는 시작 패 확인·공개 겟·배틀로 상대 손패를 안다. 튜토리얼은 글로 짚어 준다.
+            zones = player.get('zones') or {}
+            cards = list(zones.get(field.split('_')[0]) or [])
+            if field == 'hand_cards':
+                # 각본 상대는 먼저 레디하므로, 뒷면으로 레디한 카드도 "레디 전 손패"로 함께 센다.
+                cards += [card for card in zones.get('battle') or [] if not card.get('face_up')]
+            names = [lookup(roles.get(card.get('instance_id')), 'name') or card.get('name') or '?' for card in cards]
+            return ' · '.join(names) if names else '-'
         return None
 
     cache = {}
+    roles = {instance: role for role, instance in (tutorial.get('instances') or {}).items()}
 
     def lookup(role, field):
         if role in SIDES:

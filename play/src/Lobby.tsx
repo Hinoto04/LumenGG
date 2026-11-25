@@ -241,7 +241,14 @@ interface TutorialRow {
   summary?: string;
   steps: number;
   available: boolean;
+  /** basic(기초) | intermediate(중급). 예전 서버는 보내지 않는다. */
+  level?: string;
 }
+
+const TUTORIAL_LEVELS: [string, string][] = [
+  ["basic", "기초"],
+  ["intermediate", "중급"],
+];
 
 /**
  * 튜토리얼 과정 카드(docs/TUTORIAL.md). 준비된 단원 목록을 차례로 보여 주고, 마치지 않은 첫 단원을
@@ -279,25 +286,34 @@ function TutorialPanel() {
             ? t("모든 단원을 마쳤습니다. 언제든 다시 해 볼 수 있어요.")
             : t("처음이신가요? 단원마다 몇 분씩 직접 해 보며 기본 규칙을 배워 보세요.")}
         </p>
-        <ol className="tutorial-lessons">
-          {lessons.map((row, index) => (
-            <li key={row.id}>
-              <button
-                type="button"
-                className={`${completed[row.id] ? "is-done" : ""} ${next?.id === row.id ? "is-next" : ""}`}
-                disabled={!!starting}
-                onClick={() => start(row.id)}
-              >
-                <span className="tutorial-lesson-no">{completed[row.id] ? "✓" : index + 1}</span>
-                <span className="tutorial-lesson-text">
-                  <b>{row.title}</b>
-                  {row.summary && <small>{row.summary}</small>}
-                </span>
-                {starting === row.id && <span className="muted">{t("만드는 중…")}</span>}
-              </button>
-            </li>
-          ))}
-        </ol>
+        {TUTORIAL_LEVELS.map(([level, label]) => {
+          const rows = lessons.filter((row) => (row.level ?? "basic") === level);
+          if (!rows.length) return null;
+          return (
+            <div key={level} className="tutorial-level">
+              <h3 className="tutorial-level-title">{t(label)}</h3>
+              <ol className="tutorial-lessons">
+                {rows.map((row, index) => (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      className={`${completed[row.id] ? "is-done" : ""} ${next?.id === row.id ? "is-next" : ""}`}
+                      disabled={!!starting}
+                      onClick={() => start(row.id)}
+                    >
+                      <span className="tutorial-lesson-no">{completed[row.id] ? "✓" : index + 1}</span>
+                      <span className="tutorial-lesson-text">
+                        <b>{row.title}</b>
+                        {row.summary && <small>{row.summary}</small>}
+                      </span>
+                      {starting === row.id && <span className="muted">{t("만드는 중…")}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          );
+        })}
         {next && (
           <button type="button" className="btn-primary" disabled={!!starting} onClick={() => start(next.id)}>
             {next.id === lessons[0].id ? t("튜토리얼 시작") : t("이어서: {title}", { title: next.title })}

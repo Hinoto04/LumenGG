@@ -976,7 +976,597 @@ BASIC_6 = {
 }
 
 
-LESSONS = {lesson['id']: lesson for lesson in (BASIC_1, BASIC_2, BASIC_3, BASIC_4, BASIC_5, BASIC_6)}
+# ---------------------------------------------------------------------------
+# 중급: 어느 덱에서나 쓰는 생각법(카드 카운팅, 고프레임 캐치, 심리전, 콤보 대미지)
+
+MID_COUNTING = {
+    'id': 'mid-counting',
+    'version': 1,
+    'level': 'intermediate',
+    'title': _text('카드 카운팅', 'Card counting', 'カードカウンティング'),
+    'summary': _text(
+        '상대 손패를 기억하고 분석해, 상대가 막을 방법이 없는 기술을 찾아 씁니다.',
+        "Remember and analyse your opponent's hand to find the technique they have no answer to.",
+        '相手の手札を覚えて分析し、相手が防ぐ手段のない技を見つけて使います。',
+    ),
+    # 검증한 배정(2026.11.16-CB04). 각 레디 단계는 check_tutorials가 상대 손패 전부와 붙여 본다(unbeatable).
+    'setup': {
+        'characters': {'p1': 1, 'p2': 2},
+        'cards': {
+            'CS': 'CRS-AT-051', 'DG': 'UNC-AT-046', 'SL': 'UNC-AT-051', 'L1': 'LMI-AT-052', 'L2': 'AWL-AT-048',
+            'Z1': 'ST1-010', 'Z2': 'UNC-AT-013', 'Y1': 'ST1-007', 'Y2': 'ST1-008',
+            'P2_EXTRA_1': 'ST1-006', 'P2_EXTRA_2': 'ST1-002',
+        },
+    },
+    'roles': ('CS', 'DG', 'SL', 'L1', 'L2', 'Z1', 'Z2', 'Y1', 'Y2', 'P2_EXTRA_1', 'P2_EXTRA_2'),
+    'board': {
+        'p1': {'hand': ['CS', 'DG', 'SL'], 'list': ['L1', 'L2']},
+        'p2': {'hand': ['Z1', 'Z2', 'Y1', 'Y2'], 'list': ['P2_EXTRA_1', 'P2_EXTRA_2']},
+    },
+    'finish': 'concede',
+    'steps': [
+        {
+            'id': 't1-ready',
+            'allow': [('ready_card', 'CS')],
+            'opponent': [('ready_card', 'Z2')],
+            'expect': {'battle': 'hit'},
+            'unbeatable': True,
+            'messages': [
+                _message(
+                    '중급에서는 어느 덱에서나 쓰는 생각법을 배웁니다. 첫째는 카드 카운팅, 곧 상대 손패 분석입니다.',
+                    'The intermediate lessons teach ways of thinking that work with any deck. First up: card counting — analysing your opponent\'s hand.',
+                    '中級ではどのデッキでも使える考え方を学びます。最初はカードカウンティング、つまり相手の手札の分析です。',
+                ),
+                _message(
+                    '실전에서는 게임 시작 때 서로의 시작 패를 확인하고, 겟은 공개된 리스트에서 가져오며, 배틀에 낸 카드는 손패로 돌아옵니다. 기억해 두면 상대 손패를 거의 다 알 수 있어요.',
+                    'In a real game both players see each other\'s opening hand, Gets come from the public list, and cards played in battle return to hand. If you keep track, you know almost all of your opponent\'s hand.',
+                    '実戦ではゲーム開始時に互いの初期手札を確認し、ゲットは公開されたリストから加え、バトルに出したカードは手札に戻ります。覚えておけば相手の手札はほぼすべて分かります。',
+                    {'kind': 'zone', 'zone': 'p2.hand'},
+                ),
+                _message(
+                    '지금 상대 손패: {p2.hand_cards}.',
+                    "Your opponent's hand right now: {p2.hand_cards}.",
+                    '今の相手の手札：{p2.hand_cards}。',
+                    {'kind': 'zone', 'zone': 'p2.hand'},
+                ),
+                _message(
+                    '수비부터 정리합니다. {Z1}({Z1.defense}), {Z2}({Z2.defense}). 하단을 막는 카드가 하나도 없습니다.',
+                    'Start with their defenses: {Z1} ({Z1.defense}) and {Z2} ({Z2.defense}). Nothing covers the low position.',
+                    'まず守備を整理します。{Z1}（{Z1.defense}）、{Z2}（{Z2.defense}）。下段を防ぐカードが1枚もありません。',
+                ),
+                _message(
+                    '다음은 공격입니다. 상대 공격은 속도 {Y1.frame}, {Y2.frame}으로 모두 속도 {CS.frame}인 {CS}보다 느립니다.',
+                    'Now their attacks: speeds {Y1.frame} and {Y2.frame}, both slower than your {CS} at speed {CS.frame}.',
+                    '次は攻撃です。相手の攻撃は速度{Y1.frame}と{Y2.frame}で、どちらも速度{CS.frame}の{CS}より遅いです。',
+                ),
+                _message(
+                    '하단 공격 {CS}는 상대가 무엇을 내도 막히지 않습니다. 이런 카드를 찾는 것이 카드 카운팅의 목표예요. {CS}를 레디하세요.',
+                    'Whatever your opponent plays, the low attack {CS} cannot be stopped. Finding a card like this is the point of card counting. Ready {CS}.',
+                    '下段攻撃の{CS}は、相手が何を出しても止められません。こういうカードを見つけるのがカードカウンティングの目的です。{CS}をレディしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-get',
+            'allow': [('select_get_card', 'L1')],
+            'opponent': [('select_get_card', 'P2_EXTRA_1')],
+            'messages': [
+                _message(
+                    '히트! {CS}의 효과로 상대가 낸 수비 카드({Z2})는 손패로 돌아오지 못했습니다. 상대 손패에서 지워 두세요.',
+                    'Hit! Thanks to the effect of {CS}, the defense {Z2} did not return to their hand. Cross it off your list.',
+                    'ヒット！{CS}の効果で、相手が出した守備{Z2}は手札に戻れませんでした。相手の手札から消しておきましょう。',
+                    {'kind': 'zone', 'zone': 'p2.hand'},
+                ),
+                _message(
+                    '{L1}를 가져오세요. 상대가 겟으로 무엇을 가져가는지도 꼭 보세요. 리스트에서 가져가는 카드는 공개됩니다.',
+                    'Take {L1}. Also watch what your opponent takes in the Get — cards taken from the list are public.',
+                    '{L1}を加えましょう。相手がゲットで何を加えるかも必ず見てください。リストから加えるカードは公開されます。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-ready',
+            'allow': [('ready_card', 'DG')],
+            'opponent': [('ready_card', 'Y1')],
+            'expect': {'battle': 'counter'},
+            'unbeatable': True,
+            'messages': [
+                _message(
+                    '두 번째 상황. 상대는 겟으로 {P2_EXTRA_1}를 가져갔습니다. 지금 상대 손패: {p2.hand_cards}.',
+                    'Second situation. Your opponent took {P2_EXTRA_1}. Their hand now: {p2.hand_cards}.',
+                    '2つ目の状況。相手はゲットで{P2_EXTRA_1}を加えました。今の相手の手札：{p2.hand_cards}。',
+                    {'kind': 'zone', 'zone': 'p2.hand'},
+                ),
+                _message(
+                    '남은 수비는 {Z1}({Z1.defense})뿐이라 상단은 막을 수 없습니다. 상대 공격 중 가장 빠른 것은 속도 {P2_EXTRA_1.frame}.',
+                    'Their only defense left is {Z1} ({Z1.defense}), so the high position is open. Their fastest attack is speed {P2_EXTRA_1.frame}.',
+                    '残る守備は{Z1}（{Z1.defense}）だけなので上段は防げません。相手の攻撃で一番速いのは速度{P2_EXTRA_1.frame}です。',
+                ),
+                _message(
+                    '내 FP는 {p1.fp}이니 상단 공격 {DG}는 속도 {DG.frame} − {p1.fp} = {DG.frame-p1.fp}. 상대가 무엇을 내도 지지 않습니다. {DG}를 레디하세요.',
+                    'Your FP is {p1.fp}, so the high attack {DG} runs at speed {DG.frame} − {p1.fp} = {DG.frame-p1.fp}. Nothing your opponent has can beat it. Ready {DG}.',
+                    '自分のFPは{p1.fp}なので、上段攻撃の{DG}は速度{DG.frame} − {p1.fp} = {DG.frame-p1.fp}。相手が何を出しても負けません。{DG}をレディしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-get',
+            'allow': [('select_get_card', 'L2')],
+            'opponent': [('select_get_card', 'P2_EXTRA_2')],
+            'messages': [
+                _message(
+                    '카운터! 상대가 낸 공격 카드는 손패로 돌아갔습니다. 낸 카드가 돌아오는 것도 기억해야 할 정보예요.',
+                    'Counter! The attack your opponent played went back to their hand. Cards returning to hand are part of what you track.',
+                    'カウンター！相手が出した攻撃カードは手札に戻りました。出したカードが戻ることも覚えておく情報です。',
+                    {'kind': 'zone', 'zone': 'p2.hand'},
+                ),
+                _message(
+                    '이번에도 상대의 겟을 지켜보세요. {L2}를 가져오세요.',
+                    "Watch your opponent's Get again. Take {L2}.",
+                    '今回も相手のゲットを見てください。{L2}を加えましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't3-ready',
+            'allow': [('ready_card', 'DG')],
+            'opponent': [('ready_card', 'P2_EXTRA_2')],
+            'expect': {'battle': 'counter'},
+            'unbeatable': True,
+            'messages': [
+                _message(
+                    '세 번째 상황. 상대가 속도 {P2_EXTRA_2.frame}인 빠른 공격 {P2_EXTRA_2}를 가져갔습니다! 지금 상대 손패: {p2.hand_cards}.',
+                    'Third situation. Your opponent took {P2_EXTRA_2}, a fast attack at speed {P2_EXTRA_2.frame}! Their hand now: {p2.hand_cards}.',
+                    '3つ目の状況。相手が速度{P2_EXTRA_2.frame}の速い攻撃{P2_EXTRA_2}を加えました！今の相手の手札：{p2.hand_cards}。',
+                    {'kind': 'zone', 'zone': 'p2.hand'},
+                ),
+                _message(
+                    '새 카드까지 넣어 다시 계산합니다. 내 FP는 {p1.fp}이라 {DG}는 속도 {DG.frame-p1.fp}. 여전히 상대 누구보다 빠르고, 상단을 막는 수비도 없습니다.',
+                    'Recalculate with the new card included. Your FP is {p1.fp}, so {DG} runs at speed {DG.frame-p1.fp}: still faster than anything they have, and nothing guards high.',
+                    '新しいカードも入れて計算し直します。自分のFPは{p1.fp}なので{DG}は速度{DG.frame-p1.fp}。相変わらず相手のどのカードより速く、上段を防ぐ守備もありません。',
+                    {'kind': 'hud', 'hud': 'p1.fp'},
+                ),
+                _message(
+                    '상대 손패가 바뀔 때마다 이렇게 다시 따져 봅니다. {DG}를 레디하세요.',
+                    'Re-check like this every time their hand changes. Ready {DG}.',
+                    '相手の手札が変わるたびに、こうして考え直します。{DG}をレディしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+    ],
+    'completed': [
+        _message(
+            '배운 것: ① 상대 손패는 시작 패 확인·공개 겟·배틀에서 돌아온 카드로 알 수 있다 ② 수비가 막는 위치와 공격 속도(FP 포함)를 정리해 "어떤 카드로도 막을 수 없는" 내 기술을 찾는다 ③ 겟·브레이크·FP로 상황이 바뀔 때마다 다시 계산한다.',
+            "You learned: ① you can know your opponent's hand from the opening reveal, public Gets and cards returning from battle ② list which positions their defenses cover and how fast their attacks are (FP included) to find a technique nothing can stop ③ recalculate whenever Gets, breaks or FP change the picture.",
+            '学んだこと：① 相手の手札は初期手札の確認・公開ゲット・バトルから戻ったカードで分かる ② 守備が防ぐ位置と攻撃の速度（FP込み）を整理し、「どのカードでも止められない」自分の技を見つける ③ ゲット・ブレイク・FPで状況が変わるたびに計算し直す。',
+        ),
+    ],
+}
+
+MID_CATCH = {
+    'id': 'mid-catch',
+    'version': 1,
+    'level': 'intermediate',
+    'title': _text('고프레임 캐치', 'High-frame catches', '高フレームキャッチ'),
+    'summary': _text(
+        '불리할 때 수비로 막고, 미리 가져온 느리지만 강한 기술로 캐치해 큰 데미지를 넣습니다.',
+        'When behind, guard and then Catch with a slow but powerful technique you took in advance.',
+        '不利なときは守備で防ぎ、先に加えておいた遅いが強い技でキャッチして大ダメージを与えます。',
+    ),
+    'setup': {
+        'characters': {'p1': 1, 'p2': 3},
+        'cards': {
+            'LK': 'AWL-AT-048', 'DG': 'UNC-AT-046', 'D': 'ST1-011', 'SK': 'ST1-018', 'L2': 'LMI-AT-052',
+            'EV': 'ST2-003', 'ST': 'ST2-005', 'P2H': 'ST2-006', 'P2_EXTRA_1': 'ST2-008',
+        },
+    },
+    'roles': ('LK', 'DG', 'D', 'SK', 'L2', 'EV', 'ST', 'P2H', 'P2_EXTRA_1'),
+    'board': {
+        'p1': {'hand': ['LK', 'DG', 'D'], 'list': ['SK', 'L2']},
+        'p2': {'hand': ['EV', 'ST', 'P2H'], 'list': ['P2_EXTRA_1']},
+    },
+    'finish': 'concede',
+    'steps': [
+        {
+            'id': 't1-ready',
+            'allow': [('ready_card', 'LK')],
+            'opponent': [('ready_card', 'EV')],
+            'expect': {'battle': 'countered'},
+            'messages': [
+                _message(
+                    '고프레임 캐치를 배웁니다. 속도 숫자가 큰, 느리지만 강한 기술로 캐치하는 방법이에요.',
+                    'This lesson is about high-frame catches: catching with a technique whose speed number is large — slow, but strong.',
+                    '高フレームキャッチを学びます。速度の数字が大きい、遅いが強い技でキャッチする方法です。',
+                ),
+                _message(
+                    '먼저 상대가 유리한 상황을 만들어 봅시다. {LK}를 레디하세요.',
+                    'First, let your opponent get ahead. Ready {LK}.',
+                    'まずは相手が有利な状況を作ってみましょう。{LK}をレディしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-get',
+            'allow': [('select_get_card', 'SK')],
+            'opponent': [('select_get_card', 'P2_EXTRA_1')],
+            'messages': [
+                _message(
+                    '회피당하며 카운터! 상대는 FP {p2.fp}를 얻어 다음 배틀에서 훨씬 빠릅니다. 상대가 유리한 상황이에요.',
+                    'Dodged and countered! Your opponent gained {p2.fp} FP and will be much faster next battle. They have the advantage.',
+                    '回避されてカウンター！相手はFP{p2.fp}を得て、次のバトルではずっと速くなります。相手が有利な状況です。',
+                    {'kind': 'hud', 'hud': 'p2.fp'},
+                ),
+                _message(
+                    '이럴 때 공격으로 맞서면 카운터당하기 쉽습니다. 다행히 손에는 수비 {D}({D.defense})가 있어요.',
+                    'Attacking back now would likely get you countered. Luckily you hold the defense {D} ({D.defense}).',
+                    'こういうときに攻撃で応じるとカウンターされやすいです。幸い手札には守備{D}（{D.defense}）があります。',
+                    {'kind': 'card', 'card': 'D'},
+                ),
+                _message(
+                    '막으면 상대는 가드 FP만큼 FP를 잃습니다. 내 FP가 0이고 상대 FP가 음수이면, 상대가 잃은 FP 이하 속도의 기술로 캐치할 수 있어요. 많이 잃게 할수록 느리고 강한 기술을 쓸 수 있습니다.',
+                    'A successful guard makes them lose FP equal to their guard value. With your FP at 0 and theirs negative, you may Catch with a technique whose speed is at most the FP they lost. The more they lose, the slower and stronger the technique you can use.',
+                    '防げば相手はガードFPの分だけFPを失います。自分のFPが0で相手のFPがマイナスなら、相手が失ったFP以下の速度の技でキャッチできます。多く失わせるほど遅くて強い技が使えます。',
+                ),
+                _message(
+                    '그러니 지금은 캐치용 고프레임 기술을 손에 들고 옵니다. 속도 {SK.frame}·데미지 {SK.damage}에 히트 판정이 콤보인 {SK}를 가져오세요.',
+                    'So take a high-frame technique for the Catch now. Take {SK}: speed {SK.frame}, {SK.damage} damage, and a Combo hit result.',
+                    'だから今のうちにキャッチ用の高フレーム技を手札に加えます。速度{SK.frame}・ダメージ{SK.damage}でヒット判定がコンボの{SK}を加えましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-ready',
+            'allow': [('ready_card', 'D')],
+            'opponent': [('ready_card', 'ST')],
+            'expect': {'battle': 'guard'},
+            'messages': [
+                _message(
+                    '상대 손패: {p2.hand_cards}. 공격은 모두 상단·중단이라 {D}로 막을 수 있습니다.',
+                    "Your opponent's hand: {p2.hand_cards}. All their attacks are high or mid, so {D} can guard them.",
+                    '相手の手札：{p2.hand_cards}。攻撃はすべて上段・中段なので{D}で防げます。',
+                    {'kind': 'zone', 'zone': 'p2.hand'},
+                ),
+                _message(
+                    '{D}를 레디하세요. 방어 시 효과로 나도 데미지를 조금 받지만, 그 대가로 큰 캐치를 노립니다.',
+                    'Ready {D}. Its guard effect costs you a little damage, but in return you set up a big Catch.',
+                    '{D}をレディしてください。防御時の効果で自分も少しダメージを受けますが、その代わりに大きなキャッチを狙います。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-catch',
+            'allow': [('play_catch_card', 'SK')],
+            'opponent': [],
+            'messages': [
+                _message(
+                    '방어! 상대 FP는 {p2.fp}. 상대가 잃은 {p2.fp_lost} 이하 속도의 기술로 캐치할 수 있습니다.',
+                    'Guarded! Their FP is {p2.fp}. You can Catch with any technique of speed {p2.fp_lost} or lower.',
+                    '防御！相手のFPは{p2.fp}。相手が失った{p2.fp_lost}以下の速度の技でキャッチできます。',
+                    {'kind': 'hud', 'hud': 'p2.fp'},
+                ),
+                _message(
+                    '{LK}나 {DG}로도 캐치할 수 있지만, 가져온 {SK}는 데미지가 크고 히트 판정이 콤보라 캐치에서 콤보로 이어집니다.',
+                    '{LK} or {DG} could also Catch, but the {SK} you took deals more damage and its Combo hit result turns the Catch into a combo.',
+                    '{LK}や{DG}でもキャッチできますが、加えておいた{SK}はダメージが大きく、ヒット判定がコンボなのでキャッチからコンボにつながります。',
+                    {'kind': 'card', 'card': 'SK'},
+                ),
+                _message(
+                    '{SK}로 캐치하세요. 이 기술은 쓰고 나면 브레이크되지만 그만한 값을 합니다.',
+                    'Catch with {SK}. It breaks after use, but it is worth it.',
+                    '{SK}でキャッチしましょう。この技は使うとブレイクされますが、それだけの価値があります。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-combo',
+            'allow': [('select_combo_first', 'LK'), ('select_combo_followup', 'DG')],
+            'opponent': [],
+            'messages': [
+                _message(
+                    '캐치가 콤보로 이어졌습니다! 속도 {LK.frame}인 {LK} 다음에 속도 {DG.frame}인 {DG}를 이어 마무리하세요.',
+                    'The Catch became a combo! Follow with {LK} (speed {LK.frame}) and then {DG} (speed {DG.frame}).',
+                    'キャッチがコンボにつながりました！速度{LK.frame}の{LK}の次に速度{DG.frame}の{DG}をつないで締めましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+    ],
+    'completed': [
+        _message(
+            '배운 것: ① 상대가 유리할 때는 수비로 버틴다 ② 수비가 손에 있으면 겟에서 캐치용 고프레임 기술을 미리 가져온다 ③ 막으면 상대가 잃은 FP 이하 속도로 캐치 — 많이 잃게 할수록 강한 기술로 ④ 히트 판정이 콤보인 기술로 캐치하면 콤보까지 이어진다.',
+            'You learned: ① when your opponent is ahead, hold on with a defense ② if you hold a defense, take a high-frame Catch technique in the Get ③ after a guard, Catch with speed up to the FP they lost — the more they lose, the stronger your technique ④ catching with a Combo-result technique continues into a combo.',
+            '学んだこと：① 相手が有利なときは守備で耐える ② 守備が手札にあれば、ゲットでキャッチ用の高フレーム技を先に加える ③ 防いだら相手が失ったFP以下の速度でキャッチ — 多く失わせるほど強い技で ④ ヒット判定がコンボの技でキャッチするとコンボまでつながる。',
+        ),
+    ],
+}
+
+MID_MIND = {
+    'id': 'mid-mind',
+    'version': 1,
+    'level': 'intermediate',
+    'title': _text('심리전', 'Mind games', '心理戦'),
+    'summary': _text(
+        '그랩과 대쉬로 수비를 벌해, 불리한 상대도 공격할 수밖에 없게 만듭니다.',
+        'Punish defending with Grabs and Dashes so that even a losing opponent has to attack.',
+        'グラブとダッシュで守備を咎め、不利な相手にも攻撃させるように仕向けます。',
+    ),
+    'setup': {
+        'characters': {'p1': 1, 'p2': 3},
+        'cards': {
+            'GB': 'ST1-019', 'DS': 'ST1-015', 'DG': 'UNC-AT-046', 'LK': 'AWL-AT-048', 'L1': 'LMI-AT-052',
+            'CB': 'ST2-010', 'Y1': 'ST2-007', 'Y2': 'ST2-009', 'GRB': 'CB01-AT-010', 'P2_EXTRA_1': 'ST2-008',
+        },
+    },
+    'roles': ('GB', 'DS', 'DG', 'LK', 'L1', 'CB', 'Y1', 'Y2', 'GRB', 'P2_EXTRA_1'),
+    'board': {
+        'p1': {'hand': ['GB', 'DS', 'DG', 'LK'], 'list': ['L1']},
+        'p2': {'hand': ['CB', 'Y1', 'Y2'], 'list': ['GRB', 'P2_EXTRA_1']},
+    },
+    # 앞선 배틀로 내가 FP를 벌어 둔 상황에서 시작한다.
+    'fp': {'p1': 4},
+    'finish': 'concede',
+    'steps': [
+        {
+            'id': 't1-ready',
+            'allow': [('ready_card', 'GB')],
+            'opponent': [('ready_card', 'CB')],
+            'expect': {'battle': 'hit'},
+            'messages': [
+                _message(
+                    '심리전입니다. 내 FP는 {p1.fp}, 상대는 {p2.fp}. 내가 유리하니 상대는 공격하면 카운터당할까 봐 수비를 고르기 쉽습니다.',
+                    'Mind games. Your FP is {p1.fp}, theirs {p2.fp}. You are ahead, so your opponent, afraid of being countered, is likely to defend.',
+                    '心理戦です。自分のFPは{p1.fp}、相手は{p2.fp}。こちらが有利なので、相手はカウンターを恐れて守備を選びがちです。',
+                    {'kind': 'hud', 'hud': 'p1.fp'},
+                ),
+                _message(
+                    '상대 손패: {p2.hand_cards}. 수비 {CB}는 {CB.defense}로 상·중·하단을 모두 막습니다. 중단·하단을 섞어서는 뚫을 수 없어요.',
+                    "Your opponent's hand: {p2.hand_cards}. The defense {CB} covers every position ({CB.defense}). Mixing mid and low will not get through.",
+                    '相手の手札：{p2.hand_cards}。守備の{CB}は{CB.defense}で上・中・下段をすべて防ぎます。中段・下段を混ぜても崩せません。',
+                    {'kind': 'zone', 'zone': 'p2.hand'},
+                ),
+                _message(
+                    '{GB}의 특수 판정은 {GB.special}. 효과 글대로 상대는 이 기술을 방어도 상쇄도 할 수 없습니다. 수비만 하는 상대를 잡는 기술이에요.',
+                    'The special judgment of {GB} is {GB.special}. As its text says, it cannot be guarded or clashed: it punishes an opponent who only defends.',
+                    '{GB}の特殊判定は{GB.special}。効果文の通り、相手はこの技を防御も相殺もできません。守ってばかりの相手を捕まえる技です。',
+                    _anatomy('GB', 'special'),
+                ),
+                _message(
+                    '상대 손패에 그랩이 없으니 그랩 무효도 당하지 않습니다. {GB}를 레디하세요.',
+                    'Your opponent holds no Grab, so they cannot negate yours. Ready {GB}.',
+                    '相手の手札にグラブがないので、グラブ無効もされません。{GB}をレディしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-catch',
+            'allow': [('play_catch_card', 'LK')],
+            'opponent': [],
+            'messages': [
+                _message(
+                    '그랩 히트! 내 FP {p1.fp}, 상대 FP {p2.fp}이니 캐치까지 넣읍시다. {LK}로 캐치하세요.',
+                    'The Grab hits! Your FP is {p1.fp} and theirs {p2.fp}, so add a Catch. Catch with {LK}.',
+                    'グラブがヒット！自分のFP{p1.fp}、相手のFP{p2.fp}なのでキャッチも入れましょう。{LK}でキャッチしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-get',
+            'allow': [('select_get_card', 'L1')],
+            'opponent': [('select_get_card', 'GRB')],
+            'messages': [
+                _message(
+                    '{L1}를 가져오세요. 상대가 무엇을 가져가는지도 지켜보세요.',
+                    'Take {L1}, and watch what your opponent takes.',
+                    '{L1}を加えましょう。相手が何を加えるかも見ておいてください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-ready',
+            'allow': [('ready_card', 'DS')],
+            'opponent': [('ready_card', 'CB')],
+            'expect': {'battle': 'none'},
+            'messages': [
+                _message(
+                    '상대가 그랩 기술 {GRB}를 가져갔습니다. 이제 내가 그랩을 쓰면 상대는 손패의 그랩을 브레이크해 무효로 할 수 있어요.',
+                    'Your opponent took the Grab {GRB}. If you Grab now, they can break it from their hand to negate yours.',
+                    '相手がグラブ技{GRB}を加えました。今グラブを使うと、相手は手札のグラブをブレイクして無効にできます。',
+                    {'kind': 'zone', 'zone': 'p2.hand'},
+                ),
+                _message(
+                    '그래도 상대는 공격하기 무섭습니다. 다시 {CB}로 수비할 가능성이 커요. 이번엔 {DS}를 씁니다.',
+                    'Still, attacking is scary for them, so they will probably defend with {CB} again. This time use {DS}.',
+                    'それでも相手は攻撃するのが怖いので、また{CB}で守る可能性が高いです。今回は{DS}を使います。',
+                ),
+                _message(
+                    '{DS}는 수비 기술입니다. 판정 후 데미지를 받지 않았다면 FP 6을 얻고, 서로의 배틀 존 카드를 리스트로 보낸 뒤 레디를 다시 합니다.',
+                    '{DS} is a defense. If you took no damage after judgment, you gain 6 FP, both battle-zone cards go to the lists, and the Ready phase starts again.',
+                    '{DS}は守備技です。判定後にダメージを受けていなければFP6を得て、互いのバトルゾーンのカードをリストに送り、レディをやり直します。',
+                    _anatomy('DS', 'text'),
+                ),
+                _message(
+                    '상대가 수비하면 대쉬로 FP를 공짜로 벌고 그 수비 카드까지 손패에서 치웁니다. {DS}를 레디하세요.',
+                    'If they defend, the Dash earns free FP and clears that defense out of their hand. Ready {DS}.',
+                    '相手が守れば、ダッシュでFPをただで稼ぎ、その守備カードも手札から消せます。{DS}をレディしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-reready',
+            'allow': [('ready_card', 'DG')],
+            'opponent': [('ready_card', 'Y1')],
+            'expect': {'battle': 'counter'},
+            'unbeatable': True,
+            'messages': [
+                _message(
+                    'FP {p1.fp}! 상대의 {CB}는 리스트로 갔습니다. 상대 손패: {p2.hand_cards}.',
+                    'FP {p1.fp}! Their {CB} went to the list. Their hand: {p2.hand_cards}.',
+                    'FP{p1.fp}！相手の{CB}はリストへ行きました。相手の手札：{p2.hand_cards}。',
+                    {'kind': 'zone', 'zone': 'p2.hand'},
+                ),
+                _message(
+                    '상대 입장에서 보면, 수비하면 그랩이나 대쉬에 당하고 이제 수비 카드도 없습니다. 불리해도 공격할 수밖에 없어요. 이렇게 상대가 공격하도록 몰아가는 것이 심리전입니다.',
+                    'From their side: defending loses to Grabs and Dashes, and they have no defense left anyway. Even at a disadvantage they must attack. Pushing them into attacking is the mind game.',
+                    '相手から見ると、守ればグラブやダッシュにやられ、もう守備カードもありません。不利でも攻撃するしかありません。こうして相手に攻撃させるのが心理戦です。',
+                ),
+                _message(
+                    '상대 공격은 모두 느립니다. FP {p1.fp}로 속도 {DG.frame-p1.fp}가 되는 {DG}를 레디해 받아치세요.',
+                    'All their attacks are slow. Ready {DG}, which runs at speed {DG.frame-p1.fp} with your {p1.fp} FP, and hit back.',
+                    '相手の攻撃はどれも遅いです。FP{p1.fp}で速度{DG.frame-p1.fp}になる{DG}をレディして迎え撃ちましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+    ],
+    'completed': [
+        _message(
+            '배운 것: ① 유리한 쪽이 공격하면 상대는 수비로 버티려 한다 ② 위치를 섞어도 뚫리지 않는 수비는 그랩(방어·상쇄 불가)과 대쉬(데미지가 없으면 FP 6)로 벌한다 ③ 수비가 통하지 않으면 상대는 불리해도 공격해 오고, 그때 빠른 공격으로 받아친다 ④ 상대 손패에 그랩이 있으면 내 그랩은 무효당할 수 있으니 카드 카운팅과 함께 쓴다.',
+            'You learned: ① when you are ahead, your opponent tries to hold on by defending ② defenses that mixing positions cannot beat are punished by Grabs (cannot be guarded or clashed) and Dashes (6 FP if you take no damage) ③ once defending stops working, they must attack even when behind — meet it with a fast attack ④ a Grab in their hand can negate yours, so combine this with card counting.',
+            '学んだこと：① 有利な側が攻めると、相手は守備で耐えようとする ② 位置を混ぜても崩せない守備は、グラブ（防御・相殺不可）とダッシュ（ダメージがなければFP6）で咎める ③ 守備が通じなければ相手は不利でも攻めてくるので、速い攻撃で迎え撃つ ④ 相手の手札にグラブがあると自分のグラブは無効にされうるので、カードカウンティングと合わせて使う。',
+        ),
+    ],
+}
+
+MID_COMBO = {
+    'id': 'mid-combo',
+    'version': 1,
+    'level': 'intermediate',
+    'title': _text('콤보 대미지 늘리기', 'Maximising combo damage', 'コンボダメージを伸ばす'),
+    'summary': _text(
+        '상대 체력이 적을 때, 어떤 기술을 가져와야 콤보 한 번으로 마무리할 수 있는지 계산합니다.',
+        'When your opponent is low, work out which card to take so a single combo finishes them.',
+        '相手の体力が少ないとき、どの技を加えれば1回のコンボで仕留められるかを計算します。',
+    ),
+    'setup': {
+        'characters': {'p1': 3, 'p2': 2},
+        'cards': {
+            'A': 'ST2-004', 'C1': 'ST2-001', 'C2': 'ST2-002', 'D': 'AWL-AT-023',
+            'T': 'ST2-009', 'NP': 'ST2-003', 'FAR': 'ST2-007',
+            'Z': 'ST1-010', 'W': 'ST1-008', 'P2_EXTRA_1': 'ST1-002',
+        },
+    },
+    'roles': ('A', 'C1', 'C2', 'D', 'T', 'NP', 'FAR', 'Z', 'W', 'P2_EXTRA_1'),
+    'board': {
+        'p1': {'hand': ['A', 'C1', 'C2', 'D'], 'list': ['T', 'NP', 'FAR']},
+        'p2': {'hand': ['Z', 'W'], 'list': ['P2_EXTRA_1']},
+    },
+    # 콤보 1번으로 딱 끝나는 체력. T를 가져오면 1400, NP를 가져오면 1300이 들어간다.
+    'hp': {'p2': 1400},
+    'steps': [
+        {
+            'id': 't1-ready',
+            'allow': [('ready_card', 'D')],
+            'opponent': [('ready_card', 'Z')],
+            'expect': {'battle': 'none'},
+            'messages': [
+                _message(
+                    '마지막은 콤보 대미지 늘리기입니다. 상대 체력은 {p2.hp}. 콤보 한 번으로 끝낼 수 있을까요?',
+                    'Last up: maximising combo damage. Your opponent has {p2.hp} HP. Can one combo finish them?',
+                    '最後はコンボダメージを伸ばす方法です。相手の体力は{p2.hp}。1回のコンボで仕留められるでしょうか？',
+                    {'kind': 'hud', 'hud': 'p2.hp'},
+                ),
+                _message(
+                    '이번 턴은 {D}로 상대를 살피고, 겟 페이즈에서 콤보를 준비합시다. {D}를 레디하세요.',
+                    'This turn, play it safe with {D} and prepare the combo in the Get phase. Ready {D}.',
+                    'このターンは{D}で様子を見て、ゲットフェイズでコンボの準備をしましょう。{D}をレディしてください。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't1-get',
+            'allow': [('select_get_card', 'T')],
+            'opponent': [('select_get_card', 'P2_EXTRA_1')],
+            'messages': [
+                _message(
+                    '지금 손패의 콤보: 시동 {A}(데미지 {A.damage}), 이어서 {C1}(속도 {C1.frame}, 데미지 {C1.damage})과 {C2}(속도 {C2.frame}, 데미지 {C2.damage}).',
+                    'Your combo in hand: the starter {A} ({A.damage} damage), then {C1} (speed {C1.frame}, {C1.damage}) and {C2} (speed {C2.frame}, {C2.damage}).',
+                    '今の手札のコンボ：始動の{A}（ダメージ{A.damage}）、続けて{C1}（速度{C1.frame}、ダメージ{C1.damage}）と{C2}（速度{C2.frame}、ダメージ{C2.damage}）。',
+                    {'kind': 'zone', 'zone': 'p1.hand'},
+                ),
+                _message(
+                    '보정을 넣어 계산하면 {A.damage} + ({C1.damage} − 100) + ({C2.damage} − 200). 상대 체력 {p2.hp}에는 모자랍니다. 4콤보째 카드가 필요해요.',
+                    'With the penalties that is {A.damage} + ({C1.damage} − 100) + ({C2.damage} − 200) — not enough for {p2.hp} HP. You need a fourth card.',
+                    '補正込みで計算すると{A.damage} + ({C1.damage} − 100) + ({C2.damage} − 200)。相手の体力{p2.hp}には足りません。4コンボ目のカードが必要です。',
+                ),
+                _message(
+                    '리스트 후보: {NP}(속도 {NP.frame}, 데미지 {NP.damage}, 콤보 시 보정 없음), {T}(데미지 {T.damage}, 3콤보 뒤 7~10속도로 이을 수 있음), {FAR}(속도 {FAR.frame}).',
+                    'Candidates in your list: {NP} (speed {NP.frame}, {NP.damage} damage, no combo penalty), {T} ({T.damage} damage, can follow Combo 3 at speed 7–10), {FAR} (speed {FAR.frame}).',
+                    'リストの候補：{NP}（速度{NP.frame}、ダメージ{NP.damage}、コンボ時補正なし）、{T}（ダメージ{T.damage}、3コンボ後に7〜10速度でつなげる）、{FAR}（速度{FAR.frame}）。',
+                    {'kind': 'zone', 'zone': 'p1.list'},
+                ),
+                _message(
+                    '4콤보 보정은 −300입니다. {NP}는 보정이 없어 {NP.damage}, {T}는 {T.damage} − 300. {FAR}는 속도 {C2.frame} 다음에 이을 수 없어요. 보정이 커도 데미지가 큰 기술이 더 많이 남습니다.',
+                    'Combo 4 takes −300. {NP} ignores it for {NP.damage}; {T} deals {T.damage} − 300. {FAR} cannot follow speed {C2.frame}. A big-damage technique keeps more even after a large penalty.',
+                    '4コンボの補正は−300です。{NP}は補正なしで{NP.damage}、{T}は{T.damage} − 300。{FAR}は速度{C2.frame}の次につなげません。補正が大きくても、ダメージの大きい技のほうが多く残ります。',
+                ),
+                _message(
+                    '상대를 한 번에 끝낼 카드, {T}를 가져오세요.',
+                    'Take the card that finishes them in one go: {T}.',
+                    '一度で仕留めるカード、{T}を加えましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-ready',
+            'allow': [('ready_card', 'A')],
+            'opponent': [('ready_card', 'W')],
+            'expect': {'battle': 'counter'},
+            'messages': [
+                _message(
+                    '상대는 속도 {W.frame}인 느린 공격을 냅니다. 콤보 시동 {A}를 레디해 카운터하세요.',
+                    'Your opponent plays a slow attack at speed {W.frame}. Ready the combo starter {A} and counter it.',
+                    '相手は速度{W.frame}の遅い攻撃を出します。コンボ始動の{A}をレディしてカウンターしましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+        {
+            'id': 't2-combo',
+            'allow': [('select_combo_first', 'C1'), ('select_combo_followup', 'C2'), ('play_combo_card', 'T')],
+            'opponent': [],
+            'expect': {'winner': 'p1'},
+            'messages': [
+                _message(
+                    '카운터, 1콤보! 첫 카드 {C1}, 이어서 {C2}를 고르고, 마지막으로 {T}를 4콤보로 이으세요.',
+                    'Counter — Combo 1! Pick {C1}, then {C2}, and finally chain {T} as Combo 4.',
+                    'カウンターで1コンボ！1枚目に{C1}、続けて{C2}を選び、最後に{T}を4コンボ目としてつなげましょう。',
+                    ACTION,
+                ),
+            ],
+        },
+    ],
+    'completed': [
+        _message(
+            '배운 것: ① 콤보는 이어질수록 −100씩 보정되니 데미지가 큰 기술을 뒤에 둔다 ② 보정 없음, 속도를 바꿔 잇기 같은 효과를 활용한다 ③ 상대 체력이 보이면 겟에서 "콤보 한 번에 끝낼 카드"를 계산해 가져온다.',
+            'You learned: ① each combo step costs another −100, so put big-damage techniques later ② use effects such as "no combo penalty" or "follow at a different speed" ③ when your opponent is low, calculate in the Get which card ends it in one combo.',
+            '学んだこと：① コンボはつなぐほど−100ずつ補正されるので、ダメージの大きい技を後ろに置く ② 補正なし、速度を変えてつなぐといった効果を活用する ③ 相手の体力が見えたら、ゲットで「1回のコンボで仕留めるカード」を計算して加える。',
+        ),
+    ],
+}
+
+
+LESSONS = {
+    lesson['id']: lesson
+    for lesson in (
+        BASIC_1, BASIC_2, BASIC_3, BASIC_4, BASIC_5, BASIC_6,
+        MID_COUNTING, MID_CATCH, MID_MIND, MID_COMBO,
+    )
+}
 
 FAILED_MESSAGE = _message(
     '튜토리얼을 이어 갈 수 없습니다. 카드 규칙이 바뀌어 각본과 다른 결과가 나왔습니다. 운영진에게 알렸습니다.',
