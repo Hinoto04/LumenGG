@@ -1374,6 +1374,36 @@ button {
   width: calc(var(--cw) * 1.35);
 }
 
+/* 카드가 있는 존(내 손패·상대 리스트 …)을 카드 오른쪽 위 모서리에 붙인다. */
+.decision-card {
+  position: relative;
+  display: block;
+}
+
+.decision-zone {
+  position: absolute;
+  top: -0.55em;
+  right: -0.45em;
+  z-index: 2;
+  max-width: calc(100% + 0.45em);
+  padding: 0.15em 0.55em;
+  border-radius: 999px;
+  font-size: 0.68em;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  color: #10130f;
+  background: var(--accent-2);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+}
+
+.decision-zone.is-theirs {
+  color: #fff;
+  background: #c4525a;
+}
+
 .decision-label {
   width: 100%;
   min-height: 2.6em;

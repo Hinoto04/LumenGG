@@ -146,19 +146,18 @@ export function requiredText(minimum: number, maximum: number): string {
   return minimum === maximum || minimum <= 0 && maximum <= 1 ? String(maximum) : `${minimum}~${maximum}`;
 }
 
-/** 선택지를 카드가 있는 존별로 묶는다(내 손패, 상대 리스트 …). 카드가 아닌 선택지는 마지막에. */
-function groupOptions(options: DecisionOption[], me: string): [string, DecisionOption[]][] {
-  const groups = new Map<string, DecisionOption[]>();
-  for (const option of options) {
-    const ref = option.ui?.card;
-    const key = ref ? ref.owner === me
-        ? t("내 {zone}", { zone: ZONE_LABELS[ref.zone] ?? ref.zone })
-        : t("상대 {zone}", { zone: ZONE_LABELS[ref.zone] ?? ref.zone }) : "";
-    groups.set(key, [...(groups.get(key) ?? []), option]);
-  }
-  const entries = [...groups.entries()];
-  // 한 존에서만 고르는 경우에도 어디서 고르는지 보이도록 제목을 단다.
-  return entries.sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : 0));
+/**
+ * 선택지를 한 줄(넘치면 줄바꿈)에 놓는다. 존별로 줄을 나누면 동시에 유발된 효과가 많을 때
+ * 창이 너무 길어지므로, 존은 카드 오른쪽 위 표시(zoneTag)로 알린다. 카드가 아닌 선택지는 마지막에.
+ */
+function orderOptions(options: DecisionOption[]): DecisionOption[] {
+  return [...options.filter((option) => option.ui?.card), ...options.filter((option) => !option.ui?.card)];
+}
+
+/** 카드가 있는 존: "내 손패", "상대 리스트" … */
+function zoneTag(ref: CardRef, me: string): string {
+  const zone = ZONE_LABELS[ref.zone] ?? ref.zone;
+  return ref.owner === me ? t("내 {zone}", { zone }) : t("상대 {zone}", { zone });
 }
 
 function optionCard(envelope: PlayEnvelope, option: DecisionOption): BoardCard | null {
@@ -248,6 +247,7 @@ export function DecisionPanel({
     : options.some((option) => option.ui?.to_zone)
       ? t("{zone}(으)로 끌어 놓거나 눌러서 고르세요", { zone: ZONE_LABELS[destination!] })
       : t("빛나는 카드를 눌러서 고르세요");
+  const { me } = perspective(envelope);
   const countHint =
     maximum <= 1 ? (minimum === 0 ? t("고르지 않아도 됩니다") : t("하나를 고르세요")) : minimum === maximum ? t("{n}개를 고르세요", { n: minimum }) : t("{min}~{max}개를 고르세요", { min: minimum, max: maximum });
 
@@ -329,24 +329,25 @@ export function DecisionPanel({
               </span>
               <ClockBadge envelope={envelope} />
             </header>
-            {groupOptions(options, perspective(envelope).me).map(([group, groupOptions]) => (
-            <div key={group} className="decision-group">
-            {group && <h3 className="decision-group-title">{group}</h3>}
+            <div className="decision-group">
             <div className="decision-options">
-              {groupOptions.map((option) => {
+              {orderOptions(options).map((option) => {
                 const card = optionCard(envelope, option);
                 const isOn = selected.includes(option.id);
                 const ref = option.ui?.card;
                 return (
                   <div key={option.id} className={`decision-option ${isOn ? "is-selected" : ""} ${card ? "has-card" : ""}`}>
                     {card && ref && (
-                      <Card
-                        card={card}
-                        size="board"
-                        selected={isOn}
-                        detached
-                        onClick={() => toggle(option.id)}
-                      />
+                      <span className="decision-card">
+                        <Card
+                          card={card}
+                          size="board"
+                          selected={isOn}
+                          detached
+                          onClick={() => toggle(option.id)}
+                        />
+                        <span className={`decision-zone ${ref.owner === me ? "is-mine" : "is-theirs"}`}>{zoneTag(ref, me)}</span>
+                      </span>
                     )}
                     <button type="button" className="decision-label" onClick={() => toggle(option.id)}>
                       {option.label || option.id}
@@ -361,7 +362,6 @@ export function DecisionPanel({
               })}
             </div>
             </div>
-            ))}
             {!!decision?.unavailable_options?.length && (
               <div className="decision-group decision-unavailable">
                 <h3 className="decision-group-title">{t("고를 수 없음")}</h3>
