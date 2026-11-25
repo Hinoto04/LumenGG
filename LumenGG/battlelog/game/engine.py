@@ -133,6 +133,48 @@ TOKEN_SUPPLY_SIZE = 8
 PLAYER_STATE_TOKEN_KEYS = {'spider': 'spider_token', 'dagger': 'dagger_token'}
 
 
+def project_player_state_tokens(state):
+    """화면용 상태(사본)에서 쌓이는 토큰을 플레이어 상태의 개수로 바꿔 보여 준다(Q-AUTO-012).
+
+    - 생성 대기 토큰(token_supply)은 사이드 덱의 카드가 아니므로 모든 존에서 뺀다.
+      엔진이 내려보내는 카드 위치(_ui_card_ref)도 이 토큰을 빼고 센다.
+    - 엔진은 거미·단검을 루멘 존의 카드로 계속 다룬다(효과가 세고 브레이크한다).
+      화면에는 루멘 존 대신 플레이어 상태에 개수로 보이도록 ``state_counter_token`` 표식과
+      파생 카운터(derived)를 붙인다. 표시 전용이며 넘겨받은 상태를 그대로 고친다.
+    """
+    for side, player in ((state or {}).get('players') or {}).items():
+        if not isinstance(player, dict):
+            continue
+        zones = player.get('zones') or {}
+        supplied = [
+            card for card in zones.get('side') or []
+            if isinstance(card, dict) and card.get('token_supply')
+        ]
+        for zone_name, cards in zones.items():
+            if any(isinstance(card, dict) and card.get('token_supply') for card in cards or []):
+                zones[zone_name] = [card for card in cards if not card.get('token_supply')]
+        lumen = zones.get('lumen') or []
+        for token_key, state_key in PLAYER_STATE_TOKEN_KEYS.items():
+            tokens = [card for card in lumen if card.get('token_key') == token_key]
+            waiting = [card for card in supplied if card.get('token_key') == token_key]
+            if not tokens and not waiting:
+                continue
+            for card in tokens:
+                card['state_counter_token'] = state_key
+            passive_state = player.setdefault('passive_state', {})
+            existing = passive_state.get(state_key)
+            existing = existing if isinstance(existing, dict) else {}
+            name = str(([*tokens, *waiting][0]).get('name') or '').strip('「」 ')
+            passive_state[state_key] = {
+                **existing,
+                'count': len(tokens),
+                'label': existing.get('label') or f'{name or token_key} 토큰',
+                'visibility': 'public', 'owner': side, 'derived': True,
+                'token_key': token_key, 'zone': 'lumen',
+            }
+    return state
+
+
 def opponent(side):
     return 'p2' if side == 'p1' else 'p1'
 
@@ -11003,50 +11045,10 @@ class AutomaticGameEngine:
                     destination = 'break' if _is_special(card or {}) else 'list'
                 option['ui']['to_zone'] = destination
 
-    def _project_player_state_tokens(self, state, side):
-        """무한히 쌓이는 토큰(거미)을 플레이어 상태의 개수로 보여 준다(Q-AUTO-012).
-
-        엔진은 토큰을 루멘 존의 카드로 계속 다루고(효과가 루멘 존의 거미를 세고
-        브레이크한다), 화면에는 루멘 존 대신 플레이어 상태에 개수로 표시하도록
-        ``state_counter_token`` 표식과 파생 카운터를 붙인다. 표시 전용이다.
-        """
-        player = (state.get('players') or {}).get(side) or {}
-        lumen = (player.get('zones') or {}).get('lumen') or []
-        live_side = self._zone(side, 'side')
-        for token_key, state_key in PLAYER_STATE_TOKEN_KEYS.items():
-            tokens = [card for card in lumen if card.get('token_key') == token_key]
-            supplied = [
-                card for card in live_side
-                if card.get('token_supply') and card.get('token_key') == token_key
-            ]
-            if not tokens and not supplied:
-                continue
-            for card in tokens:
-                card['state_counter_token'] = state_key
-            passive_state = player.setdefault('passive_state', {})
-            existing = passive_state.get(state_key)
-            existing = existing if isinstance(existing, dict) else {}
-            name = str(
-                ([*tokens, *supplied][0]).get('name') or ''
-            ).strip('「」 ')
-            passive_state[state_key] = {
-                **existing,
-                'count': len(tokens),
-                'label': existing.get('label') or f'{name or token_key} 토큰',
-                'visibility': 'public', 'owner': side, 'derived': True,
-                'token_key': token_key, 'zone': 'lumen',
-            }
-
     def _observation_state(self, role):
         state = copy.deepcopy(self.state)
         state.pop('random_seed', None)
-        for side in PLAYER_SIDES:
-            zones = (((state.get('players') or {}).get(side) or {}).get('zones') or {})
-            # 생성 대기 토큰은 사이드 덱의 카드가 아니므로 보여 주지 않는다(Q-AUTO-012).
-            for zone_name, cards in zones.items():
-                if any(card.get('token_supply') for card in cards):
-                    zones[zone_name] = [card for card in cards if not card.get('token_supply')]
-            self._project_player_state_tokens(state, side)
+        project_player_state_tokens(state)
         continuous_states = copy.deepcopy(
             self.engine_state.get('continuous_states') or {}
         )

@@ -2182,6 +2182,13 @@ def _localize_filtered_state(state, language):
     return state
 
 
+def _automatic_display_state(state):
+    """자동 판정 상태를 화면에 맞춘 사본: 거미·단검 토큰은 플레이어 상태의 개수로, 생성 대기 토큰은 빼고."""
+    from .game.engine import project_player_state_tokens
+
+    return project_player_state_tokens(copy.deepcopy(state))
+
+
 def _filtered_state(
     state, viewer_side, language=DEFAULT_LANGUAGE, *,
     include_database_hand_limits=True,
@@ -2490,7 +2497,8 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
         'phase_labels': _localized_phase_labels(language),
         'zone_labels': _localized_zone_labels(language),
         'state': _filtered_state(
-            state, role, language,
+            _automatic_display_state(state) if session.mode == LumenSimulatorSession.MODE_AUTOMATIC else state,
+            role, language,
             include_database_hand_limits=(
                 session.mode != LumenSimulatorSession.MODE_AUTOMATIC
             ),

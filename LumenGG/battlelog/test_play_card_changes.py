@@ -19,6 +19,42 @@ class StubEngine:
         return (card.get(stat) or 0) + self.deltas.get((card['instance_id'], stat), 0)
 
 
+class AutomaticDisplayStateTests(SimpleTestCase):
+    """대전 화면(serialize_simulator_session)도 거미를 루멘 존 카드 대신 플레이어 상태의 개수로 보여 준다."""
+
+    def test_spiders_become_player_state_counter_and_supply_is_hidden(self):
+        from .simulator_services import _automatic_display_state
+
+        spider = lambda index, **extra: {  # noqa: E731
+            'instance_id': f'spider-{index}', 'kind': 'token', 'owner': 'p1', 'code': 'PMP-TK-SPIDER',
+            'name': '「거미」', 'type': '토큰', 'token_key': 'spider', 'face_up': True, **extra,
+        }
+        real_side = {'instance_id': 'side-real', 'owner': 'p1', 'code': 'X-AT-001', 'face_up': False}
+        state = {'players': {
+            'p1': {'passive_state': {}, 'zones': {
+                'lumen': [spider(0), spider(1), {'instance_id': 'lumen-card', 'code': 'X-AT-002'}],
+                'side': [real_side, spider(2, token_supply=True), spider(3, token_supply=True)],
+            }},
+            'p2': {'passive_state': {}, 'zones': {'lumen': [], 'side': []}},
+        }}
+
+        shown = _automatic_display_state(state)
+
+        p1 = shown['players']['p1']
+        self.assertEqual(p1['passive_state']['spider_token']['count'], 2)
+        self.assertEqual(p1['passive_state']['spider_token']['label'], '거미 토큰')
+        self.assertTrue(p1['passive_state']['spider_token']['derived'])
+        self.assertEqual(
+            [card.get('state_counter_token') for card in p1['zones']['lumen']],
+            ['spider_token', 'spider_token', None],
+        )
+        self.assertEqual([card['instance_id'] for card in p1['zones']['side']], ['side-real'])
+        self.assertNotIn('spider_token', shown['players']['p2']['passive_state'])
+        # 저장된 상태는 그대로 둔다.
+        self.assertEqual(len(state['players']['p1']['zones']['side']), 3)
+        self.assertNotIn('spider_token', state['players']['p1']['passive_state'])
+
+
 class CardChangesTests(SimpleTestCase):
     def setUp(self):
         self.attack = {'instance_id': 'p1-1', 'code': 'AT-1', 'frame': 5, 'damage': 3, 'pos': '중단', 'special': None}
