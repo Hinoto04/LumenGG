@@ -948,7 +948,62 @@ def _trigger_crevasse(code):
     ]
 
 
+
+# --- CB04 추가 공개분(2026-11-25): 세츠메이 ----------------------------------------
+
+SPECIAL_TECHNIQUE = {'type_contains': '특수'}
+
+
+def _frenzy_slice(code):
+    return {
+        'catch_rules': [{'optional_fixed_speed': 7, 'numbered_effect': True}],
+    }, [
+        # 추가 캐치 금지는 <7속도>로 사용했을 때만 적용한다(Q-AUTO-027).
+        _ability(
+            code, 'n1', '캐치 시, <7속도>로 사용할 수 있다. 그 후, 이번 턴 추가로 캐치할 수 없다.',
+            timing='catch', active_zones=['battle'], trigger={'event': 'catch'},
+            condition={'op': 'equals', 'left': {'path': 'context.fixed_speed'}, 'right': 7},
+            effects=[
+                {'op': 'static_rule', 'rules': ['catch_rules']},
+                {'op': 'prevent', 'kind': 'catch', 'player': {'controller': True}, 'duration': 'turn'},
+            ],
+        ),
+        _ability(
+            code, 'n2', '히트 시, 상대는 다음 턴까지 특수 기술의 효과를 사용할 수 없다.',
+            timing='hit_counter', active_zones=['battle'], trigger={'event': 'hit'},
+            effects=[{
+                'op': 'prevent', 'kind': 'card_effects', 'player': {'opponent': True},
+                'where': dict(SPECIAL_TECHNIQUE), 'duration': 'next_turn',
+            }],
+        ),
+    ]
+
+
+def _dust_sweep(code):
+    return {
+        'combo_rules': [{'ignore_damage_penalty': True, 'damage_bonus': -500, 'numbered_effect': True}],
+    }, [
+        _ability(
+            code, 'n1',
+            '콤보 시, 데미지 보정을 적용하지 않고 이 기술 데미지-500. '
+            '그 후, 이 기술 뒤에 리스트의 <13속도> 기술로 이을 수 있다.',
+            timing='combo', active_zones=['battle'], trigger={'event': 'combo'},
+            effects=[
+                {'op': 'static_rule', 'rules': ['combo_rules']},
+                {
+                    'op': 'modify_combo', 'player': {'controller': True}, 'allow_zones': ['list'],
+                    # 인쇄 속도 13이거나 자기 효과로 13속도로 쓸 수 있는 기술(Q-AUTO-028).
+                    'where': {'is_technique': True}, 'usable_speed': 13,
+                    'after_source': True, 'duration': 'battle',
+                },
+            ],
+        ),
+    ]
+
+
 BUILDERS = {
+    'CB04-AT-040': _frenzy_slice,
+    'CB04-AT-041': _dust_sweep,
     'CB04-AT-005': _ice_blow,
     'CB04-AT-008': _icicle_pillar,
     'CB04-AT-009': _trigger_crevasse,

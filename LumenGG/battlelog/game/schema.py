@@ -1386,6 +1386,12 @@ def _validate_effect(value, path, issues):
         ):
             if field_name in value and not isinstance(value.get(field_name), bool):
                 _issue(issues, f'{path}.{field_name}', '콤보 예외 플래그는 불리언이어야 합니다.')
+        if 'usable_speed' in value and (
+            isinstance(value.get('usable_speed'), bool)
+            or not isinstance(value.get('usable_speed'), int)
+            or value.get('usable_speed') < 1
+        ):
+            _issue(issues, f'{path}.usable_speed', '콤보 허가의 사용 속도는 1 이상의 정수여야 합니다.')
         if value.get('allow_reuse') and (
             not usage_key or value.get('max_uses') is None
         ):
@@ -1559,7 +1565,11 @@ def _validate_effect(value, path, issues):
                 issues, f'{path}.duration',
                 '카드 사용 금지는 battle/phase/turn/game/continuous 지속 시간이 필요합니다.',
             )
-        if value.get('duration') not in {None, 'event', 'battle', 'phase', 'turn', 'game', 'continuous'}:
+        durations = {None, 'event', 'battle', 'phase', 'turn', 'game', 'continuous'}
+        if kind == 'card_effects':
+            # 효과 사용 금지는 "다음 턴까지"처럼 다음 턴 종료까지 갈 수 있다.
+            durations.add('next_turn')
+        if value.get('duration') not in durations:
             _issue(issues, f'{path}.duration', '지원하지 않는 지속 시간입니다.')
         if 'controller_only' in value and not isinstance(
             value.get('controller_only'), bool,

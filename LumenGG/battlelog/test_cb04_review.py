@@ -61,3 +61,53 @@ class CB04ReviewTests(SimpleTestCase):
         runner, cases = review_cb04.CASES['cb04-at-010-n1']
         scenarios = review_cb04._scenarios(runner, definition, snapshot('CB04-AT-010'), cases)
         self.assertFalse(all(item['passed'] for item in scenarios))
+
+    def test_frenzy_slice_lock_targets_only_opponent(self):
+        # 프렌지 슬라이스 ②가 자신의 특수 기술을 막으면 검토가 실패해야 한다.
+        from .game import review_cb04
+
+        definition = build_cb04_definition('CB04-AT-040')
+        definition['abilities'][1]['effects'][0]['player'] = {'controller': True}
+        runner, cases = review_cb04.CASES['cb04-at-040-n2']
+        scenarios = review_cb04._scenarios(runner, definition, snapshot('CB04-AT-040'), cases)
+        self.assertFalse(all(item['passed'] for item in scenarios))
+
+
+class CardEffectLockTests(SimpleTestCase):
+    """prevent kind card_effects: 잠긴 특수 기술의 번호 효과는 유발되지 않는다."""
+
+    def test_locked_special_technique_does_not_trigger_until_lock_ends(self):
+        from .game import review_cb04
+
+        owner, other = 'p1', 'p2'
+        special_definition = {
+            'schema_version': 1, 'reviewed': True, 'no_effect': False,
+            'abilities': [{
+                'id': 'review-special-n1', 'kind': 'effect', 'mode': 'mandatory',
+                'timing': 'lumen', 'visibility': 'public', 'draft_compiled': True,
+                'trigger': {'event': 'turn_start'}, 'active_zones': ['lumen'],
+                'effects': [{'op': 'change_fp', 'player': {'controller': True}, 'amount': 1}],
+            }],
+        }
+        source = review_cb04._source(snapshot('CB04-AT-040'), 'CB04-AT-040', owner)
+        special = review_cb04._card(f'{other}-special', other, code='REVIEW-LOCK-SPECIAL', type_='특수')
+        engine = review_cb04._engine(
+            build_cb04_definition('CB04-AT-040'), source,
+            {owner: {'battle': [source]}, other: {'lumen': [special]}},
+            seed='card-effect-lock', definitions={'REVIEW-LOCK-SPECIAL': special_definition},
+        )
+
+        def lumen_fp_gain():
+            before = engine.state['players'][other]['fp']
+            engine._fire('turn_start', {'controller': other})
+            review_cb04._resolve(engine)
+            return engine.state['players'][other]['fp'] - before
+
+        self.assertEqual(lumen_fp_gain(), 1)
+        review_cb04._fire(engine, 'hit', source)
+        self.assertEqual(lumen_fp_gain(), 0)
+        for _ in range(2):
+            engine.state['turn'] += 1
+            engine._expire_modifiers('turn')
+        self.assertFalse(engine._find_card(special['instance_id']).get('numbered_effects_negated'))
+        self.assertEqual(lumen_fp_gain(), 1)

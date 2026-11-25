@@ -88,6 +88,8 @@ PREVENT_KINDS = {
     'damage', 'ready', 'use_card', 'dodge', 'guard', 'clash',
     'combo', 'catch', 'break', 'counter_gain', 'get_card',
     'defense_rule', 'grab_negation', 'state_gain', 'state_loss', 'fp_gain',
+    # 카드의 번호 효과 사용 금지(where로 대상 카드를 고른다).
+    'card_effects',
 }
 
 EFFECT_OPS = {

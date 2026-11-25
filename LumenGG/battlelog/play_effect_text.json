@@ -3363,6 +3363,10 @@
   "On catch, this can be used at <Speed 5>. If so, this Technique's damage -400.",
   "キャッチ時、〈速度5〉として使用できる。その場合、この技のダメージ-400。"
  ],
+ "캐치 시, <7속도>로 사용할 수 있다. 그 후, 이번 턴 추가로 캐치할 수 없다.": [
+  "On catch, you may use this at <Speed 7>. Then, you cannot catch again this turn.",
+  "キャッチ時、〈速度7〉として使用できる。その後、このターン追加でキャッチできない。"
+ ],
  "캐치 시, <8속도>로 사용할 수 있다.": [
   "When catching, this can be used at <Speed 8>.",
   "キャッチ時、〈速度8〉として使用できる。"
@@ -3582,6 +3586,10 @@
  "콤보 시, [[token:hidden_bond]]카운터 3개가 있을 경우 리스트에서 사용할 수 있다.": [
   "During combo, if you have 3 [[token:hidden_bond]] counters, this can be used from your List.",
   "コンボ時、[[token:hidden_bond]]カウンターが3個ある場合、リストから使用できる。"
+ ],
+ "콤보 시, 데미지 보정을 적용하지 않고 이 기술 데미지-500. 그 후, 이 기술 뒤에 리스트의 <13속도> 기술로 이을 수 있다.": [
+  "On combo, damage scaling is not applied, and this Technique's damage -500. Then, you may chain a <Speed 13> Technique from your List after this Technique.",
+  "コンボ時、ダメージ補正を適用せず、この技のダメージ-500。その後、この技の後にリストの〈速度13〉の技をつなげることができる。"
  ],
  "콤보 시, 루멘 존의 [[card:RFS-AT-002]] 2장을 속도를 무시하고 2, 3콤보로 취급하여 사용할 수 있다.": [
   "On combo, you may use 2 [[card:RFS-AT-002]] cards from your Lumen Zone as the 2nd and 3rd combos, ignoring Speed.",
@@ -4610,6 +4618,10 @@
  "히트 시, 상대 기술이 수비 기술일 경우": [
   "On hit, if your opponent's Technique is a Defense Technique",
   "ヒット時、相手の技が防御技の場合"
+ ],
+ "히트 시, 상대는 다음 턴까지 특수 기술의 효과를 사용할 수 없다.": [
+  "On hit, your opponent cannot use the effects of Special Techniques until next turn.",
+  "ヒット時、相手は次のターンまで特殊技の効果を使用できない。"
  ],
  "히트 시, 상대에게 100데미지를 준다.": [
   "On hit, deal 100 damage to your opponent.",

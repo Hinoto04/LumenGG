@@ -1,0 +1,96 @@
+[
+ {
+  "snapshot": {
+   "code": "CB04-AT-040",
+   "name": "프렌지 슬라이스",
+   "ruby": "",
+   "text": "①캐치 시, <7속도>로 사용할 수 있다. 그 후, 이번 턴 추가로 캐치할 수 없다.\r\n②히트 시, 상대는 다음 턴까지 특수 기술의 효과를 사용할 수 없다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "공격",
+   "frame": 11,
+   "damage": 500,
+   "pos": "중단",
+   "body": "",
+   "hit": "5",
+   "guard": "-7",
+   "counter": "7",
+   "special": null,
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 1
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "Frenzy Slice",
+    "text": "①On catch, you may use this at <Speed 7>. Then, you cannot catch again this turn.\n②On hit, your opponent cannot use the effects of Special Techniques until next turn."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "フレンジー・スライス",
+    "text": "①キャッチ時、〈速度7〉として使用できる。その後、このターン追加でキャッチできない。\n②ヒット時、相手は次のターンまで特殊技の効果を使用できない。"
+   }
+  }
+ },
+ {
+  "snapshot": {
+   "code": "CB04-AT-041",
+   "name": "더스트 스윕",
+   "ruby": "",
+   "text": "①콤보 시, 데미지 보정을 적용하지 않고 이 기술 데미지-500\r\n그 후,  이 기술 뒤에 리스트의 <13속도> 기술로 이을 수 있다.",
+   "detail_text": "",
+   "keyword": "",
+   "hiddenKeyword": "",
+   "search": "",
+   "type": "공격",
+   "frame": 12,
+   "damage": 600,
+   "pos": "하단",
+   "body": "발",
+   "hit": "6",
+   "guard": "-8",
+   "counter": "8",
+   "special": null,
+   "g_top": null,
+   "g_mid": null,
+   "g_bot": null,
+   "ultimate": false,
+   "character_id": 1
+  },
+  "qna_ids": [],
+  "translations": {
+   "en": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "Dust Sweep",
+    "text": "①On combo, damage scaling is not applied, and this Technique's damage -500.\nThen, you may chain a <Speed 13> Technique from your List after this Technique."
+   },
+   "ja": {
+    "ruby": "",
+    "detail_text": "",
+    "keyword": "",
+    "hiddenKeyword": "",
+    "search": "",
+    "name": "ダスト・スウィープ",
+    "text": "①コンボ時、ダメージ補正を適用せず、この技のダメージ-500。\nその後、この技の後にリストの〈速度13〉の技をつなげることができる。"
+   }
+  }
+ }
+]

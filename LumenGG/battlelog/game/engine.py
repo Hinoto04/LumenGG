@@ -4726,6 +4726,10 @@ class AutomaticGameEngine:
                 continue
             if modifier.get('where') and not card_matches(card, modifier.get('where')):
                 continue
+            if modifier.get('usable_speed') is not None and _number(
+                modifier.get('usable_speed'),
+            ) not in self._own_combo_speeds(role, card):
+                continue
             if modifier.get('after_source_sequence'):
                 predecessor_ids = {
                     *([combo.get('source')] if combo.get('source') else []),
@@ -4745,6 +4749,30 @@ class AutomaticGameEngine:
                 continue
             rules.append(modifier)
         return rules
+
+    def _own_combo_speeds(self, role, card):
+        """카드 자체로 콤보에 쓸 수 있는 속도: 인쇄 속도와 자기 combo_rules의 속도 선택지.
+
+        "리스트의 <13속도> 기술"처럼 속도로 고르는 허가는 인쇄 속도가 13이거나
+        자기 효과로 13속도로 사용할 수 있는 기술을 가리킨다(Q-AUTO-028). 다른 카드가 준
+        허가(modifier)는 보지 않는다.
+        """
+        speeds = {max(1, _number(self.card_stat(card, 'frame', role, include_fp=False), 1))}
+        context = {
+            'controller': role, 'player': role, 'opponent': opponent(role),
+            'source_card': card,
+        }
+        for rule in self._definition_for_card(card).get('combo_rules') or []:
+            if not isinstance(rule, dict):
+                continue
+            if rule.get('numbered_effect') and (card or {}).get('numbered_effects_negated'):
+                continue
+            if not condition_matches(rule.get('condition'), self.state, context):
+                continue
+            if rule.get('any_speed') or rule.get('optional_any_speed'):
+                return set(range(1, 100))
+            speeds.update(max(1, _number(value, 1)) for value in rule.get('speed_options') or [])
+        return speeds
 
     def _combo_proposal_modifiers(self, role, card, combo):
         """Preview source-dependent follow-up permissions for one proposal.
@@ -9681,7 +9709,38 @@ class AutomaticGameEngine:
                 'scheduled_count': len(cancelled),
             })
 
+    def _reconcile_card_effect_locks(self):
+        """"상대는 다음 턴까지 특수 기술의 효과를 사용할 수 없다" 같은 효과 사용 금지를 카드에 반영한다.
+
+        ``prevent`` kind ``card_effects`` 규칙에 맞는 카드는 번호 효과(①②…)가 무효인 카드와
+        똑같이 다룬다. 기능(번호 없는 문장)은 효과가 아니므로 그대로 둔다. 존을 옮겨도
+        이 함수가 다시 돌아 표시를 맞추고, 규칙이 끝나면 이 규칙이 붙인 표시만 걷어 낸다.
+        """
+        locks = [
+            item for item in self.engine_state.get('replacements') or []
+            if item.get('op') == 'prevent' and item.get('kind') == 'card_effects'
+        ]
+        for side in PLAYER_SIDES:
+            side_locks = [item for item in locks if item.get('player') in (None, side)]
+            for live_cards in ((self.state.get('players') or {}).get(side, {}).get('zones') or {}).values():
+                for card in live_cards:
+                    if not isinstance(card, dict):
+                        continue
+                    locked = bool(side_locks) and any(
+                        (not item.get('where') or card_matches(
+                            self._printed_card_snapshot(card), item.get('where'), self.state,
+                        ))
+                        and not self._card_ignores_effect(card, item.get('controller'), item.get('source'))
+                        for item in side_locks
+                    )
+                    if locked and not card.get('numbered_effects_negated'):
+                        card['numbered_effects_negated'] = True
+                        card['effect_lock_negated'] = True
+                    elif not locked and card.pop('effect_lock_negated', None):
+                        card.pop('numbered_effects_negated', None)
+
     def _reconcile_trait_states(self):
+        self._reconcile_card_effect_locks()
         traits_negated = self._traits_negated()
         was_negated = bool(self.engine_state.get('traits_negated_active'))
         self.engine_state['traits_negated_active'] = traits_negated
@@ -10573,6 +10632,7 @@ class AutomaticGameEngine:
                 else:
                     active.append(shield)
             shields[side] = active
+        self._reconcile_card_effect_locks()
 
     def _reset_usage(self, scope):
         self.engine_state.setdefault('usage', {}).pop(scope, None)

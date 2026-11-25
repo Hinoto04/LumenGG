@@ -947,9 +947,137 @@ def _run_at009(definition, snapshot, owner, *, zone='lumen', frost=True):
     }
 
 
+# --- CB04 추가 공개분(2026-11-25): 세츠메이 ----------------------------------------
+
+def _run_at040_catch(definition, snapshot, owner, *, negated=False, by_opponent=False, fixed_speed=7):
+    source = _source(snapshot, 'CB04-AT-040', owner, negated=negated)
+    engine = _engine(definition, source, {owner: {'battle': [source]}},
+                     seed=f'cb04-at040-catch:{owner}:{negated}:{by_opponent}:{fixed_speed}')
+    speed = {'fixed_speed': fixed_speed} if fixed_speed is not None else {}
+    if by_opponent:
+        enemy = _card(f'{_opp(owner)}-catcher', _opp(owner), code='REVIEW-CB04-CATCHER')
+        engine.state['players'][_opp(owner)]['zones']['battle'].append(copy.deepcopy(enemy))
+        _fire(engine, 'catch', enemy, **speed)
+    else:
+        _fire(engine, 'catch', source, **speed)
+    return {
+        'owner_catch_blocked': bool(engine._rule_blocked('catch', owner)),
+        'opponent_catch_blocked': bool(engine._rule_blocked('catch', _opp(owner))),
+    }
+
+
+def _run_at040_hit(definition, snapshot, owner, *, negated=False, turns=0, move_special=False):
+    source = _source(snapshot, 'CB04-AT-040', owner, negated=negated)
+    other = _opp(owner)
+    special = _card(f'{other}-special', other, code='REVIEW-CB04-SPECIAL', type_='특수')
+    attack = _card(f'{other}-attack', other, code='REVIEW-CB04-ATTACK')
+    own_special = _card(f'{owner}-special', owner, code='REVIEW-CB04-OWN-SPECIAL', type_='특수')
+    engine = _engine(definition, source, {
+        owner: {'battle': [source], 'lumen': [own_special]},
+        other: {'lumen': [special], 'hand': [attack]},
+    }, seed=f'cb04-at040-hit:{owner}:{negated}:{turns}:{move_special}')
+    _fire(engine, 'hit', source)
+    if move_special:
+        engine.move_card(special['instance_id'], 'list')
+    for _ in range(turns):
+        engine.state['turn'] = int(engine.state.get('turn') or 1) + 1
+        engine._expire_modifiers('turn')
+
+    def negated_flag(instance_id):
+        return bool((engine._find_card(instance_id) or {}).get('numbered_effects_negated'))
+
+    return {
+        'opponent_special_negated': negated_flag(special['instance_id']),
+        'opponent_attack_negated': negated_flag(attack['instance_id']),
+        'owner_special_negated': negated_flag(own_special['instance_id']),
+    }
+
+
+# 자기 효과로 13속도로 사용할 수 있는 기술(인쇄 속도 9)과 다른 속도만 고를 수 있는 기술.
+SPEED_13_OPTION = {
+    'schema_version': 1, 'reviewed': True, 'no_effect': False,
+    'source_refs': {'rulebook_pages': [], 'qna_ids': []},
+    'combo_rules': [{'speed_options': [13], 'numbered_effect': True}],
+    'abilities': [{
+        'id': 'review-cb04-speed-13-n1', 'kind': 'effect', 'mode': 'continuous',
+        'timing': 'combo', 'visibility': 'public', 'draft_compiled': True,
+        'effects': [{'op': 'static_rule', 'rules': ['combo_rules']}],
+    }],
+}
+SPEED_10_OPTION = copy.deepcopy(SPEED_13_OPTION)
+SPEED_10_OPTION['combo_rules'][0]['speed_options'] = [10]
+
+
+def _run_at041_combo(definition, snapshot, owner, *, negated=False, after_other=False):
+    source = _source(snapshot, 'CB04-AT-041', owner, negated=negated)
+    listed = {
+        frame: _card(f'{owner}-list-{frame}', owner, code=f'REVIEW-CB04-LIST-{frame}', frame=frame)
+        for frame in (12, 13, 14)
+    }
+    listed['9-to-13'] = _card(f'{owner}-list-9-to-13', owner, code='REVIEW-CB04-LIST-9-TO-13', frame=9)
+    listed['9-to-10'] = _card(f'{owner}-list-9-to-10', owner, code='REVIEW-CB04-LIST-9-TO-10', frame=9)
+    bridge = _card(f'{owner}-bridge', owner, code='REVIEW-CB04-BRIDGE', frame=12)
+    engine = _engine(definition, source, {
+        owner: {'battle': [source, bridge], 'list': list(listed.values())},
+    }, seed=f'cb04-at041-combo:{owner}:{negated}:{after_other}', definitions={
+        'REVIEW-CB04-LIST-9-TO-13': SPEED_13_OPTION, 'REVIEW-CB04-LIST-9-TO-10': SPEED_10_OPTION,
+    })
+    _fire(engine, 'combo', source, combo=True)
+    live = engine._find_card(source['instance_id'])
+    used = [source['instance_id'], bridge['instance_id']] if after_other else [source['instance_id']]
+    combo = {'owner': owner, 'source': source['instance_id'], 'used': used, 'last_speed': 12}
+    own_rules = engine._combo_rules(owner, live, {'owner': owner, 'used': [], 'last_speed': 11})
+    return {
+        'ignore_damage_penalty': any(rule.get('ignore_damage_penalty') for rule in own_rules),
+        'damage_bonus': sum(int(rule.get('damage_bonus') or 0) for rule in own_rules),
+        'list_frames_allowed': [
+            frame for frame, card in listed.items()
+            if engine._combo_zone_allowed(owner, engine._find_card(card['instance_id']), 'list', combo)
+        ],
+    }
+
+
 def _cases():
     frost_ok = {'opponent_frost': True}
     return {
+        'cb04-at-040-n1': (_run_at040_catch, (
+            ('owner-p1-speed-7-catch-blocks-further-own-catches', 'p1', {},
+             {'owner_catch_blocked': True, 'opponent_catch_blocked': False}),
+            ('owner-p2-speed-7-catch-blocks-further-own-catches', 'p2', {},
+             {'owner_catch_blocked': True, 'opponent_catch_blocked': False}),
+            ('qa-auto-027-printed-speed-catch-blocks-nothing', 'p1', {'fixed_speed': None},
+             {'owner_catch_blocked': False, 'opponent_catch_blocked': False}),
+            ('opponent-catch-does-not-trigger', 'p1', {'by_opponent': True},
+             {'owner_catch_blocked': False, 'opponent_catch_blocked': False}),
+            ('negated-source-blocks-nothing', 'p2', {'negated': True},
+             {'owner_catch_blocked': False, 'opponent_catch_blocked': False}),
+        )),
+        'cb04-at-040-n2': (_run_at040_hit, (
+            ('owner-p1-hit-locks-opponent-special-effects', 'p1', {},
+             {'opponent_special_negated': True, 'opponent_attack_negated': False,
+              'owner_special_negated': False}),
+            ('owner-p2-hit-locks-opponent-special-effects', 'p2', {},
+             {'opponent_special_negated': True, 'opponent_attack_negated': False,
+              'owner_special_negated': False}),
+            ('lock-follows-moved-special-technique', 'p1', {'move_special': True},
+             {'opponent_special_negated': True}),
+            ('lock-lasts-through-next-turn', 'p2', {'turns': 1},
+             {'opponent_special_negated': True}),
+            ('lock-ends-after-next-turn', 'p1', {'turns': 2},
+             {'opponent_special_negated': False, 'opponent_attack_negated': False}),
+            ('negated-source-locks-nothing', 'p2', {'negated': True},
+             {'opponent_special_negated': False}),
+        )),
+        'cb04-at-041-n1': (_run_at041_combo, (
+            ('owner-p1-combo-ignores-scaling-and-links-list-13-speed', 'p1', {},
+             {'ignore_damage_penalty': True, 'damage_bonus': -500, 'list_frames_allowed': [13, '9-to-13']}),
+            ('owner-p2-combo-ignores-scaling-and-links-list-13-speed', 'p2', {},
+             {'ignore_damage_penalty': True, 'damage_bonus': -500, 'list_frames_allowed': [13, '9-to-13']}),
+            ('list-link-only-right-after-this-technique', 'p1', {'after_other': True},
+             {'list_frames_allowed': []}),
+            ('negated-source-changes-nothing', 'p2', {'negated': True},
+             {'ignore_damage_penalty': False, 'damage_bonus': 0, 'list_frames_allowed': []}),
+        )),
         'cb04-at-005-n1': (_run_at005_before, (
             ('owner-p1-three-bukuki-changes-hit-and-counter-to-combo', 'p1', {'bukuki': 3},
              {'hit': '콤보', 'counter': '콤보'}),

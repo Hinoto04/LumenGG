@@ -2394,6 +2394,12 @@ class EffectResolver:
                 resolved_effect['where'] = {
                     'instance_id': context['opponent_card']['instance_id'],
                 }
+            if (
+                resolved_effect.get('duration') == 'next_turn'
+                and resolved_effect.get('expires_turn') is None
+            ):
+                # "다음 턴까지": 다음 턴 종료 시 끝난다.
+                resolved_effect['expires_turn'] = int(self.state.get('turn') or 1) + 1
             self.state['engine'].setdefault('replacements', []).append({
                 **resolved_effect, 'controller': controller,
                 'player': target if target in PLAYER_SIDES else controller,
@@ -2403,6 +2409,8 @@ class EffectResolver:
                     if resolved_effect.get('max_uses') is not None else {}
                 ),
             })
+            if resolved_effect.get('kind') == 'card_effects':
+                self.engine._reconcile_card_effect_locks()
         elif op == 'static_rule':
             # The executable behavior lives in validated definition metadata
             # (for example combo_rules, defense_rules, or play_costs).
