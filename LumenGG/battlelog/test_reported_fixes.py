@@ -1787,3 +1787,63 @@ class BattleJudgmentVisibleOnBoardTests(SimpleTestCase):
         self.assertEqual(seen, ['+3'])
         self.assertEqual(engine.state['players']['p1']['fp'], 3)
         self.assertEqual(engine._find_card('smash').get('hit'), '4')
+
+
+class BaguaReconcileQuietTests(SimpleTestCase):
+    """팔괘엔진 상태 갱신은 바뀌는 상태가 있을 때만 발동으로 남는다(레디·유발마다 연출 반복 방지)."""
+
+    def build(self, *, yin=0, yang=0):
+        bagua = {
+            'instance_id': 'p1-bagua', 'kind': 'card', 'owner': 'p1', 'code': 'UNC-PS-001',
+            'name': '팔괘엔진', 'type': '특성', 'face_up': True,
+        }
+        opposing = attack('opposing', 'p2', code='OPPOSING')
+        state = base_state([], [opposing])
+        state['players']['p1']['zones']['passive'] = [bagua]
+        # 게임 시작 때 한 번 갱신된 뒤의 상태(값이 기록된 상태)에서 시작한다.
+        state['players']['p1']['passive_state']['yin'] = {'count': yin, 'value': False}
+        state['players']['p1']['passive_state']['yang'] = {'count': yang, 'value': False}
+        rules = ruleset(opposing)
+        rules['cards']['UNC-PS-001'] = {**bagua, 'effect_definition': {
+            'schema_version': 1, 'reviewed': True,
+            'source_refs': {'rulebook_pages': [], 'qna_ids': []},
+            'abilities': [{
+                'id': 'unc-ps-001-state-reconcile', 'label': '음·양 카운터에 따른 상태 갱신',
+                'kind': 'effect', 'mode': 'mandatory', 'timing': 'result',
+                'visibility': 'public', 'active_zones': ['passive'],
+                'trigger': {'event': 'counter_changed', 'events': ['game_start', 'card_moved', 'counter_changed']},
+                'handler': 'tao_bagua_reconcile',
+            }],
+        }}
+        return AutomaticGameEngine(state, rules, seed='bagua-quiet')
+
+    def resolved(self, engine):
+        return [
+            event for event in engine.events
+            if event.get('type') == 'effect_resolved' and event.get('payload', {}).get('ability_id') == 'unc-ps-001-state-reconcile'
+        ]
+
+    def test_counter_change_that_flips_state_resolves_once_then_stays_quiet(self):
+        engine = self.build()
+        engine.change_counter('p1', 'yin', 1)
+        engine._continue()
+        self.assertTrue(engine.state['players']['p1']['passive_state']['yin']['value'])
+        self.assertEqual(len(self.resolved(engine)), 1)
+        # 상태가 그대로인 카드 이동·카운터 변화에서는 발동하지 않는다.
+        engine._fire('card_moved', {'controller': 'p1', 'player': 'p1'})
+        engine._continue()
+        engine.change_counter('p1', 'yin', 1)
+        engine._continue()
+        self.assertEqual(len(self.resolved(engine)), 1)
+        self.assertTrue(engine.state['players']['p1']['passive_state']['yin']['value'])
+        # 다시 같아지면 음 상태가 풀리면서 한 번 발동한다.
+        engine.change_counter('p1', 'yang', 2)
+        engine._continue()
+        self.assertFalse(engine.state['players']['p1']['passive_state']['yin']['value'])
+        self.assertEqual(len(self.resolved(engine)), 2)
+
+    def test_no_state_change_without_counters(self):
+        engine = self.build()
+        engine._fire('card_moved', {'controller': 'p1', 'player': 'p1'})
+        engine._continue()
+        self.assertEqual(self.resolved(engine), [])

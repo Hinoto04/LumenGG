@@ -65,6 +65,12 @@ SOURCE_TECHNIQUE_EVENTS = {
     'opponent_hit', 'opponent_counter', 'clash', 'opponent_clash',
     'combo', 'combo_window', 'catch', 'after_judgment', 'after_use',
 }
+
+# 카드 이동·카운터 변화마다 상태를 다시 맞추는 정리용 핸들러. 이미 맞는 상태를 다시
+# 부여·해제하는 명령은 빼고, 바뀔 것이 없으면 효과가 발동하지 않은 것으로 본다.
+# (팔괘엔진이 레디·유발 처리마다 발동 연출을 띄우고, 방어 오버의 "효과 없음"
+# 판정을 깨던 문제)
+QUIET_NOOP_HANDLERS = {'tao_bagua_reconcile'}
 GLOBAL_REACTION_ZONES = {'passive', 'lumen', 'ultimate'}
 
 # with_other_triggers 능력이 함께 유발되지 않는 내부 기록용 이벤트. 카드 이동·카운터 변화마다
@@ -1339,6 +1345,21 @@ class EffectResolver:
                 parent_queue = []
             engine_state['resolution_queue'] = nested_queue + parent_queue
 
+    def _is_noop_state_command(self, effect, controller):
+        op = effect.get('op')
+        if op not in {'gain_state', 'lose_state'} or effect.get('player') != {'controller': True}:
+            return False
+        if effect.get('expires') or effect.get('refire_when_active'):
+            return False
+        states = (self.state['players'].get(controller) or {}).get('passive_state') or {}
+        current = states.get(str(effect.get('state') or ''))
+        # set_passive가 'value' 없는 항목에 값을 채워 넣는 경우는 그대로 실행한다.
+        if current is None:
+            return op == 'lose_state'
+        if not isinstance(current, dict) or 'value' not in current:
+            return False
+        return bool(current['value']) == (op == 'gain_state')
+
     def _execute_resolved_ability_body(self, item):
         ability = item['ability']
         context = item['context']
@@ -1365,6 +1386,13 @@ class EffectResolver:
                 effects = []
             if not isinstance(effects, list) or any(not isinstance(effect, dict) for effect in effects):
                 raise EffectResolutionError(f'{handler_name}: 핸들러는 도메인 명령 배열을 반환해야 합니다.')
+            if handler_name in QUIET_NOOP_HANDLERS:
+                effects = [
+                    effect for effect in effects
+                    if not self._is_noop_state_command(effect, item['controller'])
+                ]
+                if not effects:
+                    return
         else:
             effects = ability.get('effects') or []
         definition = self._definition_for_card(context.get('source_card') or {})
