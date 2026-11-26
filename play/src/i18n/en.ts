@@ -469,4 +469,11 @@ export const EN: Record<string, string> = {
   "이어서: {title}": "Continue: {title}",
   "모든 단원을 마쳤습니다. 언제든 다시 해 볼 수 있어요.": "You've finished every lesson. You can play them again any time.",
   "처음이신가요? 단원마다 몇 분씩 직접 해 보며 기본 규칙을 배워 보세요.": "New here? Learn the basic rules by playing a few minutes per lesson.",
+  "매칭 완료!": "Match found!",
+  "상대: {character}": "Opponent: {character}",
+  "상대: {name} · {character}": "Opponent: {name} · {character}",
+  "지금 매칭 중인 플레이어 {n}명": "{n} player(s) searching now",
+  "지금 매칭 중인 플레이어가 없습니다": "No one is searching right now",
+  "내 시작 패": "My opening hand",
+  "시작 패": "Opening hands",
 };

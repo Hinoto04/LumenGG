@@ -20,6 +20,7 @@ urlpatterns = [
     path('play/api/rooms/<str:code>/ready/', play_views.play_room_ready, name='playRoomReady'),
     path('play/api/rooms/<str:code>/leave/', play_views.play_room_leave, name='playRoomLeave'),
     path('play/api/quick/', play_views.play_quick, name='playQuick'),
+    path('play/api/quick/status/', play_views.play_quick_status, name='playQuickStatus'),
     path('party/', party_views.party_home, name='partyHome'),
     path('party/create/', party_views.party_create, name='partyCreate'),
     path('party/board/', party_views.party_board, name='partyBoard'),

@@ -437,6 +437,11 @@ class AutomaticGameEngine:
                     # The rulebook requires the final five-card hand to be shown
                     # after exchange; the live zone becomes private immediately.
                     'revealed_hand': [card.get('code') for card in engine._zone(side, 'hand')],
+                    # 기록 창이 카드 그림·이름을 보여 줄 수 있게(공개된 최종 손패)
+                    'revealed_hand_cards': [
+                        {key: card.get(key) for key in ('card_id', 'code', 'name')}
+                        for card in engine._zone(side, 'hand')
+                    ],
                     'list': [card.get('code') for card in engine._zone(side, 'list')],
                 }
                 for side in PLAYER_SIDES

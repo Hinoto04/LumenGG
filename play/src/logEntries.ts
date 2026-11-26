@@ -38,7 +38,6 @@ const HIDDEN = new Set([
   "phase_auto_advanced",
   "catch_skipped",
   "hand_limit_adjusted",
-  "setup_completed",
   "battle_revealed",
   "clock_started",
   "clock_stopped",
@@ -114,6 +113,37 @@ export function logEntry(event: GameEvent, envelope: PlayEnvelope, me: Side): Lo
   const base = { seq: event.seq, side: sideOf(event.actor, me), cards: [] as LogCard[], deltas: [] as LogEntry["deltas"] };
   const one = (card: LogCard | null) => (card ? [card] : []);
   switch (event.type) {
+    case "setup_completed": {
+      // 교환을 마친 최종 시작 손패는 서로에게 공개된다(룰북). 상대의 시작 패를 기록에 남긴다(관전자는 둘 다).
+      const sides = (["p1", "p2"] as const).filter((side) => envelope.role === "viewer" || side !== me);
+      const entries = sides
+        .map((side) => {
+          const row = (p[side] ?? {}) as Payload;
+          const cards = Array.isArray(row.revealed_hand_cards)
+            ? (row.revealed_hand_cards as Payload[]).map((card) => cardFrom(card, side)).filter((card): card is LogCard => !!card)
+            : ((row.revealed_hand as string[] | undefined) ?? []).map((code) => ({ code, owner: side }) as LogCard);
+          return { side, cards };
+        })
+        .filter((entry) => entry.cards.length);
+      if (!entries.length) return null;
+      if (entries.length === 1) {
+        const [only] = entries;
+        return {
+          ...base,
+          side: sideOf(only.side, me),
+          title: only.side === me ? t("내 시작 패") : t("상대 시작 패"),
+          detail: only.cards.map((card) => card.name).filter(Boolean).join(" · ") || undefined,
+          cards: only.cards,
+        };
+      }
+      return {
+        ...base,
+        side: "system",
+        title: t("시작 패"),
+        detail: entries.map((entry) => `${entry.side.toUpperCase()}: ${entry.cards.map((card) => card.name || card.code).join(" · ")}`).join(" / "),
+        cards: entries.flatMap((entry) => entry.cards),
+      };
+    }
     case "phase_started":
       return {
         ...base,

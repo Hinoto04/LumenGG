@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { PlayEnvelope, PrepActive, PrepCatalogCard } from "../protocol";
 import { perspective, usePlay } from "../store";
 import { playSound } from "../sound/sfx";
@@ -342,6 +342,17 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
             {registered.character?.name} · {registered.name}
           </p>
         </div>
+        {rival.character?.name && (
+          <div className="prep-rival" style={{ "--char-color": rival.character.color } as CSSProperties}>
+            {(rival.character.icon_img || rival.character.img) && (
+              <img src={String(rival.character.icon_img || rival.character.img)} alt="" draggable={false} />
+            )}
+            <span>
+              <small className="muted">{envelope.controllers?.[opp] === "ai" ? t("상대 AI") : t("상대")}</small>
+              <b>{rival.character.name}</b>
+            </span>
+          </div>
+        )}
         <div className="prep-status">
           <span className={`btn-chip is-static ${ready ? "is-online" : ""}`}>{ready ? t("나 준비 완료") : t("나 준비 중")}</span>
           <span className={`btn-chip is-static ${rival.ready ? "is-online" : ""}`}>

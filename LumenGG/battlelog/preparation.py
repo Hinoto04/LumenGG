@@ -90,6 +90,13 @@ def preparation_view(preparation, side='viewer', *, operator=False):
     result['players'] = {}
     for target, player in preparation['players'].items():
         row = {'ready': player['ready']}
+        character = (player.get('registered') or {}).get('character') or {}
+        if character.get('name'):
+            # 캐릭터는 대전 시작 전에도 서로 안다(방·퀵 매치 대기실과 같다). 덱 구성은 감춘다.
+            row['character'] = {
+                key: character.get(key) for key in ('id', 'name', 'img', 'icon_img', 'color')
+                if character.get(key)
+            }
         if target == side or operator:
             row.update(registered=copy.deepcopy(player['registered']), active=copy.deepcopy(player['active']))
         elif preparation['status'] == 'playing':

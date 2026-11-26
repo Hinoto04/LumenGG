@@ -90,6 +90,20 @@ class PlayRoomTests(TestCase):
         polled = self.post(first, 'playRoomState', {'token': waiting['token']}, code=waiting['room']['code']).json()
         self.assertIn('seat=p1', polled['room']['play_url'])
 
+    def test_quick_match_menu_shows_how_many_players_are_waiting(self):
+        status = Client().get(reverse('battlelog:playQuickStatus')).json()
+        self.assertEqual(status, {'ok': True, 'waiting': 0})
+
+        waiting = self.post(Client(), 'playQuick', {'deck_id': self.decks[0].id}).json()
+        self.assertEqual(waiting['room']['quick_waiting'], 1)
+        self.assertEqual(Client().get(reverse('battlelog:playQuickStatus')).json()['waiting'], 1)
+
+        # 화면이 소식이 없는 대기자는 세지 않는다(짝을 짓는 기준과 같다).
+        SimulatorRoom.objects.filter(code=waiting['room']['code']).update(
+            host_seen_at=timezone.now() - timedelta(minutes=5),
+        )
+        self.assertEqual(Client().get(reverse('battlelog:playQuickStatus')).json()['waiting'], 0)
+
     def test_quick_match_skips_players_who_stopped_waiting(self):
         stale = self.post(Client(), 'playQuick', {'deck_id': self.decks[0].id}).json()
         SimulatorRoom.objects.filter(code=stale['room']['code']).update(

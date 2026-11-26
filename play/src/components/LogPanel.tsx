@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { requestCards } from "../catalog";
 import { logEntries, type LogCard, type LogEntry } from "../logEntries";
 import type { PlayEnvelope, VisibleCard } from "../protocol";
 import { useLive } from "../net/live";
@@ -106,6 +107,10 @@ function LogRow({ entry }: { entry: LogEntry }) {
 
 /** 기록 속 카드 그림. 누르거나 우클릭하면 카드 정보를 연다. */
 function LogCardThumb({ card, seq, index }: { card: LogCard; seq: number; index: number }) {
+  // 보드에 보이지 않는 카드(상대 시작 패 등)도 그림·이름을 받아 온다. 이미 받은 카드는 다시 묻지 않는다.
+  useEffect(() => {
+    if (card.card_id != null) requestCards([card.card_id]);
+  }, [card.card_id]);
   const board = {
     hidden: false,
     instance_id: `log-${seq}-${index}`,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DeckPicker, TimerSelect, type DeckRow } from "./Lobby";
 import { postJson } from "./net/http";
 import { seconds as formatSeconds, t } from "./i18n";
+import { playSound } from "./sound/sfx";
 
 /**
  * 사람끼리 대전: 방(코드로 참가)과 퀵 매치. 각 플레이어는 자기 덱만 고른다.
@@ -25,6 +26,8 @@ export interface RoomView {
   seats: { host: SeatView; guest: SeatView };
   error: string;
   play_url?: string;
+  /** 퀵 매치 대기 중: 지금 매칭을 기다리는 플레이어 수(나 포함) */
+  quick_waiting?: number;
 }
 
 interface RoomResponse {
@@ -68,12 +71,43 @@ export function rememberedRoom(kind: "room" | "quick"): StoredRoom | null {
 
 const api = (code: string, action: string) => `/battlelog/play/api/rooms/${encodeURIComponent(code)}/${action}/`;
 
+/** 퀵 매치가 잡히면 다른 탭·창을 보고 있어도 알 수 있게 알리고, 잠깐 보여 준 뒤 대전으로 옮긴다. */
+const MATCHED_DELAY_MS = 1600;
+
+/** 매칭을 시작하는 버튼을 누를 때(사용자 동작) 브라우저 알림 권한을 묻는다. */
+function askNotificationPermission() {
+  try {
+    if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
+  } catch {
+    /* 알림을 못 쓰는 브라우저(일부 WebView)는 소리·제목으로만 알린다 */
+  }
+}
+
+function notifyMatched(opponent: string) {
+  const body = opponent ? t("상대: {character}", { character: opponent }) : t("대전을 시작합니다…");
+  playSound("prompt");
+  document.title = `● ${t("매칭 완료!")}`;
+  try {
+    navigator.vibrate?.([120, 60, 120]);
+  } catch {
+    /* 진동이 없는 기기 */
+  }
+  try {
+    if ("Notification" in window && Notification.permission === "granted" && document.visibilityState !== "visible") {
+      new Notification(t("매칭 완료!"), { body, tag: "lumen-quick-match" });
+    }
+  } catch {
+    /* 알림 생성이 막힌 환경(모바일 Chrome 등은 서비스 워커가 필요하다) */
+  }
+}
+
 /** 참가 중인 방(퀵 매치 포함)을 주기적으로 갱신하고, 대전이 시작되면 내 좌석으로 옮긴다. */
 function useRoom(initial: StoredRoom | null) {
   const [joined, setJoined] = useState<StoredRoom | null>(initial);
   const [room, setRoom] = useState<RoomView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const leaving = useRef(false);
+  const moving = useRef(false);
 
   const apply = useCallback((data: RoomResponse, kind: "room" | "quick") => {
     const next = { code: data.room.code, token: data.token, kind };
@@ -84,9 +118,17 @@ function useRoom(initial: StoredRoom | null) {
       return;
     }
     storeRoom(next);
-    if (data.room.status === "started" && data.room.play_url) {
+    if (data.room.status === "started" && data.room.play_url && !moving.current) {
+      moving.current = true;
       storeRoom(null);
-      location.assign(data.room.play_url);
+      const url = data.room.play_url;
+      if (kind === "quick") {
+        const rival = data.room.seat === "guest" ? data.room.seats.host : data.room.seats.guest;
+        notifyMatched(rival.deck?.character ?? "");
+        setTimeout(() => location.assign(url), MATCHED_DELAY_MS);
+      } else {
+        location.assign(url);
+      }
     }
   }, []);
 
@@ -331,6 +373,35 @@ export function RoomPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequi
   );
 }
 
+const QUICK_COUNT_MS = 5000;
+
+/** 퀵 매치 메뉴: 지금 매칭을 기다리는 플레이어 수(대기 중이 아닐 때만 따로 묻는다). */
+function useQuickWaitingCount(active: boolean): number | null {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    let alive = true;
+    const load = async () => {
+      try {
+        const response = await fetch("/battlelog/play/api/quick/status/", { credentials: "same-origin" });
+        const data = (await response.json()) as { ok?: boolean; waiting?: number };
+        if (alive && data.ok) setCount(Number(data.waiting ?? 0));
+      } catch {
+        /* 숫자를 못 받으면 표시하지 않는다 */
+      }
+    };
+    void load();
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, QUICK_COUNT_MS);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [active]);
+  return count;
+}
+
 /** 퀵 매치: 덱만 정하면 같은 때 기다리는 다른 플레이어와 짝을 짓는다. */
 export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequired: boolean }) {
   const { joined, room, error, setError, apply, leave } = useRoom(rememberedRoom("quick"));
@@ -340,6 +411,8 @@ export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequ
   const [, tick] = useState(0);
 
   const waiting = !!joined && room?.status === "waiting";
+  const matched = !!joined && room?.status === "started";
+  const idleCount = useQuickWaitingCount(!joined || room?.status === "closed");
   useEffect(() => {
     if (!waiting) return;
     const timer = setInterval(() => tick((value) => value + 1), 1000);
@@ -348,6 +421,7 @@ export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequ
 
   const start = async () => {
     if (!deck) return;
+    askNotificationPermission();
     setBusy(true);
     setError(null);
     setSince(Date.now());
@@ -360,6 +434,21 @@ export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequ
     }
   };
 
+  if (matched && room) {
+    const rival = room.seat === "guest" ? room.seats.host : room.seats.guest;
+    return (
+      <section className="lobby-card quick-card quick-matched" role="status">
+        <strong className="quick-matched-title">{t("매칭 완료!")}</strong>
+        <p>
+          {rival.deck?.character
+            ? t("상대: {name} · {character}", { name: rival.name || t("플레이어"), character: rival.deck.character })
+            : rival.name}
+        </p>
+        <p className="muted">{t("대전을 시작합니다…")}</p>
+      </section>
+    );
+  }
+
   if (waiting) {
     const seconds = Math.max(0, Math.floor((Date.now() - since) / 1000));
     return (
@@ -368,6 +457,9 @@ export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequ
         <p>
           {t("상대를 찾는 중…")} <span className="muted">{formatSeconds(seconds)}</span>
         </p>
+        {room?.quick_waiting != null && (
+          <p className="quick-count">{t("지금 매칭 중인 플레이어 {n}명", { n: room.quick_waiting })}</p>
+        )}
         <p className="muted">
           {t("{character} 덱", { character: room?.seats.host.deck?.character ?? "" })} · {t("자동 판정 · 레디 10초 · 효과 선택 30초")}
         </p>
@@ -383,6 +475,11 @@ export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequ
     <section className="lobby-card">
       <DeckPicker label={t("내 덱")} value={deck} onChange={setDeck} mine={mine} loginRequired={loginRequired} />
       <p className="muted">{t("덱만 정하면 지금 퀵 매치를 기다리는 다른 플레이어와 자동 판정으로 대전합니다(레디 10초 · 효과 선택 30초).")}</p>
+      {idleCount != null && (
+        <p className="quick-count">
+          {idleCount > 0 ? t("지금 매칭 중인 플레이어 {n}명", { n: idleCount }) : t("지금 매칭 중인 플레이어가 없습니다")}
+        </p>
+      )}
       <button type="button" className="btn-primary lobby-start" disabled={busy || !deck} onClick={start}>
         {busy ? t("찾는 중…") : t("퀵 매치 시작")}
       </button>

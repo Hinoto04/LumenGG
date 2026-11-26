@@ -115,6 +115,9 @@ def room_view(room, token):
         'seats': {'host': seat_view('host'), 'guest': seat_view('guest')},
         'error': room.error,
     }
+    if room.kind == SimulatorRoom.KIND_QUICK and room.status == SimulatorRoom.STATUS_WAITING:
+        # 퀵 매치 대기 화면: 지금 매칭을 기다리는 플레이어 수(나 포함)
+        payload['quick_waiting'] = quick_waiting_count()
     if room.status == SimulatorRoom.STATUS_STARTED and room.session_id and seat:
         session = room.session
         role = 'p1' if seat == 'host' else 'p2'
@@ -281,6 +284,21 @@ def _start(room):
     room.save()
 
 
+def _quick_waiting(now=None):
+    """지금 퀵 매치를 기다리는(화면이 살아 있는) 대기실. 짝을 지을 후보와 같은 기준이다."""
+    now = now or timezone.now()
+    return SimulatorRoom.objects.filter(
+        kind=SimulatorRoom.KIND_QUICK, status=SimulatorRoom.STATUS_WAITING,
+        guest_token__isnull=True, expires_at__gt=now,
+        host_seen_at__gte=now - QUICK_STALE,
+    )
+
+
+def quick_waiting_count():
+    """퀵 매치 메뉴에 보여 줄, 지금 매칭을 기다리는 플레이어 수(나를 포함할 수 있다)."""
+    return _quick_waiting().count()
+
+
 def quick_match(user, body):
     """덱을 정해 퀵 매치를 기다린다. 기다리는 다른 플레이어가 있으면 바로 짝을 짓는다.
 
@@ -291,15 +309,7 @@ def quick_match(user, body):
     name = _display_name(user, str(body.get('name') or '플레이어')[:40])
     now = timezone.now()
     with transaction.atomic():
-        waiting = (
-            SimulatorRoom.objects.select_for_update()
-            .filter(
-                kind=SimulatorRoom.KIND_QUICK, status=SimulatorRoom.STATUS_WAITING,
-                guest_token__isnull=True, expires_at__gt=now,
-                host_seen_at__gte=now - QUICK_STALE,
-            )
-            .order_by('created_at')
-        )
+        waiting = _quick_waiting(now).select_for_update().order_by('created_at')
         if user is not None:
             # 같은 계정끼리는 짝을 짓지 않는다(같은 사람이 두 창에서 기다리는 경우).
             waiting = waiting.exclude(host_user=user)

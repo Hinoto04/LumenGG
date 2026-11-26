@@ -391,6 +391,8 @@ export interface PrepRegistered {
 
 export interface PrepPlayer {
   ready: boolean;
+  /** 덱의 캐릭터(상대 것도 온다). 덱 구성은 내 좌석에만 온다. */
+  character?: { id?: number; name?: string; img?: string; icon_img?: string; color?: string };
   /** 내 좌석에만 온다 */
   registered?: PrepRegistered;
   active?: PrepActive;

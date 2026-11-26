@@ -1886,6 +1886,36 @@ button {
   gap: 0.4em;
 }
 
+/* 덱 준비: 상대 캐릭터(덱 구성은 보이지 않는다) */
+.prep-rival {
+  --char-color: #b8b0a4;
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  padding: 0.3em 0.9em 0.3em 0.35em;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--char-color) 45%, transparent);
+  background: color-mix(in srgb, var(--char-color) 16%, rgba(20, 20, 20, 0.9));
+}
+
+.prep-rival img {
+  width: 2.4em;
+  height: 2.4em;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid color-mix(in srgb, var(--char-color) 60%, #fff);
+  background: var(--char-color);
+}
+
+.prep-rival span {
+  display: grid;
+  line-height: 1.2;
+}
+
+.prep-rival small {
+  font-size: 0.72em;
+}
+
 .prep-summary {
   display: flex;
   flex-wrap: wrap;
@@ -3437,6 +3467,24 @@ button.prep-tile-name {
 
 .quick-card p {
   margin: 0;
+}
+
+/* 지금 퀵 매치를 기다리는 플레이어 수 */
+.quick-count {
+  margin: 0;
+  font-size: 0.88em;
+  color: var(--accent-2);
+}
+
+/* 매칭 완료: 대전으로 옮기기 전 잠깐 */
+.quick-matched {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(224, 180, 91, 0.35), 0 0 1.6em rgba(224, 180, 91, 0.2);
+}
+
+.quick-matched-title {
+  font-size: 1.35em;
+  color: var(--accent);
 }
 
 .quick-spinner {

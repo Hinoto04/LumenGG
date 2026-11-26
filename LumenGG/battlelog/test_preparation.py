@@ -23,8 +23,14 @@ class PreparationTests(TestCase):
         preparation, started = apply_preparation(preparation, 'p1', first)
         self.assertFalse(started)
         public = preparation_view(preparation, 'viewer')
-        self.assertEqual(public['players']['p1'], {'ready': True})
-        self.assertNotIn('registered', preparation_view(preparation, 'p2')['players']['p1'])
+        # 다른 사람에게는 준비 여부와 덱의 캐릭터만 보인다(덱 구성·손패는 감춘다).
+        self.assertEqual(set(public['players']['p1']), {'ready', 'character'})
+        self.assertTrue(public['players']['p1']['ready'])
+        rival = preparation_view(preparation, 'p2')['players']['p1']
+        self.assertNotIn('registered', rival)
+        self.assertNotIn('active', rival)
+        self.assertEqual(rival['character']['name'], self.snapshot()['character']['name'])
+        self.assertNotIn('datas', rival['character'])
         same, started = apply_preparation(preparation, 'p1', first)
         self.assertIs(same, preparation)
         second = self.body(preparation)

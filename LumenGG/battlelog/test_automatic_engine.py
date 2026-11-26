@@ -1046,6 +1046,11 @@ class AutomaticEngineTests(SimpleTestCase):
         event = next(item for item in engine.events if item['type'] == 'setup_completed')
         self.assertEqual(event['payload']['p1']['revealed_hand'], [p1['code']])
         self.assertEqual(event['payload']['p2']['revealed_hand'], [p2['code']])
+        # 기록 창이 상대 시작 패의 그림·이름을 보여 줄 수 있게 카드 id도 남긴다.
+        self.assertEqual(
+            event['payload']['p2']['revealed_hand_cards'],
+            [{'card_id': p2.get('card_id'), 'code': p2['code'], 'name': p2.get('name')}],
+        )
         self.assertEqual(event['payload']['p1']['list'], [p1_list['code']])
         self.assertEqual(event['payload']['p2']['list'], [p2_list['code']])
 
