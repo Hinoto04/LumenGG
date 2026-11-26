@@ -2237,3 +2237,49 @@ class ChargeRefreshTests(SimpleTestCase):
             [item['effect']['state'] for item in engine.engine_state['scheduled']], ['other'],
         )
         self.assertTrue(engine.state['players']['p1']['passive_state']['charge']['value'])
+
+
+class CatchGrabNegationTests(SimpleTestCase):
+    """8.8.2·8.8.3: 캐치로 사용한 그랩도 패의 그랩을 브레이크해 무효로 할 수 있다."""
+
+    def build(self):
+        opener = attack('opener', 'p1', code='OPENER', frame=4, damage=300, counter='6')
+        grab = attack('grab', 'p1', code='GRAB', frame=5, damage=500, special='그랩')
+        foe = attack('foe', 'p2', code='FOE', frame=10, damage=400)
+        hand_grab = attack('hand-grab', 'p2', code='HAND-GRAB', frame=12, special='그랩')
+        state = base_state([opener, grab], [foe, hand_grab])
+        rules = ruleset(opener, grab, foe, hand_grab)
+        engine = AutomaticGameEngine.initialize(state, rules, seed='catch-grab', run_startup=False)
+        _act(engine, 'p1', 'pass_phase')
+        _act(engine, 'p2', 'pass_phase')
+        _act(engine, 'p1', 'ready_card', 'opener')
+        _act(engine, 'p2', 'ready_card', 'foe')
+        # 카운터로 FP 우위를 얻어 FP 캐치 기회가 열린다.
+        self.assertEqual(engine.engine_state.get('step'), 'catch')
+        _act(engine, 'p1', 'play_catch_card', 'grab')
+        return engine
+
+    def test_defender_can_negate_catch_grab_and_ready_restarts(self):
+        engine = self.build()
+        decision = engine.engine_state['pending_decision']
+        self.assertEqual(decision['owner'], 'p2')
+        self.assertEqual(decision['kind'], 'grab_negation')
+        self.assertEqual([o['id'] for o in decision['options']], ['hand-grab'])
+        hp_before = engine.state['players']['p2']['hp']
+        action = next(a for a in engine.legal_actions('p2') if a['type'] == 'submit_decision')
+        engine.submit_action('p2', action['action_id'], {'selected': ['hand-grab']})
+        self.assertEqual(engine.state['players']['p2']['hp'], hp_before)
+        self.assertEqual(engine._find_location('hand-grab')[1], 'break')
+        self.assertEqual(engine._find_location('grab')[1], 'hand')
+        self.assertEqual(engine.state['phase'], 'ready')
+        self.assertEqual(engine.engine_state['step'], 'ready_actions')
+        self.assertEqual(engine.state['players']['p1']['zones']['battle'], [])
+        self.assertEqual(engine.state['players']['p2']['zones']['battle'], [])
+        self.assertFalse(any(e['type'] == 'phase_started' and e['payload'].get('phase') == 'get' for e in engine.events))
+
+    def test_declining_lets_catch_hit(self):
+        engine = self.build()
+        hp_before = engine.state['players']['p2']['hp']
+        action = next(a for a in engine.legal_actions('p2') if a['type'] == 'submit_decision')
+        engine.submit_action('p2', action['action_id'], {'selected': []})
+        self.assertEqual(engine.state['players']['p2']['hp'], hp_before - 500)

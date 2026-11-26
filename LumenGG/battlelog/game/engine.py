@@ -5903,8 +5903,14 @@ class AutomaticGameEngine:
             return not self.is_waiting
         if stage == 'catch':
             self._fire('catch', context)
-            pipeline['stage'] = 'hit'
+            pipeline['stage'] = 'grab_negation'
             return not self.is_waiting
+        if stage == 'grab_negation':
+            # 8.8.2: 캐치로 사용한 그랩도 상대가 패의 그랩을 브레이크해 무효로 할 수 있다.
+            pipeline['stage'] = 'hit'
+            if self._offer_catch_grab_negation(role, card):
+                return False
+            return True
         if stage == 'hit':
             if str(card.get('hit') or '') == '콤보':
                 # 8.7.2: 캐치 공격의 히트 판정이 콤보면 콤보 타임에 진입한다.
@@ -6325,6 +6331,13 @@ class AutomaticGameEngine:
             pipeline['stage'] = 'advance'
             return True
         self.engine_state['pipeline'] = None
+        if self.engine_state.pop('restart_ready_after_cleanup', False):
+            # 캐치 그랩 무효: 같은 턴의 레디 페이즈를 다시 진행한다.
+            self.state['phase'] = 'ready'
+            self.engine_state['step'] = 'ready_actions'
+            self.engine_state['ready_cards'] = {}
+            self.engine_state['battle'] = {}
+            return True
         self._advance_phase('get')
         return not self.is_waiting
 
@@ -6965,6 +6978,9 @@ class AutomaticGameEngine:
         elif continuation.get('type') == 'grab_negation':
             if selected and selected[0] != 'decline':
                 self._invalidate_grab(decision.get('owner'), selected[0])
+        elif continuation.get('type') == 'catch_grab_negation':
+            if selected and selected[0] != 'decline':
+                self._invalidate_catch_grab(decision.get('owner'), selected[0])
 
     def _ready_timeout(self, missing):
         if missing not in PLAYER_SIDES or missing in self.engine_state.get('ready_cards', {}):
@@ -7108,24 +7124,7 @@ class AutomaticGameEngine:
                 continue
             if self._rule_blocked('grab_negation', defender):
                 continue
-            options = [
-                {
-                    'id': card.get('instance_id'),
-                    'label': card.get('name') or '그랩 기술',
-                    'card_instance_id': card.get('instance_id'),
-                    'card': self._private_action_card(card),
-                }
-                for card in self._zone(defender, 'hand')
-                if (
-                    _is_attack(card)
-                    and _has_grab(self._effective_card_for_operation(
-                        card, 'special_judgment',
-                    ))
-                )
-                and not self._break_rule_prevents(
-                    card, 'hand', defender, direct_controller=defender,
-                )
-            ]
+            options = self._grab_negation_options(defender)
             if options:
                 self.create_decision(
                     owner=defender, kind='grab_negation', prompt='패의 그랩을 브레이크해 상대 그랩을 무효로 할 수 있습니다.',
@@ -7135,6 +7134,82 @@ class AutomaticGameEngine:
                 )
                 return True
         return False
+
+    def _grab_negation_options(self, defender):
+        return [
+            {
+                'id': card.get('instance_id'),
+                'label': card.get('name') or '그랩 기술',
+                'card_instance_id': card.get('instance_id'),
+                'card': self._private_action_card(card),
+            }
+            for card in self._zone(defender, 'hand')
+            if (
+                _is_attack(card)
+                and _has_grab(self._effective_card_for_operation(
+                    card, 'special_judgment',
+                ))
+            )
+            and not self._break_rule_prevents(
+                card, 'hand', defender, direct_controller=defender,
+            )
+        ]
+
+    def _offer_catch_grab_negation(self, attacker, card):
+        defender = opponent(attacker)
+        if not _has_grab(self._effective_card_for_operation(card, 'special_judgment')):
+            return False
+        if self._rule_blocked('grab_negation', defender):
+            return False
+        options = self._grab_negation_options(defender)
+        if not options:
+            return False
+        self.create_decision(
+            owner=defender, kind='grab_negation',
+            prompt='패의 그랩을 브레이크해 상대가 캐치한 그랩을 무효로 할 수 있습니다.',
+            options=options, minimum=0, maximum=1, default=[], optional=True,
+            continuation={'type': 'catch_grab_negation'},
+        )
+        return True
+
+    def _invalidate_catch_grab(self, defender, hand_grab_id):
+        """8.8.3: 캐치 그랩 무효. 본래 배틀의 결과는 유지하고 캐치 카드만 패로 되돌린다.
+
+        그 뒤 같은 턴의 레디 페이즈를 다시 진행한다. 배틀 페이즈를 끝내는 것이
+        아니므로 배틀 종료 시 효과는 처리하지 않는다(Q&A 404).
+        """
+        pipeline = self.engine_state.get('pipeline') or {}
+        moved = self.break_card(
+            hand_grab_id, reason='grab_negation', direct_controller=defender,
+        )
+        if moved is None:
+            return False
+        attacker = opponent(defender)
+        catch_id = pipeline.get('card_instance_id')
+        catch_card = copy.deepcopy(pipeline.get('card') or {})
+        if catch_id and self._find_card(catch_id, owner=attacker, zone='battle'):
+            self.move_card(catch_id, 'hand', reason='grab_negated')
+        self.engine_state['catch'] = None
+        self.engine_state['granted_catches'] = []
+        self.engine_state['restart_ready_after_cleanup'] = True
+        self.engine_state['step'] = 'battle_cleanup'
+        self.engine_state['pipeline'] = {
+            'kind': 'battle_cleanup', 'stage': 'prepare_cards',
+            'index': 0, 'replenish_index': 0,
+        }
+        self._clear_clock()
+        self.emit('grab_negated', defender, {
+            'card_instance_id': hand_grab_id, 'catch_card_instance_id': catch_id,
+        })
+        if catch_card:
+            self._fire('grab_negated', {
+                'controller': attacker,
+                'source_card_instance_id': catch_id,
+                'source_card': catch_card,
+                'source_zone': 'battle', 'catch': True,
+                'negated_by_card_instance_id': hand_grab_id,
+            })
+        return True
 
     def _invalidate_grab(self, defender, hand_grab_id):
         moved = self.break_card(
