@@ -249,6 +249,16 @@ const TUTORIAL_LEVELS: [string, string][] = [
   ["basic", "기초"],
   ["intermediate", "중급"],
 ];
+const TUTORIAL_FOLDERS_KEY = "lumen-play-tutorial-folders";
+
+/** 사용자가 직접 접거나 편 단계 묶음(기기마다). 없으면 기본값(다음 단원이 있는 묶음만 펼침). */
+function savedFolders(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(TUTORIAL_FOLDERS_KEY) || "{}") as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
 
 /**
  * 튜토리얼 과정 카드(docs/TUTORIAL.md). 준비된 단원 목록을 차례로 보여 주고, 마치지 않은 첫 단원을
@@ -258,6 +268,7 @@ function TutorialPanel() {
   const [lessons, setLessons] = useState<TutorialRow[]>([]);
   const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [folders, setFolders] = useState<Record<string, boolean>>(savedFolders);
   useEffect(() => {
     getJson<{ tutorials: TutorialRow[] }>("/battlelog/play/api/tutorials/")
       .then((data) => setLessons(data.tutorials.filter((row) => row.available)))
@@ -289,10 +300,36 @@ function TutorialPanel() {
         {TUTORIAL_LEVELS.map(([level, label]) => {
           const rows = lessons.filter((row) => (row.level ?? "basic") === level);
           if (!rows.length) return null;
+          const done = rows.filter((row) => completed[row.id]).length;
+          const holdsNext = rows.some((row) => row.id === next?.id);
+          const open = folders[level] ?? (allDone ? level === TUTORIAL_LEVELS[0][0] : holdsNext);
+          const toggle = () => {
+            const changed = { ...folders, [level]: !open };
+            setFolders(changed);
+            try {
+              localStorage.setItem(TUTORIAL_FOLDERS_KEY, JSON.stringify(changed));
+            } catch {
+              /* 접힘 기억은 편의 기능일 뿐이다 */
+            }
+          };
           return (
-            <div key={level} className="tutorial-level">
-              <h3 className="tutorial-level-title">{t(label)}</h3>
-              <ol className="tutorial-lessons">
+            <div key={level} className={`tutorial-level ${open ? "is-open" : ""}`}>
+              <button
+                type="button"
+                className="tutorial-level-title"
+                aria-expanded={open}
+                aria-controls={`tutorial-level-${level}`}
+                onClick={toggle}
+              >
+                <span className="tutorial-level-chevron" aria-hidden="true">
+                  ▸
+                </span>
+                <span>{t(label)}</span>
+                <span className="tutorial-level-count">
+                  {done} / {rows.length}
+                </span>
+              </button>
+              <ol className="tutorial-lessons" id={`tutorial-level-${level}`} hidden={!open}>
                 {rows.map((row, index) => (
                   <li key={row.id}>
                     <button

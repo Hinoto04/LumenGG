@@ -4359,10 +4359,49 @@ body.play-lobby-page #root.play-embedded {
 }
 
 .tutorial-level-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  width: 100%;
   margin: 0;
-  font-size: 0.78em;
+  padding: 0.35em 0.2em;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.82em;
   font-weight: 800;
   color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tutorial-level-title:hover {
+  color: var(--text);
+}
+
+.tutorial-level-chevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.tutorial-level.is-open .tutorial-level-chevron {
+  transform: rotate(90deg);
+}
+
+.tutorial-lessons[hidden] {
+  display: none;
+}
+
+.tutorial-level-count {
+  margin-left: auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-level-chevron {
+    transition: none;
+  }
 }
 
 /* 로비: 대전 설정 열 + 튜토리얼 옆 열. 좁은 화면은 한 줄로 쌓여 튜토리얼이 아래에 온다. */
