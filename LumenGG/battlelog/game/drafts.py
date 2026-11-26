@@ -6283,7 +6283,8 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                         'effect': {
                             'op': 'break_card',
                             'selector': {
-                                'kind': 'card', 'player': 'any',
+                                # 자신의 배틀 존 기술만 브레이크한다.
+                                'kind': 'card', 'player': {'controller': True},
                                 'zones': ['battle'], 'all': True,
                                 'where': {'is_technique': True},
                             },

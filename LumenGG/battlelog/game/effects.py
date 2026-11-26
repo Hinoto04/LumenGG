@@ -50,6 +50,11 @@ def _text_has_filter_marker(text, marker):
     """
     text = _normalized_filter_text(text)
     marker = _normalized_filter_text(marker)
+    # "[[state:x]]:" 표식도 상태 효과 표식으로 본다. 카드 텍스트는
+    # "②[[state:x]] : ..."처럼 콜론 앞에 공백이 있을 수 있다.
+    marker_without_colon = re.sub(r'\s*:\s*$', '', marker)
+    if marker_without_colon != marker and _STATE_MARKER.fullmatch(marker_without_colon):
+        marker = marker_without_colon
     if _STATE_MARKER.fullmatch(marker):
         return bool(re.search(rf'[①-⑳]\s*{re.escape(marker)}\s*:', text))
     return marker in text

@@ -8439,7 +8439,8 @@ class AutomaticEngineTests(SimpleTestCase):
         ]
 
         self.assertTrue(definition['combo_rules'][0]['any_speed'])
-        self.assertEqual([action['payload']['combo_speed'] for action in actions], [9, 10, 11, 12])
+        # 원하는 속도를 선언해도 3콤보 이후의 연결 규칙(직전 속도 +1)은 따른다.
+        self.assertEqual([action['payload']['combo_speed'] for action in actions], [9])
         engine._play_combo('p1', ['any-speed'], [9])
         self.assertEqual(engine.card_stat(engine._find_card('any-speed'), 'frame', 'p1'), 9)
         self.assertEqual(validate_effect_definition(definition, card_has_text=True), [])
@@ -45291,12 +45292,12 @@ class IntegratedAutomaticEffectReviewTests(TestCase):
             2,
         )
         cleanup = combos[
-            'own-combo-end-breaks-all-techniques-but-not-token'
+            'own-combo-end-breaks-own-techniques-but-not-token'
         ]
         self.assertEqual(
             (cleanup['source_zone'], cleanup['opponent_zone'],
              cleanup['token_zone']),
-            ('break', 'break', 'battle'),
+            ('break', 'battle', 'battle'),
         )
         mutated = copy.deepcopy(definition)
         mutated['abilities'][1]['effects'][0]['max_uses'] = 3

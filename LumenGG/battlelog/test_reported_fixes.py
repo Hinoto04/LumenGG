@@ -1955,3 +1955,285 @@ class BitterColdContinuousComboTests(SimpleTestCase):
             if e['type'] in {'effect_resolved', 'decision_requested'}
             and e['payload'].get('card_code') == 'CB04-AT-012'
         ])
+
+
+def _combo_engine(p1_zones, p2_cards, cards, *, definitions=None, seed='combo-fix'):
+    state = base_state([], p2_cards)
+    state['players']['p1']['zones'].update(p1_zones)
+    rules = ruleset(*cards, *p2_cards)
+    for code, definition in (definitions or {}).items():
+        rules['cards'][code]['effect_definition'] = definition
+    return AutomaticGameEngine.initialize(state, rules, seed=seed, run_startup=False)
+
+
+def _act(engine, role, kind, pick=None):
+    engine.submit_action(role, next(
+        a for a in engine.legal_actions(role)
+        if a['type'] == kind and (pick is None or a['payload'].get('card_instance_id') == pick)
+    )['action_id'])
+
+
+class AnySpeedComboWindowTests(SimpleTestCase):
+    """호신장 ②: 원하는 속도로 사용해도 3콤보 이후에는 직전 속도 +1 연결 규칙을 따른다."""
+
+    def test_any_speed_after_three_combo_keeps_link_window(self):
+        guard = attack('guard', 'p1', code='UNC-AT-004', frame=8, damage=200)
+        engine = _combo_engine(
+            {'hand': [guard]}, [], [guard],
+            definitions={'UNC-AT-004': {
+                'schema_version': 1, 'abilities': [],
+                'combo_rules': [{'any_speed': True, 'numbered_effect': True}],
+            }},
+        )
+        combo = {'owner': 'p1', 'used': ['a', 'b'], 'last_speed': 6}
+        self.assertEqual(engine._combo_speed_options('p1', guard, combo), [7])
+        # 2콤보 첫 기술은 직전 속도가 없으므로 원하는 속도를 고를 수 있다.
+        self.assertIn(3, engine._combo_speed_options('p1', guard, {'owner': 'p1', 'used': []}))
+
+
+class DownStanceTests(SimpleTestCase):
+    """다운 스탠스: "②[[state:down_stance]] :"처럼 콜론 앞에 공백이 있어도 상태 효과가 있는 기술이다."""
+
+    TRAIT = (
+        '자신의 <상단 회피> 및 <하단> 위치 판정 기술 사용 후 [[state:down_stance]]상태가 된다.\n'
+        '[[state:down_stance]] 상태인 경우 [[state:down_stance]] 상태 효과가 없는 기술을 사용할 때 1속도가 느려진다.\n'
+        '<상단 회피> 및 <하단> 위치 판정 이외 기술 사용 후 [[state:down_stance]] 상태가 해제된다.'
+    )
+
+    def test_spaced_marker_counts_as_down_stance_effect(self):
+        from .game.effects import card_matches
+
+        kick = {'kind': 'card', 'type': '공격', 'text': '①상대 회피 시 3FP\n②[[state:down_stance]] : 이 기술 데미지+200'}
+        plain = {'kind': 'card', 'type': '공격', 'text': '①히트 시 1FP'}
+        where = {'kind': 'card', 'text_not_contains': '[[state:down_stance]]:'}
+        self.assertFalse(card_matches(kick, where))
+        self.assertTrue(card_matches(plain, where))
+
+    def test_pair_follow_up_speed_reflects_down_stance_from_first_card(self):
+        from .game.drafts import build_effect_draft
+
+        trait = {
+            'instance_id': 'ds', 'kind': 'card', 'owner': 'p1', 'code': 'ST3-PS1',
+            'name': '다운 스탠스', 'type': '특성', 'face_up': True,
+        }
+        toss = attack('toss', 'p1', code='TOSS', frame=7, damage=400, position='하단')
+        funky = attack('funky', 'p1', code='FUNKY', frame=8, damage=400)
+        funky['text'] = '①[[state:down_stance]]: 이 기술의 속도가 2 빨라진다.'
+        kick = attack('kick', 'p1', code='KICK', frame=6, damage=400)
+        foe = attack('foe', 'p2', code='FOE', frame=14)
+        opener = attack('opener', 'p1', code='OPENER', frame=5, hit='콤보', counter='콤보')
+        engine = _combo_engine(
+            {'hand': [opener, toss, funky, kick], 'passive': [trait]}, [foe],
+            [toss, funky, kick, opener],
+            definitions={
+                'FUNKY': {'schema_version': 1, 'abilities': [{
+                    'id': 'funky-n1', 'kind': 'effect', 'mode': 'continuous',
+                    'timing': 'function', 'active_zones': ['battle'],
+                    'condition': {'op': 'has_state', 'player': {'controller': True}, 'state': 'down_stance'},
+                    'effects': [{'op': 'modify_stat', 'player': {'controller': True}, 'stat': 'frame',
+                                 'amount': -2, 'duration': 'continuous'}],
+                }]},
+            },
+        )
+        engine.ruleset['cards']['ST3-PS1'] = {
+            **trait, 'effect_definition': build_effect_draft('ST3-PS1', self.TRAIT),
+        }
+        engine._refresh_continuous_rules()
+        _act(engine, 'p1', 'pass_phase')
+        _act(engine, 'p2', 'pass_phase')
+        _act(engine, 'p1', 'ready_card', 'opener')
+        _act(engine, 'p2', 'ready_card')
+        pairs = {
+            tuple(a['payload']['card_instance_ids']): a['payload']['combo_speeds']
+            for a in engine._combo_actions('p1', engine.engine_state['combo'])
+        }
+        # Q&A 149: 다운 토스(하단) 뒤의 펑키정키는 다운 스탠스로 6속도가 되어 이을 수 없다.
+        self.assertNotIn(('toss', 'funky'), pairs)
+        self.assertEqual(pairs.get(('kick', 'toss')), [6, 7])
+
+
+class SelfBreakingComboCardTests(SimpleTestCase):
+    """도펠슈베르터 츠바이: 「콤보 시」 효과로 자신을 브레이크해도 콤보 타임은 끝나지 않는다."""
+
+    def test_combo_continues_after_card_breaks_itself(self):
+        opener = attack('opener', 'p1', code='OPENER', frame=5, hit='콤보', counter='콤보')
+        first = attack('first', 'p1', code='FIRST', frame=6, damage=300)
+        breaker = attack('breaker', 'p1', code='BREAKER', frame=7, damage=300)
+        fourth = attack('fourth', 'p1', code='FOURTH', frame=8, damage=400)
+        foe = attack('foe', 'p2', code='FOE', frame=14)
+        engine = _combo_engine(
+            {'hand': [opener, first, breaker, fourth]}, [foe], [opener, first, breaker, fourth],
+            definitions={'BREAKER': {'schema_version': 1, 'abilities': [{
+                'id': 'breaker-n1', 'kind': 'effect', 'mode': 'mandatory', 'timing': 'combo',
+                'active_zones': ['battle'], 'trigger': {'event': 'combo'},
+                'effects': [{'op': 'break_card', 'card_instance_id': {'path': 'context.source_card_instance_id'}}],
+            }]}},
+        )
+        _act(engine, 'p1', 'pass_phase')
+        _act(engine, 'p2', 'pass_phase')
+        _act(engine, 'p1', 'ready_card', 'opener')
+        _act(engine, 'p2', 'ready_card')
+        _act(engine, 'p1', 'select_combo_first', 'first')
+        _act(engine, 'p1', 'select_combo_followup', 'breaker')
+        self.assertEqual(engine.engine_state.get('step'), 'combo')
+        self.assertEqual(engine._find_location('breaker')[1], 'break')
+        self.assertTrue(any(
+            a['type'] == 'play_combo_card' and a['payload']['card_instance_id'] == 'fourth'
+            for a in engine.legal_actions('p1')
+        ))
+
+
+class LumenComboGrantWithoutLimitTests(SimpleTestCase):
+    """블리자드 ③: 루멘 존의 부쿠키 기술 사용 허가에는 장수 제한이 없다."""
+
+    def test_draft_grant_has_no_usage_key(self):
+        from .game.drafts import build_effect_draft
+
+        for code in ('CB04-AT-007', 'CB04-AT-005'):
+            definition = build_effect_draft(code, '')
+            grants = [
+                effect for ability in definition['abilities']
+                for effect in ability.get('effects') or []
+                if effect.get('op') == 'modify_combo' and 'lumen' in (effect.get('allow_zones') or [])
+            ]
+            self.assertTrue(grants, code)
+            self.assertTrue(all('usage_key' not in grant for grant in grants), code)
+
+    def test_two_lumen_cards_can_link(self):
+        cards = [
+            attack(f'l{frame}', 'p1', code=f'L{frame}', frame=frame) for frame in (5, 6)
+        ]
+        for card in cards:
+            card['character_key'] = '부쿠키'
+            card['face_up'] = True
+        engine = _combo_engine({'lumen': cards}, [], cards)
+        engine.engine_state['modifiers'] = [{
+            'op': 'modify_combo', 'player': 'p1', 'controller': 'p1',
+            'allow_zones': ['lumen'], 'where': {'character_key': '부쿠키', 'is_technique': True},
+            'duration': 'turn', 'source': 'bliz',
+        }]
+        combo = {'owner': 'p1', 'source': 'bliz', 'used': [], 'next_penalty': 100}
+        proposals = [a['payload']['card_instance_ids'] for a in engine._combo_actions('p1', combo)]
+        self.assertIn(['l5', 'l6'], proposals)
+
+
+class BreakZoneOwnSpeedGrantTests(SimpleTestCase):
+    """나찰파쇄열권 ②: <8속도 이하> 허가는 자기 효과로 6~8속도로 쓸 수 있는 폭염천뢰도 포함한다."""
+
+    def test_twelve_speed_card_with_six_to_eight_option_is_usable_at_those_speeds(self):
+        bakuen = attack('bakuen', 'p1', code='CB04-AT-024', frame=12, damage=500)
+        bakuen.update({'character_key': 'rin', 'face_up': True})
+        engine = _combo_engine(
+            {'break': [bakuen]}, [], [bakuen],
+            definitions={'CB04-AT-024': {
+                'schema_version': 1, 'abilities': [],
+                'combo_rules': [{'speed_options': [6, 7, 8], 'numbered_effect': True}],
+            }},
+        )
+        engine.engine_state['modifiers'] = [{
+            'op': 'modify_combo', 'player': 'p1', 'controller': 'p1',
+            'allow_zones': ['break'], 'where': {'character_key': 'rin', 'frame_lte': 8},
+            'ignore_speed': True, 'duration': 'turn', 'source': 'rasetsu',
+        }]
+        combo = {'owner': 'p1', 'source': 'rasetsu', 'used': ['a', 'b'], 'last_speed': 9, 'next_penalty': 300}
+        self.assertTrue(engine._combo_zone_allowed('p1', bakuen, 'break', combo))
+        self.assertEqual(engine._combo_speed_options('p1', bakuen, combo), [6, 7, 8])
+
+
+class AddedSpecialSpeedLimitTests(SimpleTestCase):
+    """호버 부스터: 덧붙인 "9속도 이하 하단 회피"는 10속도 기술을 회피하지 않는다."""
+
+    def test_speed_bound_in_added_special(self):
+        from .game.engine import _special_result
+
+        card = {'special': '9속도 이하 하단 회피'}
+        self.assertEqual(_special_result(card, '하단', 10), '')
+        self.assertEqual(_special_result(card, '하단', 9), 'dodge')
+        self.assertEqual(_special_result({'special': '8속도 이상 하단 회피'}, '하단', 7), '')
+        # 판정마다 위치를 따로 본다: 상단 회피가 중단 상쇄를 회피로 만들지 않는다.
+        self.assertEqual(_special_result({'special': '상단 회피 · 중단 상쇄'}, '중단', 5), 'clash')
+        self.assertEqual(_special_result({'special': '상·중·하단 상쇄'}, '하단'), 'clash')
+
+
+class LumenTechniqueUnguardableScopeTests(SimpleTestCase):
+    """니아: 루멘 존의 「상대는 이 기술을 방어할 수 없다」 기술이 다른 기술까지 방어 불가로 만들지 않는다."""
+
+    def test_lumen_technique_prevent_applies_only_to_itself(self):
+        rocket = attack('rocket', 'p1', code='ROCKET', frame=13)
+        rocket['face_up'] = True
+        cats = attack('cats', 'p1', code='CATS', frame=5, position='하단')
+        guard = defense('guard', 'p2', top='방어', mid='방어', bottom='방어')
+        engine = _combo_engine(
+            {'hand': [cats], 'lumen': [rocket]}, [guard], [rocket, cats],
+            definitions={'ROCKET': {'schema_version': 1, 'abilities': [{
+                'id': 'rocket-function', 'kind': 'function', 'mode': 'continuous', 'timing': 'function',
+                'effects': [{'op': 'prevent', 'kind': 'guard', 'player': {'opponent': True}, 'duration': 'continuous'}],
+            }]}},
+        )
+        _act(engine, 'p1', 'pass_phase')
+        _act(engine, 'p2', 'pass_phase')
+        _act(engine, 'p1', 'ready_card', 'cats')
+        _act(engine, 'p2', 'ready_card')
+        judged = next(e for e in engine.events if e['type'] == 'battle_judged')
+        self.assertEqual(judged['payload']['result'], {'p1': 'guarded', 'p2': 'guard'})
+
+
+class SpecialComboCapTests(SimpleTestCase):
+    """여제의 영역 ②: 효과로 연 콤보 타임도 "3콤보까지"라면 3번째 기술을 이을 수 있다."""
+
+    def build(self, frames):
+        cards = [attack(f'c{frame}', 'p1', code=f'C{frame}', frame=frame, damage=400) for frame in frames]
+        return _combo_engine({'hand': cards}, [], cards)
+
+    def test_capped_special_combo_offers_third_card(self):
+        engine = self.build((5, 6, 7, 8))
+        engine.state['phase'] = 'battle'
+        engine.engine_state['modifiers'] = [{
+            'op': 'modify_combo', 'player': 'p1', 'controller': 'p1', 'max_combo': 3,
+            'duration': 'battle', 'source': 'queen',
+        }]
+        engine.grant_combo('p1', source='queen', special=True, trigger_event=False)
+        _act(engine, 'p1', 'select_combo_first', 'c5')
+        _act(engine, 'p1', 'select_combo_followup', 'c6')
+        self.assertEqual(engine.engine_state['combo']['used'], ['c5', 'c6'])
+        _act(engine, 'p1', 'play_combo_card', 'c7')
+        self.assertFalse(any(
+            a['type'] == 'play_combo_card' for a in engine.legal_actions('p1')
+        ))
+        damages = [e['payload']['amount'] for e in engine.events if e['type'] == 'damage_dealt']
+        self.assertEqual(damages, [400, 300, 200])
+
+    def test_uncapped_special_combo_stops_at_two(self):
+        engine = self.build((5, 6, 7))
+        engine.state['phase'] = 'battle'
+        engine.grant_combo('p1', source='nocturne', special=True, trigger_event=False)
+        _act(engine, 'p1', 'select_combo_first', 'c5')
+        _act(engine, 'p1', 'select_combo_followup', 'c6')
+        self.assertFalse(any(
+            a['type'] == 'play_combo_card' for a in engine.legal_actions('p1')
+        ))
+
+
+class ChargeRefreshTests(SimpleTestCase):
+    """루트아스트라 ②: 차지를 다음 턴 종료까지 갱신하면 이번 턴 해제 예약은 사라진다(Q&A 509)."""
+
+    def test_refresh_with_expiry_drops_scheduled_loss(self):
+        engine = _combo_engine({}, [], [])
+        engine.set_passive('p1', 'charge', value=True)
+        engine.engine_state['scheduled'] = [{
+            'when': {'event': 'phase_end', 'phase': 'recovery'},
+            'effect': {'op': 'lose_state', 'player': {'controller': True}, 'state': 'charge'},
+            'context': {'controller': 'p1'}, 'duration': 'turn',
+        }, {
+            'when': {'event': 'phase_end', 'phase': 'recovery'},
+            'effect': {'op': 'lose_state', 'player': {'controller': True}, 'state': 'other'},
+            'context': {'controller': 'p1'}, 'duration': 'turn',
+        }]
+        engine.set_passive(
+            'p1', 'charge', value=True,
+            expires={'event': 'phase_end', 'phase': 'recovery', 'occurrences': 2},
+        )
+        self.assertEqual(
+            [item['effect']['state'] for item in engine.engine_state['scheduled']], ['other'],
+        )
+        self.assertTrue(engine.state['players']['p1']['passive_state']['charge']['value'])

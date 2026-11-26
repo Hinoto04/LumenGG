@@ -129666,7 +129666,7 @@ def _review_cb02_at_038_definition(definition, card_snapshot, extra_root):
             'effect': {
                 'op': 'break_card',
                 'selector': {
-                    'kind': 'card', 'player': 'any',
+                    'kind': 'card', 'player': {'controller': True},
                     'zones': ['battle'], 'all': True,
                     'where': {'is_technique': True},
                 },
@@ -129766,10 +129766,10 @@ def _review_cb02_at_038_definition(definition, card_snapshot, extra_root):
                 'eligible_count': 0,
             }, {'eligible_offered_count': 0, 'maximum_sequence_length': 0,
                 'modifier_count': 1, 'scheduled': 1, 'resolved': 1}),
-            ('own-combo-end-breaks-all-techniques-but-not-token', 'p1', {
+            ('own-combo-end-breaks-own-techniques-but-not-token', 'p1', {
                 'finish_combo': True,
             }, {'source_zone_before_finish': 'battle',
-                'source_zone': 'break', 'opponent_zone': 'break',
+                'source_zone': 'break', 'opponent_zone': 'battle',
                 'token_zone': 'battle', 'scheduled': 0, 'resolved': 1}),
             ('opponent-combo-end-does-not-consume-schedule', 'p2', {
                 'finish_combo': True, 'combo_owner': 'opponent',

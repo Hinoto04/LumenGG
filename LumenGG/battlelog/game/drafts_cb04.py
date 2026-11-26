@@ -220,7 +220,7 @@ def _blizzard(code):
             effects=[{
                 'op': 'modify_combo', 'player': {'controller': True},
                 'allow_zones': ['lumen'], 'where': dict(BUKUKI_TECHNIQUE),
-                'usage_key': 'cb04-at-007-lumen-combo', 'duration': 'turn',
+                'duration': 'turn',
             }],
         ),
     ]
@@ -862,8 +862,9 @@ def _lumen_bukuki_combo(code, suffix):
         timing='combo', active_zones=['battle'], trigger={'event': 'combo'},
         effects=[{
             'op': 'modify_combo', 'player': {'controller': True},
+            # 장수 제한이 없는 허가다. usage_key를 붙이면 1장으로 제한된다.
             'allow_zones': ['lumen'], 'where': dict(BUKUKI_TECHNIQUE),
-            'usage_key': f'{code.lower()}-lumen-combo', 'duration': 'turn',
+            'duration': 'turn',
         }],
     )
 

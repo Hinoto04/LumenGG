@@ -10,6 +10,7 @@ import copy
 import hashlib
 import json
 import random
+import re
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone as datetime_timezone
 
@@ -230,18 +231,42 @@ def _has_grab(card):
     return '그랩' in str((card or {}).get('special') or '')
 
 
-def _special_result(card, position):
-    """Return an attack card's dodge/clash keyword against a position."""
+_SPECIAL_SPEED_BOUND = re.compile(r'(\d+)\s*속도\s*(이하|이상)')
+
+
+def _special_result(card, position, opponent_speed=None):
+    """Return an attack card's dodge/clash keyword against a position.
+
+    효과로 덧붙인 특수 판정(호버 부스터 "9속도 이하 하단 회피")은 그 판정에 적힌
+    속도 조건을 만족하는 상대 기술에만 적용한다.
+    """
     text = (
         str((card or {}).get('special') or '')
         .replace('•', '·').replace('ㆍ', '·')
     )
     if not position:
         return ''
-    covers_all_positions = '상·중·하단' in text
-    if (position in text or covers_all_positions) and '회피' in text:
+    results = set()
+    for segment in re.split(r'\s+·\s+', text):
+        bounds = _SPECIAL_SPEED_BOUND.findall(segment)
+        if bounds and opponent_speed is not None:
+            speed = _number(opponent_speed)
+            if any(
+                (kind == '이하' and speed > _number(limit))
+                or (kind == '이상' and speed < _number(limit))
+                for limit, kind in bounds
+            ):
+                continue
+        covers_all_positions = '상·중·하단' in segment
+        if not (position in segment or covers_all_positions):
+            continue
+        if '회피' in segment:
+            results.add('dodge')
+        elif '상쇄' in segment:
+            results.add('clash')
+    if 'dodge' in results:
         return 'dodge'
-    if (position in text or covers_all_positions) and '상쇄' in text:
+    if 'clash' in results:
         return 'clash'
     return ''
 
@@ -1910,8 +1935,14 @@ class AutomaticGameEngine:
             if result['p1'] == 'clash':
                 battle['clash_sides'] = ['p1']
         elif _is_attack(c1) and _is_attack(c2):
-            r1 = _special_result(c1, c2.get('pos'))
-            r2 = _special_result(c2, c1.get('pos'))
+            r1 = _special_result(
+                c1, c2.get('pos'),
+                self.card_stat(c2, 'frame', 'p2', include_fp=False),
+            )
+            r2 = _special_result(
+                c2, c1.get('pos'),
+                self.card_stat(c1, 'frame', 'p1', include_fp=False),
+            )
             if not r1 and self._defense_judgment_allowed(
                 c1, c2, 'clash', 'p2', grant_only=True,
             ):
@@ -2975,7 +3006,10 @@ class AutomaticGameEngine:
             None if review_isolation and not combo.get('special')
             else (2 if not (combo.get('used') or []) else 1)
         )
-        if combo.get('special') and (combo.get('used') or []):
+        if (
+            combo.get('special') and (combo.get('used') or [])
+            and not self._special_combo_continues(role, combo)
+        ):
             return []
         base_cards = []
         # Enumerate every owned zone and let ``_combo_zone_allowed`` enforce
@@ -3045,7 +3079,10 @@ class AutomaticGameEngine:
         ):
             if proposal_size is not None and len(proposed_cards) != proposal_size:
                 return
-            if combo.get('special') and len(proposed_cards) != 2:
+            if (
+                combo.get('special') and not (combo.get('used') or [])
+                and len(proposed_cards) != 2
+            ):
                 return
             card_ids = [card.get('instance_id') for card in proposed_cards]
             source_zones = []
@@ -3150,7 +3187,7 @@ class AutomaticGameEngine:
                         proposed_rule_sets,
                     )
             proposal_cap = (
-                2 if projected.get('special')
+                2 if projected.get('special') and proposal_size is None
                 else (5 if proposal_size is None else proposal_size)
             )
             if len(proposed_cards) >= proposal_cap:
@@ -3189,6 +3226,24 @@ class AutomaticGameEngine:
                     continue
                 if not self._combo_zone_allowed(role, live_card, found_zone, projected):
                     continue
+                # 함께 제시하는 3콤보 기술은 2콤보 기술의 처리를 마친 상태에서
+                # 속도와 사용 조건을 본다. 2콤보 기술의 사용 후 효과가 상태를
+                # 바꾸면(다운 스탠스, Q&A 149) 3콤보 기술의 속도도 달라진다.
+                pair_check_engine = None
+                if (
+                    proposal_size == 2 and len(proposed_cards) == 1
+                    and not projected.get('special')
+                    and (
+                        self._definition_for_card(
+                            projected_card,
+                        ).get('play_condition') is not None
+                        or self._has_passive_use_triggers(role)
+                    )
+                ):
+                    pair_check_engine = followup_engine(
+                        proposed_cards[0], speeds[0], ignores[0],
+                        speed_ignores[0],
+                    )
                 for speed_ignore in self._combo_speed_ignore_options(
                     role, projected_card, projected,
                 ):
@@ -3201,10 +3256,15 @@ class AutomaticGameEngine:
                         )
                     ):
                         continue
-                    for speed in self._combo_speed_options(
-                        role, projected_card, projected, rules=combo_rules,
-                        use_optional_speed_ignore=speed_ignore,
-                    ):
+                    self._combo_followup_check_engine = pair_check_engine
+                    try:
+                        candidate_speeds = self._combo_speed_options(
+                            role, projected_card, projected, rules=combo_rules,
+                            use_optional_speed_ignore=speed_ignore,
+                        )
+                    finally:
+                        self._combo_followup_check_engine = None
+                    for speed in candidate_speeds:
                         for ignore in self._combo_penalty_options(
                             role, projected_card, projected,
                         ):
@@ -3212,19 +3272,7 @@ class AutomaticGameEngine:
                             # to only one card in a proposed chain.
                             if ignore and any(ignores):
                                 continue
-                            check_engine = None
-                            if (
-                                proposal_size == 2 and len(proposed_cards) == 1
-                                and not projected.get('special')
-                                and self._definition_for_card(
-                                    projected_card,
-                                ).get('play_condition') is not None
-                            ):
-                                check_engine = followup_engine(
-                                    proposed_cards[0], speeds[0], ignores[0],
-                                    speed_ignores[0],
-                                )
-                            self._combo_followup_check_engine = check_engine
+                            self._combo_followup_check_engine = pair_check_engine
                             try:
                                 legal = self._combo_card_legal(
                                     role, projected_card, projected,
@@ -3420,6 +3468,24 @@ class AutomaticGameEngine:
             ))
         return first_actions
 
+    def _special_combo_continues(self, role, combo):
+        """효과로 연 콤보 타임은 1·2콤보로 끝나지만, "3콤보까지" 같은 명시적 상한이 있으면 잇는다.
+
+        여제의 영역 ②: 거미 토큰 8장을 브레이크하면 3콤보까지 콤보 타임을 할 수 있다.
+        """
+        maximum = self._combo_maximum(role, combo)
+        return maximum is not None and self._next_combo_number(combo) <= maximum
+
+    def _has_passive_use_triggers(self, role):
+        """특성 존에 기술의 사용·사용 후에 유발하는 효과(다운 스탠스 등)가 있는가."""
+        for card in self._zone(role, 'passive'):
+            for ability in self._definition_for_card(card).get('abilities') or []:
+                trigger = (ability or {}).get('trigger') or {}
+                events = set(trigger.get('events') or [trigger.get('event')])
+                if events & {'use', 'after_use'}:
+                    return True
+        return False
+
     def _combo_has_legal_initial_pair(
         self, role, *, source=None, special=False, extra_modifiers=None,
     ):
@@ -3583,8 +3649,16 @@ class AutomaticGameEngine:
             or len(card_ids) != len(set(card_ids))
         ):
             raise IllegalAction('제시한 콤보 카드 수가 올바르지 않습니다.')
-        if combo.get('special') and len(card_ids) != 2:
+        if combo.get('special') and not (combo.get('used') or []) and len(card_ids) != 2:
             raise IllegalAction('효과 콤보는 1·2콤보 두 장을 함께 제시해야 합니다.')
+        if (
+            combo.get('special') and (combo.get('used') or [])
+            and (
+                len(card_ids) != 1
+                or not self._special_combo_continues(role, combo)
+            )
+        ):
+            raise IllegalAction('효과 콤보는 상한까지 1장씩만 이을 수 있습니다.')
         combo['proposal_submitted'] = True
         combo.pop('initial_selection', None)
         combo['proposed_card_ids'] = list(card_ids)
@@ -4076,15 +4150,34 @@ class AutomaticGameEngine:
         self.engine_state['pipeline'] = None
         self.engine_state['step'] = 'combo'
         remaining = list(pipeline.get('remaining_ids') or [])
-        if self.engine_state.get('status') == 'running' and self.engine_state.get('combo'):
+        combo = self.engine_state.get('combo')
+        if self.engine_state.get('status') == 'running' and combo:
             if remaining:
                 self._start_combo_card(
                     role, remaining, pipeline.get('remaining_speeds') or [],
                     pipeline.get('remaining_ignore_damage_penalty') or [],
                     pipeline.get('remaining_ignore_speed') or [],
                 )
-            else:
+            # 콤보 기술이 자기 효과로 브레이크되어도(도펠슈베르터 츠바이 등)
+            # 콤보 타임은 끝나지 않는다. 이을 수 있는 기술이 있으면 그 기술을
+            # 사용한 속도에서 이어 간다.
+            elif (
+                self._record_interrupted_combo_speed(combo, pipeline)
+                and not self._reopen_required_combo_followup(role, combo)
+                and not self._reopen_optional_combo_grant(role, combo)
+                and not self._reopen_combo_continuation(role, combo)
+            ):
                 self.end_combo()
+        return True
+
+    @staticmethod
+    def _record_interrupted_combo_speed(combo, pipeline):
+        """배틀 존을 떠난 콤보 기술도 선언한 속도로 사용한 것이다. 다음 기술은 그 속도에서 잇는다."""
+        if pipeline.get('combo_speed') is not None:
+            combo['last_speed'] = _number(pipeline.get('combo_speed'))
+            combo['last_speed_ignored'] = bool(
+                pipeline.get('used_optional_ignore_speed')
+            )
         return True
 
     def _combo_speed_options(
@@ -4092,7 +4185,19 @@ class AutomaticGameEngine:
         use_optional_speed_ignore=False,
     ):
         rules = self._combo_rules(role, card, combo) if rules is None else rules
-        speeds = {max(1, _number(self.card_stat(card, 'frame', role, include_fp=False), 1))}
+        frame_engine = getattr(self, '_combo_followup_check_engine', None) or self
+        frame_card = card
+        if frame_engine is not self:
+            simulated = frame_engine._find_card((card or {}).get('instance_id'))
+            if simulated:
+                frame_card = frame_engine._project_card_for_use(
+                    simulated, role, 'combo',
+                )
+            else:
+                frame_engine = self
+        speeds = {max(1, _number(
+            frame_engine.card_stat(frame_card, 'frame', role, include_fp=False), 1,
+        ))}
         optional_any_speed = bool(
             use_optional_speed_ignore
             and any(rule.get('optional_any_speed') for rule in rules)
@@ -4151,7 +4256,18 @@ class AutomaticGameEngine:
         if not self._combo_review_isolation():
             maximum_deltas.append(1)
         maximum_delta = max(maximum_deltas) if maximum_deltas else None
-        bypass_maximum_delta = any(rule.get('any_speed') for rule in rules)
+        # "원하는 속도로 사용할 수 있다"는 속도를 선언할 뿐, 3콤보 이후의
+        # 연결 규칙(직전 속도 +1)은 그대로 따른다. 2콤보 첫 기술은 직전
+        # 속도가 없으므로 자유롭게 선언한다.
+        bypass_maximum_delta = False
+        # 자기 속도 선택지로 속도 조건을 만족해 받은 허가는 그 속도로만 쓸 수 있다.
+        own_bounds = [
+            rule.get('own_speed_bounds') for rule in rules
+            if rule.get('own_speed_bounds')
+        ]
+        if own_bounds:
+            low, high = own_bounds[0]
+            speeds = {speed for speed in speeds if low <= speed <= high}
         return sorted(
             speed for speed in speeds
             if (
@@ -4439,6 +4555,8 @@ class AutomaticGameEngine:
             return None
         if sim.engine_state.get('pending_decision'):
             return None
+        # 1번째 카드의 사용 후 효과로 바뀐 상태(다운 스탠스 등)를 지속 효과에 반영한다.
+        sim._refresh_continuous_rules()
         return sim
 
     def _combo_card_legal(
@@ -4766,8 +4884,16 @@ class AutomaticGameEngine:
                 and card.get('instance_id') == modifier.get('source')
             ):
                 continue
+            speed_bounds = None
             if modifier.get('where') and not card_matches(card, modifier.get('where')):
-                continue
+                # 다른 존에서 쓰게 해 주는 허가만 자기 속도 선택지로 속도 조건을 본다.
+                if card_zone not in (modifier.get('allow_zones') or []):
+                    continue
+                speed_bounds = self._combo_grant_own_speed_bounds(
+                    role, card, modifier.get('where'),
+                )
+                if speed_bounds is None:
+                    continue
             if modifier.get('usable_speed') is not None and _number(
                 modifier.get('usable_speed'),
             ) not in self._own_combo_speeds(role, card):
@@ -4789,8 +4915,32 @@ class AutomaticGameEngine:
             }
             if not condition_matches(modifier.get('condition'), self.state, context):
                 continue
+            if speed_bounds is not None:
+                modifier = {**modifier, 'own_speed_bounds': speed_bounds}
             rules.append(modifier)
         return rules
+
+    def _combo_grant_own_speed_bounds(self, role, card, where):
+        """"<8속도 이하> 기술을 콤보에 사용할 수 있다" 허가의 속도 조건을 자기 속도 선택지로 본다.
+
+        폭염천뢰(12속도)처럼 자기 효과로 6~8속도로 사용할 수 있는 기술은 그 속도로
+        사용할 때 허가를 받는다(Q-AUTO-028과 같은 기준). 속도 조건을 빼면 맞고,
+        자기 속도 선택지 중 조건을 만족하는 속도가 있으면 (최소, 최대) 속도를 돌려준다.
+        """
+        if not isinstance(where, dict):
+            return None
+        bounds = {key: where[key] for key in ('frame_lte', 'frame_gte') if key in where}
+        if not bounds:
+            return None
+        rest = {key: value for key, value in where.items() if key not in bounds}
+        if rest and not card_matches(card, rest):
+            return None
+        low = _number(bounds.get('frame_gte'), 1) if 'frame_gte' in bounds else 1
+        high = _number(bounds.get('frame_lte')) if 'frame_lte' in bounds else 99
+        own = self._own_combo_speeds(role, card)
+        if not any(low <= speed <= high for speed in own):
+            return None
+        return [low, high]
 
     def _own_combo_speeds(self, role, card):
         """카드 자체로 콤보에 쓸 수 있는 속도: 인쇄 속도와 자기 combo_rules의 속도 선택지.
@@ -5113,7 +5263,11 @@ class AutomaticGameEngine:
         """Offer fourth-or-later Combo cards after the prior batch resolves."""
         if (
             role not in PLAYER_SIDES or not combo
-            or combo.get('special') or len(combo.get('used') or []) < 2
+            or len(combo.get('used') or []) < 2
+            or (
+                combo.get('special')
+                and not self._special_combo_continues(role, combo)
+            )
         ):
             return False
         combo['proposal_submitted'] = False
@@ -8051,6 +8205,34 @@ class AutomaticGameEngine:
         self.engine_state['state_expirations'] = entries
         self.emit('state_expiration_scheduled', side, copy.deepcopy(entry))
 
+    def _drop_scheduled_state_loss(self, side, key):
+        """이미 있는 상태를 기한을 정해 다시 부여하면 그 기한으로 갱신한다.
+
+        차지 특성은 "이번 턴까지"를 리커버리 종료 시 해제 예약으로 처리한다.
+        루트아스트라 ②로 차지를 다음 턴 종료까지 부여하면 그 예약은 더 이상
+        해제 시점이 아니다(Q&A 509: 차지가 갱신되어 다음 턴 종료까지 유지된다).
+        """
+        retained = []
+        for item in self.engine_state.get('scheduled') or []:
+            effect = item.get('effect') or {}
+            context = item.get('context') or {}
+            player = effect.get('player')
+            controller = context.get('controller')
+            if isinstance(player, dict):
+                target = (
+                    opponent(controller) if player.get('opponent') else controller
+                )
+            else:
+                target = player or controller
+            if (
+                effect.get('op') == 'lose_state'
+                and str(effect.get('state') or '') == key
+                and target == side
+            ):
+                continue
+            retained.append(item)
+        self.engine_state['scheduled'] = retained
+
     def _clear_state_expiration(self, side, key):
         entries = self.engine_state.setdefault('state_expirations', [])
         self.engine_state['state_expirations'] = [
@@ -8127,6 +8309,7 @@ class AutomaticGameEngine:
                 self._schedule_state_expiration(
                     side, key, expires, source_card=source_card,
                 )
+                self._drop_scheduled_state_loss(side, key)
             elif not value:
                 self._clear_state_expiration(side, key)
             # "부여할 때마다" (CB04-PS-001, Q-AUTO-008): granting a state the
@@ -8852,9 +9035,19 @@ class AutomaticGameEngine:
                         # Combo).  Techniques placed in the Lumen zone keep
                         # their global effect (CB04-AT-010 아크틱 재블린).
                         source_card = self._find_card(item.get('card_instance_id')) or {}
+                        is_technique = _is_attack(source_card) or _is_defense(source_card)
                         waiting_ultimate_technique = (
-                            item.get('zone') == 'ultimate'
-                            and (_is_attack(source_card) or _is_defense(source_card))
+                            item.get('zone') == 'ultimate' and is_technique
+                        )
+                        # 루멘 존의 공격·수비 기술은 "이 기술이 루멘 존에 존재하는 한"처럼
+                        # 루멘 존을 활성 존으로 명시한 효과만 전체에 적용한다. 「상대는 이
+                        # 기술을 방어할 수 없다」 같은 기능은 루멘 존에 놓여도 그 기술에만
+                        # 적용된다(니아가 루멘 존에 보낸 라이! 레피! 로켓! 등).
+                        lumen_technique_without_lumen_scope = (
+                            item.get('zone') == 'lumen' and is_technique
+                            and 'lumen' not in (
+                                (item.get('ability') or {}).get('active_zones') or []
+                            )
                         )
                         resolved_effect['scope'] = (
                             'all'
@@ -8862,6 +9055,7 @@ class AutomaticGameEngine:
                                 'character', 'passive', 'lumen', 'ultimate',
                             }
                             and not waiting_ultimate_technique
+                            and not lumen_technique_without_lumen_scope
                             else 'source_card'
                         )
                     if op == 'modify_damage':
