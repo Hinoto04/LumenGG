@@ -23434,7 +23434,7 @@ class AutomaticEngineTests(SimpleTestCase):
             for ability in result.abilities
         ))
         self.assertEqual(
-            sum(len(ability.scenarios) for ability in result.abilities), 14,
+            sum(len(ability.scenarios) for ability in result.abilities), 15,
         )
         by_id = {ability.ability_id: ability for ability in result.abilities}
         limits = {
@@ -23461,6 +23461,11 @@ class AutomaticEngineTests(SimpleTestCase):
             ],
             1,
         )
+        # 루멘 존 유발이 상대의 핀프 캐치에 반응해 FP를 얻으면 안 된다.
+        opponent_catch = catches['opponent-pinp-catch-does-not-schedule']
+        self.assertTrue(opponent_catch['passed'])
+        self.assertEqual(opponent_catch['scheduled_after_first'], 0)
+        self.assertEqual(opponent_catch['fp_after_battle_end'], 3)
         moved = catches['scheduled-fp-persists-after-source-moves']
         self.assertEqual(moved['source_zone_at_end'], 'side')
         self.assertEqual(moved['fp_after_battle_end'], 4)
@@ -23475,7 +23480,10 @@ class AutomaticEngineTests(SimpleTestCase):
         effect = definition['abilities'][1]
         self.assertEqual(effect['active_zones'], ['lumen'])
         self.assertEqual(
-            effect['condition']['card'], {'path': 'context.event_card'},
+            effect['condition']['conditions'][0]['left'], 'context.event_controller',
+        )
+        self.assertEqual(
+            effect['condition']['conditions'][1]['card'], {'path': 'context.event_card'},
         )
         self.assertEqual(effect['effects'][0]['op'], 'schedule')
         self.assertEqual(

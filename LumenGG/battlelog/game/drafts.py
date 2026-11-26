@@ -11552,10 +11552,20 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'timing': 'catch', 'active_zones': ['lumen'],
                 'draft_compiled': True,
                 'trigger': {'event': 'catch'},
+                # 루멘 존 유발은 양쪽 캐치를 모두 보므로 자신의 캐치로 좁힌다.
                 'condition': {
-                    'op': 'card_matches',
-                    'card': {'path': 'context.event_card'},
-                    'where': {'character_key': 'pinp'},
+                    'op': 'all',
+                    'conditions': [
+                        {
+                            'op': 'equals', 'left': 'context.event_controller',
+                            'right': {'controller': True},
+                        },
+                        {
+                            'op': 'card_matches',
+                            'card': {'path': 'context.event_card'},
+                            'where': {'character_key': 'pinp'},
+                        },
+                    ],
                 },
                 'limit': {
                     'scope': 'turn', 'max': 1,

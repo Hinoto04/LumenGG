@@ -112818,6 +112818,7 @@ def _run_rfs_at_017_catch_scenario(
     definition, card_snapshot, owner, *, source_zone='lumen',
     event_type='catch', catch_character='pinp', followup_matching=False,
     second_matching=False, negated=False, move_source_before_end=False,
+    opponent_catches=False,
 ):
     other = 'p2' if owner == 'p1' else 'p1'
     source = _rfs_at_017_source(card_snapshot, owner, negated=negated)
@@ -112866,14 +112867,14 @@ def _run_rfs_at_017_catch_scenario(
         seed=(
             f'jetpack-catch:{owner}:{source_zone}:{event_type}:'
             f'{catch_character}:{followup_matching}:{second_matching}:'
-            f'{negated}:{move_source_before_end}'
+            f'{negated}:{move_source_before_end}:{opponent_catches}'
         ),
         now=datetime(2026, 8, 20, tzinfo=timezone.utc),
     )
 
     def fire_catch(card, fired_event='catch'):
         engine._fire(fired_event, {
-            'controller': owner,
+            'controller': other if opponent_catches else owner,
             'source_card_instance_id': card['instance_id'],
             'source_card': engine._find_card(card['instance_id']),
             'opponent_card': engine._find_card(opposing['instance_id']),
@@ -112943,9 +112944,18 @@ def _review_rfs_at_017_definition(definition, card_snapshot, extra_root):
         and catch.get('active_zones') == ['lumen']
         and catch.get('trigger') == {'event': 'catch'}
         and catch.get('condition') == {
-            'op': 'card_matches',
-            'card': {'path': 'context.event_card'},
-            'where': {'character_key': 'pinp'},
+            'op': 'all',
+            'conditions': [
+                {
+                    'op': 'equals', 'left': 'context.event_controller',
+                    'right': {'controller': True},
+                },
+                {
+                    'op': 'card_matches',
+                    'card': {'path': 'context.event_card'},
+                    'where': {'character_key': 'pinp'},
+                },
+            ],
         }
         and catch.get('limit') == {
             'scope': 'turn', 'max': 1,
@@ -113029,6 +113039,9 @@ def _review_rfs_at_017_definition(definition, card_snapshot, extra_root):
         }, {'first': 0, 'followup': 0, 'fp': 3, 'resolved': 0}),
         ('numbered-negation-does-not-schedule', 'p1', {
             'negated': True,
+        }, {'first': 0, 'followup': 0, 'fp': 3, 'resolved': 0}),
+        ('opponent-pinp-catch-does-not-schedule', 'p2', {
+            'opponent_catches': True,
         }, {'first': 0, 'followup': 0, 'fp': 3, 'resolved': 0}),
     ):
         first = _run_rfs_at_017_catch_scenario(

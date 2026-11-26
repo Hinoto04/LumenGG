@@ -2283,3 +2283,58 @@ class CatchGrabNegationTests(SimpleTestCase):
         action = next(a for a in engine.legal_actions('p2') if a['type'] == 'submit_decision')
         engine.submit_action('p2', action['action_id'], {'selected': []})
         self.assertEqual(engine.state['players']['p2']['hp'], hp_before - 500)
+
+
+class JetpackOwnCatchTests(SimpleTestCase):
+    """제트팩 ①은 자신의 <핀프> 캐치에만 반응하고, 상대의 핀프 캐치에는 반응하지 않는다."""
+
+    TEXT = (
+        '"OPTION"명을 포함하는 기술은 루멘 존에 1장만 배치할 수 있다.\n'
+        '①턴당 1번 <[[character:pinp]]> 기술로 캐치 시, '
+        '배틀 페이즈 종료 시에 1FP를 얻는다.'
+    )
+
+    def run_catch(self, jetpack_owner):
+        from .game.drafts import build_effect_draft
+
+        opener = attack('opener', 'p1', code='OPENER', frame=4, damage=300, counter='6')
+        catcher = attack('catcher', 'p1', code='CATCHER', frame=5, damage=500)
+        catcher['character_key'] = 'pinp'
+        foe = attack('foe', 'p2', code='FOE', frame=10, damage=400)
+        jetpack = {
+            'instance_id': 'jetpack', 'owner': jetpack_owner, 'kind': 'card',
+            'code': 'RFS-AT-017', 'name': 'OPTION: 제트팩', 'type': '특수',
+            'face_up': True,
+        }
+        state = base_state([opener, catcher], [foe])
+        state['players'][jetpack_owner]['zones']['lumen'].append(jetpack)
+        rules = ruleset(opener, catcher, foe)
+        rules['cards']['CATCHER']['character_key'] = 'pinp'
+        rules['cards']['RFS-AT-017'] = {
+            **jetpack, 'effect_definition': build_effect_draft('RFS-AT-017', self.TEXT),
+        }
+        engine = AutomaticGameEngine.initialize(state, rules, seed='jetpack', run_startup=False)
+        _act(engine, 'p1', 'pass_phase')
+        _act(engine, 'p2', 'pass_phase')
+        _act(engine, 'p1', 'ready_card', 'opener')
+        _act(engine, 'p2', 'ready_card', 'foe')
+        self.assertEqual(engine.engine_state.get('step'), 'catch')
+        fp_before = engine.state['players'][jetpack_owner]['fp']
+        _act(engine, 'p1', 'play_catch_card', 'catcher')
+        self.assertEqual(engine.state['phase'], 'get')
+        resolved = any(
+            e['type'] == 'effect_resolved' and e['payload'].get('ability_id') == 'rfs-at-017-n1'
+            for e in engine.events
+        )
+        return engine, fp_before, resolved
+
+    def test_own_pinp_catch_gains_fp_at_battle_end(self):
+        engine, fp_before, resolved = self.run_catch('p1')
+        self.assertTrue(resolved)
+        # FP 캐치 비용 6을 낸 뒤 배틀 종료 시 1FP를 얻는다.
+        self.assertEqual(engine.state['players']['p1']['fp'], fp_before - 6 + 1)
+
+    def test_opponent_pinp_catch_does_not_trigger(self):
+        engine, fp_before, resolved = self.run_catch('p2')
+        self.assertFalse(resolved)
+        self.assertEqual(engine.state['players']['p2']['fp'], fp_before)
