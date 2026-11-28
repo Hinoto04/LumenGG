@@ -48,6 +48,10 @@ def apply_preparation(preparation, side, body, *, ruleset=None, finished=False, 
         if registration is None or player['ready']:
             raise ValueError('준비 중에 제출 덱을 선택해주세요.')
         player.update(registered=copy.deepcopy(registration), active=baseline(registration))
+        # 상대 캐릭터가 바뀌었으니 상대도 사이드·손패를 다시 볼 수 있게 준비 완료를 푼다.
+        for other, row in result['players'].items():
+            if other != side and other not in ai_sides:
+                row['ready'] = False
     elif action in ('save', 'ready'):
         if not player['registered']:
             raise ValueError('제출 덱을 선택해주세요.')

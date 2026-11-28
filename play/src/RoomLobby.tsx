@@ -3,6 +3,7 @@ import { DeckPicker, TimerSelect, type DeckRow } from "./Lobby";
 import { postJson } from "./net/http";
 import { seconds as formatSeconds, t } from "./i18n";
 import { playSound } from "./sound/sfx";
+import { MATCH_FORMATS, matchFormatLabel, type MatchFormat } from "./matchFormat";
 
 /**
  * 사람끼리 대전: 방(코드로 참가)과 퀵 매치. 각 플레이어는 자기 덱만 고른다.
@@ -21,12 +22,12 @@ export interface RoomView {
   code: string;
   kind: "room" | "quick";
   status: "waiting" | "started" | "closed";
-  options: { mode?: string; ready_timeout_seconds?: number; effect_timeout_seconds?: number };
+  options: { mode?: string; ready_timeout_seconds?: number; effect_timeout_seconds?: number; format?: MatchFormat };
   seat: "host" | "guest" | null;
   seats: { host: SeatView; guest: SeatView };
   error: string;
   play_url?: string;
-  /** 퀵 매치 대기 중: 지금 매칭을 기다리는 플레이어 수(나 포함) */
+  /** 퀵 매치 대기 중: 지금 같은 진행 방식으로 매칭을 기다리는 플레이어 수(나 포함) */
   quick_waiting?: number;
 }
 
@@ -375,17 +376,23 @@ export function RoomPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequi
 
 const QUICK_COUNT_MS = 5000;
 
+interface QuickCounts {
+  waiting: number;
+  /** 진행 방식별 대기 인원(예전 서버는 보내지 않는다) */
+  formats?: Partial<Record<MatchFormat, number>>;
+}
+
 /** 퀵 매치 메뉴: 지금 매칭을 기다리는 플레이어 수(대기 중이 아닐 때만 따로 묻는다). */
-function useQuickWaitingCount(active: boolean): number | null {
-  const [count, setCount] = useState<number | null>(null);
+function useQuickWaitingCount(active: boolean): QuickCounts | null {
+  const [count, setCount] = useState<QuickCounts | null>(null);
   useEffect(() => {
     if (!active) return;
     let alive = true;
     const load = async () => {
       try {
         const response = await fetch("/battlelog/play/api/quick/status/", { credentials: "same-origin" });
-        const data = (await response.json()) as { ok?: boolean; waiting?: number };
-        if (alive && data.ok) setCount(Number(data.waiting ?? 0));
+        const data = (await response.json()) as { ok?: boolean } & Partial<QuickCounts>;
+        if (alive && data.ok) setCount({ waiting: Number(data.waiting ?? 0), formats: data.formats });
       } catch {
         /* 숫자를 못 받으면 표시하지 않는다 */
       }
@@ -402,10 +409,31 @@ function useQuickWaitingCount(active: boolean): number | null {
   return count;
 }
 
+const FORMAT_KEY = "lumen-play-quick-format";
+
+function savedFormat(): MatchFormat {
+  try {
+    const value = localStorage.getItem(FORMAT_KEY);
+    if (MATCH_FORMATS.some(([format]) => format === value)) return value as MatchFormat;
+  } catch {
+    /* 기본값을 쓴다 */
+  }
+  return "single";
+}
+
+function saveFormat(format: MatchFormat) {
+  try {
+    localStorage.setItem(FORMAT_KEY, format);
+  } catch {
+    /* 다음에 기본값으로 돌아갈 뿐이다 */
+  }
+}
+
 /** 퀵 매치: 덱만 정하면 같은 때 기다리는 다른 플레이어와 짝을 짓는다. */
 export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequired: boolean }) {
   const { joined, room, error, setError, apply, leave } = useRoom(rememberedRoom("quick"));
   const [deck, setDeck] = useState<DeckRow | null>(null);
+  const [format, setFormat] = useState<MatchFormat>(savedFormat);
   const [busy, setBusy] = useState(false);
   const [since, setSince] = useState<number>(Date.now());
   const [, tick] = useState(0);
@@ -426,7 +454,7 @@ export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequ
     setError(null);
     setSince(Date.now());
     try {
-      apply(await postJson<RoomResponse>("/battlelog/play/api/quick/", { deck_id: deck.id }), "quick");
+      apply(await postJson<RoomResponse>("/battlelog/play/api/quick/", { deck_id: deck.id, format }), "quick");
     } catch (exception) {
       setError((exception as Error).message);
     } finally {
@@ -461,7 +489,8 @@ export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequ
           <p className="quick-count">{t("지금 매칭 중인 플레이어 {n}명", { n: room.quick_waiting })}</p>
         )}
         <p className="muted">
-          {t("{character} 덱", { character: room?.seats.host.deck?.character ?? "" })} · {t("자동 판정 · 레디 10초 · 효과 선택 30초")}
+          {t("{character} 덱", { character: room?.seats.host.deck?.character ?? "" })}
+          {room?.options.format && <> · {matchFormatLabel(room.options.format)}</>} · {t("자동 판정 · 레디 10초 · 효과 선택 30초")}
         </p>
         <button type="button" className="btn-ghost" onClick={leave}>
           {t("매칭 취소")}
@@ -474,10 +503,32 @@ export function QuickPanel({ mine, loginRequired }: { mine: DeckRow[]; loginRequ
   return (
     <section className="lobby-card">
       <DeckPicker label={t("내 덱")} value={deck} onChange={setDeck} mine={mine} loginRequired={loginRequired} />
-      <p className="muted">{t("덱만 정하면 지금 퀵 매치를 기다리는 다른 플레이어와 자동 판정으로 대전합니다(레디 10초 · 효과 선택 30초).")}</p>
+      <p className="muted">{t("덱과 진행 방식을 정하면 같은 방식으로 기다리는 다른 플레이어와 자동 판정으로 대전합니다(레디 10초 · 효과 선택 30초).")}</p>
+      <div className="lobby-row segmented quick-formats" role="radiogroup" aria-label={t("진행 방식")}>
+        {MATCH_FORMATS.map(([value, label, hint]) => {
+          const waitingHere = idleCount?.formats?.[value];
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={format === value}
+              className={format === value ? "is-active" : ""}
+              onClick={() => {
+                setFormat(value);
+                saveFormat(value);
+              }}
+            >
+              <span>{label}</span>
+              <small>{hint}</small>
+              {waitingHere ? <em className="quick-format-count">{t("{n}명 대기", { n: waitingHere })}</em> : null}
+            </button>
+          );
+        })}
+      </div>
       {idleCount != null && (
         <p className="quick-count">
-          {idleCount > 0 ? t("지금 매칭 중인 플레이어 {n}명", { n: idleCount }) : t("지금 매칭 중인 플레이어가 없습니다")}
+          {idleCount.waiting > 0 ? t("지금 매칭 중인 플레이어 {n}명", { n: idleCount.waiting }) : t("지금 매칭 중인 플레이어가 없습니다")}
         </p>
       )}
       <button type="button" className="btn-primary lobby-start" disabled={busy || !deck} onClick={start}>

@@ -450,7 +450,7 @@ def simulatorPreparation(req, view_token):
     session = _get_simulator_session(view_token)
     body = _json_body(req)
     try:
-        session = perform_simulator_preparation(session, body)
+        session = perform_simulator_preparation(session, body, user=req.user)
         if (session.document or {}).get('preparation', {}).get('status') == 'playing':
             session = advance_ai_session(session)
     except PermissionDenied:

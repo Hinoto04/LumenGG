@@ -405,6 +405,19 @@ export interface PreparationView {
   players: Record<Side, PrepPlayer>;
 }
 
+/** 같은 상대와 이어 하는 게임의 진행 방식과 전적(퀵 매치). 방식이 없는 대전은 null. */
+export interface MatchView {
+  /** single 단판 · bo3 3판 2선승 · endless 무한 */
+  format: "single" | "bo3" | "endless";
+  game_number: number;
+  /** 끝난 게임의 승수(무승부는 넣지 않는다) */
+  wins: Record<Side, number>;
+  wins_needed: number | null;
+  /** 더 이어 할 게임이 없다(단판이 끝났거나 누가 2승) */
+  over: boolean;
+  winner: Side | null;
+}
+
 export interface PlayEnvelope {
   protocol_version: typeof PLAY_PROTOCOL_VERSION;
   id: number;
@@ -429,6 +442,7 @@ export interface PlayEnvelope {
   ruleset_version?: string | null;
   /** 새 형식 덱으로 만든 대전에만 있다 */
   preparation?: PreparationView | null;
+  match?: MatchView | null;
   /** 수동 모드: 이 접속이 보드를 조작할 수 있는지 */
   can_control?: boolean;
   /** 똑같은 토큰 중 몇 장을 고르는 선택: 화면은 묻지 않고 이 id들을 바로 제출한다. */

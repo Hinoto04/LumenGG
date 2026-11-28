@@ -3476,6 +3476,26 @@ button.prep-tile-name {
   color: var(--accent-2);
 }
 
+/* 퀵 매치 진행 방식: 단판 · 매치(3판 2선승) · 무한 */
+.quick-formats button {
+  display: grid;
+  gap: 0.15em;
+  justify-items: center;
+  line-height: 1.2;
+}
+
+.quick-formats small {
+  font-size: 0.75em;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.quick-format-count {
+  font-style: normal;
+  font-size: 0.72em;
+  color: var(--accent-2);
+}
+
 /* 매칭 완료: 대전으로 옮기기 전 잠깐 */
 .quick-matched {
   border-color: var(--accent);
@@ -4563,4 +4583,37 @@ body.play-lobby-page #root.play-embedded {
 }
 .tutorial-lesson-text small {
   color: var(--muted);
+}
+
+/* 같은 상대와 이어 하는 게임: 전적과 다음 게임의 덱 변경 */
+.game-over-match {
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.game-over-score,
+.prep-match {
+  margin: 0;
+  font-weight: 800;
+  color: var(--accent-2);
+}
+
+.prep-match {
+  font-size: 0.85em;
+}
+
+.prep-deck-change {
+  justify-self: start;
+}
+
+.prep-deck-picker {
+  display: grid;
+  gap: 0.6em;
+}
+
+.prep-deck-picker > .btn-ghost {
+  justify-self: start;
 }

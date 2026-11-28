@@ -52,6 +52,7 @@ def start_session(
     regulation_version_id=None,
     player2_user=None,
     ai_deck_id=None,
+    match_format=None,
 ):
     """Create a session or raise ValueError with a user-facing (Korean) message.
 
@@ -64,6 +65,9 @@ def start_session(
     it. Without it an AI game still accepts any visible deck (older app
     versions and the legacy start page) and uses the deck's registered
     profile when there is one.
+
+    ``match_format`` (``play_match.MATCH_FORMATS``) limits how many games the
+    same players continue with ``next_game``; quick match sets it.
 
     Errors that concern one deck are joined with spaces, matching the order the
     legacy start page reported them.
@@ -110,6 +114,7 @@ def start_session(
         ready_timeout_seconds=ready_timeout_seconds,
         effect_timeout_seconds=effect_timeout_seconds,
         ai_deck=ai_deck,
+        match_format=match_format,
     )
 
 

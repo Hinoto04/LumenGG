@@ -196,12 +196,14 @@ export async function checkPreparation(active: PrepActive): Promise<ValidationRe
   return data.report;
 }
 
-export type PreparationAction = "save" | "ready" | "cancel" | "next_game";
+export type PreparationAction = "save" | "ready" | "cancel" | "next_game" | "select_deck";
 
 export async function sendPreparation(
   envelope: PlayEnvelope,
   action: PreparationAction,
   active?: PrepActive,
+  /** select_deck: 다음 게임에 쓸 덱 번호 */
+  extra?: { deck_id?: number },
 ): Promise<void> {
   const { target, ...seat } = seatBody();
   const base = `/battlelog/simulator/${encodeURIComponent(target.view)}`;
@@ -212,6 +214,7 @@ export async function sendPreparation(
       expected_version: version,
       preparation_action: action,
       ...(active ? { active } : {}),
+      ...(extra ?? {}),
     });
   let data: { state: PlayEnvelope };
   try {

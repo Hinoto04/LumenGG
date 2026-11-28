@@ -255,6 +255,13 @@ cd play; npm run build:django   # → LumenGG/static/play/play.js, play.css
 - 고칠 때마다 `preparation/check/`로 검사만 받아 오류를 보여 주고, 교체 횟수는 클라이언트도 같은 규칙으로 센다(`play/src/prep/model.ts`).
 - "준비 완료"는 기존 `preparation/` 엔드포인트(`preparation_action: ready`)로 보낸다. AI 좌석은 처음부터 준비 완료다.
 - 대전이 끝나면 종료 화면의 "다음 게임"(`next_game`)으로 같은 상대와 다시 준비한다.
+- 다음 게임 준비(게임 2부터)에서는 "덱 바꾸기"로 덱을 바꿀 수 있다(`preparation_action: select_deck`, `deck_id`).
+  서버는 요청한 플레이어 계정으로 덱 권한을 보고, 이 대전의 규정으로 스냅숏을 만들어 등록 검증과 자동 모드 지원 카드를 확인한다
+  (`preparation_services._next_game_registration`). 준비 완료 상태에서는 바꿀 수 없고, 바꾸면 상대(사람)의 준비 완료도 풀린다.
+- 진행 방식(`match`, `battlelog/play_match.py`): 퀵 매치로 만든 대전은 envelope에 `match`가 온다.
+  `{format: single|bo3|endless, game_number, wins: {p1, p2}, wins_needed, over, winner}`. 승수는 끝난 게임만 세고 무승부는 넣지 않는다.
+  단판은 한 판, 3판 2선승은 누가 2승하면 `over`이고 서버가 `next_game`을 거절한다. 종료 화면은 전적을 보여 주고,
+  매치가 끝났으면 "매치 승리/패배"를 크게 보이며 "다음 게임" 버튼을 감춘다. 방·AI 대전·예전 세션은 `match`가 null이고 예전처럼 제한이 없다.
 
 ### 앱
 
@@ -560,9 +567,11 @@ DB 없이 만들려면 `-Synthetic`을 붙인다(이미지 없는 합성 카드)
   초대 링크(`/battlelog/simulator/?room=CODE`)가 생긴다. 참가자가 코드나 링크로 들어오면 각자 자기 덱만 고르고, 둘 다 "준비 완료"하면
   대전을 만든다(방장 p1, 참가자 p2). 방장은 자동 판정·수동(샌드박스)과 제한 시간을 정한다. 상대에게는 내 덱의 캐릭터만 보인다.
   덱을 바꾸면 준비가 풀린다. 덱 권한은 그 덱을 고른 플레이어 계정으로 확인한다(`start_session(..., player2_user=)`).
-- **퀵 매치**: 덱만 정하고 기다리면, 같은 때 기다리는 다른 플레이어(다른 계정)와 짝을 지어 바로 자동 판정 대전을 만든다
-  (레디 10초 · 효과 선택 30초). 화면이 20초 넘게 소식이 없는 대기자는 짝을 짓지 않는다.
-  메뉴와 대기 화면에 지금 매칭을 기다리는 플레이어 수(짝짓기 후보와 같은 기준, 나 포함)를 보여 준다.
+- **퀵 매치**: 덱과 진행 방식(단판 · 매치(3판 2선승) · 무한)을 정하고 기다리면, 같은 때 같은 방식으로 기다리는 다른 플레이어(다른 계정)와
+  짝을 지어 바로 자동 판정 대전을 만든다(레디 10초 · 효과 선택 30초). 방식은 `room.options.format`과 세션 `match.format`에 남고,
+  방식을 보내지 않는 예전 앱은 `endless`로 본다. 고른 방식은 기기에 기억한다. 화면이 20초 넘게 소식이 없는 대기자는 짝을 짓지 않는다.
+  메뉴와 대기 화면에 지금 매칭을 기다리는 플레이어 수(짝짓기 후보와 같은 기준, 나 포함)를 보여 준다. 메뉴는 방식별 대기 인원도,
+  대기 화면은 같은 방식으로 기다리는 인원을 보여 준다.
   짝이 지어지면 소리·탭 제목·진동과, 다른 탭을 보고 있으면 브라우저 알림(시작 버튼을 누를 때 권한을 묻는다)으로 알리고,
   "매칭 완료! 상대: 이름 · 캐릭터"를 1.6초 보여 준 뒤 대전으로 옮긴다.
 - **덱 준비**: `preparation.players[side].character`(`name`, `img`, `icon_img`, `color`)는 상대에게도 온다. 준비 화면 머리에
@@ -580,8 +589,8 @@ API(모두 POST, JSON). 자리 토큰은 주소에 싣지 않고 본문 `token`�
 | `/battlelog/play/api/rooms/<code>/deck/` | `token`, `deck_id` | 내 덱 고르기(준비 해제) |
 | `/battlelog/play/api/rooms/<code>/ready/` | `token`, `ready` | 준비. 둘 다 준비하면 대전 생성 |
 | `/battlelog/play/api/rooms/<code>/leave/` | `token` | 나가기(방장이 나가면 방이 닫힌다) |
-| `/battlelog/play/api/quick/` | `deck_id` | 퀵 매치 대기 또는 바로 짝짓기. 대기 중 `room.quick_waiting`(기다리는 플레이어 수) |
-| `/battlelog/play/api/quick/status/` (GET) | 없음 | 퀵 매치 메뉴: `{ok, waiting}` 지금 매칭을 기다리는 플레이어 수 |
+| `/battlelog/play/api/quick/` | `deck_id`, `format?`(`single`·`bo3`·`endless`, 기본 `endless`) | 퀵 매치 대기 또는 같은 방식끼리 바로 짝짓기. 대기 중 `room.quick_waiting`(같은 방식으로 기다리는 플레이어 수) |
+| `/battlelog/play/api/quick/status/` (GET) | 없음 | 퀵 매치 메뉴: `{ok, waiting, formats}` 지금 매칭을 기다리는 플레이어 수(전체·방식별) |
 
 대전이 만들어지면 `room.status = "started"`이고, 요청한 자리에게만 `play_url`(자기 좌석 주소)을 준다. 로비는 그 주소로 옮겨 간다.
 

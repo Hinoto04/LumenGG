@@ -31,6 +31,7 @@ from deck.models import CardInDeck, Deck
 
 from .models import LumenSimulatorSession
 from .preparation import preparation_view
+from .play_match import match_view
 from .game.card_identity import is_passive_card, normalize_passive_card
 from .presence import simulator_presence_counts
 from .services import (
@@ -355,8 +356,12 @@ def create_simulator_session(
     effect_timeout_seconds=60,
     regulation_version=None,
     ai_deck=None,
+    match_format=None,
 ):
-    """``ai_deck``: a ``SimulatorAIDeck`` whose profile the AI seat(s) use."""
+    """``ai_deck``: a ``SimulatorAIDeck`` whose profile the AI seat(s) use.
+
+    ``match_format``: 같은 상대와 다음 게임을 몇 판까지 이어 할지(``play_match``). 덱 준비가 있는 대전에만 남긴다.
+    """
     controllers = {player1_controller, player2_controller}
     if not controllers <= {LumenSimulatorSession.CONTROLLER_HUMAN, LumenSimulatorSession.CONTROLLER_AI}:
         raise ValueError('플레이어 제어 방식이 올바르지 않습니다.')
@@ -442,6 +447,9 @@ def create_simulator_session(
         }
     if preparation:
         document['preparation'] = preparation
+        if match_format:
+            from .play_match import normalize_match_format
+            document['match'] = {'format': normalize_match_format(match_format)}
         for player in document['state']['players'].values():
             player.update(hp=0, initial_hp=0, passive_state={}, zones={zone: [] for zone in ZONES})
         document['initial_state'] = copy.deepcopy(document['state'])
@@ -2438,6 +2446,7 @@ def serialize_simulator_session(session, seat='', token='', language=DEFAULT_LAN
     payload = {
         'id': session.id,
         'preparation': preparation_view(document.get('preparation'), role),
+        'match': match_view(document),
         'version': session.version,
         'mode': session.mode,
         'controllers': {

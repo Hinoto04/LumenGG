@@ -92,7 +92,7 @@ class PlayRoomTests(TestCase):
 
     def test_quick_match_menu_shows_how_many_players_are_waiting(self):
         status = Client().get(reverse('battlelog:playQuickStatus')).json()
-        self.assertEqual(status, {'ok': True, 'waiting': 0})
+        self.assertEqual(status, {'ok': True, 'waiting': 0, 'formats': {'single': 0, 'bo3': 0, 'endless': 0}})
 
         waiting = self.post(Client(), 'playQuick', {'deck_id': self.decks[0].id}).json()
         self.assertEqual(waiting['room']['quick_waiting'], 1)
@@ -112,6 +112,23 @@ class PlayRoomTests(TestCase):
         fresh = self.post(Client(), 'playQuick', {'deck_id': self.decks[1].id}).json()
         self.assertNotEqual(fresh['room']['code'], stale['room']['code'])
         self.assertEqual(fresh['room']['status'], 'waiting')
+
+    def test_quick_match_pairs_only_players_who_chose_the_same_format(self):
+        single = self.post(Client(), 'playQuick', {'deck_id': self.decks[0].id, 'format': 'single'}).json()
+        bo3 = self.post(Client(), 'playQuick', {'deck_id': self.decks[1].id, 'format': 'bo3'}).json()
+        self.assertEqual(bo3['room']['status'], 'waiting')
+        self.assertNotEqual(bo3['room']['code'], single['room']['code'])
+        self.assertEqual(bo3['room']['quick_waiting'], 1)
+        status = Client().get(reverse('battlelog:playQuickStatus')).json()
+        self.assertEqual(status['waiting'], 2)
+        self.assertEqual(status['formats'], {'single': 1, 'bo3': 1, 'endless': 0})
+        matched = self.post(Client(), 'playQuick', {'deck_id': self.decks[1].id, 'format': 'bo3'}).json()
+        self.assertEqual(matched['room']['code'], bo3['room']['code'])
+        self.assertEqual(matched['room']['status'], 'started')
+        room = SimulatorRoom.objects.get(code=bo3['room']['code'])
+        self.assertEqual(room.options['format'], 'bo3')
+        bad = self.post(Client(), 'playQuick', {'deck_id': self.decks[0].id, 'format': 'bo5'})
+        self.assertEqual(bad.status_code, 400)
 
     def test_site_start_page_is_the_game_client_lobby(self):
         response = self.client.get(reverse('battlelog:simulatorStart'))

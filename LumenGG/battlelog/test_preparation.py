@@ -170,3 +170,116 @@ class PartialReleaseTests(TestCase):
         report = validate_automatic_deck(self.deck, ruleset=release.snapshot, check_setup=False)
         self.assertEqual(len(report.errors), 1)
         self.assertIn(entry.card.name, report.errors[0])
+
+
+class MatchFormatTests(TestCase):
+    """같은 상대와 이어 하는 게임: 진행 방식(단판·3판 2선승·무한)과 다음 게임의 덱 변경."""
+
+    setUp = fixtures.RegulationTests.setUp
+
+    def session(self, match_format):
+        return create_simulator_session('A', 'B', self.deck, self.deck, match_format=match_format)
+
+    def prepare(self, session, side, action='ready', user=None, **extra):
+        body = {
+            'request_id': str(uuid.uuid4()), 'expected_version': session.document['preparation']['version'],
+            'preparation_action': action, 'seat': side,
+            'seat_token': session.player1_token if side == 'p1' else session.player2_token, **extra,
+        }
+        return perform_simulator_preparation(session, body, user=user)
+
+    def play_game(self, session, winner):
+        for side in ('p1', 'p2'):
+            session = self.prepare(session, side)
+        self.assertEqual(session.document['preparation']['status'], 'playing')
+        document = session.document
+        document['state']['engine'] = {'status': 'finished', 'winner': winner}
+        session.document = document
+        session.save(update_fields=['document'])
+        return session
+
+    def other_deck(self, **kwargs):
+        from card.models import Card, Character
+        from deck.models import CardInDeck, Deck
+
+        character = Character.objects.create(name='Other', datas={'hand': {'5000': 5}})
+        trait = Card.objects.create(name='Other trait', code='O-PS-001', type='특성', character=character,
+            effect_definition={'deck_rules': {'main_size': 20}})
+        cards = [Card.objects.create(name=f'Other {n}', code=f'O-AT-{n:03}', type='공격', character=character) for n in range(20)]
+        deck = Deck.objects.create(name='Other', author=self.user, character=character, trait_card=trait, schema_version=2, **kwargs)
+        CardInDeck.objects.bulk_create([CardInDeck(deck=deck, card=c, hand=int(i < 5), side=int(i >= 14)) for i, c in enumerate(cards)])
+        return deck
+
+    def test_single_game_has_no_next_game(self):
+        from .play_match import match_view
+
+        session = self.play_game(self.session('single'), 'p1')
+        view = serialize_simulator_session(session)['match']
+        self.assertEqual((view['format'], view['over'], view['winner']), ('single', True, 'p1'))
+        self.assertEqual(view, match_view(session.document))
+        with self.assertRaisesMessage(ValueError, '단판'):
+            self.prepare(session, 'p1', 'next_game')
+
+    def test_best_of_three_ends_when_a_player_wins_twice(self):
+        from .play_match import match_view
+
+        session = self.play_game(self.session('bo3'), 'p2')
+        self.assertFalse(match_view(session.document)['over'])
+        session = self.prepare(session, 'p1', 'next_game')
+        self.assertEqual(session.document['match'], {'format': 'bo3'})
+        # 다음 게임 준비 중에는 지난 게임 전적만 센다.
+        self.assertEqual(match_view(session.document)['wins'], {'p1': 0, 'p2': 1})
+        session = self.play_game(session, 'p2')
+        view = match_view(session.document)
+        self.assertEqual(view['wins'], {'p1': 0, 'p2': 2})
+        self.assertEqual((view['over'], view['winner'], view['game_number']), (True, 'p2', 2))
+        with self.assertRaisesMessage(ValueError, '매치가 끝났습니다'):
+            self.prepare(session, 'p2', 'next_game')
+
+    def test_endless_keeps_going_and_next_game_can_change_deck(self):
+        from .play_match import match_view
+
+        other = self.other_deck()
+        session = self.play_game(self.session('endless'), 'p1')
+        session = self.prepare(session, 'p1', 'next_game')
+        self.assertEqual(session.document['preparation']['game_number'], 2)
+        # 준비 완료한 채로는 덱을 바꿀 수 없다.
+        session = self.prepare(session, 'p1', 'ready')
+        with self.assertRaises(ValueError):
+            self.prepare(session, 'p1', 'select_deck', deck_id=other.id)
+        session = self.prepare(session, 'p1', 'cancel')
+        session = self.prepare(session, 'p2', 'ready')
+        session = self.prepare(session, 'p1', 'select_deck', deck_id=other.id)
+        players = session.document['preparation']['players']
+        self.assertEqual(players['p1']['registered']['deck_id'], other.id)
+        # 상대 캐릭터가 바뀌었으니 상대 준비도 풀린다.
+        self.assertFalse(players['p2']['ready'])
+        rival = preparation_view(session.document['preparation'], 'p2')['players']['p1']
+        self.assertEqual(rival['character']['name'], 'Other')
+        session = self.play_game(session, 'p2')
+        self.assertEqual(session.document['state']['players']['p1']['zones']['character'][0]['name'], 'Other')
+        view = match_view(session.document)
+        self.assertEqual((view['wins'], view['over'], view['game_number']), ({'p1': 1, 'p2': 1}, False, 2))
+
+    def test_deck_change_needs_the_next_game_and_deck_permission(self):
+        from django.contrib.auth.models import User
+
+        session = self.session('endless')
+        with self.assertRaisesMessage(ValueError, '다음 게임'):
+            self.prepare(session, 'p1', 'select_deck', deck_id=self.deck.id)
+        session = self.play_game(session, 'p1')
+        session = self.prepare(session, 'p1', 'next_game')
+        private = self.other_deck(visibility='private')
+        with self.assertRaisesMessage(ValueError, '권한'):
+            self.prepare(session, 'p1', 'select_deck', deck_id=private.id)
+        stranger = User.objects.create_user('stranger')
+        with self.assertRaisesMessage(ValueError, '권한'):
+            self.prepare(session, 'p1', 'select_deck', deck_id=private.id, user=stranger)
+        session = self.prepare(session, 'p1', 'select_deck', deck_id=private.id, user=self.user)
+        self.assertEqual(session.document['preparation']['players']['p1']['registered']['deck_id'], private.id)
+
+    def test_sessions_without_a_format_keep_unlimited_next_games(self):
+        session = self.play_game(create_simulator_session('A', 'B', self.deck, self.deck), 'p1')
+        self.assertIsNone(serialize_simulator_session(session)['match'])
+        session = self.prepare(session, 'p1', 'next_game')
+        self.assertEqual(session.document['preparation']['game_number'], 2)

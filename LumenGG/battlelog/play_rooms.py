@@ -2,7 +2,8 @@
 
 화면은 대전 클라이언트 로비(play/src/Lobby.tsx)이고, 각 플레이어는 자기 덱만 고른다.
 - 방: 방장이 방을 만들고 코드·링크를 보낸다. 참가자가 들어와 각자 덱을 고르고 둘 다 준비하면 대전을 만든다.
-- 퀵 매치: 덱을 정하고 기다리면, 같은 때 기다리는 다른 플레이어와 짝을 지어 바로 대전을 만든다.
+- 퀵 매치: 덱과 진행 방식(단판·3판 2선승·무한)을 정하고 기다리면, 같은 때 같은 방식으로 기다리는
+  다른 플레이어와 짝을 지어 바로 대전을 만든다.
 
 자리마다 토큰을 주고 브라우저가 보관한다(로그인하지 않아도 된다). 덱 권한은 그 덱을 고른 플레이어의
 계정으로 확인한다. 대전이 만들어지면 요청한 플레이어에게만 자기 좌석 주소를 준다.
@@ -19,6 +20,7 @@ from django.utils import timezone
 from deck.models import Deck
 
 from .models import LumenSimulatorSession, SimulatorRoom
+from .play_match import MATCH_FORMATS, normalize_match_format
 from .play_start import opens_in_game_client, play_url, start_session
 from .simulator_services import can_view_deck_for_simulator
 
@@ -116,8 +118,8 @@ def room_view(room, token):
         'error': room.error,
     }
     if room.kind == SimulatorRoom.KIND_QUICK and room.status == SimulatorRoom.STATUS_WAITING:
-        # 퀵 매치 대기 화면: 지금 매칭을 기다리는 플레이어 수(나 포함)
-        payload['quick_waiting'] = quick_waiting_count()
+        # 퀵 매치 대기 화면: 지금 같은 진행 방식으로 매칭을 기다리는 플레이어 수(나 포함)
+        payload['quick_waiting'] = quick_waiting_count((room.options or {}).get('format'))
     if room.status == SimulatorRoom.STATUS_STARTED and room.session_id and seat:
         session = room.session
         role = 'p1' if seat == 'host' else 'p2'
@@ -270,6 +272,7 @@ def _start(room):
             ready_timeout_seconds=options.get('ready_timeout_seconds', TIMER_DEFAULTS['ready_timeout_seconds']),
             effect_timeout_seconds=options.get('effect_timeout_seconds', TIMER_DEFAULTS['effect_timeout_seconds']),
             player2_user=room.guest_user or AnonymousUser(),
+            match_format=options.get('format'),
         )
     except (PermissionError, ValueError) as exc:
         message = ' '.join(exc.args[0]) if isinstance(exc, PermissionError) else str(exc)
@@ -294,9 +297,25 @@ def _quick_waiting(now=None):
     )
 
 
-def quick_waiting_count():
-    """퀵 매치 메뉴에 보여 줄, 지금 매칭을 기다리는 플레이어 수(나를 포함할 수 있다)."""
-    return _quick_waiting().count()
+def quick_waiting_count(match_format=None):
+    """퀵 매치 메뉴에 보여 줄, 지금 매칭을 기다리는 플레이어 수(나를 포함할 수 있다).
+
+    ``match_format``을 주면 그 진행 방식으로 기다리는 사람만 센다(짝을 지을 수 있는 사람).
+    """
+    counts = quick_waiting_counts()
+    if match_format:
+        return counts.get(match_format, 0)
+    return sum(counts.values())
+
+
+def quick_waiting_counts():
+    """진행 방식별 대기 인원. 대기실은 몇 개뿐이라 옵션을 읽어 직접 센다(DB마다 JSON 조회가 달라서)."""
+    counts = {fmt: 0 for fmt in MATCH_FORMATS}
+    for options in _quick_waiting().values_list('options', flat=True):
+        fmt = (options or {}).get('format')
+        if fmt in counts:
+            counts[fmt] += 1
+    return counts
 
 
 def quick_match(user, body):
@@ -306,6 +325,10 @@ def quick_match(user, body):
     """
     user = _user_or_none(user)
     deck = _load_deck(user, body.get('deck_id'))
+    try:
+        match_format = normalize_match_format(body.get('format'))
+    except ValueError as exc:
+        raise RoomError(str(exc)) from None
     name = _display_name(user, str(body.get('name') or '플레이어')[:40])
     now = timezone.now()
     with transaction.atomic():
@@ -313,7 +336,8 @@ def quick_match(user, body):
         if user is not None:
             # 같은 계정끼리는 짝을 짓지 않는다(같은 사람이 두 창에서 기다리는 경우).
             waiting = waiting.exclude(host_user=user)
-        partner = waiting.first()
+        # 같은 진행 방식(단판·매치·무한)을 고른 사람끼리만 짝을 짓는다.
+        partner = next((row for row in waiting if (row.options or {}).get('format') == match_format), None)
         if partner:
             partner.guest_token = _new_token()
             partner.guest_user = user
@@ -328,7 +352,7 @@ def quick_match(user, body):
         try:
             room = SimulatorRoom.objects.create(
                 code=_new_code(), kind=SimulatorRoom.KIND_QUICK,
-                options={'mode': LumenSimulatorSession.MODE_AUTOMATIC, **TIMER_DEFAULTS},
+                options={'mode': LumenSimulatorSession.MODE_AUTOMATIC, **TIMER_DEFAULTS, 'format': match_format},
                 host_token=_new_token(), host_user=user, host_name=name,
                 host_deck=deck, host_ready=True,
                 expires_at=now + QUICK_LIFETIME,

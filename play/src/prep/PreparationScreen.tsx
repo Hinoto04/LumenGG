@@ -19,6 +19,9 @@ import {
   type ValidationReport,
 } from "./model";
 import { cardCount, t } from "../i18n";
+import { DeckPicker, type DeckRow } from "../Lobby";
+import { getJson } from "../net/http";
+import { matchScoreText } from "../matchFormat";
 
 const ZONE_LABELS: Record<PrepZone, string> = {
   list: t("리스트"),
@@ -116,6 +119,60 @@ function Preview({ card, onClose }: { card: PrepCatalogCard | null; onClose: () 
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/**
+ * 다음 게임(게임 2부터)을 준비할 때 덱을 바꾼다. 서버가 덱 권한·규정·자동 모드 지원 카드를 확인하고,
+ * 바꾸면 상대 준비 완료도 풀린다(상대도 바뀐 캐릭터를 보고 다시 준비한다).
+ */
+function DeckChange({ envelope, disabled }: { envelope: PlayEnvelope; disabled: boolean }) {
+  const flash = usePlay((s) => s.flash);
+  const [open, setOpen] = useState(false);
+  const [mine, setMine] = useState<DeckRow[]>([]);
+  const [loginRequired, setLoginRequired] = useState(false);
+  const [sending, setSending] = useState(false);
+  // 고른 뒤 덱 목록이 닫히므로, 서버가 거절하면 목록을 다시 연다.
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+    getJson<{ decks: DeckRow[]; login_required?: boolean }>("/battlelog/play/api/decks/?mine=1")
+      .then((data) => {
+        setMine(data.decks);
+        setLoginRequired(!!data.login_required);
+      })
+      .catch(() => undefined);
+  }, [open]);
+
+  const choose = async (deck: DeckRow) => {
+    setSending(true);
+    try {
+      await sendPreparation(envelope, "select_deck", undefined, { deck_id: deck.id });
+      setOpen(false);
+    } catch (error) {
+      flash((error as Error).message);
+      setAttempt((value) => value + 1);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button type="button" className="btn-secondary prep-deck-change" disabled={disabled} onClick={() => setOpen(true)}>
+        {t("덱 바꾸기")}
+      </button>
+    );
+  }
+  return (
+    <section className="prep-section prep-deck-picker">
+      <DeckPicker key={attempt} label={t("다음 게임에 쓸 덱")} value={null} onChange={choose} mine={mine} loginRequired={loginRequired} />
+      <p className="muted">{t("덱을 바꾸면 상대에게 새 캐릭터가 보이고, 상대도 준비를 다시 합니다.")}</p>
+      <button type="button" className="btn-ghost" disabled={sending} onClick={() => setOpen(false)}>
+        {t("닫기")}
+      </button>
+    </section>
   );
 }
 
@@ -341,6 +398,7 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
           <p className="muted">
             {registered.character?.name} · {registered.name}
           </p>
+          {envelope.match && <p className="prep-match">{matchScoreText(envelope.match, me)}</p>}
         </div>
         {rival.character?.name && (
           <div className="prep-rival" style={{ "--char-color": rival.character.color } as CSSProperties}>
@@ -360,6 +418,9 @@ export function PreparationScreen({ envelope }: { envelope: PlayEnvelope }) {
           </span>
         </div>
       </header>
+
+      {/* 게임이 끝난 뒤 다음 게임 준비에서만 덱을 바꿀 수 있다(첫 게임은 고른 덱으로 시작한다). */}
+      {preparation.game_number > 1 && !ready && <DeckChange key={registered.deck_id} envelope={envelope} disabled={sending} />}
 
       <section className="prep-summary">
         <span className={over(derived.swaps.technique, rules?.technique_swap_limit) ? "is-over" : ""}>

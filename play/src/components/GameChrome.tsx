@@ -10,6 +10,7 @@ import { perspective } from "../store";
 import { GameMenu, type SystemSubmit } from "./SystemUi";
 import { TutorialFinished, tutorialOf, useTutorial } from "./TutorialCoach";
 import { sendPreparation } from "../prep/model";
+import { matchScoreText } from "../matchFormat";
 import { t } from "../i18n";
 
 const STATUS_TEXT = {
@@ -184,32 +185,51 @@ export function GameOver({ envelope }: { envelope: PlayEnvelope | null }) {
     return tutorialFinishSeen ? <TutorialFinished view={tutorial} /> : null;
   }
   let title = t("대전 중단");
+  const match = !fatal ? envelope?.match ?? null : null;
+  let matchTitle: string | null = null;
+  let score: string | null = null;
   if (!fatal && envelope && status) {
     const { me } = perspective(envelope);
     if (!status.winner) title = t("무승부");
     else if (envelope.role === "viewer") title = t("{who} 승리", { who: status.winner.toUpperCase() });
     else title = status.winner === me ? t("승리") : t("패배");
+    if (match) {
+      score = matchScoreText(match, envelope.role === "viewer" ? "p1" : me);
+      // 3판 2선승이 끝났으면 이번 게임보다 매치 결과를 크게 보여 준다.
+      if (match.format === "bo3" && match.over && match.winner) {
+        matchTitle =
+          envelope.role === "viewer"
+            ? t("{who} 매치 승리", { who: match.winner.toUpperCase() })
+            : match.winner === me
+              ? t("매치 승리")
+              : t("매치 패배");
+      }
+    }
   }
+  // 단판·끝난 매치는 다음 게임이 없다(서버도 거절한다).
+  const canContinue = !fatal && !!envelope?.preparation && envelope.role !== "viewer" && !match?.over;
   return (
     <motion.div className="game-over" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="game-over-card">
-        <h2>{title}</h2>
+        {matchTitle && <p className="game-over-match">{matchTitle}</p>}
+        <h2>{matchTitle ? t("게임 {n}: {result}", { n: match?.game_number ?? 1, result: title }) : title}</h2>
+        {score && <p className="game-over-score">{score}</p>}
         {fatal ? <p>{fatal}</p> : status?.reason ? <p className="muted">{FINISH_REASONS[String(status.reason)] ?? String(status.reason)}</p> : null}
         {nextError && <p className="lobby-error">{nextError}</p>}
         <div className="lobby-row">
           {/* 덱 준비가 있는 대전은 같은 상대와 다음 게임을 이어 할 수 있다 */}
-          {!fatal && envelope?.preparation && envelope.role !== "viewer" && (
+          {canContinue && envelope && (
             <button
               type="button"
               className="btn-primary"
               onClick={() => sendPreparation(envelope, "next_game").catch((error: Error) => setNextError(error.message))}
             >
-              {t("다음 게임")}
+              {match?.format === "bo3" ? t("게임 {n} 준비", { n: match.game_number + 1 }) : t("다음 게임")}
             </button>
           )}
           {/* 엔진 오류로 수동 모드가 된 대전은 예전 화면에서 손으로 이어 갈 수 있다 */}
           {fatal && envelope?.mode === "manual" && <ManualLink />}
-          <a className={envelope?.preparation && !fatal ? "btn-secondary" : "btn-primary"} href={location.pathname}>
+          <a className={canContinue ? "btn-secondary" : "btn-primary"} href={location.pathname}>
             {t("새 대전")}
           </a>
         </div>

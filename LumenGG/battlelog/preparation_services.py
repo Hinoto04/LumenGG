@@ -37,7 +37,44 @@ def state_from_preparation(preparation, names):
     return state
 
 
-def perform_simulator_preparation(session, body):
+def _next_game_registration(locked, preparation, side, body, user):
+    """다음 게임 준비에서 덱을 바꿀 때 쓸 제출 덱 스냅숏. 덱 권한은 요청한 플레이어 계정으로 본다."""
+    from django.contrib.auth.models import AnonymousUser
+    from deck.models import Deck, RegulationVersion
+    from deck.traits import trait_choices
+    from deck.validation import snapshot_deck, validate
+    from .simulator_services import can_view_deck_for_simulator
+
+    if (preparation.get('game_number') or 1) < 2:
+        raise ValueError('덱은 게임이 끝난 뒤 다음 게임을 준비할 때 바꿀 수 있습니다.')
+    try:
+        deck = Deck.objects.select_related('character').get(id=int(body.get('deck_id')), deleted=False)
+    except (Deck.DoesNotExist, TypeError, ValueError):
+        raise ValueError('덱을 찾을 수 없습니다.') from None
+    if not can_view_deck_for_simulator(user or AnonymousUser(), deck):
+        raise ValueError('이 덱을 쓸 권한이 없습니다.')
+    if not deck.trait_card_id and trait_choices(deck.character_id).count() > 1:
+        raise ValueError('덱 작성 화면에서 사용할 특성을 선택해주세요.')
+    # 규정은 이 대전에서 쓰던 것을 그대로 쓴다(두 사람이 같은 규정으로 겨룬다).
+    previous = preparation['players'][side].get('registered') or {}
+    regulation = None
+    if previous.get('regulation_version_id'):
+        regulation = RegulationVersion.objects.filter(pk=previous['regulation_version_id']).first()
+    registration = snapshot_deck(deck, regulation)
+    report = validate(registration)
+    if not report['is_valid']:
+        raise ValueError('; '.join(i['message'] for i in report['issues'] if i['severity'] == 'error'))
+    if locked.mode == 'automatic' and locked.ruleset_release_id:
+        from deck.game_validation import unreleased_card_message, unreleased_cards
+
+        missing = unreleased_cards(deck, locked.ruleset_release.snapshot)
+        if missing:
+            raise ValueError(unreleased_card_message(missing))
+    return registration
+
+
+def perform_simulator_preparation(session, body, user=None):
+    """``user``: 요청한 플레이어 계정. 다음 게임에서 덱을 바꿀 때(``select_deck``) 덱 권한을 본다."""
     from .simulator_services import role_for_token, simulator_session_is_expired, simulator_session_expires_at
     with transaction.atomic():
         locked = LumenSimulatorSession.objects.select_for_update().select_related('ruleset_release').get(pk=session.pk)
@@ -52,7 +89,15 @@ def perform_simulator_preparation(session, body):
         state = document['state']
         finished = bool((state.get('engine') or {}).get('winner')) or any(p.get('hp', 1) <= 0 for p in state['players'].values())
         ai_sides = [s for s in ('p1', 'p2') if getattr(locked, 'player1_controller' if s == 'p1' else 'player2_controller') == 'ai']
-        updated, start = apply_preparation(preparation, side, body, ruleset=ruleset, finished=finished, ai_sides=ai_sides)
+        action = body.get('preparation_action')
+        registration = None
+        if action == 'next_game' and finished:
+            # 단판은 한 판, 3판 2선승은 누가 2승하면 끝난다.
+            from .play_match import ensure_next_game_allowed
+            ensure_next_game_allowed(document)
+        elif action == 'select_deck' and preparation.get('status') == 'editing':
+            registration = _next_game_registration(locked, preparation, side, body, user)
+        updated, start = apply_preparation(preparation, side, body, ruleset=ruleset, finished=finished, ai_sides=ai_sides, registration=registration)
         if updated is preparation:
             return locked
         if updated['game_number'] != preparation['game_number']:
@@ -66,7 +111,7 @@ def perform_simulator_preparation(session, body):
             if locked.mode == 'automatic':
                 from .automatic_services import initialize_automatic_document
                 initialized = initialize_automatic_document(state, locked.ruleset_release, seed=f'{locked.view_token}:game:{updated["game_number"]}', settings=document.get('pending_settings'))
-                initialized.update({k: document[k] for k in ('games', 'ai_policy', 'ai_deck', 'pending_settings') if k in document})
+                initialized.update({k: document[k] for k in ('games', 'match', 'ai_policy', 'ai_deck', 'pending_settings') if k in document})
                 document = initialized
             else:
                 document.update(initial_state=copy.deepcopy(state), state=state, events=[])

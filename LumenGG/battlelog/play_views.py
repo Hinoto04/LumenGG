@@ -336,10 +336,11 @@ def play_room_leave(req, body, code):
 
 
 def play_quick_status(req):
-    """퀵 매치 메뉴: 지금 매칭을 기다리는 플레이어 수. 개인 정보 없이 숫자만 준다."""
-    from .play_rooms import quick_waiting_count
+    """퀵 매치 메뉴: 지금 매칭을 기다리는 플레이어 수(전체·진행 방식별). 개인 정보 없이 숫자만 준다."""
+    from .play_rooms import quick_waiting_counts
 
-    return JsonResponse({'ok': True, 'waiting': quick_waiting_count()})
+    formats = quick_waiting_counts()
+    return JsonResponse({'ok': True, 'waiting': sum(formats.values()), 'formats': formats})
 
 
 @_room_endpoint
