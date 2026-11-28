@@ -24431,7 +24431,7 @@ class AutomaticEngineTests(SimpleTestCase):
             for ability in result.abilities
         ))
         self.assertEqual(
-            sum(len(ability.scenarios) for ability in result.abilities), 36,
+            sum(len(ability.scenarios) for ability in result.abilities), 38,
         )
         by_id = {ability.ability_id: ability for ability in result.abilities}
 
@@ -24504,6 +24504,13 @@ class AutomaticEngineTests(SimpleTestCase):
         self.assertTrue(clear_states[
             'clear-part-moved-in-clears-zero-suit'
         ]['clear_resolved'])
+        # 제로 수트가 아니거나 이미 제로 수트면 카드가 움직여도 ②·해제가 반복 발동하지 않는다.
+        for name in (
+            'one-of-two-parts-moved-out-keeps-state-off',
+            'existing-zero-suit-does-not-refire',
+        ):
+            self.assertFalse(states[name]['gain_resolved'], name)
+            self.assertFalse(states[name]['clear_resolved'], name)
 
         penalty = {
             item['name']: item for item in by_id['rfs-ps-002-n3'].scenarios
@@ -32378,9 +32385,9 @@ class AutomaticEngineTests(SimpleTestCase):
         ]
         self.assertEqual(
             (wrong_position['owner_result'], wrong_position['opponent_result']),
-            ('clash', 'clash'),
+            ('countered', 'counter'),
         )
-        self.assertEqual(wrong_position['opponent_hp'], 4700)
+        self.assertEqual(wrong_position['opponent_hp'], 5000)
         for scenario_name in (
             'qna-419-crescent-owner-priority-clash-difference',
             'qna-419-crescent-opponent-priority-same-result',

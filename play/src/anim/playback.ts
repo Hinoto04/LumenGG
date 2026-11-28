@@ -369,8 +369,11 @@ function applyStatEvent(envelope: PlayEnvelope, type: string, payload: Record<st
     const stat = String(modifier.stat ?? "");
     if (stat !== "frame" && stat !== "damage") return false;
     const fixes = modifier.op === "fix_speed" || !!modifier.fixed;
+    // 효과 면역(스톰슬레이어 "효과로 느려지지 않는다")으로 엔진이 무시한 대상은 바꾸지 않는다.
+    const ignored = new Set(((payload.ignored_card_instance_ids ?? []) as unknown[]).map(String));
     let changed = false;
     for (const id of modifierTargets(envelope, modifier)) {
+      if (ignored.has(id)) continue;
       changed =
         updateStatChange(envelope, id, stat, (change) => {
           if (fixes) return modifier.value == null ? null : { current: Number(modifier.value), fixed: true };

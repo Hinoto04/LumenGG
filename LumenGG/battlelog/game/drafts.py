@@ -12703,7 +12703,21 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                 'timing': 'function', 'active_zones': ['passive'],
                 'draft_compiled': True,
                 'trigger': {'event': 'card_moved'},
-                'condition': copy.deepcopy(zero_parts),
+                # 카드가 움직일 때마다 확인하므로, 이미 제로 수트면 다시 발동하지 않는다.
+                'condition': {
+                    'op': 'all',
+                    'conditions': [
+                        {
+                            'op': 'not',
+                            'condition': {
+                                'op': 'has_state',
+                                'player': {'controller': True},
+                                'state': 'zero_suit',
+                            },
+                        },
+                        copy.deepcopy(zero_parts),
+                    ],
+                },
                 'effects': [{
                     'op': 'gain_state', 'player': {'controller': True},
                     'state': 'zero_suit',
@@ -12737,19 +12751,30 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
             'draft': True, 'draft_compiled': True,
             'active_zones': ['passive'],
             'trigger': {'event': 'card_moved'},
+            # 제로 수트일 때만 해제한다. 상태가 없을 때도 카드 이동마다 발동하면
+            # 로그에 X-05 솔다트가 계속 발동한 것처럼 남는다.
             'condition': {
-                'op': 'any',
+                'op': 'all',
                 'conditions': [
                     {
-                        'op': 'zone_count',
-                        'player': {'controller': True},
-                        'zone': 'lumen', 'min': 1,
-                        'where': {'token_key': 'parts'},
+                        'op': 'has_state', 'player': {'controller': True},
+                        'state': 'zero_suit',
                     },
                     {
-                        'op': 'card_matches',
-                        'card': {'path': 'context.source_card'},
-                        'where': {'numbered_effects_negated': True},
+                        'op': 'any',
+                        'conditions': [
+                            {
+                                'op': 'zone_count',
+                                'player': {'controller': True},
+                                'zone': 'lumen', 'min': 1,
+                                'where': {'token_key': 'parts'},
+                            },
+                            {
+                                'op': 'card_matches',
+                                'card': {'path': 'context.source_card'},
+                                'where': {'numbered_effects_negated': True},
+                            },
+                        ],
                     },
                 ],
             },

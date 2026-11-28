@@ -2338,3 +2338,168 @@ class JetpackOwnCatchTests(SimpleTestCase):
         engine, fp_before, resolved = self.run_catch('p2')
         self.assertFalse(resolved)
         self.assertEqual(engine.state['players']['p2']['fp'], fp_before)
+
+
+RABBIT_TEXT = (
+    '이 기술은 8~11속도만 회피할 수 있다.\n'
+    '①[[state:advance_notice]]: 판정 전 회피 속도 제한이 해제되고\n'
+    '상대의 기술 데미지만큼 이 기술의 데미지를 올린다.'
+)
+CHOYEOM_TEXT = (
+    '①판정 전, 상대 기술에 <회피> 특수 판정이 있을 경우, 이 기술은 <6속도>로 고정된다. \n'
+    '②상대 방어 시, [[token:ember]] 카운터 1개당 1FP를 잃는다. (최대 8) \n'
+    '③카운터 시, [[token:ember]] 카운터 1개당 1FP를 얻는다.(최대 9)'
+)
+
+
+class RabbitStampNoticeTests(SimpleTestCase):
+    """래빗 스탬프 예고로 회피 속도 제한이 풀려도 없던 상쇄 판정을 얻지는 않는다."""
+
+    def judge(self, notice):
+        from .game.drafts import build_effect_draft
+
+        rabbit = attack(
+            'rabbit', 'p1', code='ST4-006', frame=10, damage=300,
+            special='중단 회피', hit='5', counter='콤보',
+        )
+        choyeom = attack(
+            'choyeom', 'p2', code='CB03-AT-019', frame=9, damage=500,
+            position='하단', hit='4',
+        )
+        state = base_state([rabbit], [choyeom])
+        if notice:
+            state['players']['p1']['passive_state']['advance_notice'] = {
+                'active': True, 'value': True,
+            }
+        rules = ruleset(rabbit, choyeom)
+        rules['cards']['ST4-006']['effect_definition'] = build_effect_draft('ST4-006', RABBIT_TEXT)
+        rules['cards']['CB03-AT-019']['effect_definition'] = build_effect_draft(
+            'CB03-AT-019', CHOYEOM_TEXT,
+        )
+        engine = AutomaticGameEngine.initialize(state, rules, seed='rabbit', run_startup=False)
+        _act(engine, 'p1', 'pass_phase')
+        _act(engine, 'p2', 'pass_phase')
+        _act(engine, 'p1', 'ready_card', 'rabbit')
+        _act(engine, 'p2', 'ready_card', 'choyeom')
+        return next(e['payload'] for e in engine.events if e['type'] == 'battle_judged')
+
+    def test_notice_does_not_turn_counter_into_clash(self):
+        judged = self.judge(notice=True)
+        self.assertEqual(judged['speed'], {'p1': 10, 'p2': 6})
+        self.assertEqual(judged['result'], {'p1': 'countered', 'p2': 'counter'})
+
+    def test_without_notice_is_counter(self):
+        self.assertEqual(
+            self.judge(notice=False)['result'], {'p1': 'countered', 'p2': 'counter'},
+        )
+
+
+class ShieldAbsorbedDamageTests(SimpleTestCase):
+    """보호막이 모두 흡수한 데미지는 체력에 받은 데미지가 아니므로 "데미지를 받았을 때"가 유발되지 않는다."""
+
+    def build(self):
+        watcher = {
+            'instance_id': 'watcher', 'kind': 'card', 'owner': 'p2', 'code': 'WATCHER',
+            'name': 'watcher', 'type': '특수', 'face_up': True,
+        }
+        state = base_state([], [])
+        state['players']['p2']['zones']['lumen'].append(watcher)
+        definition = {
+            'schema_version': 1, 'abilities': [{
+                'id': 'watcher-n1', 'kind': 'effect', 'mode': 'mandatory',
+                'timing': 'result', 'active_zones': ['lumen'],
+                'trigger': {'event': 'damage_after'},
+                'condition': {
+                    'op': 'equals', 'left': {'path': 'context.player'},
+                    'right': {'path': 'context.controller'},
+                },
+                'effects': [{'op': 'change_fp', 'player': {'controller': True}, 'amount': 1}],
+            }],
+        }
+        rules = {'version': 'test-v1', 'cards': {
+            'WATCHER': {**watcher, 'effect_definition': definition},
+        }}
+        return AutomaticGameEngine.initialize(state, rules, seed='shield', run_startup=False)
+
+    def resolved(self, engine):
+        return [
+            e for e in engine.events
+            if e['type'] == 'effect_resolved' and e['payload'].get('ability_id') == 'watcher-n1'
+        ]
+
+    def test_fully_absorbed_damage_is_not_received(self):
+        engine = self.build()
+        engine.gain_shield('p2', 500)
+        engine.deal_damage('p2', 300, source='effect', context={'controller': 'p1'})
+        self.assertEqual(engine.state['players']['p2']['hp'], 5000)
+        self.assertEqual(self.resolved(engine), [])
+        self.assertEqual(engine.state['players']['p2']['fp'], 0)
+
+    def test_damage_past_shield_is_received(self):
+        engine = self.build()
+        engine.gain_shield('p2', 100)
+        engine.deal_damage('p2', 300, source='effect', context={'controller': 'p1'})
+        self.assertEqual(engine.state['players']['p2']['hp'], 4800)
+        self.assertEqual(len(self.resolved(engine)), 1)
+        self.assertEqual(engine.state['players']['p2']['fp'], 1)
+
+
+STORMSLAYER_TEXT = (
+    '이 기술은 자신의 체력이 2500 이하일 경우에만 사용할 수 있다.\n'
+    '이 기술은 효과로 속도가 느려지지 않는다.\n'
+    '이 기술은 콤보에 사용할 수 없다.\n'
+    '① 사용 시, 패나 리스트의 [[card:LMI-AT-016]]를 브레이크한다.\n'
+    '그 후, 이 기술은 상대가 방어 및 상쇄할 수 없으며 이 기술 데미지+500\n'
+    '②사용 후, 이 기술을 브레이크한다.\n'
+    '그 후, 브레이크 존의 [[card:LMI-AT-016]]를 패로 가져올 수 있다.'
+)
+
+
+class StormslayerSpeedImmunityTests(SimpleTestCase):
+    """스톰슬레이어는 효과로 느려지지 않지만, 더 빠르게 하는 효과는 받는다."""
+
+    def judge(self, effect):
+        from .game.drafts import build_effect_draft
+
+        storm = attack('storm', 'p1', code='DFR-AT-015', frame=9, damage=500, hit='3', counter='4')
+        slower = attack('slower', 'p2', code='SLOWER', frame=13, damage=400)
+        state = base_state([storm], [slower], hp=2000)
+        rules = ruleset(storm, slower)
+        rules['cards']['DFR-AT-015']['effect_definition'] = build_effect_draft(
+            'DFR-AT-015', STORMSLAYER_TEXT,
+        )
+        rules['cards']['SLOWER']['effect_definition'] = {'schema_version': 1, 'abilities': [{
+            'id': 'slower-n1', 'kind': 'effect', 'mode': 'mandatory',
+            'timing': 'before_judgment', 'active_zones': ['battle'],
+            'trigger': {'event': 'before_judgment'},
+            'effects': [{
+                **effect, 'player': {'opponent': True}, 'stat': 'frame', 'duration': 'battle',
+            }],
+        }]}
+        engine = AutomaticGameEngine.initialize(state, rules, seed='storm', run_startup=False)
+        _act(engine, 'p1', 'pass_phase')
+        _act(engine, 'p2', 'pass_phase')
+        _act(engine, 'p1', 'ready_card', 'storm')
+        _act(engine, 'p2', 'ready_card', 'slower')
+        while engine.engine_state.get('pending_decision'):
+            decision = engine.engine_state['pending_decision']
+            action = next(
+                a for a in engine.legal_actions(decision['owner'])
+                if a['type'] == 'submit_decision'
+            )
+            engine.submit_action(decision['owner'], action['action_id'], {'selected': []})
+        added = next(
+            e['payload'] for e in engine.events
+            if e['type'] == 'modifier_added' and e['payload']['modifier'].get('source') == 'slower'
+        )
+        judged = next(e['payload'] for e in engine.events if e['type'] == 'battle_judged')
+        return judged['speed']['p1'], added.get('ignored_card_instance_ids')
+
+    def test_slowing_modifier_is_ignored_and_reported(self):
+        self.assertEqual(self.judge({'op': 'modify_stat', 'amount': 12}), (9, ['storm']))
+
+    def test_slower_fixed_speed_is_ignored(self):
+        self.assertEqual(self.judge({'op': 'fix_speed', 'value': 12}), (9, ['storm']))
+
+    def test_faster_fixed_speed_still_applies(self):
+        self.assertEqual(self.judge({'op': 'fix_speed', 'value': 5}), (5, None))

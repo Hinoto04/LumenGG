@@ -2067,7 +2067,9 @@ class AutomaticGameEngine:
     ):
         defender_side = opponent(attacker_side)
         if self._rule_blocked('defense_rule', defender_side, defense, attack):
-            return True
+            # 판정 제한이 해제(래빗 스탬프 예고)되어도 없던 판정을 새로 얻지는 않는다.
+            # 부여 판정만 묻는 경우까지 참으로 보면 상쇄가 생겨 동시히트로 처리된다.
+            return not grant_only
         definition = self._definition_for_card(defense)
         rules = [
             (index, rule)
@@ -7449,6 +7451,10 @@ class AutomaticGameEngine:
                 received[side] = _number(received.get(side)) + actual
             item['absorbed'] = absorbed
             item['actual'] = actual
+            # 보호막이 모두 흡수하면 체력에 데미지를 받지 않았으므로 "데미지를
+            # 받았을 때/주었을 때" 유발을 일으키지 않는다(경감으로 0이 된 경우는 그대로).
+            item['shield_only'] = bool(absorbed and not actual)
+        if item['stage'] == 'apply':
             before = _number(self.state['players'][side].get('hp'))
             after = max(0, before - actual)
             self.state['players'][side]['hp'] = after
@@ -7456,7 +7462,8 @@ class AutomaticGameEngine:
                 'before': before, 'after': after, 'amount': -actual, 'source': item.get('source'),
             })
             item['stage'] = 'after_hp'
-            self._fire('hp_changed', {**context, 'amount': -actual, 'before': before, 'after': after})
+            if not item.get('shield_only'):
+                self._fire('hp_changed', {**context, 'amount': -actual, 'before': before, 'after': after})
             if self.is_waiting:
                 self.engine_state.setdefault('domain_queue', []).insert(0, item)
                 return None
@@ -7465,7 +7472,8 @@ class AutomaticGameEngine:
                 'target': side, 'amount': item['actual'], 'source': item.get('source'),
             })
             item['stage'] = 'done'
-            self._fire('damage_after', {**context, 'amount': item['actual']})
+            if not item.get('shield_only'):
+                self._fire('damage_after', {**context, 'amount': item['actual']})
             if self.is_waiting:
                 self.engine_state.setdefault('domain_queue', []).insert(0, item)
                 return None
@@ -8531,6 +8539,31 @@ class AutomaticGameEngine:
         self.engine_state['shields'][side] = active
         return absorbed
 
+    def _modifier_ignored_targets(self, modifier):
+        stat = modifier.get('stat')
+        if stat not in {'frame', 'damage'}:
+            return []
+        side = modifier.get('player') or modifier.get('controller')
+        if side not in PLAYER_SIDES:
+            return []
+        where = modifier.get('where') or {}
+        if where.get('instance_id'):
+            card = self._find_card(where['instance_id'])
+            targets = [card] if card else []
+        elif where:
+            return []
+        else:
+            targets = list(self.state['players'][side]['zones'].get('battle') or [])
+        return [
+            card.get('instance_id') for card in targets
+            if isinstance(card, dict) and self._card_ignores_effect(
+                card, modifier.get('controller'), modifier.get('source'),
+                effect_source_code=modifier.get('source_code'),
+                operation='modify_stat', stat=stat,
+                amount=self._fixed_stat_delta(card, stat, modifier),
+            )
+        ]
+
     def add_modifier(self, modifier):
         value = copy.deepcopy(modifier or {})
         value.setdefault('id', self._next_id('modifier'))
@@ -8538,7 +8571,13 @@ class AutomaticGameEngine:
         if self._speed_modifier_conflicts_with_earlier(value):
             return None
         self.engine_state.setdefault('modifiers', []).append(value)
-        self.emit('modifier_added', value.get('controller'), {'modifier': value})
+        payload = {'modifier': value}
+        ignored = self._modifier_ignored_targets(value)
+        if ignored:
+            # 스톰슬레이어처럼 효과 면역인 카드는 card_stat에서 이 수정자를 무시한다.
+            # 재생 화면이 수정자를 그대로 더해 느려진 것처럼 보이지 않게 알려 준다.
+            payload['ignored_card_instance_ids'] = ignored
+        self.emit('modifier_added', value.get('controller'), payload)
         if value.get('op') == 'fix_speed':
             player = value.get('player') or value.get('controller')
             where = value.get('where') or {}
@@ -9270,6 +9309,18 @@ class AutomaticGameEngine:
                 result = max(1, result - _number(self.state['players'][controller].get('fp')))
         return result
 
+    @staticmethod
+    def _fixed_stat_delta(card, stat, modifier):
+        """고정 수정자가 인쇄값에서 얼마나 바꾸는지. 면역의 증감 방향 판단에 쓴다.
+
+        고정값 자체(양수)를 증감량으로 보면 더 빠르게 고정하는 효과까지
+        "느려짐"으로 막힌다(스톰슬레이어).
+        """
+        value = modifier.get('value', modifier.get('amount'))
+        if not (modifier.get('op') == 'fix_speed' or modifier.get('fixed')):
+            return value
+        return _number(value) - _number((card or {}).get(stat), 0)
+
     def _fixed_stat(self, card, stat, controller):
         modifiers = sorted(
             self.engine_state.get('modifiers') or [],
@@ -9294,7 +9345,7 @@ class AutomaticGameEngine:
                 card, modifier.get('controller'), modifier.get('source'),
                 effect_source_code=modifier.get('source_code'),
                 operation='modify_stat', stat=stat,
-                amount=modifier.get('value', modifier.get('amount')),
+                amount=self._fixed_stat_delta(card, stat, modifier),
             ):
                 continue
             where = modifier.get('where')

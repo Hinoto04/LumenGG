@@ -3023,12 +3023,15 @@ def _review_st4_006_definition(definition, card_snapshot, extra_root):
             'owner_result': 'dodge', 'opponent_result': 'dodge',
             'owner_damage': 900, 'notice_resolution_count': 1,
         }),
+        # 예고는 회피 속도 제한만 해제한다. 중단이 아닌 상대 기술은 회피하지 못하고,
+        # 없던 상쇄 판정도 생기지 않으므로 더 빠른 상대가 카운터한다(Q&A 419의 상쇄는
+        # 상대 크레센트의 상쇄 판정에서 온다).
         ('notice-still-dodges-only-middle-position', 'p1', {
             'advance_notice': True, 'opponent_speed': 7,
             'opponent_position': '하단', 'opponent_special': '',
         }, {
-            'owner_result': 'clash', 'opponent_result': 'clash',
-            'owner_damage': 900, 'opponent_hp': 4700,
+            'owner_result': 'countered', 'opponent_result': 'counter',
+            'owner_damage': 900, 'opponent_hp': 5000,
             'notice_resolution_count': 1,
         }),
         ('without-notice-keeps-printed-damage', 'p2', {
@@ -118792,9 +118795,26 @@ def _review_rfs_ps_002_definition(definition, card_snapshot, extra_root):
         and zero_suit.get('active_zones') == ['passive']
         and zero_suit.get('trigger') == {'event': 'card_moved'}
         and zero_suit.get('condition') == {
-            'op': 'zone_count', 'player': {'controller': True},
-            'zone': 'lumen', 'max': 0,
-            'where': {'token_key': 'parts'},
+            'op': 'all',
+            'conditions': [
+                {
+                    'op': 'not',
+                    'condition': {
+                        'op': 'has_state', 'player': {'controller': True},
+                        'state': 'zero_suit',
+                    },
+                },
+                {
+                    'op': 'zone_count', 'player': {'controller': True},
+                    'zone': 'lumen', 'max': 0,
+                    'where': {'token_key': 'parts'},
+                },
+            ],
+        }
+        and (clear.get('condition') or {}).get('op') == 'all'
+        and ((clear.get('condition') or {}).get('conditions') or [{}])[0] == {
+            'op': 'has_state', 'player': {'controller': True},
+            'state': 'zero_suit',
         }
         and zero_suit.get('effects') == [{
             'op': 'gain_state', 'player': {'controller': True},
@@ -119004,12 +119024,17 @@ def _review_rfs_ps_002_definition(definition, card_snapshot, extra_root):
             'part_count': 1, 'part_zone': 'side',
             'initial_zero_suit': True, 'action': 'move-in',
         }, False, False, True, None),
+        # 제로 수트가 아닐 때는 해제 기능이 발동하지 않는다(카드 이동마다 반복 발동 방지).
         ('one-of-two-parts-moved-out-keeps-state-off', 'p2', {
             'part_count': 2, 'action': 'move-out',
-        }, False, False, True, None),
+        }, False, False, False, None),
         ('numbered-negation-keeps-zero-suit-off', 'p1', {
             'negated': True,
-        }, False, False, True, None),
+        }, False, False, False, None),
+        # 이미 제로 수트면 카드가 움직여도 ②가 다시 발동하지 않는다.
+        ('existing-zero-suit-does-not-refire', 'p1', {
+            'initial_zero_suit': True,
+        }, True, False, False, None),
         ('trait-negator-clears-then-leaving-regrants', 'p2', {
             'initial_zero_suit': True, 'action': 'negator-cycle',
         }, True, True, False, False),
