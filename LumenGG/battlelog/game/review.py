@@ -125279,11 +125279,41 @@ def _run_cb03_at_027_recovery_scenario(
     definition, card_snapshot, owner, *, event_type='hit',
     source_zone='battle', negated=False, blue_flame=True,
     lumen_at_trigger=0, lumen_at_recovery=2, initial_fp=0,
+    placement_first=None,
 ):
     engine, source, opposing = _st2_battle_engine(
         definition, card_snapshot, owner, source_zone=source_zone,
         numbered_negated=negated, owner_fp=initial_fp,
     )
+    if placement_first is not None:
+        # 밤까치 ③처럼 리커버리 페이즈 시 사이드의 귀섬을 루멘 존에 놓는 효과.
+        placer = {
+            **_card('REVIEW-CB03-027-PLACER', owner, f'{owner}-placer'),
+            'type': '패시브', 'face_up': True,
+        }
+        engine.ruleset['cards']['REVIEW-CB03-027-PLACER'] = {
+            **copy.deepcopy(placer),
+            'effect_definition': {'schema_version': 1, 'abilities': [{
+                'id': 'review-cb03-027-placer', 'label': '귀섬 1장을 루멘 존에 놓는다.',
+                'kind': 'effect', 'mode': 'mandatory', 'timing': 'function',
+                'active_zones': ['passive'],
+                'trigger': {'event': 'phase_start'},
+                'condition': {'op': 'phase_is', 'phase': 'recovery'},
+                'effects': [{
+                    'op': 'move_card', 'to_zone': 'lumen',
+                    'selector': {
+                        'kind': 'card', 'player': {'controller': True},
+                        'zones': ['side'], 'min': 1, 'max': 1,
+                        'where': {'code': 'RFS-AT-002'},
+                    },
+                }],
+            }]},
+        }
+        engine.state['players'][owner]['zones'].setdefault('passive', []).append(placer)
+        engine.state['players'][owner]['zones']['side'] = [{
+            **_card('RFS-AT-002', owner, f'{owner}-blue-flame-side'),
+            'damage': 100, 'frame': 3,
+        }]
     if blue_flame:
         engine.set_passive(owner, 'blue_flame', value=True)
 
@@ -125312,7 +125342,24 @@ def _run_cb03_at_027_recovery_scenario(
     )
     engine.state['phase'] = 'recovery'
     engine._fire('phase_start', {'phase': 'recovery'})
+    decision_kinds = []
+    while engine.engine_state.get('pending_decision'):
+        decision = engine.engine_state['pending_decision']
+        decision_kinds.append(decision.get('kind'))
+        if decision.get('kind') != 'effect_order' or len(decision_kinds) > 4:
+            break
+        wanted = (
+            'review-cb03-027-placer' if placement_first
+            else 'cb03-at-027-n2-scheduled'
+        )
+        choice = next(
+            str(option['id']) for option in decision.get('options') or []
+            if option.get('ability_id') == wanted
+        )
+        engine._submit_decision(owner, decision.get('id'), [choice])
+        engine._continue()
     return {
+        'decision_kinds': decision_kinds,
         'fp_gained': int(engine.state['players'][owner]['fp']) - initial_fp,
         'scheduled_after_trigger': scheduled_after_trigger,
         'scheduled_after_recovery': len(
@@ -125370,6 +125417,8 @@ def _review_cb03_at_027_definition(definition, card_snapshot, extra_root):
             'op': 'schedule',
             'when': {'event': 'phase_start', 'phase': 'recovery'},
             'duration': 'turn',
+            'order_with_triggers': True,
+            'label': '귀화 ②: 루멘 존의 [[card:RFS-AT-002]] 1장당 1FP를 얻는다. (최대 3)',
             'effect': {
                 'op': 'change_fp', 'player': {'controller': True},
                 'amount': {
@@ -125472,6 +125521,15 @@ def _review_cb03_at_027_definition(definition, card_snapshot, extra_root):
                 'negated': True,
             }, {'fp_gained': 0, 'scheduled_after_trigger': 0,
                 'resolved': 0}),
+            # 종합 규칙 6.4.1: 리커버리 페이즈 시의 귀섬 배치와 해결 순서를 고른다.
+            ('recovery-placement-first-counts-placed-card', 'p1', {
+                'lumen_at_recovery': 1, 'placement_first': True,
+            }, {'decision_kinds': ['effect_order'], 'fp_gained': 2,
+                'scheduled_after_recovery': 0}),
+            ('recovery-fp-first-ignores-later-placement', 'p2', {
+                'lumen_at_recovery': 1, 'placement_first': False,
+            }, {'decision_kinds': ['effect_order'], 'fp_gained': 1,
+                'scheduled_after_recovery': 0}),
         ),
     )
     reviews = [

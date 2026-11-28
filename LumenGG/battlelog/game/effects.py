@@ -762,7 +762,7 @@ class EffectResolver:
                     rows.append((source_card.get('owner'), event_context.get('source_zone'), source_card, definition))
         return rows
 
-    def collect(self, event_type, event_context=None, *, depth=0):
+    def collect(self, event_type, event_context=None, *, depth=0, extra=None):
         if depth > MAX_EVENT_DEPTH:
             raise EffectResolutionError('효과 이벤트 깊이 제한을 초과했습니다.')
         event_context = copy.deepcopy(event_context or {})
@@ -1042,6 +1042,15 @@ class EffectResolver:
                             'ability': resolved_ability,
                             'context': context,
                         })
+        for item in extra or []:
+            # 예약 효과는 같은 플레이어가 같은 시점에 유발한 효과와 같은 칸에 넣어
+            # 해결 순서를 고를 수 있게 한다.
+            same_controller = [
+                entry for entry in collected if entry['controller'] == item['controller']
+            ]
+            if same_controller:
+                item['ability']['timing'] = piggyback_timing(item['controller'])
+            collected.append(item)
         self._enqueue_ordered(collected)
         return len(collected)
 
@@ -2184,6 +2193,8 @@ class EffectResolver:
                 'effect_controller': effect.get('effect_controller') or 'scheduled',
                 'preserve_source': bool(effect.get('preserve_source')),
                 'repeat': bool(effect.get('repeat')),
+                'order_with_triggers': bool(effect.get('order_with_triggers')),
+                'label': effect.get('label'),
             })
         elif op == 'request_choice':
             options = self.engine.selector_options(effect.get('selector'), context)

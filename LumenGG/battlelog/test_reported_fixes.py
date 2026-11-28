@@ -2503,3 +2503,79 @@ class StormslayerSpeedImmunityTests(SimpleTestCase):
 
     def test_faster_fixed_speed_still_applies(self):
         self.assertEqual(self.judge({'op': 'fix_speed', 'value': 5}), (5, None))
+
+
+GWIHWA_TEXT = (
+    '①판정 전, 체력 200을 지불한다. 그 후, <7속도 이상 중단 회피 특수 판정을 추가한다. \n'
+    '②[[state:blue_flame]]: 히트/카운터/콤보 시, 이번 턴 리커버리 페이즈에 루멘 존의 '
+    '[[card:RFS-AT-002]] 1장당 1FP를 얻는다. (최대 3)'
+)
+BAMKKACHI_TEXT = (
+    '[[character:muyoung]]은 덱에 [[card:RFS-AT-002]]을 5장까지 추가로 넣을 수 있다.\n'
+    '게임 시작 시, 사이드 덱에서 [[card:RFS-AT-002]]을 3장까지 루멘 존에 배치할 수 있다.\n'
+    '①자신의 체력이 2500 이하일 동안, 자신은 [[state:blue_flame]] 상태를 부여한다.\n'
+    '②겟 페이즈 시, 리스트에서 기술을 패로 가져오는 대신 사이드 덱의 [[card:RFS-AT-002]]을 '
+    '루멘 존에 배치할 수 있다.\n'
+    '③[[state:blue_flame]]: 리커버리 페이즈 시, 사이드 덱의 [[card:RFS-AT-002]]을 2장까지 '
+    '루멘 존에 배치할 수 있다.'
+)
+
+
+class GwihwaRecoveryOrderTests(SimpleTestCase):
+    """귀화 ②의 리커버리 FP와 밤까치 ③의 귀섬 배치는 같은 시점이므로 해결 순서를 고른다(종합 규칙 6.4.1)."""
+
+    def build(self):
+        from .game.drafts import build_effect_draft
+
+        gwihwa = attack('gwihwa', 'p1', code='CB03-AT-027', frame=10, damage=500)
+        passive = {
+            'instance_id': 'bamkkachi', 'kind': 'card', 'owner': 'p1', 'code': 'RFS-PS-001',
+            'name': '밤까치', 'type': '패시브', 'face_up': True,
+        }
+        guisum = [attack(f'guisum-{i}', 'p1', code='RFS-AT-002', frame=3, damage=100) for i in range(2)]
+        state = base_state([], [], hp=2000)
+        state['phase'] = 'battle'
+        state['players']['p1']['zones']['battle'] = [gwihwa]
+        state['players']['p1']['zones'].setdefault('passive', []).append(passive)
+        state['players']['p1']['zones']['side'] = guisum
+        rules = ruleset(gwihwa, *guisum)
+        rules['cards']['CB03-AT-027']['effect_definition'] = build_effect_draft('CB03-AT-027', GWIHWA_TEXT)
+        rules['cards']['RFS-PS-001'] = {
+            **passive, 'effect_definition': build_effect_draft('RFS-PS-001', BAMKKACHI_TEXT),
+        }
+        engine = AutomaticGameEngine.initialize(state, rules, seed='gwihwa', run_startup=False)
+        engine.state['phase'] = 'battle'
+        engine.set_passive('p1', 'blue_flame', value=True)
+        engine._fire('hit', {
+            'controller': 'p1', 'source_card': gwihwa, 'source_card_instance_id': 'gwihwa',
+        })
+        self.assertEqual(len(engine.engine_state['scheduled']), 1)
+        engine.state['phase'] = 'recovery'
+        engine._fire('phase_start', {'phase': 'recovery'})
+        return engine
+
+    def answer(self, engine, picker):
+        decision = engine.engine_state['pending_decision']
+        engine._submit_decision('p1', decision['id'], picker(decision))
+        engine._continue()
+
+    def order(self, ability_id):
+        return lambda decision: [next(
+            str(o['id']) for o in decision['options'] if o.get('ability_id') == ability_id
+        )]
+
+    def test_placing_guisum_first_counts_them(self):
+        engine = self.build()
+        self.assertEqual(engine.engine_state['pending_decision']['kind'], 'effect_order')
+        self.answer(engine, self.order('rfs-ps-001-n3'))
+        self.assertEqual(engine.engine_state['pending_decision']['kind'], 'effect_choice')
+        self.answer(engine, lambda d: ['guisum-0', 'guisum-1'])
+        self.assertIsNone(engine.engine_state.get('pending_decision'))
+        self.assertEqual(engine.state['players']['p1']['fp'], 2)
+        self.assertEqual(engine.engine_state['scheduled'], [])
+
+    def test_fp_first_counts_only_current_lumen(self):
+        engine = self.build()
+        self.answer(engine, self.order('cb03-at-027-n2-scheduled'))
+        self.assertEqual(engine.state['players']['p1']['fp'], 0)
+        self.assertEqual(engine.engine_state['pending_decision']['kind'], 'effect_choice')

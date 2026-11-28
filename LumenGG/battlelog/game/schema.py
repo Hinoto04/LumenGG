@@ -1110,6 +1110,15 @@ def _validate_effect(value, path, issues):
                 issues, f'{path}.repeat',
                 '예약 효과의 반복 여부는 불리언이어야 합니다.',
             )
+        if 'order_with_triggers' in value and not isinstance(
+            value.get('order_with_triggers'), bool,
+        ):
+            _issue(
+                issues, f'{path}.order_with_triggers',
+                '예약 효과의 해결 순서 선택 여부는 불리언이어야 합니다.',
+            )
+        if value.get('label') is not None and not isinstance(value.get('label'), str):
+            _issue(issues, f'{path}.label', '예약 효과의 표시 문구는 문자열이어야 합니다.')
     if op == 'win_game' and value.get('reason') is not None and not str(
         value.get('reason') or ''
     ).strip():

@@ -19824,7 +19824,7 @@ class AutomaticEngineTests(SimpleTestCase):
             ability.passed and len(ability.scenarios) >= 3
             for ability in result.abilities
         ))
-        self.assertEqual(result.as_dict()['scenario_count'], 17)
+        self.assertEqual(result.as_dict()['scenario_count'], 19)
         by_id = {ability.ability_id: ability for ability in result.abilities}
         dodge = {
             item['name']: item

@@ -7285,11 +7285,14 @@ class AutomaticGameEngine:
         parent_depth = context.get('depth')
         context['depth'] = 0 if parent_depth is None else _number(parent_depth) + 1
         self._refresh_continuous_state_grants()
-        self._run_scheduled(event_type, context)
-        self.resolver.collect(event_type, context, depth=context['depth'])
+        ordered_scheduled = []
+        self._run_scheduled(event_type, context, ordered=ordered_scheduled)
+        self.resolver.collect(
+            event_type, context, depth=context['depth'], extra=ordered_scheduled,
+        )
         self.resolver.drain()
 
-    def _run_scheduled(self, event_type, context):
+    def _run_scheduled(self, event_type, context, ordered=None):
         # Iterate a snapshot, but mutate the live queue one item at a time.
         # A scheduled command may recursively fire another event and append a
         # new schedule (for example state loss creating a next-turn lock).
@@ -7382,8 +7385,34 @@ class AutomaticGameEngine:
                     'event': event_type, 'phase': self.state.get('phase'),
                 })
                 continue
+            if matches and item.get('order_with_triggers') and ordered is not None:
+                # 같은 타이밍에 유발된 다른 효과와 함께 해결 순서를 고른다(종합 규칙 6.4.1).
+                # 예: 귀화 ②의 리커버리 FP와 밤까치 ③의 귀섬 배치.
+                ordered.append(self._scheduled_resolution_item(item, scheduled_context))
+                continue
             if matches:
                 self.resolver.execute_effect(item.get('effect') or {}, scheduled_context)
+
+    @staticmethod
+    def _scheduled_resolution_item(item, context):
+        origin = item.get('context') or {}
+        source = origin.get('source_card') or {}
+        ability_id = str(origin.get('ability_id') or 'scheduled')
+        return {
+            'controller': context.get('controller'),
+            'zone': origin.get('source_zone'),
+            'card_instance_id': origin.get('source_card_instance_id'),
+            'card_code': source.get('code'),
+            'ability': {
+                'id': f'{ability_id}-scheduled',
+                'label': item.get('label') or ability_id,
+                'kind': 'effect', 'mode': 'mandatory', 'timing': 'function',
+                'visibility': origin.get('ability_visibility') or 'public',
+                'effects': [copy.deepcopy(item.get('effect') or {})],
+            },
+            'context': context,
+            'scheduled': True,
+        }
 
     def change_hp(self, side, amount, *, source='', context=None):
         if side not in PLAYER_SIDES:

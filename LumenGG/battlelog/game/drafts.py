@@ -14,6 +14,7 @@ from .drafts_cb04 import build_cb04_definition
 
 NUMBER_MARKERS = '①②③④⑤⑥⑦⑧⑨⑩'
 NUMBER_INDEX = {marker: index + 1 for index, marker in enumerate(NUMBER_MARKERS)}
+CB03_AT_027_RECOVERY_LABEL = '귀화 ②: 루멘 존의 [[card:RFS-AT-002]] 1장당 1FP를 얻는다. (최대 3)'
 
 # Physical token cards use normal catalogue codes, while card text refers to
 # stable semantic keys.  Keeping this mapping in the generated definition lets
@@ -13747,6 +13748,10 @@ def build_effect_draft(card_code, text, *, qna_ids=None, detail_text=''):
                     'op': 'schedule',
                     'when': {'event': 'phase_start', 'phase': 'recovery'},
                     'duration': 'turn',
+                    # 리커버리 페이즈 시의 다른 효과(밤까치 ③ 귀섬 배치)와
+                    # 해결 순서를 고를 수 있다(종합 규칙 6.4.1).
+                    'order_with_triggers': True,
+                    'label': CB03_AT_027_RECOVERY_LABEL,
                     'effect': {
                         'op': 'change_fp',
                         'player': {'controller': True},
